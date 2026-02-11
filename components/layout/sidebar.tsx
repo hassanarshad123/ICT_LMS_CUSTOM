@@ -15,6 +15,7 @@ import {
   Briefcase,
   PlayCircle,
   PenTool,
+  Settings,
   LogOut,
   Menu,
   X,
@@ -27,6 +28,7 @@ const navConfig: Record<UserRole, NavItem[]> = {
     { label: 'Students', href: '/admin/students', icon: 'users' },
     { label: 'Teachers', href: '/admin/teachers', icon: 'graduation-cap' },
     { label: 'Course Creators', href: '/admin/course-creators', icon: 'pen-tool' },
+    { label: 'Settings', href: '/admin/settings', icon: 'settings' },
   ],
   'course-creator': [
     { label: 'Dashboard', href: '/course-creator', icon: 'home' },
@@ -59,6 +61,7 @@ const iconMap: Record<string, React.ReactNode> = {
   briefcase: <Briefcase size={20} />,
   'play-circle': <PlayCircle size={20} />,
   'pen-tool': <PenTool size={20} />,
+  settings: <Settings size={20} />,
 };
 
 // Context for mobile sidebar state
