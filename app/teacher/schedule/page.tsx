@@ -56,8 +56,8 @@ export default function TeacherSchedule() {
       {showForm && (
         <div className="bg-white rounded-2xl p-6 card-shadow mb-6">
           <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">New Zoom Class</h3>
-          <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="md:col-span-2">
+          <form onSubmit={handleAdd} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Class Title</label>
               <input type="text" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} placeholder="e.g. Week 13 - Revision" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50" required />
             </div>
@@ -100,9 +100,9 @@ export default function TeacherSchedule() {
           <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">Upcoming Classes</h3>
           <div className="space-y-3">
             {upcoming.map((cls) => (
-              <div key={cls.id} className="bg-white rounded-2xl p-5 card-shadow flex items-center justify-between">
+              <div key={cls.id} className="bg-white rounded-2xl p-4 sm:p-5 card-shadow flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-[#C5D86D] rounded-xl flex items-center justify-center">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#C5D86D] rounded-xl flex items-center justify-center flex-shrink-0">
                     <Video size={22} className="text-[#1A1A1A]" />
                   </div>
                   <div>
@@ -110,7 +110,7 @@ export default function TeacherSchedule() {
                     <p className="text-xs text-gray-500 mt-0.5">{cls.batchName}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-4 ml-14 sm:ml-0">
                   <div className="text-right">
                     <p className="text-sm font-medium text-[#1A1A1A]">{cls.date}</p>
                     <div className="flex items-center gap-1.5 text-xs text-gray-500 justify-end">

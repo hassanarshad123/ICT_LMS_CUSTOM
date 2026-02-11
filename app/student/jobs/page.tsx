@@ -80,8 +80,8 @@ export default function StudentJobs() {
               </button>
 
               {isExpanded && (
-                <div className="px-6 pb-6 pt-0">
-                  <div className="ml-16 border-t border-gray-100 pt-4">
+                <div className="px-4 sm:px-6 pb-6 pt-0">
+                  <div className="ml-0 sm:ml-16 border-t border-gray-100 pt-4">
                     <p className="text-sm text-gray-700 mb-4">{job.description}</p>
                     <div className="mb-4">
                       <h5 className="text-xs font-semibold text-gray-500 uppercase mb-2">Requirements</h5>

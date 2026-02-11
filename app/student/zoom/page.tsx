@@ -20,16 +20,16 @@ export default function StudentZoom() {
           <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">Upcoming Classes</h3>
           <div className="space-y-4">
             {upcoming.map((cls) => (
-              <div key={cls.id} className="bg-white rounded-2xl p-6 card-shadow hover:card-shadow-hover transition-all duration-200">
-                <div className="flex items-start justify-between">
+              <div key={cls.id} className="bg-white rounded-2xl p-4 sm:p-6 card-shadow hover:card-shadow-hover transition-all duration-200">
+                <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
                   <div className="flex items-start gap-4">
-                    <div className="w-14 h-14 bg-[#C5D86D] rounded-2xl flex items-center justify-center flex-shrink-0">
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 bg-[#C5D86D] rounded-2xl flex items-center justify-center flex-shrink-0">
                       <Video size={24} className="text-[#1A1A1A]" />
                     </div>
                     <div>
-                      <h4 className="text-lg font-semibold text-[#1A1A1A]">{cls.title}</h4>
+                      <h4 className="text-base sm:text-lg font-semibold text-[#1A1A1A]">{cls.title}</h4>
                       <p className="text-sm text-gray-500 mt-1">Teacher: {cls.teacherName}</p>
-                      <div className="flex items-center gap-4 mt-3">
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-3">
                         <div className="flex items-center gap-1.5 text-sm text-gray-600">
                           <Calendar size={14} />
                           {cls.date}
@@ -46,7 +46,7 @@ export default function StudentZoom() {
                     href={cls.zoomLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="px-5 py-2.5 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#333] transition-colors flex items-center gap-2 flex-shrink-0"
+                    className="px-5 py-2.5 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#333] transition-colors flex items-center gap-2 flex-shrink-0 w-full sm:w-auto justify-center"
                   >
                     <ExternalLink size={14} />
                     Join Class

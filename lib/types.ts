@@ -39,6 +39,24 @@ export interface Teacher {
   status: 'active' | 'inactive';
 }
 
+export interface CourseCreator {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  status: 'active' | 'inactive';
+}
+
+export interface Course {
+  id: string;
+  title: string;
+  description: string;
+  batchIds: string[];
+  lectureCount: number;
+  totalDuration: string;
+  status: 'active' | 'completed' | 'upcoming';
+}
+
 export interface Lecture {
   id: string;
   title: string;
@@ -49,6 +67,7 @@ export interface Lecture {
   batchName: string;
   uploadDate: string;
   order: number;
+  courseId: string;
 }
 
 export interface ZoomClass {
@@ -79,6 +98,7 @@ export interface Job {
 
 export interface CurriculumModule {
   id: string;
+  courseId: string;
   title: string;
   description: string;
   order: number;

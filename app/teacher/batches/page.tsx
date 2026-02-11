@@ -52,8 +52,8 @@ export default function TeacherBatches() {
               </button>
 
               {isExpanded && batchStudents.length > 0 && (
-                <div className="px-6 pb-6">
-                  <div className="ml-16 space-y-2">
+                <div className="px-4 sm:px-6 pb-6">
+                  <div className="ml-0 sm:ml-16 space-y-2">
                     {batchStudents.map((student) => (
                       <div key={student.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50">
                         <div className="flex items-center gap-3">
@@ -80,8 +80,8 @@ export default function TeacherBatches() {
               )}
 
               {isExpanded && batchStudents.length === 0 && (
-                <div className="px-6 pb-6">
-                  <p className="ml-16 text-sm text-gray-500">No students enrolled yet.</p>
+                <div className="px-4 sm:px-6 pb-6">
+                  <p className="ml-0 sm:ml-16 text-sm text-gray-500">No students enrolled yet.</p>
                 </div>
               )}
             </div>

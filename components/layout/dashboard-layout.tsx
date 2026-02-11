@@ -1,7 +1,7 @@
 'use client';
 
 import { UserRole } from '@/lib/types';
-import Sidebar from './sidebar';
+import Sidebar, { SidebarProvider, MobileTrigger } from './sidebar';
 
 interface DashboardLayoutProps {
   role: UserRole;
@@ -11,11 +11,16 @@ interface DashboardLayoutProps {
 
 export default function DashboardLayout({ role, userName, children }: DashboardLayoutProps) {
   return (
-    <div className="min-h-screen bg-[#F0F0F0]">
-      <Sidebar role={role} userName={userName} />
-      <main className="ml-64 p-8">
-        {children}
-      </main>
-    </div>
+    <SidebarProvider>
+      <div className="min-h-screen bg-[#F0F0F0]">
+        <Sidebar role={role} userName={userName} />
+        <main className="ml-0 md:ml-64 p-4 sm:p-6 md:p-8">
+          <div className="md:hidden mb-4">
+            <MobileTrigger />
+          </div>
+          {children}
+        </main>
+      </div>
+    </SidebarProvider>
   );
 }

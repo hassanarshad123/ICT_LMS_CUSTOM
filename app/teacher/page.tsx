@@ -42,11 +42,11 @@ export default function TeacherDashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Link href="/teacher/batches">
-          <div className="bg-white rounded-2xl p-8 card-shadow hover:card-shadow-hover transition-all duration-200 cursor-pointer group">
+          <div className="bg-white rounded-2xl p-5 sm:p-8 card-shadow hover:card-shadow-hover transition-all duration-200 cursor-pointer group">
             <div className="w-14 h-14 bg-[#C5D86D] rounded-2xl flex items-center justify-center mb-5">
               <Layers size={28} className="text-[#1A1A1A]" />
             </div>
-            <h3 className="text-xl font-bold text-[#1A1A1A] mb-2">My Batches</h3>
+            <h3 className="text-lg sm:text-xl font-bold text-[#1A1A1A] mb-2">My Batches</h3>
             <p className="text-sm text-gray-500 mb-4">View your assigned batches and students</p>
             <div className="flex items-center gap-2 text-sm font-medium text-[#1A1A1A] group-hover:gap-3 transition-all">
               View Batches <ChevronRight size={16} />
@@ -55,11 +55,11 @@ export default function TeacherDashboard() {
         </Link>
 
         <Link href="/teacher/schedule">
-          <div className="bg-white rounded-2xl p-8 card-shadow hover:card-shadow-hover transition-all duration-200 cursor-pointer group">
+          <div className="bg-white rounded-2xl p-5 sm:p-8 card-shadow hover:card-shadow-hover transition-all duration-200 cursor-pointer group">
             <div className="w-14 h-14 bg-[#E8E8E8] rounded-2xl flex items-center justify-center mb-5">
               <Video size={28} className="text-[#1A1A1A]" />
             </div>
-            <h3 className="text-xl font-bold text-[#1A1A1A] mb-2">Schedule Class</h3>
+            <h3 className="text-lg sm:text-xl font-bold text-[#1A1A1A] mb-2">Schedule Class</h3>
             <p className="text-sm text-gray-500 mb-4">Schedule and manage Zoom classes</p>
             <div className="flex items-center gap-2 text-sm font-medium text-[#1A1A1A] group-hover:gap-3 transition-all">
               Manage Classes <ChevronRight size={16} />

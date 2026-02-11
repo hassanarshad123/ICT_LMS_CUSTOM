@@ -26,6 +26,7 @@ export default function CourseCreatorLectures() {
         batchName: batch?.name.split(' - ')[0] || '',
         uploadDate: new Date().toISOString().split('T')[0],
         order: lectureList.length + 1,
+        courseId: '',
       },
     ]);
     setFormData({ title: '', description: '', videoUrl: '', duration: '', batchId: '' });
@@ -49,12 +50,12 @@ export default function CourseCreatorLectures() {
       {showForm && (
         <div className="bg-white rounded-2xl p-6 card-shadow mb-6">
           <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">New Lecture</h3>
-          <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="md:col-span-2">
+          <form onSubmit={handleAdd} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Lecture Title</label>
               <input type="text" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} placeholder="e.g. Introduction to Excel" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50" required />
             </div>
-            <div className="md:col-span-2">
+            <div className="sm:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Description</label>
               <textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} placeholder="Brief description of the lecture" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50 h-24 resize-none" required />
             </div>

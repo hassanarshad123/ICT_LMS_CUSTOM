@@ -48,7 +48,7 @@ export default function AdminBatches() {
       {showForm && (
         <div className="bg-white rounded-2xl p-6 card-shadow mb-6">
           <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">New Batch</h3>
-          <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <form onSubmit={handleAdd} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Batch Name</label>
               <input
@@ -94,7 +94,7 @@ export default function AdminBatches() {
                 required
               />
             </div>
-            <div className="md:col-span-2">
+            <div className="sm:col-span-2">
               <button type="submit" className="px-6 py-3 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#333] transition-colors">
                 Create Batch
               </button>
@@ -105,24 +105,24 @@ export default function AdminBatches() {
 
       <div className="bg-white rounded-2xl card-shadow overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full min-w-[600px]">
             <thead>
               <tr className="border-b border-gray-100">
-                <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Batch Name</th>
-                <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Teacher</th>
-                <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Students</th>
-                <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Duration</th>
-                <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Status</th>
+                <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Batch Name</th>
+                <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Teacher</th>
+                <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Students</th>
+                <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Duration</th>
+                <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Status</th>
               </tr>
             </thead>
             <tbody>
               {batchList.map((batch) => (
                 <tr key={batch.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 text-sm font-medium text-[#1A1A1A]">{batch.name}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{batch.teacherName}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{batch.studentCount}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{batch.startDate} to {batch.endDate}</td>
-                  <td className="px-6 py-4">
+                  <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm font-medium text-[#1A1A1A]">{batch.name}</td>
+                  <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{batch.teacherName}</td>
+                  <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{batch.studentCount}</td>
+                  <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{batch.startDate} to {batch.endDate}</td>
+                  <td className="px-3 sm:px-6 py-3 sm:py-4">
                     <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
                       batch.status === 'active' ? 'bg-green-100 text-green-700' :
                       batch.status === 'upcoming' ? 'bg-yellow-100 text-yellow-700' :

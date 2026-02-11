@@ -32,14 +32,14 @@ export default function LoginPage() {
           <div className="w-16 h-16 rounded-2xl bg-[#1A1A1A] flex items-center justify-center mx-auto mb-4">
             <GraduationCap size={32} className="text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-[#1A1A1A]">ICT Institute</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-[#1A1A1A]">ICT Institute</h1>
           <p className="text-gray-500 mt-2">Learning Management System</p>
         </div>
 
-        <div className="bg-white rounded-2xl p-8 card-shadow">
+        <div className="bg-white rounded-2xl p-5 sm:p-8 card-shadow">
           <h2 className="text-lg font-semibold text-[#1A1A1A] mb-4">Select Your Role</h2>
 
-          <div className="grid grid-cols-2 gap-3 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
             {roles.map((r) => (
               <button
                 key={r.role}

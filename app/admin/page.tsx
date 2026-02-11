@@ -18,14 +18,14 @@ export default function AdminDashboard() {
     <DashboardLayout role="admin" userName="Admin User">
       <DashboardHeader greeting="Good morning, Admin!" subtitle="Here is your institute overview" />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
         {stats.map((stat) => (
           <Link key={stat.label} href={stat.href}>
-            <div className="bg-white rounded-2xl p-6 card-shadow hover:card-shadow-hover transition-all duration-200 cursor-pointer">
-              <div className={`w-10 h-10 ${stat.color} rounded-xl flex items-center justify-center mb-4`}>
+            <div className="bg-white rounded-2xl p-4 sm:p-6 card-shadow hover:card-shadow-hover transition-all duration-200 cursor-pointer">
+              <div className={`w-10 h-10 ${stat.color} rounded-xl flex items-center justify-center mb-3 sm:mb-4`}>
                 {stat.icon}
               </div>
-              <p className="text-3xl font-bold text-[#1A1A1A]">{stat.value}</p>
+              <p className="text-2xl sm:text-3xl font-bold text-[#1A1A1A]">{stat.value}</p>
               <p className="text-sm text-gray-500 mt-1">{stat.label}</p>
             </div>
           </Link>

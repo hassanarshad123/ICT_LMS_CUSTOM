@@ -18,6 +18,7 @@ export default function CourseCreatorCurriculum() {
       ...modules,
       {
         id: `c${Date.now()}`,
+        courseId: '',
         title: formData.title,
         description: formData.description,
         order: modules.length + 1,
@@ -88,7 +89,7 @@ export default function CourseCreatorCurriculum() {
             </button>
             {expandedModule === module.id && (
               <div className="px-6 pb-6 pt-0">
-                <div className="ml-14 space-y-2">
+                <div className="ml-8 sm:ml-14 space-y-2">
                   {module.topics.map((topic, i) => (
                     <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50">
                       <span className="w-6 h-6 rounded-full bg-[#E8E8E8] flex items-center justify-center text-xs font-semibold text-gray-600">
