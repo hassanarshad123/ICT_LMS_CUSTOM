@@ -27,8 +27,6 @@ export default function CourseCreatorCourses() {
       title: title.trim(),
       description: description.trim(),
       batchIds: [],
-      lectureCount: 0,
-      totalDuration: '0 min',
       status: 'upcoming',
     };
     setCourseList([...courseList, newCourse]);

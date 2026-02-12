@@ -15,6 +15,7 @@ import {
   Briefcase,
   PlayCircle,
   PenTool,
+  UserCog,
   Settings,
   LogOut,
   Menu,
@@ -24,6 +25,7 @@ import {
 const navConfig: Record<UserRole, NavItem[]> = {
   admin: [
     { label: 'Dashboard', href: '/admin', icon: 'home' },
+    { label: 'Users', href: '/admin/users', icon: 'user-cog' },
     { label: 'Batches', href: '/admin/batches', icon: 'layers' },
     { label: 'Students', href: '/admin/students', icon: 'users' },
     { label: 'Teachers', href: '/admin/teachers', icon: 'graduation-cap' },
@@ -32,21 +34,25 @@ const navConfig: Record<UserRole, NavItem[]> = {
   ],
   'course-creator': [
     { label: 'Dashboard', href: '/course-creator', icon: 'home' },
+    { label: 'Users', href: '/course-creator/users', icon: 'user-cog' },
     { label: 'Courses', href: '/course-creator/courses', icon: 'book-open' },
     { label: 'Batches', href: '/course-creator/batches', icon: 'layers' },
     { label: 'Jobs', href: '/course-creator/jobs', icon: 'briefcase' },
+    { label: 'Settings', href: '/course-creator/settings', icon: 'settings' },
   ],
   teacher: [
     { label: 'Dashboard', href: '/teacher', icon: 'home' },
     { label: 'My Courses', href: '/teacher/courses', icon: 'book-open' },
     { label: 'My Batches', href: '/teacher/batches', icon: 'layers' },
     { label: 'Schedule Class', href: '/teacher/schedule', icon: 'calendar' },
+    { label: 'Settings', href: '/teacher/settings', icon: 'settings' },
   ],
   student: [
     { label: 'Dashboard', href: '/student', icon: 'home' },
     { label: 'Courses', href: '/student/courses', icon: 'book-open' },
     { label: 'Zoom Classes', href: '/student/zoom', icon: 'video' },
     { label: 'Job Opportunities', href: '/student/jobs', icon: 'briefcase' },
+    { label: 'Settings', href: '/student/settings', icon: 'settings' },
   ],
 };
 
@@ -61,6 +67,7 @@ const iconMap: Record<string, React.ReactNode> = {
   briefcase: <Briefcase size={20} />,
   'play-circle': <PlayCircle size={20} />,
   'pen-tool': <PenTool size={20} />,
+  'user-cog': <UserCog size={20} />,
   settings: <Settings size={20} />,
 };
 

@@ -2,8 +2,8 @@
 
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import DashboardHeader from '@/components/layout/dashboard-header';
-import { courses } from '@/lib/mock-data';
-import { BookOpen, Clock, ChevronRight, PlayCircle } from 'lucide-react';
+import { courses, lectures } from '@/lib/mock-data';
+import { BookOpen, ChevronRight, PlayCircle } from 'lucide-react';
 import Link from 'next/link';
 
 const studentBatchId = 'b3';
@@ -47,11 +47,7 @@ export default function StudentCourses() {
                   <div className="flex items-center gap-4 text-xs text-gray-500 mb-4">
                     <div className="flex items-center gap-1.5">
                       <PlayCircle size={14} />
-                      {course.lectureCount} lectures
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <Clock size={14} />
-                      {course.totalDuration}
+                      {lectures.filter((l) => l.batchId === studentBatchId && l.courseId === course.id).length} lectures
                     </div>
                   </div>
                   <div className="flex items-center gap-2 text-sm font-medium text-[#1A1A1A] group-hover:gap-3 transition-all">

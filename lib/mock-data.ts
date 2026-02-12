@@ -1,4 +1,4 @@
-import { Batch, Student, Teacher, CourseCreator, Course, Lecture, ZoomClass, Job, CurriculumModule } from './types';
+import { Batch, Student, Teacher, CourseCreator, Course, Lecture, ZoomClass, Job, CurriculumModule, CourseMaterial, UnifiedUser, JobApplication } from './types';
 
 export const batches: Batch[] = [
   {
@@ -68,9 +68,9 @@ export const courseCreators: CourseCreator[] = [
 ];
 
 export const courses: Course[] = [
-  { id: 'cr1', title: 'ICT Fundamentals', description: 'Complete course covering computer basics, office tools, internet usage, and data management for everyday business.', batchIds: ['b3'], lectureCount: 5, totalDuration: '4 hr 40 min', status: 'active' },
-  { id: 'cr2', title: 'Digital Skills & Security', description: 'Learn digital marketing, cybersecurity, cloud tools, and professional online communication.', batchIds: ['b3'], lectureCount: 3, totalDuration: '2 hr 25 min', status: 'active' },
-  { id: 'cr3', title: 'Data Science Essentials', description: 'Introduction to data science concepts, Python basics, and data visualization techniques.', batchIds: ['b4'], lectureCount: 0, totalDuration: '0 min', status: 'upcoming' },
+  { id: 'cr1', title: 'ICT Fundamentals', description: 'Complete course covering computer basics, office tools, internet usage, and data management for everyday business.', batchIds: ['b3'], status: 'active' },
+  { id: 'cr2', title: 'Digital Skills & Security', description: 'Learn digital marketing, cybersecurity, cloud tools, and professional online communication.', batchIds: ['b3'], status: 'active' },
+  { id: 'cr3', title: 'Data Science Essentials', description: 'Introduction to data science concepts, Python basics, and data visualization techniques.', batchIds: ['b4'], status: 'upcoming' },
 ];
 
 export const lectures: Lecture[] = [
@@ -108,4 +108,57 @@ export const curriculum: CurriculumModule[] = [
   { id: 'c4', courseId: 'cr1', title: 'Module 4: Digital Marketing', description: 'Promote your business online using social media and digital tools.', order: 4, topics: ['Social Media Marketing', 'Facebook & Instagram for Business', 'Google My Business', 'Content Creation Basics'] },
   { id: 'c5', courseId: 'cr2', title: 'Module 5: Data & Security', description: 'Manage your data safely and protect against online threats.', order: 5, topics: ['Data Organization', 'Cloud Storage (Google Drive)', 'Online Safety & Passwords', 'Avoiding Scams & Phishing'] },
   { id: 'c6', courseId: 'cr2', title: 'Module 6: Final Project', description: 'Apply everything you learned in a real-world business project.', order: 6, topics: ['Project Planning', 'Implementation', 'Presentation', 'Graduation'] },
+];
+
+export const batchMaterials: CourseMaterial[] = [
+  { id: 'm1', batchId: 'b3', batchName: 'Batch 3', courseId: 'cr1', title: 'Computer Basics Handbook', description: 'Complete reference guide covering hardware, software, and operating system fundamentals.', fileName: 'computer-basics-handbook.pdf', fileUrl: '#', fileType: 'pdf', fileSize: '2.4 MB', uploadDate: '2024-08-03', uploadedBy: 'Asad Mehmood', uploadedByRole: 'course-creator' },
+  { id: 'm2', batchId: 'b3', batchName: 'Batch 3', courseId: 'cr1', title: 'Excel Practice Workbook', description: 'Hands-on exercises for spreadsheet formulas, formatting, and data management.', fileName: 'excel-practice-workbook.xlsx', fileUrl: '#', fileType: 'excel', fileSize: '1.8 MB', uploadDate: '2024-08-06', uploadedBy: 'Asad Mehmood', uploadedByRole: 'course-creator' },
+  { id: 'm3', batchId: 'b3', batchName: 'Batch 3', courseId: 'cr1', title: 'PowerPoint Templates Pack', fileName: 'pptx-templates-pack.pptx', fileUrl: '#', fileType: 'pptx', fileSize: '5.2 MB', uploadDate: '2024-08-10', uploadedBy: 'Sara Javed', uploadedByRole: 'course-creator' },
+  { id: 'm4', batchId: 'b3', batchName: 'Batch 3', courseId: 'cr1', title: 'Internet Safety Checklist', description: 'Step-by-step checklist for staying safe online and protecting your accounts.', fileName: 'internet-safety-checklist.pdf', fileUrl: '#', fileType: 'pdf', fileSize: '420 KB', uploadDate: '2024-08-14', uploadedBy: 'Ahmed Khan', uploadedByRole: 'teacher' },
+  { id: 'm5', batchId: 'b3', batchName: 'Batch 3', courseId: 'cr1', title: 'Business Letter Templates', description: 'Professional letter templates for common business correspondence.', fileName: 'business-letter-templates.docx', fileUrl: '#', fileType: 'word', fileSize: '890 KB', uploadDate: '2024-08-18', uploadedBy: 'Ahmed Khan', uploadedByRole: 'teacher' },
+  { id: 'm6', batchId: 'b3', batchName: 'Batch 3', courseId: 'cr2', title: 'Cybersecurity Best Practices', description: 'Comprehensive guide to protecting your digital assets and personal data.', fileName: 'cybersecurity-best-practices.pdf', fileUrl: '#', fileType: 'pdf', fileSize: '1.5 MB', uploadDate: '2024-08-20', uploadedBy: 'Asad Mehmood', uploadedByRole: 'course-creator' },
+  { id: 'm7', batchId: 'b3', batchName: 'Batch 3', courseId: 'cr2', title: 'Cloud Storage Comparison', description: 'Comparison spreadsheet of popular cloud storage services with pricing and features.', fileName: 'cloud-storage-comparison.xlsx', fileUrl: '#', fileType: 'excel', fileSize: '340 KB', uploadDate: '2024-08-24', uploadedBy: 'Sara Javed', uploadedByRole: 'course-creator' },
+  { id: 'm8', batchId: 'b3', batchName: 'Batch 3', courseId: 'cr2', title: 'Email Etiquette Guide', fileName: 'email-etiquette-guide.docx', fileUrl: '#', fileType: 'word', fileSize: '650 KB', uploadDate: '2024-08-27', uploadedBy: 'Ahmed Khan', uploadedByRole: 'teacher' },
+];
+
+export function getAllUsers(): UnifiedUser[] {
+  const studentUsers: UnifiedUser[] = students.map((s) => ({
+    id: s.id,
+    name: s.name,
+    email: s.email,
+    phone: s.phone,
+    role: 'student' as const,
+    status: s.status,
+    batchId: s.batchId,
+    batchName: s.batchName,
+    joinDate: s.joinDate,
+  }));
+
+  const teacherUsers: UnifiedUser[] = teachers.map((t) => ({
+    id: t.id,
+    name: t.name,
+    email: t.email,
+    phone: t.phone,
+    role: 'teacher' as const,
+    status: t.status,
+    specialization: t.specialization,
+    batchIds: t.batchIds,
+  }));
+
+  const ccUsers: UnifiedUser[] = courseCreators.map((cc) => ({
+    id: cc.id,
+    name: cc.name,
+    email: cc.email,
+    phone: cc.phone,
+    role: 'course-creator' as const,
+    status: cc.status,
+  }));
+
+  return [...studentUsers, ...teacherUsers, ...ccUsers];
+}
+
+export const jobApplications: JobApplication[] = [
+  { id: 'ja1', jobId: 'j1', jobTitle: 'Data Entry Operator', company: 'TechVentures Lahore', appliedDate: '2024-10-20', status: 'applied' },
+  { id: 'ja2', jobId: 'j2', jobTitle: 'Social Media Manager', company: 'BrandPro Marketing', appliedDate: '2024-10-25', status: 'shortlisted' },
+  { id: 'ja3', jobId: 'j5', jobTitle: 'Digital Marketing Intern', company: 'StartUp Hub Karachi', appliedDate: '2024-10-28', status: 'rejected' },
 ];

@@ -3,8 +3,9 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
-import { courses, lectures, curriculum } from '@/lib/mock-data';
-import { ArrowLeft, BookOpen, Clock, PlayCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { courses, curriculum, batchMaterials as initialMaterials, batches } from '@/lib/mock-data';
+import { CourseMaterial, MaterialFileType } from '@/lib/types';
+import { ArrowLeft, BookOpen, Clock, ChevronDown, ChevronUp, FileText, Download, Paperclip, Plus, Upload, Layers } from 'lucide-react';
 import Link from 'next/link';
 
 const statusColors: Record<string, string> = {
@@ -13,15 +14,52 @@ const statusColors: Record<string, string> = {
   upcoming: 'bg-yellow-100 text-yellow-700',
 };
 
+const fileTypeConfig: Record<MaterialFileType, { label: string; bgColor: string; textColor: string }> = {
+  pdf: { label: 'PDF', bgColor: 'bg-red-50', textColor: 'text-red-600' },
+  excel: { label: 'XLS', bgColor: 'bg-green-50', textColor: 'text-green-600' },
+  word: { label: 'DOC', bgColor: 'bg-blue-50', textColor: 'text-blue-600' },
+  pptx: { label: 'PPT', bgColor: 'bg-orange-50', textColor: 'text-orange-600' },
+  image: { label: 'IMG', bgColor: 'bg-purple-50', textColor: 'text-purple-600' },
+  archive: { label: 'ZIP', bgColor: 'bg-yellow-50', textColor: 'text-yellow-600' },
+  other: { label: 'FILE', bgColor: 'bg-gray-50', textColor: 'text-gray-600' },
+};
+
 export default function TeacherCourseDetailPage() {
   const params = useParams();
   const courseId = params.courseId as string;
   const course = courses.find((c) => c.id === courseId);
-  const courseLectures = lectures.filter((l) => l.courseId === courseId).sort((a, b) => a.order - b.order);
 
   const [expandedModule, setExpandedModule] = useState<string | null>(null);
-  const [selectedLecture, setSelectedLecture] = useState<string | null>(courseLectures[0]?.id ?? null);
-  const activeLecture = courseLectures.find((l) => l.id === selectedLecture);
+  const [materialList, setMaterialList] = useState<CourseMaterial[]>(initialMaterials);
+  const [showMaterialForm, setShowMaterialForm] = useState(false);
+  const [materialForm, setMaterialForm] = useState({ title: '', description: '', fileName: '', fileType: 'pdf' as MaterialFileType });
+
+  const teacherBatchIds = ['b1', 'b3']; // Ahmed Khan's batches
+  const teacherBatchForCourse = course?.batchIds.find((bid) => teacherBatchIds.includes(bid));
+  const materials = materialList.filter((m) => m.batchId === teacherBatchForCourse && m.courseId === courseId);
+
+  const addMaterial = () => {
+    if (!materialForm.title.trim() || !materialForm.fileName.trim()) return;
+    const batchObj = batches.find((b) => b.id === teacherBatchForCourse);
+    const newMaterial: CourseMaterial = {
+      id: `m${Date.now()}`,
+      batchId: teacherBatchForCourse || '',
+      batchName: batchObj?.name || '',
+      courseId,
+      title: materialForm.title.trim(),
+      description: materialForm.description.trim() || undefined,
+      fileName: materialForm.fileName.trim(),
+      fileUrl: '#',
+      fileType: materialForm.fileType,
+      fileSize: '0 KB',
+      uploadDate: new Date().toISOString().split('T')[0],
+      uploadedBy: 'Ahmed Khan',
+      uploadedByRole: 'teacher',
+    };
+    setMaterialList([...materialList, newMaterial]);
+    setMaterialForm({ title: '', description: '', fileName: '', fileType: 'pdf' });
+    setShowMaterialForm(false);
+  };
 
   if (!course) {
     return (
@@ -57,106 +95,13 @@ export default function TeacherCourseDetailPage() {
                 {course.status.charAt(0).toUpperCase() + course.status.slice(1)}
               </span>
               <div className="flex items-center gap-1.5 text-xs text-gray-400">
-                <PlayCircle size={14} />
-                {course.lectureCount} lectures
-              </div>
-              <div className="flex items-center gap-1.5 text-xs text-gray-400">
-                <Clock size={14} />
-                {course.totalDuration}
+                <Layers size={14} />
+                {course.batchIds.length} batch(es)
               </div>
             </div>
           </div>
         </div>
       </div>
-
-      {/* Video Player + Playlist Side by Side */}
-      <div className="flex flex-col lg:flex-row gap-6 mb-6 sm:mb-8">
-        {/* Left: Video Player */}
-        <div className="flex-1 min-w-0">
-          <div className="bg-[#1A1A1A] rounded-2xl overflow-hidden">
-            <div className="aspect-video bg-gray-800 flex items-center justify-center">
-              <div className="text-center">
-                <PlayCircle size={64} className="text-[#C5D86D] mx-auto mb-3" />
-                <p className="text-white text-sm">
-                  {activeLecture ? activeLecture.title : 'Select a lecture'}
-                </p>
-                <p className="text-gray-400 text-xs mt-1">Video will play here when connected to backend</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right: Lecture Playlist */}
-        <div className="w-full lg:w-80 lg:flex-shrink-0">
-          <div className="bg-white rounded-2xl card-shadow overflow-hidden h-full flex flex-col">
-            <div className="p-4 border-b border-gray-100">
-              <h3 className="font-semibold text-[#1A1A1A] text-sm">Lectures</h3>
-              <p className="text-xs text-gray-400 mt-0.5">{courseLectures.length} lectures</p>
-            </div>
-            <div className="overflow-y-auto flex-1" style={{ maxHeight: 'calc(100% - 56px)' }}>
-              {courseLectures.length === 0 ? (
-                <div className="text-center py-8 px-4">
-                  <PlayCircle size={24} className="text-gray-300 mx-auto mb-2" />
-                  <p className="text-xs text-gray-500">No lectures uploaded yet.</p>
-                </div>
-              ) : (
-                <div className="divide-y divide-gray-50">
-                  {courseLectures.map((lecture, index) => {
-                    const isActive = selectedLecture === lecture.id;
-                    return (
-                      <button
-                        key={lecture.id}
-                        onClick={() => setSelectedLecture(lecture.id)}
-                        className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
-                          isActive
-                            ? 'bg-[#1A1A1A] text-white'
-                            : 'hover:bg-gray-50 text-[#1A1A1A]'
-                        }`}
-                      >
-                        <div
-                          className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold ${
-                            isActive
-                              ? 'bg-[#C5D86D] text-[#1A1A1A]'
-                              : 'bg-gray-100 text-gray-500'
-                          }`}
-                        >
-                          {index + 1}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-medium truncate ${isActive ? 'text-white' : 'text-[#1A1A1A]'}`}>
-                            {lecture.title}
-                          </p>
-                          <div className={`flex items-center gap-1 text-xs mt-0.5 ${isActive ? 'text-gray-300' : 'text-gray-400'}`}>
-                            <Clock size={10} />
-                            {lecture.duration}
-                          </div>
-                        </div>
-                        {isActive && <PlayCircle size={16} className="text-[#C5D86D] flex-shrink-0" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Lecture Info */}
-      {activeLecture && (
-        <div className="bg-white rounded-2xl card-shadow p-6 mb-8">
-          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-2">{activeLecture.title}</h3>
-          <p className="text-sm text-gray-600 mb-3">{activeLecture.description}</p>
-          <div className="flex items-center gap-4 text-xs text-gray-400">
-            <div className="flex items-center gap-1.5">
-              <Clock size={12} />
-              {activeLecture.duration}
-            </div>
-            <span className="text-gray-300">|</span>
-            <span>Uploaded {activeLecture.uploadDate}</span>
-          </div>
-        </div>
-      )}
 
       {/* Curriculum Modules */}
       <div className="bg-white rounded-2xl card-shadow p-6">
@@ -199,6 +144,136 @@ export default function TeacherCourseDetailPage() {
             );
           })}
         </div>
+      </div>
+
+      {/* Course Materials */}
+      <div className="bg-white rounded-2xl card-shadow p-6 mt-8">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <Paperclip size={20} className="text-[#1A1A1A]" />
+            <h3 className="text-lg font-semibold text-[#1A1A1A]">Course Materials</h3>
+            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+              {materials.length}
+            </span>
+          </div>
+          {!showMaterialForm && (
+            <button
+              onClick={() => setShowMaterialForm(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-[#1A1A1A] text-white text-sm font-medium rounded-xl hover:bg-[#333] transition-colors"
+            >
+              <Plus size={14} />
+              Upload Material
+            </button>
+          )}
+        </div>
+
+        {showMaterialForm && (
+          <div className="bg-gray-50 rounded-xl p-5 mb-4">
+            <h4 className="text-sm font-semibold text-[#1A1A1A] mb-4">Upload New Material</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Title</label>
+                <input
+                  type="text"
+                  value={materialForm.title}
+                  onChange={(e) => setMaterialForm({ ...materialForm, title: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A1A1A] focus:border-transparent"
+                  placeholder="Material title"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">File Type</label>
+                <select
+                  value={materialForm.fileType}
+                  onChange={(e) => setMaterialForm({ ...materialForm, fileType: e.target.value as MaterialFileType })}
+                  className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A1A1A] focus:border-transparent bg-white"
+                >
+                  <option value="pdf">PDF</option>
+                  <option value="excel">Excel</option>
+                  <option value="word">Word</option>
+                  <option value="pptx">PowerPoint</option>
+                  <option value="image">Image</option>
+                  <option value="archive">Archive</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Description (optional)</label>
+                <input
+                  type="text"
+                  value={materialForm.description}
+                  onChange={(e) => setMaterialForm({ ...materialForm, description: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A1A1A] focus:border-transparent"
+                  placeholder="Brief description of the material"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">File</label>
+                <div className="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center mb-2">
+                  <Upload size={20} className="text-gray-400 mx-auto mb-1" />
+                  <p className="text-xs text-gray-500">Click to browse or drag and drop</p>
+                </div>
+                <input
+                  type="text"
+                  value={materialForm.fileName}
+                  onChange={(e) => setMaterialForm({ ...materialForm, fileName: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A1A1A] focus:border-transparent"
+                  placeholder="filename.pdf"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={addMaterial}
+                className="px-5 py-2.5 bg-[#1A1A1A] text-white text-sm font-medium rounded-xl hover:bg-[#333] transition-colors"
+              >
+                Upload
+              </button>
+              <button
+                onClick={() => { setShowMaterialForm(false); setMaterialForm({ title: '', description: '', fileName: '', fileType: 'pdf' }); }}
+                className="px-5 py-2.5 bg-gray-100 text-gray-600 text-sm font-medium rounded-xl hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {materials.length === 0 ? (
+          <div className="text-center py-8">
+            <FileText size={28} className="text-gray-300 mx-auto mb-2" />
+            <p className="text-sm text-gray-500">No materials uploaded for this course yet.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {materials.map((material) => {
+              const config = fileTypeConfig[material.fileType];
+              return (
+                <div key={material.id} className="border border-gray-100 rounded-xl p-4 flex items-start gap-4">
+                  <div className={`w-12 h-12 ${config.bgColor} rounded-xl flex items-center justify-center flex-shrink-0`}>
+                    <span className={`text-xs font-bold ${config.textColor}`}>{config.label}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-medium text-sm text-[#1A1A1A] truncate">{material.title}</h4>
+                    {material.description && (
+                      <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{material.description}</p>
+                    )}
+                    <div className="flex items-center gap-2 mt-2 text-xs text-gray-400">
+                      <span>{material.fileSize}</span>
+                      <span className="text-gray-300">|</span>
+                      <span>{material.uploadDate}</span>
+                      <span className="text-gray-300">|</span>
+                      <span>by {material.uploadedBy}</span>
+                    </div>
+                  </div>
+                  <button className="flex-shrink-0 p-2 bg-[#1A1A1A] text-white rounded-lg hover:bg-[#333] transition-colors">
+                    <Download size={14} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );

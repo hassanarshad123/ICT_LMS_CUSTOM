@@ -47,13 +47,34 @@ export interface CourseCreator {
   status: 'active' | 'inactive';
 }
 
+export interface UnifiedUser {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  role: 'student' | 'teacher' | 'course-creator';
+  status: 'active' | 'inactive';
+  batchId?: string;
+  batchName?: string;
+  joinDate?: string;
+  specialization?: string;
+  batchIds?: string[];
+}
+
+export interface JobApplication {
+  id: string;
+  jobId: string;
+  jobTitle: string;
+  company: string;
+  appliedDate: string;
+  status: 'applied' | 'shortlisted' | 'rejected';
+}
+
 export interface Course {
   id: string;
   title: string;
   description: string;
   batchIds: string[];
-  lectureCount: number;
-  totalDuration: string;
   status: 'active' | 'completed' | 'upcoming';
 }
 
@@ -103,6 +124,24 @@ export interface CurriculumModule {
   description: string;
   order: number;
   topics: string[];
+}
+
+export type MaterialFileType = 'pdf' | 'excel' | 'word' | 'pptx' | 'image' | 'archive' | 'other';
+
+export interface CourseMaterial {
+  id: string;
+  batchId: string;
+  batchName: string;
+  courseId?: string;
+  title: string;
+  description?: string;
+  fileName: string;
+  fileUrl: string;
+  fileType: MaterialFileType;
+  fileSize: string;
+  uploadDate: string;
+  uploadedBy: string;
+  uploadedByRole: 'course-creator' | 'teacher';
 }
 
 export interface NavItem {

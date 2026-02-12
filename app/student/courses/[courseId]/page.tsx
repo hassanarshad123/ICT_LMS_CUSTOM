@@ -3,8 +3,9 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
-import { courses, lectures, curriculum, zoomClasses } from '@/lib/mock-data';
-import { ArrowLeft, BookOpen, Clock, PlayCircle, ChevronDown, ChevronUp, Video } from 'lucide-react';
+import { courses, lectures, curriculum, zoomClasses, batchMaterials } from '@/lib/mock-data';
+import { MaterialFileType } from '@/lib/types';
+import { ArrowLeft, BookOpen, Clock, PlayCircle, ChevronDown, ChevronUp, Video, FileText, Download, Paperclip } from 'lucide-react';
 import Link from 'next/link';
 
 const statusColors: Record<string, string> = {
@@ -13,13 +14,24 @@ const statusColors: Record<string, string> = {
   upcoming: 'bg-yellow-100 text-yellow-700',
 };
 
+const fileTypeConfig: Record<MaterialFileType, { label: string; bgColor: string; textColor: string }> = {
+  pdf: { label: 'PDF', bgColor: 'bg-red-50', textColor: 'text-red-600' },
+  excel: { label: 'XLS', bgColor: 'bg-green-50', textColor: 'text-green-600' },
+  word: { label: 'DOC', bgColor: 'bg-blue-50', textColor: 'text-blue-600' },
+  pptx: { label: 'PPT', bgColor: 'bg-orange-50', textColor: 'text-orange-600' },
+  image: { label: 'IMG', bgColor: 'bg-purple-50', textColor: 'text-purple-600' },
+  archive: { label: 'ZIP', bgColor: 'bg-yellow-50', textColor: 'text-yellow-600' },
+  other: { label: 'FILE', bgColor: 'bg-gray-50', textColor: 'text-gray-600' },
+};
+
 export default function CourseDetailPage() {
   const params = useParams();
   const courseId = params.courseId as string;
+  const studentBatchId = 'b3';
   const course = courses.find((c) => c.id === courseId);
-  const courseLectures = lectures.filter((l) => l.courseId === courseId).sort((a, b) => a.order - b.order);
+  const courseLectures = lectures.filter((l) => l.batchId === studentBatchId && l.courseId === courseId).sort((a, b) => a.order - b.order);
   const courseRecordings = zoomClasses.filter(
-    (z) => z.status === 'completed' && course?.batchIds.includes(z.batchId)
+    (z) => z.status === 'completed' && z.batchId === studentBatchId
   );
 
   const [expandedModule, setExpandedModule] = useState<string | null>(null);
@@ -75,10 +87,6 @@ export default function CourseDetailPage() {
               <div className="flex items-center gap-1.5 text-xs text-gray-400">
                 <Video size={14} />
                 {courseRecordings.length} recordings
-              </div>
-              <div className="flex items-center gap-1.5 text-xs text-gray-400">
-                <Clock size={14} />
-                {course.totalDuration}
               </div>
             </div>
           </div>
@@ -291,6 +299,57 @@ export default function CourseDetailPage() {
           })}
         </div>
       </div>
+
+      {/* Course Materials */}
+      {(() => {
+        const materials = batchMaterials.filter((m) => m.batchId === studentBatchId && m.courseId === courseId);
+        return (
+          <div className="bg-white rounded-2xl card-shadow p-6 mt-8">
+            <div className="flex items-center gap-3 mb-4">
+              <Paperclip size={20} className="text-[#1A1A1A]" />
+              <h3 className="text-lg font-semibold text-[#1A1A1A]">Course Materials</h3>
+              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                {materials.length}
+              </span>
+            </div>
+            {materials.length === 0 ? (
+              <div className="text-center py-8">
+                <FileText size={28} className="text-gray-300 mx-auto mb-2" />
+                <p className="text-sm text-gray-500">No materials uploaded for this course yet.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {materials.map((material) => {
+                  const config = fileTypeConfig[material.fileType];
+                  return (
+                    <div key={material.id} className="border border-gray-100 rounded-xl p-4 flex items-start gap-4">
+                      <div className={`w-12 h-12 ${config.bgColor} rounded-xl flex items-center justify-center flex-shrink-0`}>
+                        <span className={`text-xs font-bold ${config.textColor}`}>{config.label}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-sm text-[#1A1A1A] truncate">{material.title}</h4>
+                        {material.description && (
+                          <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{material.description}</p>
+                        )}
+                        <div className="flex items-center gap-2 mt-2 text-xs text-gray-400">
+                          <span>{material.fileSize}</span>
+                          <span className="text-gray-300">|</span>
+                          <span>{material.uploadDate}</span>
+                          <span className="text-gray-300">|</span>
+                          <span>by {material.uploadedBy}</span>
+                        </div>
+                      </div>
+                      <button className="flex-shrink-0 p-2 bg-[#1A1A1A] text-white rounded-lg hover:bg-[#333] transition-colors">
+                        <Download size={14} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </DashboardLayout>
   );
 }

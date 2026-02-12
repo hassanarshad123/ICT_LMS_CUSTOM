@@ -37,7 +37,6 @@ export default function TeacherSchedule() {
   };
 
   const upcoming = classes.filter((c) => c.status === 'upcoming');
-  const completed = classes.filter((c) => c.status === 'completed');
 
   return (
     <DashboardLayout role="teacher" userName="Ahmed Khan">
@@ -128,30 +127,6 @@ export default function TeacherSchedule() {
         </div>
       )}
 
-      {completed.length > 0 && (
-        <div>
-          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">Past Classes</h3>
-          <div className="space-y-3">
-            {completed.map((cls) => (
-              <div key={cls.id} className="bg-white rounded-2xl p-5 card-shadow flex items-center justify-between opacity-60">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center">
-                    <Video size={22} className="text-gray-400" />
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-[#1A1A1A]">{cls.title}</h4>
-                    <p className="text-xs text-gray-500 mt-0.5">{cls.batchName}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-medium text-gray-600">{cls.date}</p>
-                  <p className="text-xs text-gray-500">{cls.time}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </DashboardLayout>
   );
 }

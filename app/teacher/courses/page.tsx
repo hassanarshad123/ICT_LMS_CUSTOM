@@ -2,8 +2,8 @@
 
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import DashboardHeader from '@/components/layout/dashboard-header';
-import { batches, courses, lectures } from '@/lib/mock-data';
-import { BookOpen, ChevronRight, Clock, PlayCircle, Users } from 'lucide-react';
+import { batches, courses } from '@/lib/mock-data';
+import { BookOpen, ChevronRight, Users } from 'lucide-react';
 import Link from 'next/link';
 
 const teacherBatches = batches.filter((b) => b.teacherId === 't1');
@@ -34,7 +34,6 @@ export default function TeacherCourses() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {teacherCourses.map((course) => {
             const batch = teacherBatches.find((b) => course.batchIds.includes(b.id));
-            const lectureCount = lectures.filter((l) => l.courseId === course.id).length;
             return (
               <Link key={course.id} href={`/teacher/courses/${course.id}`}>
                 <div className="bg-white rounded-2xl card-shadow hover:card-shadow-hover transition-all duration-200 cursor-pointer group overflow-hidden">
@@ -51,12 +50,8 @@ export default function TeacherCourses() {
                     <p className="text-sm text-gray-500 line-clamp-2 mb-4">{course.description}</p>
                     <div className="flex items-center gap-4 text-xs text-gray-500 mb-4">
                       <div className="flex items-center gap-1.5">
-                        <PlayCircle size={14} />
-                        {lectureCount} lectures
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <Clock size={14} />
-                        {course.totalDuration}
+                        <Users size={14} />
+                        {course.batchIds.length} batch(es)
                       </div>
                     </div>
                     {batch && (
