@@ -2,15 +2,17 @@
 
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import DashboardHeader from '@/components/layout/dashboard-header';
+import { useAuth } from '@/lib/auth-context';
 import { courses, lectures, jobs } from '@/lib/mock-data';
 import { BookOpen, Briefcase, ChevronRight, Clock, PlayCircle } from 'lucide-react';
 import Link from 'next/link';
 
-const studentBatchId = 'b3';
-const studentCourses = courses.filter((c) => c.batchIds.includes(studentBatchId));
-const studentLectures = lectures.filter((l) => l.batchId === studentBatchId);
-
 export default function StudentDashboard() {
+  const user = useAuth();
+  const studentBatchId = user.batchId!;
+  const studentCourses = courses.filter((c) => c.batchIds.includes(studentBatchId));
+  const studentLectures = lectures.filter((l) => l.batchId === studentBatchId);
+
   return (
     <DashboardLayout role="student" userName="Muhammad Imran">
       <DashboardHeader greeting="Welcome, Imran!" subtitle="Continue your learning journey" />

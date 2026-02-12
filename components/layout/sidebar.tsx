@@ -16,6 +16,8 @@ import {
   PlayCircle,
   PenTool,
   UserCog,
+  Smartphone,
+  BarChart3,
   Settings,
   LogOut,
   Menu,
@@ -30,6 +32,8 @@ const navConfig: Record<UserRole, NavItem[]> = {
     { label: 'Students', href: '/admin/students', icon: 'users' },
     { label: 'Teachers', href: '/admin/teachers', icon: 'graduation-cap' },
     { label: 'Course Creators', href: '/admin/course-creators', icon: 'pen-tool' },
+    { label: 'Devices', href: '/admin/devices', icon: 'smartphone' },
+    { label: 'Insights', href: '/admin/insights', icon: 'bar-chart-3' },
     { label: 'Settings', href: '/admin/settings', icon: 'settings' },
   ],
   'course-creator': [
@@ -68,6 +72,8 @@ const iconMap: Record<string, React.ReactNode> = {
   'play-circle': <PlayCircle size={20} />,
   'pen-tool': <PenTool size={20} />,
   'user-cog': <UserCog size={20} />,
+  smartphone: <Smartphone size={20} />,
+  'bar-chart-3': <BarChart3 size={20} />,
   settings: <Settings size={20} />,
 };
 

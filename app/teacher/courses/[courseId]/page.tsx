@@ -3,30 +3,20 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
-import { courses, curriculum, batchMaterials as initialMaterials, batches } from '@/lib/mock-data';
+import { courses, curriculum, batchMaterials as initialMaterials, batches, teachers } from '@/lib/mock-data';
 import { CourseMaterial, MaterialFileType } from '@/lib/types';
+import { statusColors, fileTypeConfig } from '@/lib/constants';
+import { useAuth } from '@/lib/auth-context';
 import { ArrowLeft, BookOpen, Clock, ChevronDown, ChevronUp, FileText, Download, Paperclip, Plus, Upload, Layers } from 'lucide-react';
 import Link from 'next/link';
 
-const statusColors: Record<string, string> = {
-  active: 'bg-green-100 text-green-700',
-  completed: 'bg-gray-100 text-gray-600',
-  upcoming: 'bg-yellow-100 text-yellow-700',
-};
 
-const fileTypeConfig: Record<MaterialFileType, { label: string; bgColor: string; textColor: string }> = {
-  pdf: { label: 'PDF', bgColor: 'bg-red-50', textColor: 'text-red-600' },
-  excel: { label: 'XLS', bgColor: 'bg-green-50', textColor: 'text-green-600' },
-  word: { label: 'DOC', bgColor: 'bg-blue-50', textColor: 'text-blue-600' },
-  pptx: { label: 'PPT', bgColor: 'bg-orange-50', textColor: 'text-orange-600' },
-  image: { label: 'IMG', bgColor: 'bg-purple-50', textColor: 'text-purple-600' },
-  archive: { label: 'ZIP', bgColor: 'bg-yellow-50', textColor: 'text-yellow-600' },
-  other: { label: 'FILE', bgColor: 'bg-gray-50', textColor: 'text-gray-600' },
-};
 
 export default function TeacherCourseDetailPage() {
   const params = useParams();
   const courseId = params.courseId as string;
+  const user = useAuth();
+  const teacher = teachers.find((t) => t.id === user.teacherId);
   const course = courses.find((c) => c.id === courseId);
 
   const [expandedModule, setExpandedModule] = useState<string | null>(null);
@@ -34,7 +24,7 @@ export default function TeacherCourseDetailPage() {
   const [showMaterialForm, setShowMaterialForm] = useState(false);
   const [materialForm, setMaterialForm] = useState({ title: '', description: '', fileName: '', fileType: 'pdf' as MaterialFileType });
 
-  const teacherBatchIds = ['b1', 'b3']; // Ahmed Khan's batches
+  const teacherBatchIds = teacher?.batchIds || [];
   const teacherBatchForCourse = course?.batchIds.find((bid) => teacherBatchIds.includes(bid));
   const materials = materialList.filter((m) => m.batchId === teacherBatchForCourse && m.courseId === courseId);
 
@@ -53,7 +43,7 @@ export default function TeacherCourseDetailPage() {
       fileType: materialForm.fileType,
       fileSize: '0 KB',
       uploadDate: new Date().toISOString().split('T')[0],
-      uploadedBy: 'Ahmed Khan',
+      uploadedBy: user.name,
       uploadedByRole: 'teacher',
     };
     setMaterialList([...materialList, newMaterial]);

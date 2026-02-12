@@ -2,15 +2,17 @@
 
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import DashboardHeader from '@/components/layout/dashboard-header';
+import { useAuth } from '@/lib/auth-context';
 import { zoomClasses } from '@/lib/mock-data';
 import { Video, ExternalLink, Clock, Calendar } from 'lucide-react';
 
-const studentBatchId = 'b3';
-const studentClasses = zoomClasses.filter((z) => z.batchId === studentBatchId);
-const upcoming = studentClasses.filter((z) => z.status === 'upcoming');
-const completed = studentClasses.filter((z) => z.status === 'completed');
-
 export default function StudentZoom() {
+  const user = useAuth();
+  const studentBatchId = user.batchId!;
+  const studentClasses = zoomClasses.filter((z) => z.batchId === studentBatchId);
+  const upcoming = studentClasses.filter((z) => z.status === 'upcoming');
+  const completed = studentClasses.filter((z) => z.status === 'completed');
+
   return (
     <DashboardLayout role="student" userName="Muhammad Imran">
       <DashboardHeader greeting="Zoom Classes" subtitle="Your live class schedule" />

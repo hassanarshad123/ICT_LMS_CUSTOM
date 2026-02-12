@@ -7,12 +7,7 @@ import { courses as initialCourses, lectures, batches } from '@/lib/mock-data';
 import { Course } from '@/lib/types';
 import { BookOpen, Plus, PlayCircle, Layers } from 'lucide-react';
 import Link from 'next/link';
-
-const statusColors: Record<string, string> = {
-  active: 'bg-green-100 text-green-700',
-  completed: 'bg-gray-100 text-gray-600',
-  upcoming: 'bg-yellow-100 text-yellow-700',
-};
+import { statusColors } from '@/lib/constants';
 
 export default function CourseCreatorCourses() {
   const [courseList, setCourseList] = useState<Course[]>(initialCourses);

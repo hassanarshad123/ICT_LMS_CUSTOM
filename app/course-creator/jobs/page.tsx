@@ -5,14 +5,8 @@ import DashboardLayout from '@/components/layout/dashboard-layout';
 import DashboardHeader from '@/components/layout/dashboard-header';
 import { jobs as initialJobs } from '@/lib/mock-data';
 import { Job } from '@/lib/types';
+import { jobTypeColors } from '@/lib/constants';
 import { Plus, Briefcase, MapPin, DollarSign, Clock, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
-
-const typeColors: Record<string, string> = {
-  'full-time': 'bg-green-100 text-green-700',
-  'part-time': 'bg-blue-100 text-blue-700',
-  internship: 'bg-yellow-100 text-yellow-700',
-  remote: 'bg-teal-100 text-teal-700',
-};
 
 export default function CourseCreatorJobs() {
   const [jobList, setJobList] = useState<Job[]>(initialJobs);
@@ -204,7 +198,7 @@ export default function CourseCreatorJobs() {
                       <h4 className="font-semibold text-[#1A1A1A]">{job.title}</h4>
                       <p className="text-sm text-gray-500 mt-0.5">{job.company}</p>
                       <div className="flex items-center gap-3 mt-2 flex-wrap">
-                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${typeColors[job.type]}`}>
+                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${jobTypeColors[job.type]}`}>
                           {job.type}
                         </span>
                         <span className="flex items-center gap-1 text-xs text-gray-400">

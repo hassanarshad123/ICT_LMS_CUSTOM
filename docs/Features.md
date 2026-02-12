@@ -66,11 +66,25 @@ The system has 4 roles. Each role sees a different sidebar, different pages, and
 
 ### Settings
 - Admin can access a Settings page from the sidebar.
+- **Account Settings:**
+  - Admin can edit their own name, email, and phone number.
+  - Admin can change their password (current password + new password + confirm new password).
+  - Password mismatch validation is enforced before saving.
 - **Session Settings:**
   - Shows the current maximum device limit (default: 2).
   - Admin can increase or decrease this number using a stepper control (+/- buttons).
   - Minimum allowed value: 1. No maximum cap.
   - Changes take effect immediately after saving.
+
+### Insights
+- Admin can access an Insights page from the sidebar showing a visual overview of institute performance.
+- **8 KPI Cards:** Total Students, Active Batches, Total Courses, Active Sessions, Total Lectures, Materials Uploaded, Users at Device Limit, Total Teachers.
+- **11 Charts across 4 sections:**
+  - **Student & Enrollment (3 charts):** Student Status donut, Enrollment per Batch bar chart, Enrollment Growth area chart.
+  - **Batch Performance (3 charts):** Batch Status donut, Students per Batch bar chart, Teacher Workload grouped bar chart.
+  - **Course & Content (3 charts):** Course Status donut, Lectures per Course horizontal bar chart, Materials by Type pie chart.
+  - **Device & Security (2 charts):** Device Sessions Overview donut, Monthly Sessions & Issues dual area chart.
+- All data is derived from existing entities (students, batches, courses, teachers, lectures, materials, device sessions). No new data entry required.
 
 ### Manage Course Creators
 - Admin can see all course creators displayed as cards.
@@ -94,30 +108,25 @@ The system has 4 roles. Each role sees a different sidebar, different pages, and
 - Clicking a course card opens the Course Detail page.
 
 ### Course Detail Page
-The course detail page has a dark header banner showing: course title, description, status, lecture count, batch count, total duration. Below that, there are two tabs:
+The course detail page has a dark header banner showing: course title, description, status, lecture count, batch count. Below the header, there is a Batches section and a Curriculum section (no tabs — both are always visible).
 
-#### Batches Tab
+#### Batches Section
 - Shows all batches assigned to this course.
 - Course Creator can assign an existing batch to the course (dropdown of unassigned batches).
 - Course Creator can remove a batch from the course.
+- Each batch card shows a **"Manage Content"** button that navigates to the Batch Content Page for that batch (see below).
 - Each batch is expandable. When expanded, it shows:
   - Batch metadata: name, status, student count, date range.
   - A list of all students in that batch (name, email, status).
   - An inline form to add a new student to that batch (name, email, phone).
 
-#### Content Tab
-- **Lectures section:**
-  - Shows all lectures belonging to this course, ordered by sequence.
-  - Course Creator can add a lecture by providing: title, duration, description, and video.
-  - For video, Course Creator can either upload a video file directly OR paste an external link (YouTube, Vimeo, Google Drive).
-  - Course Creator can delete a lecture.
-
-- **Curriculum section:**
-  - Shows all curriculum modules belonging to this course, ordered by sequence.
-  - Each module has: title, description, and a list of topics.
-  - Course Creator can add a module by providing: title, description, and a comma-separated list of topics.
-  - Course Creator can delete a module.
-  - Topics are displayed as a numbered or bulleted list inside each module.
+#### Curriculum Section
+- Always visible below the Batches section (not inside a tab).
+- Shows all curriculum modules belonging to this course, ordered by sequence.
+- Each module has: title, description, and a list of topics.
+- Course Creator can add a module by providing: title, description, and a comma-separated list of topics.
+- Course Creator can delete a module.
+- Topics are displayed as a numbered or bulleted list inside each module.
 
 ### Manage Batches (Course Creator)
 - Course Creator can see all batches displayed as expandable cards.
@@ -128,16 +137,21 @@ The course detail page has a dark header banner showing: course title, descripti
   - Student list (name, email, phone, status) with a remove button per student.
   - An inline form to add a new student (name, email, phone).
 
-### Manage Lectures (Standalone Page)
-- Course Creator can see all lectures as a list with drag handles (for future reordering).
-- Each item shows: lecture number, title, description, duration, batch name.
-- Course Creator can add a new lecture by providing: title, description, video URL, duration, and batch (dropdown).
+### Batch Content Page
+- Accessed via the "Manage Content" button on a batch card in the Course Detail Page.
+- Content is grouped by course within the batch. Each course assigned to the batch has its own collapsible section.
+- **Per-course sections** contain:
+  - **Lectures:** Full CRUD for lectures scoped to this batch + course. Course Creator can add a lecture by providing: title, duration, description, and video (upload or external link). Course Creator can delete a lecture.
+  - **Materials:** Full CRUD for materials scoped to this batch + course. Course Creator can upload a material by providing: title, file type, optional description, and a file. Supported file types: PDF, Excel, Word, PowerPoint, Image, Archive, Other. Course Creator can delete any material.
+- **Zoom Recordings section:** Shows all completed Zoom class recordings for this batch (batch-wide, not per-course). Each recording shows: title, date, teacher name, and a play/download link.
 
-### Manage Curriculum (Standalone Page)
-- Course Creator can see all curriculum modules as expandable cards.
-- Each card shows: module icon, title, description, topic count.
-- When expanded, shows numbered list of topics.
-- Course Creator can add a new module by providing: title, description, and topics (one per line).
+> **Note:** The standalone "Manage Lectures" and "Manage Curriculum" pages have been removed. Lectures and materials are now managed per-batch from the Batch Content Page. Curriculum remains at the course level and is managed from the Course Detail Page.
+
+### Settings
+- Course Creator can access a Settings page from the sidebar.
+- Course Creator can edit their own name, email, and phone number.
+- Course Creator can change their password (current password + new password + confirm new password).
+- Password mismatch validation is enforced before saving.
 
 ### Post & Manage Jobs
 - Course Creator can see all posted jobs as expandable cards.
@@ -157,31 +171,38 @@ The course detail page has a dark header banner showing: course title, descripti
 
 ### View My Courses
 - Teacher can see all courses assigned to their batches as cards.
-- Each card shows: status, title, description, lecture count, duration, batch name, student count.
+- Each card shows: status, title, description, duration, batch name, student count.
 - Clicking a card opens the Course Detail page.
+- **Note:** Teachers cannot see lecture counts or access video content.
 
 ### Course Detail Page (Teacher View)
-- Dark header with: course title, description, status, lecture count, total duration.
-- **Video Player area** — placeholder that will stream the selected lecture.
-- **Lecture Playlist sidebar** — numbered list of all lectures. Teacher can click any lecture to select it.
-- **Lecture Info card** below the video — shows: title, description, duration, upload date of the currently selected lecture.
+- Dark header with: course title, description, status, total duration.
 - **Curriculum section** — expandable modules showing topics inside each module.
+- **Course Materials section** — shows materials filtered to the teacher's assigned batch (not all batches).
+  - Teacher can upload new materials by providing: title, file type, optional description, and a file. Uploaded materials are associated with the teacher's batch.
+  - Materials uploaded by teachers are tagged with `uploadedByRole: 'teacher'`.
+- **Note:** Teachers do not have access to the video player, lecture playlist, or lecture details. Video content is only accessible to students.
 
 ### View My Batches
 - Teacher can see all batches assigned to them as expandable cards.
 - Each card shows: batch name, date range, student count, status.
 - When expanded, shows: list of students with name, email, phone, and status.
 
+### Settings
+- Teacher can access a Settings page from the sidebar.
+- Teacher can edit their own name, email, and phone number.
+- Teacher can view their specialization (read-only, not editable).
+- Teacher can change their password (current password + new password + confirm new password).
+- Password mismatch validation is enforced before saving.
+
 ### Schedule Zoom Classes
-- Teacher can see upcoming classes and past classes in separate sections.
+- Teacher can see upcoming classes only (past/completed classes are not shown).
 - Teacher can schedule a new class by providing: class title, batch (dropdown of their batches), Zoom link, date, time, and duration.
 - **Zoom API Integration:**
   - When scheduling a class, the system auto-creates a Zoom meeting via the Zoom API.
   - The system syncs the meeting status (upcoming → live → ended).
   - The "Join Class" button only appears when the class is live.
-  - Past classes show as completed and grayed out.
 - Upcoming class cards show: title, batch, date, time, duration, and a Join button (opens Zoom).
-- Past class cards show: title, batch, date, time (grayed out).
 
 ---
 
@@ -193,18 +214,22 @@ The course detail page has a dark header banner showing: course title, descripti
 
 ### View My Courses
 - Student can see all courses their batch is enrolled in as cards.
-- Each card shows: status, title, description, lecture count, duration.
+- Each card shows: status, title, description, lecture count (computed from batch-filtered lectures; no totalDuration displayed).
 - Clicking a card opens the Course Detail page.
 
 ### Course Detail Page (Student View)
-- Dark header with: course title, description, status, lecture count, recording count, total duration.
+- Dark header with: course title, description, status, lecture count, recording count (lectures and recordings are filtered to the student's batch).
 - **Video Player area** — placeholder that will stream the selected lecture or recording.
 - **Playlist sidebar with two tabs:**
-  - **Lectures tab** — numbered list of all lectures for this course. Student can click to select.
+  - **Lectures tab** — numbered list of lectures filtered to the student's batch for this course. Student can click to select.
   - **Class Recordings tab** — numbered list of recorded Zoom classes. Student can click to select.
   - The currently playing item is highlighted.
 - **Info card** below the video — shows title, description/subtitle, duration, and date of the selected item.
 - **Curriculum section** — expandable modules showing topics inside each module.
+- **Course Materials section** — read-only list of downloadable documents filtered to the student's batch (PDF, Excel, Word, PPTX, etc.).
+  - Each material shows as a card with: file type indicator, title, description, file size, upload date, uploader name, and a download button.
+  - Materials are displayed in a 2-column grid on desktop.
+  - Empty state message shown when no materials exist for the student's batch.
 
 ### Attend Zoom Classes
 - Student can see upcoming classes and past classes in separate sections.
@@ -212,6 +237,13 @@ The course detail page has a dark header banner showing: course title, descripti
 - The "Join Class" button only appears when the class is live (Zoom API integration).
 - Past class cards show: title, teacher, date, time (grayed out).
 - If there are no upcoming classes, a friendly empty state message is shown.
+
+### Settings
+- Student can access a Settings page from the sidebar.
+- Student can edit their own name, email, and phone number.
+- Student can view their batch (read-only, not editable).
+- Student can change their password (current password + new password + confirm new password).
+- Password mismatch validation is enforced before saving.
 
 ### Browse & Apply to Jobs
 - Student can see all available job postings as expandable cards.
@@ -236,9 +268,10 @@ The course detail page has a dark header banner showing: course title, descripti
 - When adding a lecture, the Course Creator provides: title, description, duration, and either a file or a URL.
 
 ### Watching Lectures
-- Students and Teachers see a video player on the course detail page.
+- Students see a video player on the course detail page.
 - They select a lecture from the playlist sidebar — the player loads that lecture.
 - The currently playing lecture is highlighted in the playlist.
+- **Note:** Teachers do not have access to watch lectures. Only students can view video content.
 
 ### Class Recordings
 - Recorded Zoom classes appear as a separate tab in the student's playlist.
@@ -303,8 +336,9 @@ The course detail page has a dark header banner showing: course title, descripti
 - **Completed** — Course is finished.
 
 ### Course Content
-- **Lectures** — Ordered list of video lessons (uploaded files or external links).
-- **Curriculum Modules** — Ordered list of modules, each containing a title, description, and topics.
+- **Lectures** — Ordered list of video lessons (uploaded files or external links). **Lectures are batch-owned** (scoped to a specific batch + course combination, not course-wide). Managed from the Batch Content Page.
+- **Curriculum Modules** — Ordered list of modules, each containing a title, description, and topics. **Curriculum stays at the course level** and is managed from the Course Detail Page.
+- **Materials** — Downloadable documents (PDF, Excel, Word, PPTX, Image, Archive, Other). **Materials are batch-owned** (scoped to a specific batch + course combination, not course-wide). Uploaded by Course Creators (via Batch Content Page) or Teachers (via Course Detail Page, associated with the teacher's batch).
 
 ---
 
@@ -360,6 +394,9 @@ The course detail page has a dark header banner showing: course title, descripti
 | Delete Batch | Course Creator |
 | Assign Teacher to Batch | Admin, Course Creator |
 | Change max device limit | Admin (from Settings page) |
+| Upload course material | Course Creator, Teacher |
+| Delete course material | Course Creator |
+| Edit own profile (name, email, phone, password) | All roles |
 
 ---
 
@@ -367,29 +404,36 @@ The course detail page has a dark header banner showing: course title, descripti
 
 ### Admin Sidebar
 - Dashboard
+- Users (unified user management)
 - Batches
 - Students
 - Teachers
 - Course Creators
+- Devices
+- Insights
 - Settings
 
 ### Course Creator Sidebar
 - Dashboard
+- Users (unified user management)
 - Courses (with nested course detail pages)
 - Batches
 - Jobs
+- Settings
 
 ### Teacher Sidebar
 - Dashboard
 - My Courses (with nested course detail pages)
 - My Batches
 - Schedule Class
+- Settings
 
 ### Student Sidebar
 - Dashboard
 - Courses (with nested course detail pages)
 - Zoom Classes
 - Job Opportunities
+- Settings
 
 ---
 
@@ -424,7 +468,8 @@ Batch
 Course
   ├── linked to many → Batches
   ├── has many → Lectures
-  └── has many → Curriculum Modules
+  ├── has many → Curriculum Modules
+  └── has many → Materials
 
 Zoom Class
   ├── belongs to → one Batch
@@ -451,7 +496,55 @@ Job
 
 ---
 
-## 16. Features NOT Included (For Now)
+## 16. Unified User Management
+
+### Users Page (Admin & Course Creator)
+- Both Admin and Course Creator have a "Users" tab in their sidebar (2nd item, after Dashboard).
+- The Users page shows a single table of all non-admin users (students, teachers, course creators) with:
+  - Columns: Name (with avatar), Email, Role (badge), Status (badge), Actions (deactivate).
+  - Search by name or email (real-time filtering).
+  - Role filter pills (All, Student, Teacher, Course Creator).
+  - Status dropdown filter (All, Active, Inactive).
+  - Batch dropdown filter (shown when role is "All" or "Student").
+  - Pagination: 15 users per page with Previous/Next buttons and "Showing X to Y of Z" text.
+
+### Add User Form
+- Clicking "Add User" reveals an inline 2-step form:
+  - **Step 1**: Select role — 3 role cards (Student, Teacher, Course Creator).
+  - **Step 2**: Role-specific fields:
+    - All roles: Name, Email, Phone.
+    - Student: additionally Batch dropdown.
+    - Teacher: additionally Specialization field.
+- New user is added to the table with "active" status.
+
+### User Detail Page
+- Clicking a table row navigates to `/admin/users/[userId]` (or `/course-creator/users/[userId]`).
+- **Header card**: Large avatar, name, role badge, status badge, Edit Profile button.
+- **Profile Information card** (editable when in edit mode):
+  - Fields: Name, Email, Phone, New Password, Role dropdown, Status toggle.
+  - Student-specific: Batch dropdown.
+  - Teacher-specific: Specialization field.
+  - Save button appears when editing.
+- **Role-specific read-only sections**:
+  - **Student**: Enrolled Courses, Zoom Classes (upcoming + past), Job Applications.
+  - **Teacher**: Assigned Batches with student counts.
+  - **Course Creator**: Editable fields only (no extra sections).
+- **Quick Info sidebar**: Role, status, batch/specialization, join date.
+- **Danger Zone**: Deactivate/Reactivate button with confirmation dialog.
+
+### Soft Delete
+- Clicking the trash icon on a table row triggers a confirmation dialog.
+- Confirming sets the user's status to "inactive" (soft delete, not removal).
+- Users can be reactivated from their detail page.
+
+### Permissions
+- Admin sees all non-admin users.
+- Course Creator sees all non-admin users.
+- Existing separate pages (Students, Teachers, Course Creators) remain unchanged alongside the new Users pages.
+
+---
+
+## 17. Features NOT Included (For Now)
 
 - No notifications system (bell icon is placeholder)
 - No forgot password or email verification
@@ -460,6 +553,5 @@ Job
 - No grading or assessments
 - No attendance tracking
 - No certificates or completion tracking
-- No analytics or reporting dashboards
 - No drag-and-drop lecture reordering (visual handle exists but not functional)
 - No course progress tracking for students

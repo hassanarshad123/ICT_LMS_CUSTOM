@@ -3,21 +3,18 @@
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import DashboardHeader from '@/components/layout/dashboard-header';
 import { batches, courses } from '@/lib/mock-data';
+import { useAuth } from '@/lib/auth-context';
 import { BookOpen, ChevronRight, Users } from 'lucide-react';
 import Link from 'next/link';
-
-const teacherBatches = batches.filter((b) => b.teacherId === 't1');
-const teacherCourses = courses.filter((c) =>
-  teacherBatches.some((b) => c.batchIds.includes(b.id))
-);
-
-const statusColors: Record<string, string> = {
-  active: 'bg-green-100 text-green-700',
-  completed: 'bg-gray-100 text-gray-600',
-  upcoming: 'bg-yellow-100 text-yellow-700',
-};
+import { statusColors } from '@/lib/constants';
 
 export default function TeacherCourses() {
+  const user = useAuth();
+  const teacherBatches = batches.filter((b) => b.teacherId === user.teacherId);
+  const teacherCourses = courses.filter((c) =>
+    teacherBatches.some((b) => c.batchIds.includes(b.id))
+  );
+
   return (
     <DashboardLayout role="teacher" userName="Ahmed Khan">
       <DashboardHeader greeting="My Courses" subtitle="Courses assigned to your batches" />

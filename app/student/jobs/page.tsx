@@ -4,14 +4,8 @@ import { useState } from 'react';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import DashboardHeader from '@/components/layout/dashboard-header';
 import { jobs } from '@/lib/mock-data';
+import { jobTypeColors } from '@/lib/constants';
 import { Briefcase, MapPin, Clock, DollarSign, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
-
-const typeColors: Record<string, string> = {
-  'full-time': 'bg-green-100 text-green-700',
-  'part-time': 'bg-blue-100 text-blue-700',
-  internship: 'bg-yellow-100 text-yellow-700',
-  remote: 'bg-teal-100 text-teal-700',
-};
 
 export default function StudentJobs() {
   const [expandedJob, setExpandedJob] = useState<string | null>(null);
@@ -64,7 +58,7 @@ export default function StudentJobs() {
                         <DollarSign size={12} />
                         {job.salary}
                       </div>
-                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${typeColors[job.type] || 'bg-gray-100 text-gray-600'}`}>
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${jobTypeColors[job.type] || 'bg-gray-100 text-gray-600'}`}>
                         {job.type}
                       </span>
                     </div>

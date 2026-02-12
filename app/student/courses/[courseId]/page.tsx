@@ -5,29 +5,17 @@ import { useParams } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { courses, lectures, curriculum, zoomClasses, batchMaterials } from '@/lib/mock-data';
 import { MaterialFileType } from '@/lib/types';
+import { statusColors, fileTypeConfig } from '@/lib/constants';
 import { ArrowLeft, BookOpen, Clock, PlayCircle, ChevronDown, ChevronUp, Video, FileText, Download, Paperclip } from 'lucide-react';
 import Link from 'next/link';
+import { useAuth } from '@/lib/auth-context';
 
-const statusColors: Record<string, string> = {
-  active: 'bg-green-100 text-green-700',
-  completed: 'bg-gray-100 text-gray-600',
-  upcoming: 'bg-yellow-100 text-yellow-700',
-};
-
-const fileTypeConfig: Record<MaterialFileType, { label: string; bgColor: string; textColor: string }> = {
-  pdf: { label: 'PDF', bgColor: 'bg-red-50', textColor: 'text-red-600' },
-  excel: { label: 'XLS', bgColor: 'bg-green-50', textColor: 'text-green-600' },
-  word: { label: 'DOC', bgColor: 'bg-blue-50', textColor: 'text-blue-600' },
-  pptx: { label: 'PPT', bgColor: 'bg-orange-50', textColor: 'text-orange-600' },
-  image: { label: 'IMG', bgColor: 'bg-purple-50', textColor: 'text-purple-600' },
-  archive: { label: 'ZIP', bgColor: 'bg-yellow-50', textColor: 'text-yellow-600' },
-  other: { label: 'FILE', bgColor: 'bg-gray-50', textColor: 'text-gray-600' },
-};
 
 export default function CourseDetailPage() {
   const params = useParams();
   const courseId = params.courseId as string;
-  const studentBatchId = 'b3';
+  const user = useAuth();
+  const studentBatchId = user.batchId!;
   const course = courses.find((c) => c.id === courseId);
   const courseLectures = lectures.filter((l) => l.batchId === studentBatchId && l.courseId === courseId).sort((a, b) => a.order - b.order);
   const courseRecordings = zoomClasses.filter(

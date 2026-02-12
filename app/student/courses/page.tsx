@@ -2,20 +2,17 @@
 
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import DashboardHeader from '@/components/layout/dashboard-header';
+import { useAuth } from '@/lib/auth-context';
 import { courses, lectures } from '@/lib/mock-data';
 import { BookOpen, ChevronRight, PlayCircle } from 'lucide-react';
 import Link from 'next/link';
-
-const studentBatchId = 'b3';
-const studentCourses = courses.filter((c) => c.batchIds.includes(studentBatchId));
-
-const statusColors: Record<string, string> = {
-  active: 'bg-green-100 text-green-700',
-  completed: 'bg-gray-100 text-gray-600',
-  upcoming: 'bg-yellow-100 text-yellow-700',
-};
+import { statusColors } from '@/lib/constants';
 
 export default function StudentCourses() {
+  const user = useAuth();
+  const studentBatchId = user.batchId!;
+  const studentCourses = courses.filter((c) => c.batchIds.includes(studentBatchId));
+
   return (
     <DashboardLayout role="student" userName="Muhammad Imran">
       <DashboardHeader greeting="My Courses" subtitle="Browse and continue your enrolled courses" />

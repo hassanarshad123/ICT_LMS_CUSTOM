@@ -11,6 +11,7 @@ import {
   zoomClasses,
 } from '@/lib/mock-data';
 import { Lecture, CourseMaterial, MaterialFileType } from '@/lib/types';
+import { statusColors, fileTypeConfig } from '@/lib/constants';
 import {
   ArrowLeft,
   BookOpen,
@@ -25,21 +26,6 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 
-const statusColors: Record<string, string> = {
-  active: 'bg-green-100 text-green-700',
-  completed: 'bg-gray-100 text-gray-600',
-  upcoming: 'bg-yellow-100 text-yellow-700',
-};
-
-const fileTypeConfig: Record<MaterialFileType, { label: string; bgColor: string; textColor: string }> = {
-  pdf: { label: 'PDF', bgColor: 'bg-red-50', textColor: 'text-red-600' },
-  excel: { label: 'XLS', bgColor: 'bg-green-50', textColor: 'text-green-600' },
-  word: { label: 'DOC', bgColor: 'bg-blue-50', textColor: 'text-blue-600' },
-  pptx: { label: 'PPT', bgColor: 'bg-orange-50', textColor: 'text-orange-600' },
-  image: { label: 'IMG', bgColor: 'bg-purple-50', textColor: 'text-purple-600' },
-  archive: { label: 'ZIP', bgColor: 'bg-yellow-50', textColor: 'text-yellow-600' },
-  other: { label: 'FILE', bgColor: 'bg-gray-50', textColor: 'text-gray-600' },
-};
 
 export default function BatchContentPage() {
   const params = useParams();

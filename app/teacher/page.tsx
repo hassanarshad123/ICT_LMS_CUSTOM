@@ -3,15 +3,17 @@
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import DashboardHeader from '@/components/layout/dashboard-header';
 import { batches, students, zoomClasses } from '@/lib/mock-data';
+import { useAuth } from '@/lib/auth-context';
 import { Layers, Users, Calendar, Video, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 
-const teacherBatches = batches.filter((b) => b.teacherId === 't1');
-const teacherStudents = students.filter((s) => teacherBatches.some((b) => b.id === s.batchId));
-const teacherClasses = zoomClasses.filter((z) => z.teacherName === 'Ahmed Khan');
-const upcomingClasses = teacherClasses.filter((z) => z.status === 'upcoming');
-
 export default function TeacherDashboard() {
+  const user = useAuth();
+  const teacherBatches = batches.filter((b) => b.teacherId === user.teacherId);
+  const teacherStudents = students.filter((s) => teacherBatches.some((b) => b.id === s.batchId));
+  const teacherClasses = zoomClasses.filter((z) => z.teacherName === user.name);
+  const upcomingClasses = teacherClasses.filter((z) => z.status === 'upcoming');
+
   return (
     <DashboardLayout role="teacher" userName="Ahmed Khan">
       <DashboardHeader greeting="Good morning, Ahmed!" subtitle="Here is your teaching overview" />

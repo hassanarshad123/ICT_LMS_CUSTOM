@@ -5,13 +5,9 @@ import DashboardLayout from '@/components/layout/dashboard-layout';
 import DashboardHeader from '@/components/layout/dashboard-header';
 import { batches as initialBatches, teachers, students as initialStudents } from '@/lib/mock-data';
 import { Batch, Student } from '@/lib/types';
-import { Plus, X, Users, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
-
-const statusColors: Record<string, string> = {
-  active: 'bg-green-100 text-green-700',
-  completed: 'bg-gray-100 text-gray-600',
-  upcoming: 'bg-yellow-100 text-yellow-700',
-};
+import { Plus, X, Users, ChevronDown, ChevronUp, Trash2, FolderOpen } from 'lucide-react';
+import Link from 'next/link';
+import { statusColors } from '@/lib/constants';
 
 export default function CourseCreatorBatches() {
   const [batchList, setBatchList] = useState<Batch[]>(initialBatches);
@@ -191,6 +187,13 @@ export default function CourseCreatorBatches() {
                     </div>
                     {isExpanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
                   </button>
+                  <Link
+                    href={`/course-creator/batches/${batch.id}`}
+                    className="ml-4 inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1A1A1A] text-white text-xs font-medium rounded-lg hover:bg-[#333] transition-colors"
+                  >
+                    <FolderOpen size={14} />
+                    Manage Content
+                  </Link>
                   <button
                     onClick={() => deleteBatch(batch.id)}
                     className="ml-4 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"

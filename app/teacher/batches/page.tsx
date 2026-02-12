@@ -4,11 +4,12 @@ import { useState } from 'react';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import DashboardHeader from '@/components/layout/dashboard-header';
 import { batches, students } from '@/lib/mock-data';
+import { useAuth } from '@/lib/auth-context';
 import { Users, ChevronDown, ChevronUp } from 'lucide-react';
 
-const teacherBatches = batches.filter((b) => b.teacherId === 't1');
-
 export default function TeacherBatches() {
+  const user = useAuth();
+  const teacherBatches = batches.filter((b) => b.teacherId === user.teacherId);
   const [expandedBatch, setExpandedBatch] = useState<string | null>(teacherBatches[0]?.id || null);
 
   return (

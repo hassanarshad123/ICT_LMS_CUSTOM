@@ -27,12 +27,7 @@ import {
   Paperclip,
 } from 'lucide-react';
 import Link from 'next/link';
-
-const statusColors: Record<string, string> = {
-  active: 'bg-green-100 text-green-700',
-  completed: 'bg-gray-100 text-gray-600',
-  upcoming: 'bg-yellow-100 text-yellow-700',
-};
+import { statusColors } from '@/lib/constants';
 
 export default function CourseCreatorCourseDetail() {
   const params = useParams();
