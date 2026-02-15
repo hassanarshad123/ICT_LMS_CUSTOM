@@ -13,7 +13,7 @@ export default function StudentSettings() {
           <label className="block text-sm font-medium text-gray-700 mb-1.5">Batch</label>
           <input
             type="text"
-            value={user.batchName || 'Batch 3 - August 2024'}
+            value={user.batchNames?.join(', ') || 'Batch 3 - August 2024'}
             disabled
             className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm bg-gray-100 opacity-60 cursor-not-allowed"
           />

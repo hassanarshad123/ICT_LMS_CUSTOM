@@ -12,8 +12,8 @@ export interface Student {
   name: string;
   email: string;
   phone: string;
-  batchId: string;
-  batchName: string;
+  batchIds: string[];
+  batchNames: string[];
   joinDate: string;
   status: 'active' | 'inactive';
 }
@@ -43,9 +43,8 @@ export interface UnifiedUser {
   phone: string;
   role: 'student' | 'teacher' | 'course-creator';
   status: 'active' | 'inactive';
-  batchId?: string;
-  batchName?: string;
+  batchIds?: string[];
+  batchNames?: string[];
   joinDate?: string;
   specialization?: string;
-  batchIds?: string[];
 }

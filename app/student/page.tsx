@@ -9,7 +9,7 @@ import Link from 'next/link';
 
 export default function StudentDashboard() {
   const user = useAuth();
-  const studentBatchId = user.batchId!;
+  const studentBatchId = user.batchIds?.[0]!;
   const studentCourses = courses.filter((c) => c.batchIds.includes(studentBatchId));
   const studentLectures = lectures.filter((l) => l.batchId === studentBatchId);
 

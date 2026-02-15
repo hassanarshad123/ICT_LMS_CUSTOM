@@ -46,7 +46,7 @@ export default function UsersListView({ role, userName, basePath }: UsersListVie
     const matchesSearch = u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase());
     const matchesRole = roleFilter === 'all' || u.role === roleFilter;
     const matchesStatus = statusFilter === 'all' || u.status === statusFilter;
-    const matchesBatch = batchFilter === 'all' || u.batchId === batchFilter;
+    const matchesBatch = batchFilter === 'all' || (u.batchIds?.includes(batchFilter) ?? false);
     return matchesSearch && matchesRole && matchesStatus && matchesBatch;
   });
 
@@ -73,8 +73,8 @@ export default function UsersListView({ role, userName, basePath }: UsersListVie
       role: selectedRole,
       status: 'active',
       ...(selectedRole === 'student' && {
-        batchId: formData.batchId,
-        batchName: batch?.name || '',
+        batchIds: formData.batchId ? [formData.batchId] : [],
+        batchNames: batch ? [batch.name] : [],
         joinDate: new Date().toISOString().split('T')[0],
       }),
       ...(selectedRole === 'teacher' && {

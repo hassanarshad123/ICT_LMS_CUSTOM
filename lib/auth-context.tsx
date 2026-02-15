@@ -9,8 +9,8 @@ interface MockUser {
   email: string;
   phone: string;
   role: UserRole;
-  batchId?: string;
-  batchName?: string;
+  batchIds?: string[];
+  batchNames?: string[];
   teacherId?: string;
   specialization?: string;
 }
@@ -45,8 +45,8 @@ const mockUsers: Record<UserRole, MockUser> = {
     email: 'imran@email.com',
     phone: '0300-1234567',
     role: 'student',
-    batchId: 'b3',
-    batchName: 'Batch 3 - August 2024',
+    batchIds: ['b3'],
+    batchNames: ['Batch 3 - August 2024'],
   },
 };
 

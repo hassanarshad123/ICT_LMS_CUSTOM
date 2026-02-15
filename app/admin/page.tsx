@@ -68,7 +68,7 @@ export default function AdminDashboard() {
                   </div>
                   <div>
                     <p className="font-medium text-sm text-[#1A1A1A]">{student.name}</p>
-                    <p className="text-xs text-gray-500">{student.batchName}</p>
+                    <p className="text-xs text-gray-500">{student.batchNames?.join(', ')}</p>
                   </div>
                 </div>
                 <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${

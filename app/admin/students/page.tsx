@@ -26,8 +26,8 @@ export default function AdminStudents() {
         name: formData.name,
         email: formData.email,
         phone: formData.phone,
-        batchId: formData.batchId,
-        batchName: batch?.name || '',
+        batchIds: [formData.batchId],
+        batchNames: [batch?.name || ''],
         joinDate: new Date().toISOString().split('T')[0],
         status: 'active',
       },
@@ -119,7 +119,7 @@ export default function AdminStudents() {
                   </td>
                   <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{student.email}</td>
                   <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{student.phone}</td>
-                  <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{student.batchName}</td>
+                  <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{student.batchNames?.join(', ')}</td>
                   <td className="px-3 sm:px-6 py-3 sm:py-4">
                     <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
                       student.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'

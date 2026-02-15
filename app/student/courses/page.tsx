@@ -10,7 +10,7 @@ import { statusColors } from '@/lib/constants';
 
 export default function StudentCourses() {
   const user = useAuth();
-  const studentBatchId = user.batchId!;
+  const studentBatchId = user.batchIds?.[0]!;
   const studentCourses = courses.filter((c) => c.batchIds.includes(studentBatchId));
 
   return (

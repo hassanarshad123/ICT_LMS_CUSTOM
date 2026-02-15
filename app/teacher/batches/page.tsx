@@ -18,7 +18,7 @@ export default function TeacherBatches() {
 
       <div className="space-y-4">
         {teacherBatches.map((batch) => {
-          const batchStudents = students.filter((s) => s.batchId === batch.id);
+          const batchStudents = students.filter((s) => s.batchIds.includes(batch.id));
           const isExpanded = expandedBatch === batch.id;
 
           return (

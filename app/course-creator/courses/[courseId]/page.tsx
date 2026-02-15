@@ -176,7 +176,7 @@ export default function CourseCreatorCourseDetail() {
           <div className="space-y-4">
             {courseBatches.map((batch) => {
               const isExpanded = expandedBatch === batch.id;
-              const batchStudents = studentList.filter((s) => s.batchId === batch.id);
+              const batchStudents = studentList.filter((s) => s.batchIds.includes(batch.id));
               const batchLectureCount = lectures.filter((l) => l.batchId === batch.id && l.courseId === courseId).length;
               const batchMaterialCount = batchMaterials.filter((m) => m.batchId === batch.id && m.courseId === courseId).length;
               const form = studentForm[batch.id] || { name: '', email: '', phone: '' };

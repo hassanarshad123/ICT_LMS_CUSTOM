@@ -50,8 +50,8 @@ export default function CourseCreatorBatches() {
       name: form.name.trim(),
       email: form.email.trim(),
       phone: form.phone.trim(),
-      batchId,
-      batchName: batch?.name ?? '',
+      batchIds: [batchId],
+      batchNames: [batch?.name ?? ''],
       joinDate: new Date().toISOString().split('T')[0],
       status: 'active',
     };
@@ -157,7 +157,7 @@ export default function CourseCreatorBatches() {
         <div className="space-y-4">
           {batchList.map((batch) => {
             const isExpanded = expandedBatch === batch.id;
-            const batchStudents = studentList.filter((s) => s.batchId === batch.id);
+            const batchStudents = studentList.filter((s) => s.batchIds.includes(batch.id));
             const form = studentForm[batch.id] || { name: '', email: '', phone: '' };
             return (
               <div key={batch.id} className="bg-white rounded-2xl card-shadow overflow-hidden">

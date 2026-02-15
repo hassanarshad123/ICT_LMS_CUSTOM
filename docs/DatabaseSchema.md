@@ -28,14 +28,14 @@ Read these before touching any table. Every schema choice traces back to one of 
 
 | # | Decision | Impact |
 |---|----------|--------|
-| 1 | **Soft delete everywhere** | Every table has `deleted_at timestamptz` (NULL = not deleted). Never use hard DELETE in application code. RLS policies never grant `FOR DELETE` — all "deletes" are UPDATEs that set `deleted_at`. |
-| 2 | **Timestamps on everything** | Every table has `created_at` + `updated_at` (auto-set via triggers). Some tables use semantic aliases (e.g. `assigned_at`, `logged_in_at`) as their creation timestamp. |
+| 1 | **Soft delete everywhere** | Every table has `deleted_at timestamptz` (NULL = not deleted). Never use hard DELETE in application code. RLS policies never grant `FOR DELETE` — all "deletes" are UPDATEs that set `deleted_at`. Exceptions: `lecture_progress` and `zoom_attendance` have no `deleted_at` (see #28, #33). |
+| 2 | **Timestamps on everything** | Every table has `created_at` + `updated_at` (auto-set via triggers). Some tables use semantic aliases (e.g. `assigned_at`, `logged_in_at`) as their creation timestamp. Exceptions: `zoom_attendance` has no `updated_at` (immutable, see #33). |
 | 3 | **Batch status is auto-calculated** | Computed from `start_date` / `end_date` vs `now()`. NOT stored as a column. Use the `batches_with_status` view. |
 | 4 | **Course status IS stored** | Stored as an enum column (`upcoming`, `active`, `completed`). Unlike batch status, course status is manually set by Course Creators. |
 | 5 | **All Course Creators share ownership** | Any CC can manage any course, lecture, job, or batch. `created_by` is for audit only, NOT access control. |
-| 6 | **Students belong to one batch at a time** | `users.batch_id` FK. Can be NULL (unassigned). Can be moved — history tracked in `student_batch_history`. |
+| 6 | **Students can be enrolled in multiple batches simultaneously** | Via `student_batches` junction table. Each enrollment row has `enrolled_at` / `removed_at`. `removed_at IS NULL` means active. History is implicit in the junction table itself. |
 | 7 | **Full batch history** | `student_batch_history` records every batch assignment/removal with timestamps and who made the change. |
-| 8 | **New batch = new courses only** | When a student moves batches, they only see courses from their current batch, NOT previous batches. |
+| 8 | **Content is separated by batch context** | Student picks a batch context first, then sees that batch's courses, lectures, and materials. Each batch's content is independent. |
 | 9 | **Lectures belong to one batch** | No sharing across batches. One lecture, one `batch_id`. Optional `course_id` can be set as a grouping tag for filtering lectures by course. |
 | 10 | **Job applications use resubmit model** | One active application per student per job. Resubmitting soft-deletes the old and creates a new one (partial unique index on `student_id` + `job_id` where `deleted_at IS NULL`). |
 | 11 | **Track application status changes** | `status_changed_at` + `status_changed_by` on `job_applications`. |
@@ -46,7 +46,7 @@ Read these before touching any table. Every schema choice traces back to one of 
 | 16 | **Lecture ordering** | Upload order is default. CCs can reorder via `sequence_order`. Unique within a batch (partial unique index). |
 | 17 | **Curriculum modules can be reordered** | Via `sequence_order` column. Unique within a course (partial unique index). |
 | 18 | **Batches can exist without a teacher** | `teacher_id` is nullable. |
-| 19 | **Deleted batch -> students become unassigned** | `users.batch_id` set to NULL via `ON DELETE SET NULL`. |
+| 19 | **Deleted batch -> enrollment link removed** | `student_batches` rows are removed via `ON DELETE CASCADE` on `batch_id`. Students remain enrolled in their other batches. |
 | 20 | **Deleted job -> keep applications** | Soft delete on job; applications preserved. `job_applications.job_id` uses `ON DELETE RESTRICT` to prevent accidental hard deletion of jobs that have applications. |
 | 21 | **Topics stored as text[]** | On `curriculum_modules`, not a separate table. Simpler, sufficient for now. |
 | 22 | **Specialization on users table** | No separate `teacher_profiles` table. `specialization` column is nullable, enforced NULL for non-teachers via CHECK constraint. |
@@ -54,6 +54,13 @@ Read these before touching any table. Every schema choice traces back to one of 
 | 24 | **Views use security_invoker** | All views use `WITH (security_invoker = true)` so they respect the caller's RLS policies, not the view owner's. |
 | 25 | **Server timezone** | Database views use explicit timezone conversion (`AT TIME ZONE 'Asia/Karachi'`) for date comparisons to avoid dependence on server timezone settings. |
 | 26 | **Materials are batch-level** | Batch materials are a flat list per batch (not linked to individual lectures). Both Course Creators and Teachers can upload materials. CCs can delete any material; Teachers can only upload. Optional `course_id` can be set as a grouping tag for filtering materials by course. |
+| 27 | **Announcements: scope-based single table** | Single `announcements` table with `scope` enum (`institute`, `batch`, `course`) + nullable `batch_id`/`course_id`. A CHECK constraint enforces: `institute` scope requires both NULL; `batch` scope requires `batch_id` NOT NULL; `course` scope requires `course_id` NOT NULL. |
+| 28 | **Lecture progress: latest-state only** | One row per student per lecture in `lecture_progress` (UPSERT pattern). Stores current watch percentage and resume position — no event sourcing, no history. Has `updated_at` trigger but NO `deleted_at` (progress is never deleted). |
+| 29 | **Zoom accounts managed by Admin** | `zoom_accounts` table stores OAuth credentials. `client_secret` should be encrypted at rest using Vault or `pgcrypto`. Teachers SELECT accounts for scheduling dropdown; only Admin has full CRUD. |
+| 30 | **Post-batch grace period (per-batch independent)** | Configurable via `system_settings` key `post_batch_grace_period_days` (default `'90'`). After a batch ends, students retain read-only access for this many days. Each batch's grace period is evaluated independently. Enforced in application logic / Edge Functions, not RLS. |
+| 31 | **Course cloning via Edge Function** | `clone-course` Edge Function copies a course row + all `curriculum_modules`. Does NOT copy lectures or materials (those are batch-scoped). Clone gets `cloned_from_id` FK pointing to the original. |
+| 32 | **CC manages all non-admin users** | Course Creators can create/edit/deactivate Students, Teachers, and other Course Creators. Only Admins can manage Admin accounts. RLS policies on `users` reflect this expanded scope (replaces old students-only CC policies). |
+| 33 | **Zoom attendance is immutable** | `zoom_attendance` rows are INSERT-only (by `service_role`). No updates, no deletes. No `updated_at`, no `deleted_at`. Records are written by the `fetch-zoom-attendance` Edge Function after meetings end. |
 
 ---
 
@@ -72,17 +79,15 @@ Central identity table for all roles. Extends Supabase Auth — `id` matches `au
 | `role` | `user_role` | NOT NULL | Enum: `admin`, `course_creator`, `teacher`, `student` |
 | `specialization` | `text` | | Only for teachers. CHECK enforces NULL for non-teachers. |
 | `avatar_url` | `text` | | Profile picture URL (Supabase Storage) |
-| `batch_id` | `uuid` | FK -> `batches.id` ON DELETE SET NULL | Only for students. CHECK enforces NULL for non-students. |
 | `status` | `user_status` | NOT NULL, default `'active'` | Enum: `active`, `inactive` |
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | |
 | `updated_at` | `timestamptz` | NOT NULL, default `now()` | Auto-updated by trigger |
 | `deleted_at` | `timestamptz` | | NULL = not deleted |
 
 **CHECK constraints**:
-- `CHECK ((role = 'student') OR (batch_id IS NULL))` — only students have a batch
 - `CHECK ((role = 'teacher') OR (specialization IS NULL))` — only teachers have a specialization
 
-**Column-protection trigger** (`protect_user_columns`): When a user updates their own row, the trigger prevents changes to `role`, `status`, `batch_id`, `email`, and `specialization`. These can only be changed by admins/CCs updating other users, or by `service_role` (Edge Functions).
+**Column-protection trigger** (`protect_user_columns`): When a user updates their own row, the trigger prevents changes to `role`, `status`, `email`, and `specialization`. These can only be changed by admins/CCs updating other users, or by `service_role` (Edge Functions). Additionally, the trigger prevents anyone from escalating a non-admin user to admin role via client API.
 
 **Frontend mapping note**: The frontend uses a `UnifiedUser` TypeScript interface that maps directly to this single `users` table. The `getAllUsers()` helper merges the separate mock data arrays (students, teachers, courseCreators) into a unified list for the Users management pages. In production, this maps to a single query on the `users` table filtered by `role != 'admin'` and `deleted_at IS NULL`.
 
@@ -113,7 +118,26 @@ Where `today` = `(now() AT TIME ZONE 'Asia/Karachi')::date`
 
 ---
 
-### 2.3 `student_batch_history`
+### 2.3 `student_batches`
+
+Junction table: many-to-many between students and batches. A student can be actively enrolled in multiple batches simultaneously.
+
+| Column | Type | Constraints | Notes |
+|--------|------|-------------|-------|
+| `id` | `uuid` | PK, default `gen_random_uuid()` | |
+| `student_id` | `uuid` | NOT NULL, FK -> `users.id` ON DELETE CASCADE | |
+| `batch_id` | `uuid` | NOT NULL, FK -> `batches.id` ON DELETE CASCADE | |
+| `enrolled_by` | `uuid` | FK -> `users.id` ON DELETE SET NULL | Who added them |
+| `enrolled_at` | `timestamptz` | NOT NULL, default `now()` | Serves as `created_at` |
+| `removed_at` | `timestamptz` | | NULL = active enrollment. Set to soft-remove. |
+| `removed_by` | `uuid` | FK -> `users.id` ON DELETE SET NULL | Who removed them |
+| `updated_at` | `timestamptz` | NOT NULL, default `now()` | |
+
+**Partial unique constraint**: `(student_id, batch_id) WHERE removed_at IS NULL` — a student can only have one active enrollment per batch. Re-enrollment after removal is allowed.
+
+---
+
+### 2.4 `student_batch_history`
 
 Tracks every batch assignment and removal for students. Append-only — never update or delete rows.
 
@@ -128,7 +152,7 @@ Tracks every batch assignment and removal for students. Append-only — never up
 
 ---
 
-### 2.4 `courses`
+### 2.5 `courses`
 
 Course content containers. Status is stored (not computed).
 
@@ -138,6 +162,7 @@ Course content containers. Status is stored (not computed).
 | `title` | `text` | NOT NULL | |
 | `description` | `text` | | |
 | `status` | `course_status` | NOT NULL, default `'upcoming'` | Enum: `upcoming`, `active`, `completed` |
+| `cloned_from_id` | `uuid` | FK -> `courses.id` ON DELETE SET NULL | NULL for original courses. Points to source course for clones. |
 | `created_by` | `uuid` | FK -> `users.id` ON DELETE SET NULL | Audit only — all CCs can manage all courses |
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | |
 | `updated_at` | `timestamptz` | NOT NULL, default `now()` | |
@@ -145,7 +170,7 @@ Course content containers. Status is stored (not computed).
 
 ---
 
-### 2.5 `batch_courses`
+### 2.6 `batch_courses`
 
 Junction table: many-to-many between batches and courses.
 
@@ -163,7 +188,7 @@ Junction table: many-to-many between batches and courses.
 
 ---
 
-### 2.6 `lectures`
+### 2.7 `lectures`
 
 Video lessons within a batch. Supports both direct uploads (Bunny.net) and external links.
 
@@ -193,7 +218,7 @@ Video lessons within a batch. Supports both direct uploads (Bunny.net) and exter
 
 ---
 
-### 2.7 `curriculum_modules`
+### 2.8 `curriculum_modules`
 
 Structured course outline. Each module contains a list of topics (stored as `text[]`).
 
@@ -214,7 +239,7 @@ Structured course outline. Each module contains a list of topics (stored as `tex
 
 ---
 
-### 2.8 `batch_materials`
+### 2.9 `batch_materials`
 
 Downloadable documents attached to a batch. Both Course Creators and Teachers can upload.
 
@@ -237,7 +262,27 @@ Downloadable documents attached to a batch. Both Course Creators and Teachers ca
 
 ---
 
-### 2.9 `zoom_classes`
+### 2.10 `zoom_accounts`
+
+Admin-configured Zoom OAuth accounts used for creating meetings.
+
+| Column | Type | Constraints | Notes |
+|--------|------|-------------|-------|
+| `id` | `uuid` | PK, default `gen_random_uuid()` | |
+| `name` | `text` | NOT NULL | Display name, e.g. "ICT Main Account" |
+| `account_id` | `text` | NOT NULL | Zoom Account ID |
+| `client_id` | `text` | NOT NULL | Zoom OAuth Client ID |
+| `client_secret` | `text` | NOT NULL | Zoom OAuth Client Secret. Encrypt at rest via Vault or pgcrypto. |
+| `is_default` | `boolean` | NOT NULL, default `false` | One account should be marked as default for teacher convenience |
+| `created_at` | `timestamptz` | NOT NULL, default `now()` | |
+| `updated_at` | `timestamptz` | NOT NULL, default `now()` | |
+| `deleted_at` | `timestamptz` | | |
+
+> **Security note**: `client_secret` contains sensitive OAuth credentials. Use Supabase Vault (`vault.create_secret()`) or `pgcrypto` encryption. The RLS policies ensure only Admin can read/write this table; Teachers get SELECT for the scheduling dropdown but should only see `id`, `name`, and `is_default` via a frontend query that excludes secret columns.
+
+---
+
+### 2.11 `zoom_classes`
 
 Scheduled Zoom meetings. Status is stored (updated by Zoom webhooks).
 
@@ -246,6 +291,7 @@ Scheduled Zoom meetings. Status is stored (updated by Zoom webhooks).
 | `id` | `uuid` | PK, default `gen_random_uuid()` | |
 | `batch_id` | `uuid` | NOT NULL, FK -> `batches.id` ON DELETE CASCADE | One class per batch |
 | `teacher_id` | `uuid` | FK -> `users.id` ON DELETE SET NULL | Teacher who scheduled it |
+| `zoom_account_id` | `uuid` | FK -> `zoom_accounts.id` ON DELETE SET NULL | Which Zoom account was used to create the meeting |
 | `title` | `text` | NOT NULL | |
 | `zoom_meeting_id` | `text` | | From Zoom API response |
 | `zoom_meeting_url` | `text` | | Join URL for students |
@@ -262,7 +308,7 @@ Scheduled Zoom meetings. Status is stored (updated by Zoom webhooks).
 
 ---
 
-### 2.9 `class_recordings`
+### 2.12 `class_recordings`
 
 Zoom recordings processed through Bunny.net. Separate from lectures.
 
@@ -284,7 +330,81 @@ Zoom recordings processed through Bunny.net. Separate from lectures.
 
 ---
 
-### 2.10 `jobs`
+### 2.13 `announcements`
+
+Scope-based announcements visible to different audiences.
+
+| Column | Type | Constraints | Notes |
+|--------|------|-------------|-------|
+| `id` | `uuid` | PK, default `gen_random_uuid()` | |
+| `title` | `text` | NOT NULL | |
+| `body` | `text` | NOT NULL | Plain text (no rich text, no images) |
+| `scope` | `announcement_scope` | NOT NULL | Enum: `institute`, `batch`, `course` |
+| `batch_id` | `uuid` | FK -> `batches.id` ON DELETE CASCADE | Required when scope = `batch`. NULL otherwise. |
+| `course_id` | `uuid` | FK -> `courses.id` ON DELETE CASCADE | Required when scope = `course`. NULL otherwise. |
+| `expires_at` | `timestamptz` | | Optional. Auto-hide after this timestamp. |
+| `posted_by` | `uuid` | NOT NULL, FK -> `users.id` ON DELETE SET NULL | Author |
+| `created_at` | `timestamptz` | NOT NULL, default `now()` | |
+| `updated_at` | `timestamptz` | NOT NULL, default `now()` | |
+| `deleted_at` | `timestamptz` | | |
+
+**CHECK constraint** (scope consistency):
+```sql
+CHECK (
+  (scope = 'institute' AND batch_id IS NULL AND course_id IS NULL) OR
+  (scope = 'batch' AND batch_id IS NOT NULL AND course_id IS NULL) OR
+  (scope = 'course' AND course_id IS NOT NULL AND batch_id IS NULL)
+)
+```
+
+> **CASCADE note**: `ON DELETE CASCADE` on `batch_id` and `course_id` would only trigger on hard delete, which is forbidden by Decision #1. In practice, batches/courses are always soft-deleted, so announcements referencing them are preserved.
+
+---
+
+### 2.14 `lecture_progress`
+
+Per-student per-lecture video watch tracking. Latest state only (UPSERT pattern).
+
+| Column | Type | Constraints | Notes |
+|--------|------|-------------|-------|
+| `id` | `uuid` | PK, default `gen_random_uuid()` | |
+| `student_id` | `uuid` | NOT NULL, FK -> `users.id` ON DELETE CASCADE | |
+| `lecture_id` | `uuid` | NOT NULL, FK -> `lectures.id` ON DELETE CASCADE | |
+| `watch_percentage` | `integer` | NOT NULL, default `0` | 0–100. How much of the video has been watched. |
+| `resume_position_seconds` | `integer` | NOT NULL, default `0` | Where the student last stopped watching |
+| `status` | `lecture_watch_status` | NOT NULL, default `'unwatched'` | Enum: `unwatched`, `in_progress`, `completed` |
+| `last_watched_at` | `timestamptz` | NOT NULL, default `now()` | Last time the student watched this lecture |
+| `created_at` | `timestamptz` | NOT NULL, default `now()` | |
+| `updated_at` | `timestamptz` | NOT NULL, default `now()` | Auto-updated by trigger |
+
+**UNIQUE constraint**: `(student_id, lecture_id)` — one row per student per lecture. Use UPSERT (`ON CONFLICT ... DO UPDATE`) to update progress.
+
+> **No `deleted_at`**: Progress is never deleted. If a lecture is deleted (CASCADE), the progress rows are automatically removed. Decision #28.
+
+---
+
+### 2.15 `zoom_attendance`
+
+Immutable attendance records populated by Edge Function after Zoom meetings end.
+
+| Column | Type | Constraints | Notes |
+|--------|------|-------------|-------|
+| `id` | `uuid` | PK, default `gen_random_uuid()` | |
+| `zoom_class_id` | `uuid` | NOT NULL, FK -> `zoom_classes.id` ON DELETE CASCADE | |
+| `student_id` | `uuid` | NOT NULL, FK -> `users.id` ON DELETE CASCADE | |
+| `joined` | `boolean` | NOT NULL | Whether the student joined the meeting |
+| `join_time` | `timestamptz` | | When the student joined (NULL if not joined) |
+| `leave_time` | `timestamptz` | | When the student left (NULL if not joined) |
+| `duration_seconds` | `integer` | | Total time spent in meeting |
+| `created_at` | `timestamptz` | NOT NULL, default `now()` | |
+
+**UNIQUE constraint**: `(zoom_class_id, student_id)` — one attendance record per student per class.
+
+> **No `updated_at`, no `deleted_at`**: Attendance records are immutable. Inserted once by `service_role` via the `fetch-zoom-attendance` Edge Function. Decision #33.
+
+---
+
+### 2.16 `jobs`
 
 Job postings created by Course Creators. Soft delete preserves applications.
 
@@ -306,7 +426,7 @@ Job postings created by Course Creators. Soft delete preserves applications.
 
 ---
 
-### 2.11 `job_applications`
+### 2.17 `job_applications`
 
 Student applications to jobs. Resubmit model — one active application per student per job.
 
@@ -316,6 +436,7 @@ Student applications to jobs. Resubmit model — one active application per stud
 | `job_id` | `uuid` | NOT NULL, FK -> `jobs.id` ON DELETE RESTRICT | RESTRICT prevents accidental hard-delete of jobs with applications (Decision #20) |
 | `student_id` | `uuid` | NOT NULL, FK -> `users.id` ON DELETE CASCADE | |
 | `resume_url` | `text` | | Supabase Storage path |
+| `cover_text` | `text` | | Optional cover letter text |
 | `status` | `application_status` | NOT NULL, default `'applied'` | Enum: `applied`, `shortlisted`, `rejected` |
 | `status_changed_at` | `timestamptz` | | When status was last changed |
 | `status_changed_by` | `uuid` | FK -> `users.id` ON DELETE SET NULL | Who changed the status |
@@ -326,11 +447,11 @@ Student applications to jobs. Resubmit model — one active application per stud
 
 **Unique constraint**: `(student_id, job_id)` WHERE `deleted_at IS NULL` — one active application per student per job. Resubmit soft-deletes the old (sets `deleted_at`), then creates new.
 
-**Column-protection trigger** (`protect_application_columns`): When a CC updates an application, the trigger prevents changes to `job_id`, `student_id`, `resume_url`, `applied_at`, and `deleted_at`. CCs can only change `status`, `status_changed_at`, and `status_changed_by`.
+**Column-protection trigger** (`protect_application_columns`): When a CC updates an application, the trigger prevents changes to `job_id`, `student_id`, `resume_url`, `cover_text`, `applied_at`, and `deleted_at`. CCs can only change `status`, `status_changed_at`, and `status_changed_by`.
 
 ---
 
-### 2.12 `user_sessions`
+### 2.18 `user_sessions`
 
 Active login sessions for device limit enforcement.
 
@@ -351,9 +472,9 @@ Active login sessions for device limit enforcement.
 
 ---
 
-### 2.13 `system_settings`
+### 2.19 `system_settings`
 
-Key-value store for system-wide configuration. Used for device limit and future settings.
+Key-value store for system-wide configuration. Used for device limit, grace period, and future settings.
 
 | Column | Type | Constraints | Notes |
 |--------|------|-------------|-------|
@@ -366,11 +487,16 @@ Key-value store for system-wide configuration. Used for device limit and future 
 | `updated_at` | `timestamptz` | NOT NULL, default `now()` | |
 | `deleted_at` | `timestamptz` | | |
 
-**Seed data**: `INSERT INTO system_settings (setting_key, value, description) VALUES ('max_device_limit', '2', 'Maximum concurrent login sessions per user');`
+**Seed data**:
+```sql
+INSERT INTO system_settings (setting_key, value, description) VALUES
+  ('max_device_limit', '2', 'Maximum concurrent login sessions per user'),
+  ('post_batch_grace_period_days', '90', 'Days after batch end date that students retain read-only access to content');
+```
 
 ---
 
-### 2.14 `activity_log`
+### 2.20 `activity_log`
 
 Append-only audit trail. No updates, no deletes. Only admins can read.
 
@@ -389,16 +515,18 @@ Append-only audit trail. No updates, no deletes. Only admins can read.
 
 | Category | Actions |
 |----------|---------|
-| Users | `user.created`, `user.updated`, `user.deactivated`, `user.activated`, `user.deleted`, `user.password_reset`, `user.password_changed`, `user.login`, `user.logout`, `user.force_logout` |
+| Users | `user.created`, `user.updated`, `user.deactivated`, `user.activated`, `user.deleted`, `user.password_reset`, `user.password_changed`, `user.login`, `user.logout`, `user.force_logout`, `user.bulk_imported` |
 | Batches | `batch.created`, `batch.updated`, `batch.deleted`, `batch.student_added`, `batch.student_removed`, `batch.teacher_assigned` |
-| Courses | `course.created`, `course.updated`, `course.deleted`, `course.batch_assigned`, `course.batch_removed` |
+| Courses | `course.created`, `course.updated`, `course.deleted`, `course.batch_assigned`, `course.batch_removed`, `course.cloned` |
 | Lectures | `lecture.created`, `lecture.deleted`, `lecture.reordered` |
 | Curriculum | `curriculum.created`, `curriculum.deleted`, `curriculum.reordered` |
 | Materials | `material.uploaded`, `material.deleted` |
 | Zoom | `zoom.scheduled`, `zoom.started`, `zoom.ended` |
+| Zoom Accounts | `zoom_account.created`, `zoom_account.updated`, `zoom_account.deleted` |
 | Recordings | `recording.added` |
 | Jobs | `job.created`, `job.deleted` |
 | Applications | `application.submitted`, `application.resubmitted`, `application.status_changed` |
+| Announcements | `announcement.created`, `announcement.deleted` |
 
 ---
 
@@ -407,6 +535,7 @@ Append-only audit trail. No updates, no deletes. Only admins can read.
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │                          ICT LMS — Entity Relationships                      │
+│                             20 tables, 41 FKs                                │
 └──────────────────────────────────────────────────────────────────────────────┘
 
                               ┌─────────────┐
@@ -414,88 +543,136 @@ Append-only audit trail. No updates, no deletes. Only admins can read.
                               │─────────────│
                               │ id (PK)      │
                               │ role         │
-                              │ batch_id(FK) │──────────────┐
-                              │ status       │              │
-                              └──────┬───────┘              │
-                                     │                      │
-         ┌───────────────────────────┼──────────────────────┼────────────────┐
-         │                           │                      │                │
-         │ teacher_id               │ created_by           │ student        │
-         ▼                           ▼                      ▼                │
-  ┌─────────────┐            ┌──────────────┐       ┌─────────────┐         │
-  │   batches    │◄───────── │ batch_courses │──────►│   courses    │         │
-  │─────────────│  batch_id  │──────────────│course_│─────────────│         │
-  │ id (PK)      │            │ id (PK)      │  id   │ id (PK)      │         │
-  │ teacher_id   │            │ batch_id(FK) │       │ status       │         │
-  │ start_date   │            │ course_id(FK)│       │ created_by   │         │
-  │ end_date     │            └──────────────┘       └──────┬───────┘         │
-  └──────┬───────┘                                          │                │
-         │                                           ┌──────┴───────┐         │
-         │                                           │             │         │
-         │                                           ▼             │         │
-         │                             ┌────────────────┐          │         │
-         │                             │curriculum_     │          │         │
-         │                             │modules         │          │         │
-         │                             │────────────────│          │         │
-         │                             │ course_id      │          │         │
-         │                             │ topics[]       │          │         │
-         │                             │ seq_order      │          │         │
-         │                             └────────────────┘          │         │
-         │                                                         │         │
-         ▼                                                         │         │
-  ┌─────────────┐          ┌───────────┐                           │         │
-  │   batches    │─────────►│ lectures   │· · · · · · · · · · · · ·│         │
-  │             │ batch_id │───────────│  course_id (optional)     │         │
-  │             │          │ batch_id   │  grouping tag ──►courses  │         │
-  │             │          │ course_id? │                           │         │
-  │             │          │ video_type │                           │         │
-  │             │          │ seq_order  │                           │         │
-  │             │          └───────────┘                           │         │
+                              │ status       │
+                              └──────┬───────┘
+                                     │
+         ┌───────────────────────────┼──────────────────────────────────────┐
+         │                           │                                      │
+         │ teacher_id               │ created_by / student_id              │
+         ▼                           ▼                                      │
+  ┌─────────────┐            ┌──────────────────┐                           │
+  │   batches    │◄──────────│ student_batches   │◄── users (student)       │
+  │─────────────│  batch_id  │──────────────────│  student_id               │
+  │ id (PK)      │            │ student_id (FK)  │                           │
+  │ teacher_id   │            │ batch_id (FK)    │                           │
+  │ start_date   │            │ enrolled_by (FK) │                           │
+  │ end_date     │            │ enrolled_at      │                           │
+  │             │            │ removed_at       │                           │
+  │             │            │ removed_by (FK)  │                           │
+  │             │            └──────────────────┘                           │
+  │             │                                                           │
+  │             │            ┌──────────────┐       ┌─────────────┐         │
+  │             │◄───────── │ batch_courses │──────►│   courses    │         │
+  │             │  batch_id  │──────────────│course_│─────────────│         │
+  │             │            │ id (PK)      │  id   │ id (PK)      │         │
+  │             │            │ batch_id(FK) │       │ status       │         │
+  │             │            │ course_id(FK)│       │ cloned_from  │─┐ self  │
+  │             │            └──────────────┘       │  _id (FK)    │ │ ref   │
+  │             │                                   └──────┬───────┘◄┘       │
+  │             │                                          │                │
+  │             │                                   ┌──────┴───────┐         │
+  │             │                                   ▼              │         │
+  │             │                     ┌────────────────┐           │         │
+  │             │                     │curriculum_     │           │         │
+  │             │                     │modules         │           │         │
+  │             │                     │────────────────│           │         │
+  │             │                     │ course_id      │           │         │
+  │             │                     │ topics[]       │           │         │
+  │             │                     │ seq_order      │           │         │
+  │             │                     └────────────────┘           │         │
   │             │                                                  │         │
-  │             │          ┌────────────────┐                       │         │
-  │             │─────────►│ batch_materials │· · · · · · · · · · ·│         │
-  │             │ batch_id │────────────────│  course_id (optional) │         │
-  │             │          │ batch_id       │  grouping tag         │         │
-  │             │          │ course_id?     │                       │         │
-  │             │          │ file_type      │                       │         │
-  │             │          └────────────────┘                       │         │
-  │             │                                                  │         │
-  ┌──────────────┐         ┌──────────────────┐                        │     │
-  │ zoom_classes  │────────►│ class_recordings  │                        │     │
-  │──────────────│zoom_    │──────────────────│                        │     │
-  │ batch_id(FK) │class_id │ zoom_class_id(FK)│                        │     │
-  │ teacher_id   │         │ bunny_video_id   │                        │     │
-  │ zoom_meeting │         │ status           │                        │     │
-  │ status       │         └──────────────────┘                        │     │
-  └──────────────┘                                                     │     │
-                                                                       │     │
-  ┌──────────────┐         ┌──────────────────┐                        │     │
-  │    jobs       │────────►│ job_applications  │◄───── users (student) │     │
-  │──────────────│ job_id  │──────────────────│  student_id            │     │
-  │ posted_by    │(RESTRICT)│ job_id (FK)      │                        │     │
-  │ job_type     │         │ student_id (FK)  │                        │     │
-  │ requirements │         │ status           │                        │     │
-  │ deadline     │         │ resume_url       │                        │     │
-  └──────────────┘         └──────────────────┘                        │     │
-                                                                       │     │
-  ┌──────────────────────┐  ┌─────────────────┐  ┌──────────────────┐  │     │
-  │ student_batch_history │  │  user_sessions   │  │  system_settings  │  │     │
-  │──────────────────────│  │─────────────────│  │──────────────────│  │     │
-  │ student_id (FK)      │  │ user_id (FK)    │  │ setting_key (UQ) │  │     │
-  │ batch_id (FK)        │  │ session_token   │  │ value            │  │     │
-  │ action               │  │ is_active       │  │ updated_by       │  │     │
-  │ changed_by (FK)      │  │ last_active_at  │  └──────────────────┘  │     │
-  └──────────────────────┘  └─────────────────┘                        │     │
-                                                                       │     │
-  ┌──────────────┐                                                     │     │
-  │ activity_log  │ (append-only, references users and any entity)     │     │
-  │──────────────│                                                     │     │
-  │ user_id (FK) │                                                     │     │
-  │ action       │                                                     │     │
-  │ entity_type  │                                                     │     │
-  │ entity_id    │                                                     │     │
-  │ details      │                                                     │     │
-  └──────────────┘                                                     │     │
+  │             │          ┌───────────┐                            │         │
+  │             │─────────►│ lectures   │· · · · · · · · · · · · · │         │
+  │             │ batch_id │───────────│  course_id (optional)      │         │
+  │             │          │ batch_id   │  grouping tag ──►courses   │         │
+  │             │          │ course_id? │                            │         │
+  │             │          │ video_type │                            │         │
+  │             │          │ seq_order  │                            │         │
+  │             │          └─────┬─────┘                            │         │
+  │             │                │                                  │         │
+  │             │                │ lecture_id                        │         │
+  │             │                ▼                                  │         │
+  │             │          ┌──────────────────┐                     │         │
+  │             │          │ lecture_progress   │◄── users (student) │         │
+  │             │          │──────────────────│  student_id          │         │
+  │             │          │ student_id (FK)  │                     │         │
+  │             │          │ lecture_id (FK)  │                     │         │
+  │             │          │ watch_percentage │                     │         │
+  │             │          │ status           │                     │         │
+  │             │          └──────────────────┘                     │         │
+  │             │                                                   │         │
+  │             │          ┌────────────────┐                        │         │
+  │             │─────────►│ batch_materials │· · · · · · · · · · · ·│         │
+  │             │ batch_id │────────────────│  course_id (optional)  │         │
+  │             │          │ batch_id       │  grouping tag          │         │
+  │             │          │ course_id?     │                        │         │
+  │             │          │ file_type      │                        │         │
+  │             │          └────────────────┘                        │         │
+  │             │                                                   │         │
+  │             │          ┌────────────────┐                        │         │
+  │             │─────────►│ announcements   │· · · · · · · · · · · ·│         │
+  │             │ batch_id │────────────────│  course_id (optional)  │         │
+  │             │(nullable)│ scope          │  ──►courses             │         │
+  │             │          │ batch_id?      │                        │         │
+  │             │          │ course_id?     │                        │         │
+  │             │          │ posted_by(FK)  │──► users               │         │
+  │             │          └────────────────┘                        │         │
+  │             │                                                   │         │
+  ┌──────────────┐         ┌──────────────────┐                     │         │
+  │ zoom_classes  │────────►│ class_recordings  │                     │         │
+  │──────────────│zoom_    │──────────────────│                     │         │
+  │ batch_id(FK) │class_id │ zoom_class_id(FK)│                     │         │
+  │ teacher_id   │         │ bunny_video_id   │                     │         │
+  │ zoom_account │         │ status           │                     │         │
+  │  _id (FK)    │         └──────────────────┘                     │         │
+  │ status       │                                                  │         │
+  └──────┬───────┘         ┌──────────────────┐                     │         │
+         │                 │ zoom_attendance   │◄── users (student)  │         │
+         │ zoom_class_id   │──────────────────│  student_id          │         │
+         └────────────────►│ zoom_class_id(FK)│                     │         │
+                           │ student_id (FK)  │                     │         │
+                           │ joined           │                     │         │
+                           │ duration_seconds │                     │         │
+                           └──────────────────┘                     │         │
+                                                                    │         │
+  ┌──────────────┐                                                  │         │
+  │ zoom_accounts │◄── zoom_classes.zoom_account_id                 │         │
+  │──────────────│                                                  │         │
+  │ name         │                                                  │         │
+  │ account_id   │                                                  │         │
+  │ client_id    │                                                  │         │
+  │ client_secret│                                                  │         │
+  │ is_default   │                                                  │         │
+  └──────────────┘                                                  │         │
+                                                                    │         │
+  ┌──────────────┐         ┌──────────────────┐                     │         │
+  │    jobs       │────────►│ job_applications  │◄── users (student)  │         │
+  │──────────────│ job_id  │──────────────────│  student_id          │         │
+  │ posted_by    │(RESTRICT)│ job_id (FK)      │                     │         │
+  │ job_type     │         │ student_id (FK)  │                     │         │
+  │ requirements │         │ status           │                     │         │
+  │ deadline     │         │ resume_url       │                     │         │
+  └──────────────┘         │ cover_text       │                     │         │
+                           └──────────────────┘                     │         │
+                                                                    │         │
+  ┌──────────────────────┐  ┌─────────────────┐  ┌──────────────────┐         │
+  │ student_batch_history │  │  user_sessions   │  │  system_settings  │         │
+  │──────────────────────│  │─────────────────│  │──────────────────│         │
+  │ student_id (FK)      │  │ user_id (FK)    │  │ setting_key (UQ) │         │
+  │ batch_id (FK)        │  │ session_token   │  │ value            │         │
+  │ action               │  │ is_active       │  │ updated_by       │         │
+  │ changed_by (FK)      │  │ last_active_at  │  └──────────────────┘         │
+  └──────────────────────┘  └─────────────────┘                               │
+                                                                              │
+  ┌──────────────┐                                                            │
+  │ activity_log  │ (append-only, references users and any entity)            │
+  │──────────────│                                                            │
+  │ user_id (FK) │                                                            │
+  │ action       │                                                            │
+  │ entity_type  │                                                            │
+  │ entity_id    │                                                            │
+  │ details      │                                                            │
+  └──────────────┘                                                            │
 ```
 
 ---
@@ -506,12 +683,16 @@ Every FK in the system, with ON DELETE behavior.
 
 | Source Table | Source Column | Target Table | Target Column | ON DELETE |
 |-------------|-------------|-------------|--------------|-----------|
-| `users` | `batch_id` | `batches` | `id` | SET NULL |
 | `batches` | `teacher_id` | `users` | `id` | SET NULL |
 | `batches` | `created_by` | `users` | `id` | SET NULL |
+| `student_batches` | `student_id` | `users` | `id` | CASCADE |
+| `student_batches` | `batch_id` | `batches` | `id` | CASCADE |
+| `student_batches` | `enrolled_by` | `users` | `id` | SET NULL |
+| `student_batches` | `removed_by` | `users` | `id` | SET NULL |
 | `student_batch_history` | `student_id` | `users` | `id` | CASCADE |
 | `student_batch_history` | `batch_id` | `batches` | `id` | SET NULL |
 | `student_batch_history` | `changed_by` | `users` | `id` | SET NULL |
+| `courses` | `cloned_from_id` | `courses` | `id` | SET NULL |
 | `courses` | `created_by` | `users` | `id` | SET NULL |
 | `batch_courses` | `batch_id` | `batches` | `id` | CASCADE |
 | `batch_courses` | `course_id` | `courses` | `id` | CASCADE |
@@ -524,9 +705,18 @@ Every FK in the system, with ON DELETE behavior.
 | `batch_materials` | `batch_id` | `batches` | `id` | CASCADE |
 | `batch_materials` | `course_id` | `courses` | `id` | SET NULL |
 | `batch_materials` | `uploaded_by` | `users` | `id` | SET NULL |
+| `zoom_accounts` | *(none)* | *(none)* | *(none)* | *(no FKs)* |
 | `zoom_classes` | `batch_id` | `batches` | `id` | CASCADE |
 | `zoom_classes` | `teacher_id` | `users` | `id` | SET NULL |
+| `zoom_classes` | `zoom_account_id` | `zoom_accounts` | `id` | SET NULL |
 | `class_recordings` | `zoom_class_id` | `zoom_classes` | `id` | CASCADE |
+| `announcements` | `batch_id` | `batches` | `id` | CASCADE |
+| `announcements` | `course_id` | `courses` | `id` | CASCADE |
+| `announcements` | `posted_by` | `users` | `id` | SET NULL |
+| `lecture_progress` | `student_id` | `users` | `id` | CASCADE |
+| `lecture_progress` | `lecture_id` | `lectures` | `id` | CASCADE |
+| `zoom_attendance` | `zoom_class_id` | `zoom_classes` | `id` | CASCADE |
+| `zoom_attendance` | `student_id` | `users` | `id` | CASCADE |
 | `jobs` | `posted_by` | `users` | `id` | SET NULL |
 | `job_applications` | `job_id` | `jobs` | `id` | **RESTRICT** |
 | `job_applications` | `student_id` | `users` | `id` | CASCADE |
@@ -555,13 +745,18 @@ RETURNS user_role AS $$
   WHERE id = auth.uid() AND deleted_at IS NULL AND status = 'active'
 $$ LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public;
 
--- Returns NULL for non-students or unassigned students
--- NOTE: NULL batch_id means the student sees zero batches/courses/zoom classes.
--- This is intentional — unassigned students have no course access.
-CREATE OR REPLACE FUNCTION auth_batch_id()
-RETURNS uuid AS $$
-  SELECT batch_id FROM public.users
-  WHERE id = auth.uid() AND deleted_at IS NULL AND status = 'active'
+-- Returns array of batch IDs the current student is actively enrolled in.
+-- Returns empty array for non-students or students with no active enrollments.
+-- Empty array means the student sees zero batches/courses/zoom classes.
+CREATE OR REPLACE FUNCTION auth_batch_ids()
+RETURNS uuid[] AS $$
+  SELECT COALESCE(
+    ARRAY(
+      SELECT sb.batch_id FROM public.student_batches sb
+      WHERE sb.student_id = auth.uid() AND sb.removed_at IS NULL
+    ),
+    '{}'::uuid[]
+  )
 $$ LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public;
 ```
 
@@ -569,10 +764,12 @@ $$ LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public;
 
 | Role | SELECT | INSERT | UPDATE |
 |------|--------|--------|--------|
-| Admin | All users | Create teachers, CCs, students (not admins) | Any non-admin user + own profile |
-| Course Creator | All users | Create students only | Update students only |
-| Teacher | Own profile + students in own batches | No | Own profile only (name, phone, avatar — enforced by trigger) |
+| Admin | All users | Create non-admin users (teachers, CCs, students) | Any non-admin user + own profile |
+| Course Creator | All users | Create non-admin users (teachers, CCs, students) | Any non-admin user (Decision #32) |
+| Teacher | Own profile + students enrolled in own batches (via `student_batches`) | No | Own profile only (name, phone, avatar — enforced by trigger) |
 | Student | Own profile only | No | Own profile only (name, phone, avatar — enforced by trigger) |
+
+> **CC expanded permissions (Decision #32):** CC INSERT/UPDATE policies now cover `role IN ('student', 'teacher', 'course_creator')` instead of only `role = 'student'`. The `protect_user_columns` trigger still prevents escalation to admin.
 
 > **Frontend Settings Page:** Each role has a Settings page (`/[role]/settings`) that lets users edit their own name, email, phone, and password. The column-protection trigger on the `users` table ensures only self-edits on safe columns (name, phone, avatar) are allowed. Email changes go through `auth.users` and password changes go through `supabase.auth.updateUser()`. The Admin Settings page also includes system-level session settings (device limit).
 
@@ -583,9 +780,18 @@ $$ LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public;
 | Admin | All | Yes | Yes (including soft-delete) |
 | Course Creator | All | Yes | Yes (including soft-delete) |
 | Teacher | Own batches only (`teacher_id = auth.uid()`) | No | No |
-| Student | Own batch only (`id = user.batch_id`) | No | No |
+| Student | Own enrolled batches (`id = ANY(auth_batch_ids())`) | No | No |
 
-### 5.3 `student_batch_history`
+### 5.3 `student_batches`
+
+| Role | SELECT | INSERT | UPDATE |
+|------|--------|--------|--------|
+| Admin | All | Yes | Yes (including soft-removal via `removed_at`) |
+| Course Creator | All | Yes | Yes (including soft-removal via `removed_at`) |
+| Teacher | Enrollments for students in own batches | No | No |
+| Student | Own enrollments only (`student_id = auth.uid()`) | No | No |
+
+### 5.4 `student_batch_history`
 
 | Role | SELECT | INSERT | UPDATE |
 |------|--------|--------|--------|
@@ -594,61 +800,112 @@ $$ LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public;
 | Teacher | Records for students in own batches | No | No |
 | Student | Own records only | No | No |
 
-### 5.4 `courses`
+### 5.5 `courses`
 
 | Role | SELECT | INSERT | UPDATE |
 |------|--------|--------|--------|
 | Admin | All | No | No |
 | Course Creator | All | Yes | Yes (any course, including soft-delete) |
 | Teacher | Courses linked to own batches (via `batch_courses`) | No | No |
-| Student | Courses linked to own batch (via `batch_courses`) | No | No |
+| Student | Courses linked to enrolled batches (via `batch_courses`) | No | No |
 
-### 5.5 `batch_courses`
+### 5.6 `batch_courses`
 
 | Role | SELECT | INSERT | UPDATE |
 |------|--------|--------|--------|
 | Admin | All | No | No |
 | Course Creator | All | Yes | Yes (soft-delete to unassign) |
 | Teacher | Own batch links only | No | No |
-| Student | Own batch links only | No | No |
+| Student | Own enrolled batch links only | No | No |
 
-### 5.6 `lectures`
+### 5.7 `lectures`
 
 | Role | SELECT | INSERT | UPDATE |
 |------|--------|--------|--------|
 | Admin | All | No | No |
 | Course Creator | All | Yes | Yes (including soft-delete) |
 | Teacher | Lectures in own batches (`batch_id` in batches where `teacher_id = auth.uid()`; RLS allows SELECT but UI does not render lecture/video content for teachers) | No | No |
-| Student | Lectures in own batch (`batch_id = auth_batch_id()`) | No | No |
+| Student | Lectures in enrolled batches (`batch_id = ANY(auth_batch_ids())`) | No | No |
 
-### 5.7 `curriculum_modules`
+### 5.8 `curriculum_modules`
 
 | Role | SELECT | INSERT | UPDATE |
 |------|--------|--------|--------|
 | Admin | All | No | No |
 | Course Creator | All | Yes | Yes (including soft-delete) |
 | Teacher | Modules in courses linked to own batches | No | No |
-| Student | Modules in courses linked to own batch | No | No |
+| Student | Modules in courses linked to enrolled batches | No | No |
 
-### 5.8 `zoom_classes`
+### 5.9 `batch_materials`
+
+| Role | SELECT | INSERT | UPDATE |
+|------|--------|--------|--------|
+| Admin | All | No | No |
+| Course Creator | All | Yes | Yes (including soft-delete) |
+| Teacher | Materials in own batches | Yes (own batches only) | Own uploads only (`uploaded_by = auth.uid()`) |
+| Student | Materials in enrolled batches | No | No |
+
+### 5.10 `zoom_accounts`
+
+| Role | SELECT | INSERT | UPDATE |
+|------|--------|--------|--------|
+| Admin | All | Yes | Yes (including soft-delete) |
+| Teacher | All (for scheduling dropdown — frontend should exclude secret columns) | No | No |
+| Course Creator | No | No | No |
+| Student | No | No | No |
+
+### 5.11 `zoom_classes`
 
 | Role | SELECT | INSERT | UPDATE |
 |------|--------|--------|--------|
 | Admin | All | No | No |
 | Course Creator | All | No | No |
 | Teacher | Own classes only (`teacher_id = auth.uid()`) | Yes (for own batches only) | Own classes only (must keep same batch) |
-| Student | Classes for own batch | No | No |
+| Student | Classes for enrolled batches | No | No |
 
-### 5.9 `class_recordings`
+### 5.12 `class_recordings`
 
 | Role | SELECT | INSERT | UPDATE |
 |------|--------|--------|--------|
 | Admin | All | No | No |
 | Course Creator | All | No | No |
 | Teacher | Recordings for own classes (RLS allows SELECT but UI does not surface recordings for teachers) | No | No |
-| Student | Only `status = 'ready'` recordings for own batch | No | No |
+| Student | Only `status = 'ready'` recordings for enrolled batches | No | No |
 
-### 5.10 `jobs`
+### 5.13 `announcements`
+
+| Role | SELECT | INSERT | UPDATE |
+|------|--------|--------|--------|
+| Admin | All | Yes (scope must be `institute`) | Own announcements only (soft-delete via `deleted_at`) |
+| Course Creator | All (institute + all batch/course scoped) | Yes (scope = `batch` or `course`) | Own announcements only (soft-delete) |
+| Teacher | Institute-wide + own batch scoped | Yes (scope = `batch`, only own batches) | Own announcements only (soft-delete) |
+| Student | Institute-wide + enrolled batches + enrolled batches' courses | No | No |
+
+> **Admin can also soft-delete any announcement** via a separate UPDATE policy.
+
+### 5.14 `lecture_progress`
+
+| Role | SELECT | INSERT | UPDATE |
+|------|--------|--------|--------|
+| Admin | All | No | No |
+| Course Creator | All | No | No |
+| Teacher | No | No | No |
+| Student | Own rows only (`student_id = auth.uid()`) | Yes (own rows, `student_id = auth.uid()`) | Own rows only (for UPSERT) |
+
+> **UPSERT note**: Students need both INSERT and UPDATE policies because progress uses `ON CONFLICT (student_id, lecture_id) DO UPDATE`.
+
+### 5.15 `zoom_attendance`
+
+| Role | SELECT | INSERT | UPDATE |
+|------|--------|--------|--------|
+| Admin | All | No (service_role only) | No |
+| Course Creator | All | No | No |
+| Teacher | Attendance for own classes (`zoom_class_id` in own classes) | No | No |
+| Student | Own attendance only (`student_id = auth.uid()`) | No | No |
+
+> **INSERT is service_role only**: No INSERT policy for `authenticated`. The `fetch-zoom-attendance` Edge Function uses `service_role` to bypass RLS and insert attendance records.
+
+### 5.16 `jobs`
 
 | Role | SELECT | INSERT | UPDATE |
 |------|--------|--------|--------|
@@ -657,7 +914,7 @@ $$ LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public;
 | Teacher | No | No | No |
 | Student | All (where `deleted_at IS NULL`) | No | No |
 
-### 5.11 `job_applications`
+### 5.17 `job_applications`
 
 | Role | SELECT | INSERT | UPDATE |
 |------|--------|--------|--------|
@@ -666,21 +923,21 @@ $$ LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public;
 | Teacher | No | No | No |
 | Student | Own applications only | Yes (create own) | Own applications only (soft-delete for resubmit) |
 
-### 5.12 `user_sessions`
+### 5.18 `user_sessions`
 
 | Role | SELECT | INSERT | UPDATE |
 |------|--------|--------|--------|
 | Admin | All | No | Deactivate any (`is_active = false`) |
 | All users | Own sessions only | Via Edge Function | Own sessions only (`is_active` only — enforced by trigger) |
 
-### 5.13 `system_settings`
+### 5.19 `system_settings`
 
 | Role | SELECT | INSERT | UPDATE |
 |------|--------|--------|--------|
 | Admin | All | Yes | Yes |
 | All others | No | No | No |
 
-### 5.14 `activity_log`
+### 5.20 `activity_log`
 
 | Role | SELECT | INSERT | UPDATE |
 |------|--------|--------|--------|
@@ -711,6 +968,10 @@ CREATE TYPE video_type AS ENUM ('upload', 'external');
 CREATE TYPE batch_history_action AS ENUM ('assigned', 'removed');
 
 CREATE TYPE material_file_type AS ENUM ('pdf', 'excel', 'word', 'pptx', 'image', 'archive', 'other');
+
+CREATE TYPE announcement_scope AS ENUM ('institute', 'batch', 'course');
+
+CREATE TYPE lecture_watch_status AS ENUM ('unwatched', 'in_progress', 'completed');
 ```
 
 ---
@@ -756,8 +1017,8 @@ SELECT
 FROM batches b
 LEFT JOIN (
   SELECT batch_id, COUNT(*) AS student_count
-  FROM users
-  WHERE role = 'student' AND deleted_at IS NULL
+  FROM student_batches
+  WHERE removed_at IS NULL
   GROUP BY batch_id
 ) s ON s.batch_id = b.id
 LEFT JOIN (
@@ -770,6 +1031,8 @@ LEFT JOIN (
 WHERE b.deleted_at IS NULL;
 ```
 
+> **Note**: Announcements visibility is handled via RLS policies, not views. No additional views are needed for announcements.
+
 ---
 
 ## 8. Indexes
@@ -779,19 +1042,22 @@ All primary keys and unique constraints automatically create indexes. These are 
 | Table | Index | Columns | Reason |
 |-------|-------|---------|--------|
 | `users` | `idx_users_role` | `role` | Filter users by role (admin pages) |
-| `users` | `idx_users_batch_id` | `batch_id` | List students in a batch |
 | `users` | `idx_users_status` | `status` | Filter active/inactive users |
 | `users` | `idx_users_deleted_at` | `deleted_at` | Soft-delete filter |
 | `batches` | `idx_batches_teacher_id` | `teacher_id` | Find batches for a teacher |
 | `batches` | `idx_batches_dates` | `start_date, end_date` | Status computation |
 | `batches` | `idx_batches_deleted_at` | `deleted_at` | Soft-delete filter |
+| `student_batches` | `idx_sb_student_id` | `student_id` | Enrollments for a student |
+| `student_batches` | `idx_sb_batch_id` | `batch_id` | Students in a batch |
+| `student_batches` | `idx_sb_removed_at` | `removed_at` | Filter active enrollments |
 | `student_batch_history` | `idx_sbh_student_id` | `student_id` | Student's batch history |
 | `student_batch_history` | `idx_sbh_batch_id` | `batch_id` | Batch history |
+| `courses` | `idx_courses_status` | `status` | Filter by course status |
+| `courses` | `idx_courses_cloned_from` | `cloned_from_id` | Find clones of a course |
+| `courses` | `idx_courses_deleted_at` | `deleted_at` | Soft-delete filter |
 | `batch_courses` | `idx_bc_batch_id` | `batch_id` | Courses for a batch |
 | `batch_courses` | `idx_bc_course_id` | `course_id` | Batches for a course |
 | `batch_courses` | `idx_bc_deleted_at` | `deleted_at` | Soft-delete filter |
-| `courses` | `idx_courses_status` | `status` | Filter by course status |
-| `courses` | `idx_courses_deleted_at` | `deleted_at` | Soft-delete filter |
 | `lectures` | `idx_lectures_sequence` | `batch_id, sequence_order` | Ordered lecture list (also covers batch_id-only queries) |
 | `lectures` | `idx_lectures_course_id` | `course_id` | Filter lectures by optional course grouping tag |
 | `lectures` | `idx_lectures_deleted_at` | `deleted_at` | Soft-delete filter |
@@ -802,14 +1068,27 @@ All primary keys and unique constraints automatically create indexes. These are 
 | `batch_materials` | `idx_materials_uploaded_by` | `uploaded_by` | Materials by uploader |
 | `batch_materials` | `idx_materials_file_type` | `file_type` | Filter by file type |
 | `batch_materials` | `idx_materials_deleted_at` | `deleted_at` | Soft-delete filter |
+| `zoom_accounts` | `idx_za_deleted_at` | `deleted_at` | Soft-delete filter |
 | `zoom_classes` | `idx_zc_batch_id` | `batch_id` | Classes for a batch |
 | `zoom_classes` | `idx_zc_teacher_id` | `teacher_id` | Classes for a teacher |
+| `zoom_classes` | `idx_zc_zoom_account_id` | `zoom_account_id` | Classes per Zoom account |
 | `zoom_classes` | `idx_zc_status` | `status` | Filter by class status |
 | `zoom_classes` | `idx_zc_scheduled` | `scheduled_date, scheduled_time` | Upcoming classes sort |
 | `zoom_classes` | `idx_zc_deleted_at` | `deleted_at` | Soft-delete filter |
 | `class_recordings` | `idx_cr_zoom_class_id` | `zoom_class_id` | Recordings for a class |
 | `class_recordings` | `idx_cr_status` | `status` | Filter ready recordings |
 | `class_recordings` | `idx_cr_deleted_at` | `deleted_at` | Soft-delete filter |
+| `announcements` | `idx_ann_scope` | `scope` | Filter by scope type |
+| `announcements` | `idx_ann_batch_id` | `batch_id` | Announcements for a batch |
+| `announcements` | `idx_ann_course_id` | `course_id` | Announcements for a course |
+| `announcements` | `idx_ann_posted_by` | `posted_by` | Announcements by author |
+| `announcements` | `idx_ann_expires_at` | `expires_at` | Filter expired announcements |
+| `announcements` | `idx_ann_deleted_at` | `deleted_at` | Soft-delete filter |
+| `lecture_progress` | `idx_lp_student_id` | `student_id` | Progress for a student |
+| `lecture_progress` | `idx_lp_lecture_id` | `lecture_id` | Progress for a lecture |
+| `lecture_progress` | `idx_lp_status` | `status` | Filter by watch status |
+| `zoom_attendance` | `idx_zatt_zoom_class_id` | `zoom_class_id` | Attendance for a class |
+| `zoom_attendance` | `idx_zatt_student_id` | `student_id` | Attendance for a student |
 | `jobs` | `idx_jobs_job_type` | `job_type` | Filter by job type |
 | `jobs` | `idx_jobs_deadline` | `deadline` | Sort/filter by deadline |
 | `jobs` | `idx_jobs_deleted_at` | `deleted_at` | Soft-delete filter |
@@ -828,10 +1107,13 @@ All primary keys and unique constraints automatically create indexes. These are 
 **Partial unique indexes** (constraint enforcement):
 | Table | Index | Columns | Condition | Purpose |
 |-------|-------|---------|-----------|---------|
+| `student_batches` | `uq_active_enrollment` | `student_id, batch_id` | `WHERE removed_at IS NULL` | One active enrollment per student per batch |
 | `batch_courses` | `uq_active_batch_course` | `batch_id, course_id` | `WHERE deleted_at IS NULL` | One active link per batch-course pair |
 | `lectures` | `uq_lecture_sequence` | `batch_id, sequence_order` | `WHERE deleted_at IS NULL` | No duplicate ordering |
 | `curriculum_modules` | `uq_cm_sequence` | `course_id, sequence_order` | `WHERE deleted_at IS NULL` | No duplicate ordering |
 | `job_applications` | `uq_active_application` | `student_id, job_id` | `WHERE deleted_at IS NULL` | One active application per student per job |
+| `lecture_progress` | `uq_student_lecture` | `student_id, lecture_id` | *(none — always unique)* | One progress row per student per lecture |
+| `zoom_attendance` | `uq_class_student` | `zoom_class_id, student_id` | *(none — always unique)* | One attendance row per student per class |
 
 ---
 
@@ -872,14 +1154,14 @@ Serverless functions deployed on Supabase Edge (Deno/TypeScript). All use `SUPAB
 ### 10.1 `generate-signed-video-url`
 
 - **Trigger**: Student opens a lecture page (teachers do not have video access in the UI)
-- **Logic**: Verify enrollment (student's batch linked to course) -> call Bunny.net API -> return temporary signed URL (expires in 10 minutes)
+- **Logic**: Verify enrollment (student has active enrollment in a batch linked to the course via `student_batches`) -> call Bunny.net API -> return temporary signed URL (expires in 10 minutes)
 - **Env vars**: `BUNNY_API_KEY`, `BUNNY_LIBRARY_ID`
 
 ### 10.2 `create-zoom-meeting`
 
 - **Trigger**: Teacher schedules a class via the LMS
-- **Logic**: Validate teacher owns the batch -> call Zoom API to create meeting -> store `zoom_meeting_id`, `zoom_meeting_url`, `zoom_start_url` in `zoom_classes` table
-- **Env vars**: `ZOOM_CLIENT_ID`, `ZOOM_CLIENT_SECRET`, `ZOOM_ACCOUNT_ID`
+- **Logic**: Validate teacher owns the batch -> look up selected `zoom_account` credentials -> call Zoom API to create meeting -> store `zoom_meeting_id`, `zoom_meeting_url`, `zoom_start_url`, `zoom_account_id` in `zoom_classes` table
+- **Env vars**: None (credentials stored in `zoom_accounts` table)
 
 ### 10.3 `sync-zoom-status`
 
@@ -899,6 +1181,36 @@ Serverless functions deployed on Supabase Edge (Deno/TypeScript). All use `SUPAB
 - **Logic**: Receive recording URL from Zoom -> download recording -> upload to Bunny.net -> create `class_recordings` row with status `'processing'` -> update to `'ready'` when Bunny.net confirms
 - **Env vars**: `ZOOM_WEBHOOK_SECRET`, `BUNNY_API_KEY`, `BUNNY_LIBRARY_ID`
 
+### 10.6 `send-zoom-reminder`
+
+- **Trigger**: Cron job (runs every 15 minutes)
+- **Logic**: Query `zoom_classes` for meetings starting within the next hour that haven't had reminders sent -> for each, query students enrolled in that batch via `student_batches` -> send email reminder via email provider -> mark reminder as sent (via `details` in `activity_log` or a flag)
+- **Env vars**: `RESEND_API_KEY` (or `SENDGRID_API_KEY`)
+
+### 10.7 `fetch-zoom-attendance`
+
+- **Trigger**: After `sync-zoom-status` sets status to `completed`
+- **Logic**: Call Zoom Past Meeting Participants API -> match participants to students by email -> INSERT rows into `zoom_attendance` (joined/not joined, join/leave times, duration) -> students not found in participant list get `joined = false`
+- **Env vars**: None (credentials from `zoom_accounts` table)
+
+### 10.8 `bulk-import-users`
+
+- **Trigger**: Admin uploads CSV from Users page
+- **Logic**: Parse CSV -> validate rows (required fields, unique emails, valid roles) -> create `auth.users` entries -> create corresponding `users` table rows -> for students, create `student_batches` enrollment rows -> log `user.bulk_imported` action -> return success/failure summary
+- **Env vars**: None (uses service_role key)
+
+### 10.9 `export-data`
+
+- **Trigger**: Admin clicks export button on any list page
+- **Logic**: Accept params (entity type, filters, format) -> query data with service_role -> generate CSV or PDF -> return download URL (signed storage URL or inline response)
+- **Env vars**: None (uses service_role key)
+
+### 10.10 `clone-course`
+
+- **Trigger**: CC clicks "Clone Course" button
+- **Logic**: Copy `courses` row with new ID, title appended with "(Copy)", `status = 'upcoming'`, `cloned_from_id = original.id` -> copy all `curriculum_modules` for original course with new IDs and new `course_id` -> does NOT copy lectures or materials (batch-scoped) -> log `course.cloned` action -> return new course
+- **Env vars**: None (uses service_role key)
+
 ---
 
 ## 11. Frontend Integration Notes
@@ -914,8 +1226,9 @@ The frontend uses **kebab-case**, the database uses **snake_case**. Transform on
 | `'course-creator'` | `'course_creator'` | `users.role` |
 | `'full-time'` | `'full_time'` | `jobs.job_type` |
 | `'part-time'` | `'part_time'` | `jobs.job_type` |
+| `'in-progress'` | `'in_progress'` | `lecture_progress.status` |
 
-Values that are the same in both: `admin`, `teacher`, `student`, `internship`, `remote`, `active`, `inactive`, `upcoming`, `completed`, `applied`, `shortlisted`, `rejected`, `live`, `upload`, `external`.
+Values that are the same in both: `admin`, `teacher`, `student`, `internship`, `remote`, `active`, `inactive`, `upcoming`, `completed`, `applied`, `shortlisted`, `rejected`, `live`, `upload`, `external`, `institute`, `batch`, `course`, `unwatched`.
 
 **Recommended approach**: Create a mapping utility in the frontend:
 ```typescript
@@ -963,6 +1276,57 @@ After this, the admin can create all other accounts through the LMS interface.
 | `uploadedByRole` | `'course-creator' \| 'teacher'` | Derived from `users.role` | Map from user's role via join |
 | `fileUrl` | `string` | `file_path text` | Generate signed URL from storage path |
 
+### 11.5 Announcements Mapping
+
+| Field | Frontend | Database (`announcements` table) | Action |
+|-------|----------|----------------------------------|--------|
+| `author` | `string` (name) | `posted_by uuid` | Join with `users` table to get name and role |
+| `postedAt` | `string` | `created_at timestamptz` | Format to display string |
+| `isExpired` | `boolean` | `expires_at timestamptz` | Compute: `expires_at != null && expires_at < now()` |
+| `scope` | `'institute' \| 'batch' \| 'course'` | `announcement_scope` enum | Direct mapping (same values) |
+
+### 11.6 Lecture Progress Mapping
+
+| Field | Frontend | Database (`lecture_progress` table) | Action |
+|-------|----------|--------------------------------------|--------|
+| `watchPercentage` | `number` (0-100) | `watch_percentage integer` | Direct mapping |
+| `resumePosition` | `number` (seconds) | `resume_position_seconds integer` | Direct mapping |
+| `status` | `'unwatched' \| 'in-progress' \| 'completed'` | `lecture_watch_status` enum | Map `'in-progress'` ↔ `'in_progress'` |
+| `lastWatchedAt` | `string` | `last_watched_at timestamptz` | Format to display string |
+
+**UPSERT pattern** (frontend Supabase client):
+```typescript
+const { error } = await supabase
+  .from('lecture_progress')
+  .upsert({
+    student_id: userId,
+    lecture_id: lectureId,
+    watch_percentage: percentage,
+    resume_position_seconds: position,
+    status: percentage >= 90 ? 'completed' : 'in_progress',
+    last_watched_at: new Date().toISOString(),
+  }, { onConflict: 'student_id,lecture_id' });
+```
+
+### 11.7 Zoom Attendance Mapping
+
+| Field | Frontend | Database (`zoom_attendance` table) | Action |
+|-------|----------|-------------------------------------|--------|
+| `studentName` | `string` | Not present | Join with `users` table |
+| `joined` | `boolean` | `joined boolean` | Direct mapping |
+| `duration` | `string` ("45 min") | `duration_seconds integer` | Format to display string |
+| `joinTime` / `leaveTime` | `string` | `join_time` / `leave_time timestamptz` | Format to display string |
+
+### 11.8 Zoom Accounts Mapping
+
+| Field | Frontend | Database (`zoom_accounts` table) | Action |
+|-------|----------|-----------------------------------|--------|
+| `name` | `string` | `name text` | Direct mapping |
+| `accountId` | `string` | `account_id text` | Direct mapping |
+| `clientId` | `string` | `client_id text` | Direct mapping |
+| `clientSecret` | `string` (masked in UI) | `client_secret text` (encrypted at rest) | Show masked in UI; send raw on save |
+| `isDefault` | `boolean` | `is_default boolean` | Direct mapping |
+
 ---
 
 ## 12. Full SQL
@@ -990,6 +1354,8 @@ CREATE TYPE application_status AS ENUM ('applied', 'shortlisted', 'rejected');
 CREATE TYPE video_type AS ENUM ('upload', 'external');
 CREATE TYPE batch_history_action AS ENUM ('assigned', 'removed');
 CREATE TYPE material_file_type AS ENUM ('pdf', 'excel', 'word', 'pptx', 'image', 'archive', 'other');
+CREATE TYPE announcement_scope AS ENUM ('institute', 'batch', 'course');
+CREATE TYPE lecture_watch_status AS ENUM ('unwatched', 'in_progress', 'completed');
 
 
 -- =====================
@@ -1005,12 +1371,10 @@ CREATE TABLE users (
   role          user_role NOT NULL,
   specialization text,
   avatar_url    text,
-  batch_id      uuid,
   status        user_status NOT NULL DEFAULT 'active',
   created_at    timestamptz NOT NULL DEFAULT now(),
   updated_at    timestamptz NOT NULL DEFAULT now(),
   deleted_at    timestamptz,
-  CONSTRAINT chk_batch_id_student_only CHECK ((role = 'student') OR (batch_id IS NULL)),
   CONSTRAINT chk_specialization_teacher_only CHECK ((role = 'teacher') OR (specialization IS NULL))
 );
 
@@ -1028,12 +1392,24 @@ CREATE TABLE batches (
   CONSTRAINT chk_batch_dates CHECK (end_date > start_date)
 );
 
--- Add FK from users.batch_id -> batches.id (deferred because batches didn't exist yet)
-ALTER TABLE users
-  ADD CONSTRAINT fk_users_batch
-  FOREIGN KEY (batch_id) REFERENCES batches(id) ON DELETE SET NULL;
+-- 2.3 student_batches
+CREATE TABLE student_batches (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id    uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  batch_id      uuid NOT NULL REFERENCES batches(id) ON DELETE CASCADE,
+  enrolled_by   uuid REFERENCES users(id) ON DELETE SET NULL,
+  enrolled_at   timestamptz NOT NULL DEFAULT now(),
+  removed_at    timestamptz,
+  removed_by    uuid REFERENCES users(id) ON DELETE SET NULL,
+  updated_at    timestamptz NOT NULL DEFAULT now()
+);
 
--- 2.3 student_batch_history
+-- Partial unique: one active enrollment per student per batch
+CREATE UNIQUE INDEX uq_active_enrollment
+  ON student_batches (student_id, batch_id)
+  WHERE removed_at IS NULL;
+
+-- 2.4 student_batch_history
 CREATE TABLE student_batch_history (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   student_id    uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -1043,19 +1419,20 @@ CREATE TABLE student_batch_history (
   created_at    timestamptz NOT NULL DEFAULT now()
 );
 
--- 2.4 courses
+-- 2.5 courses
 CREATE TABLE courses (
-  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  title         text NOT NULL,
-  description   text,
-  status        course_status NOT NULL DEFAULT 'upcoming',
-  created_by    uuid REFERENCES users(id) ON DELETE SET NULL,
-  created_at    timestamptz NOT NULL DEFAULT now(),
-  updated_at    timestamptz NOT NULL DEFAULT now(),
-  deleted_at    timestamptz
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  title           text NOT NULL,
+  description     text,
+  status          course_status NOT NULL DEFAULT 'upcoming',
+  cloned_from_id  uuid REFERENCES courses(id) ON DELETE SET NULL,
+  created_by      uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  updated_at      timestamptz NOT NULL DEFAULT now(),
+  deleted_at      timestamptz
 );
 
--- 2.5 batch_courses
+-- 2.6 batch_courses
 CREATE TABLE batch_courses (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   batch_id      uuid NOT NULL REFERENCES batches(id) ON DELETE CASCADE,
@@ -1071,7 +1448,7 @@ CREATE UNIQUE INDEX uq_active_batch_course
   ON batch_courses (batch_id, course_id)
   WHERE deleted_at IS NULL;
 
--- 2.6 lectures
+-- 2.7 lectures
 CREATE TABLE lectures (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   batch_id        uuid NOT NULL REFERENCES batches(id) ON DELETE CASCADE,
@@ -1101,7 +1478,7 @@ CREATE UNIQUE INDEX uq_lecture_sequence
   ON lectures (batch_id, sequence_order)
   WHERE deleted_at IS NULL;
 
--- 2.7 curriculum_modules
+-- 2.8 curriculum_modules
 CREATE TABLE curriculum_modules (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   course_id       uuid NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
@@ -1120,7 +1497,7 @@ CREATE UNIQUE INDEX uq_cm_sequence
   ON curriculum_modules (course_id, sequence_order)
   WHERE deleted_at IS NULL;
 
--- 2.8 batch_materials
+-- 2.9 batch_materials
 CREATE TABLE batch_materials (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   batch_id        uuid NOT NULL REFERENCES batches(id) ON DELETE CASCADE,
@@ -1138,17 +1515,31 @@ CREATE TABLE batch_materials (
   deleted_at      timestamptz
 );
 
--- 2.9 zoom_classes
+-- 2.10 zoom_accounts
+CREATE TABLE zoom_accounts (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name            text NOT NULL,
+  account_id      text NOT NULL,
+  client_id       text NOT NULL,
+  client_secret   text NOT NULL,
+  is_default      boolean NOT NULL DEFAULT false,
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  updated_at      timestamptz NOT NULL DEFAULT now(),
+  deleted_at      timestamptz
+);
+
+-- 2.11 zoom_classes
 CREATE TABLE zoom_classes (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   batch_id          uuid NOT NULL REFERENCES batches(id) ON DELETE CASCADE,
   teacher_id        uuid REFERENCES users(id) ON DELETE SET NULL,
+  zoom_account_id   uuid REFERENCES zoom_accounts(id) ON DELETE SET NULL,
   title             text NOT NULL,
   zoom_meeting_id   text,
   zoom_meeting_url  text,
   zoom_start_url    text,
   scheduled_date    date NOT NULL,
-  scheduled_time    time NOT NULL,  -- Server timezone must be Asia/Karachi
+  scheduled_time    time NOT NULL,
   duration          integer,
   status            zoom_class_status NOT NULL DEFAULT 'upcoming',
   created_at        timestamptz NOT NULL DEFAULT now(),
@@ -1156,7 +1547,7 @@ CREATE TABLE zoom_classes (
   deleted_at        timestamptz
 );
 
--- 2.9 class_recordings
+-- 2.12 class_recordings
 CREATE TABLE class_recordings (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   zoom_class_id     uuid NOT NULL REFERENCES zoom_classes(id) ON DELETE CASCADE,
@@ -1173,7 +1564,60 @@ CREATE TABLE class_recordings (
   deleted_at        timestamptz
 );
 
--- 2.10 jobs
+-- 2.13 announcements
+CREATE TABLE announcements (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  title         text NOT NULL,
+  body          text NOT NULL,
+  scope         announcement_scope NOT NULL,
+  batch_id      uuid REFERENCES batches(id) ON DELETE CASCADE,
+  course_id     uuid REFERENCES courses(id) ON DELETE CASCADE,
+  expires_at    timestamptz,
+  posted_by     uuid NOT NULL REFERENCES users(id) ON DELETE SET NULL,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  updated_at    timestamptz NOT NULL DEFAULT now(),
+  deleted_at    timestamptz,
+  CONSTRAINT chk_announcement_scope CHECK (
+    (scope = 'institute' AND batch_id IS NULL AND course_id IS NULL) OR
+    (scope = 'batch' AND batch_id IS NOT NULL AND course_id IS NULL) OR
+    (scope = 'course' AND course_id IS NOT NULL AND batch_id IS NULL)
+  )
+);
+
+-- 2.14 lecture_progress
+CREATE TABLE lecture_progress (
+  id                      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id              uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  lecture_id              uuid NOT NULL REFERENCES lectures(id) ON DELETE CASCADE,
+  watch_percentage        integer NOT NULL DEFAULT 0,
+  resume_position_seconds integer NOT NULL DEFAULT 0,
+  status                  lecture_watch_status NOT NULL DEFAULT 'unwatched',
+  last_watched_at         timestamptz NOT NULL DEFAULT now(),
+  created_at              timestamptz NOT NULL DEFAULT now(),
+  updated_at              timestamptz NOT NULL DEFAULT now()
+);
+
+-- Unique: one progress row per student per lecture
+CREATE UNIQUE INDEX uq_student_lecture
+  ON lecture_progress (student_id, lecture_id);
+
+-- 2.15 zoom_attendance
+CREATE TABLE zoom_attendance (
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  zoom_class_id     uuid NOT NULL REFERENCES zoom_classes(id) ON DELETE CASCADE,
+  student_id        uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  joined            boolean NOT NULL,
+  join_time         timestamptz,
+  leave_time        timestamptz,
+  duration_seconds  integer,
+  created_at        timestamptz NOT NULL DEFAULT now()
+);
+
+-- Unique: one attendance record per student per class
+CREATE UNIQUE INDEX uq_class_student
+  ON zoom_attendance (zoom_class_id, student_id);
+
+-- 2.16 jobs
 CREATE TABLE jobs (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   title         text NOT NULL,
@@ -1190,12 +1634,13 @@ CREATE TABLE jobs (
   deleted_at    timestamptz
 );
 
--- 2.11 job_applications
+-- 2.17 job_applications
 CREATE TABLE job_applications (
   id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   job_id              uuid NOT NULL REFERENCES jobs(id) ON DELETE RESTRICT,
   student_id          uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   resume_url          text,
+  cover_text          text,
   status              application_status NOT NULL DEFAULT 'applied',
   status_changed_at   timestamptz,
   status_changed_by   uuid REFERENCES users(id) ON DELETE SET NULL,
@@ -1210,7 +1655,7 @@ CREATE UNIQUE INDEX uq_active_application
   ON job_applications (student_id, job_id)
   WHERE deleted_at IS NULL;
 
--- 2.12 user_sessions
+-- 2.18 user_sessions
 CREATE TABLE user_sessions (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id         uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -1224,7 +1669,7 @@ CREATE TABLE user_sessions (
   deleted_at      timestamptz
 );
 
--- 2.13 system_settings
+-- 2.19 system_settings
 CREATE TABLE system_settings (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   setting_key   text NOT NULL UNIQUE,
@@ -1236,7 +1681,7 @@ CREATE TABLE system_settings (
   deleted_at    timestamptz
 );
 
--- 2.14 activity_log
+-- 2.20 activity_log
 CREATE TABLE activity_log (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id       uuid REFERENCES users(id) ON DELETE SET NULL,
@@ -1255,9 +1700,13 @@ CREATE TABLE activity_log (
 
 -- users
 CREATE INDEX idx_users_role ON users(role);
-CREATE INDEX idx_users_batch_id ON users(batch_id);
 CREATE INDEX idx_users_status ON users(status);
 CREATE INDEX idx_users_deleted_at ON users(deleted_at);
+
+-- student_batches
+CREATE INDEX idx_sb_student_id ON student_batches(student_id);
+CREATE INDEX idx_sb_batch_id ON student_batches(batch_id);
+CREATE INDEX idx_sb_removed_at ON student_batches(removed_at);
 
 -- batches
 CREATE INDEX idx_batches_teacher_id ON batches(teacher_id);
@@ -1268,14 +1717,15 @@ CREATE INDEX idx_batches_deleted_at ON batches(deleted_at);
 CREATE INDEX idx_sbh_student_id ON student_batch_history(student_id);
 CREATE INDEX idx_sbh_batch_id ON student_batch_history(batch_id);
 
+-- courses
+CREATE INDEX idx_courses_status ON courses(status);
+CREATE INDEX idx_courses_cloned_from ON courses(cloned_from_id);
+CREATE INDEX idx_courses_deleted_at ON courses(deleted_at);
+
 -- batch_courses
 CREATE INDEX idx_bc_batch_id ON batch_courses(batch_id);
 CREATE INDEX idx_bc_course_id ON batch_courses(course_id);
 CREATE INDEX idx_bc_deleted_at ON batch_courses(deleted_at);
-
--- courses
-CREATE INDEX idx_courses_status ON courses(status);
-CREATE INDEX idx_courses_deleted_at ON courses(deleted_at);
 
 -- lectures (composite index covers batch_id-only queries too)
 CREATE INDEX idx_lectures_sequence ON lectures(batch_id, sequence_order);
@@ -1293,9 +1743,13 @@ CREATE INDEX idx_materials_uploaded_by ON batch_materials(uploaded_by);
 CREATE INDEX idx_materials_file_type ON batch_materials(file_type);
 CREATE INDEX idx_materials_deleted_at ON batch_materials(deleted_at);
 
+-- zoom_accounts
+CREATE INDEX idx_za_deleted_at ON zoom_accounts(deleted_at);
+
 -- zoom_classes
 CREATE INDEX idx_zc_batch_id ON zoom_classes(batch_id);
 CREATE INDEX idx_zc_teacher_id ON zoom_classes(teacher_id);
+CREATE INDEX idx_zc_zoom_account_id ON zoom_classes(zoom_account_id);
 CREATE INDEX idx_zc_status ON zoom_classes(status);
 CREATE INDEX idx_zc_scheduled ON zoom_classes(scheduled_date, scheduled_time);
 CREATE INDEX idx_zc_deleted_at ON zoom_classes(deleted_at);
@@ -1304,6 +1758,23 @@ CREATE INDEX idx_zc_deleted_at ON zoom_classes(deleted_at);
 CREATE INDEX idx_cr_zoom_class_id ON class_recordings(zoom_class_id);
 CREATE INDEX idx_cr_status ON class_recordings(status);
 CREATE INDEX idx_cr_deleted_at ON class_recordings(deleted_at);
+
+-- announcements
+CREATE INDEX idx_ann_scope ON announcements(scope);
+CREATE INDEX idx_ann_batch_id ON announcements(batch_id);
+CREATE INDEX idx_ann_course_id ON announcements(course_id);
+CREATE INDEX idx_ann_posted_by ON announcements(posted_by);
+CREATE INDEX idx_ann_expires_at ON announcements(expires_at);
+CREATE INDEX idx_ann_deleted_at ON announcements(deleted_at);
+
+-- lecture_progress
+CREATE INDEX idx_lp_student_id ON lecture_progress(student_id);
+CREATE INDEX idx_lp_lecture_id ON lecture_progress(lecture_id);
+CREATE INDEX idx_lp_status ON lecture_progress(status);
+
+-- zoom_attendance
+CREATE INDEX idx_zatt_zoom_class_id ON zoom_attendance(zoom_class_id);
+CREATE INDEX idx_zatt_student_id ON zoom_attendance(student_id);
 
 -- jobs
 CREATE INDEX idx_jobs_job_type ON jobs(job_type);
@@ -1350,6 +1821,9 @@ CREATE TRIGGER set_updated_at BEFORE UPDATE ON batches
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON courses
   FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
 
+CREATE TRIGGER set_updated_at BEFORE UPDATE ON student_batches
+  FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
+
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON batch_courses
   FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
 
@@ -1362,11 +1836,24 @@ CREATE TRIGGER set_updated_at BEFORE UPDATE ON curriculum_modules
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON batch_materials
   FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
 
+CREATE TRIGGER set_updated_at BEFORE UPDATE ON zoom_accounts
+  FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
+
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON zoom_classes
   FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
 
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON class_recordings
   FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
+
+CREATE TRIGGER set_updated_at BEFORE UPDATE ON announcements
+  FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
+
+CREATE TRIGGER set_updated_at BEFORE UPDATE ON lecture_progress
+  FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
+
+-- NOTE: zoom_attendance has NO updated_at trigger (immutable, Decision #33)
+-- NOTE: student_batch_history has NO updated_at (append-only)
+-- NOTE: activity_log has NO updated_at (append-only)
 
 CREATE TRIGGER set_updated_at BEFORE UPDATE ON jobs
   FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
@@ -1385,7 +1872,7 @@ CREATE TRIGGER set_updated_at BEFORE UPDATE ON system_settings
 -- 5. TRIGGERS: column protection
 -- =====================
 
--- Prevent users from changing their own critical columns (role, status, batch_id, email)
+-- Prevent users from changing their own critical columns (role, status, email)
 -- Admins/CCs updating OTHER users are not affected.
 -- service_role bypasses this check.
 CREATE OR REPLACE FUNCTION protect_user_columns()
@@ -1395,7 +1882,6 @@ BEGIN
   IF NEW.id = auth.uid() THEN
     NEW.role := OLD.role;
     NEW.status := OLD.status;
-    NEW.batch_id := OLD.batch_id;
     NEW.email := OLD.email;
     NEW.specialization := OLD.specialization;
   END IF;
@@ -1427,6 +1913,7 @@ BEGIN
     NEW.job_id := OLD.job_id;
     NEW.student_id := OLD.student_id;
     NEW.resume_url := OLD.resume_url;
+    NEW.cover_text := OLD.cover_text;
     NEW.applied_at := OLD.applied_at;
   END IF;
 
@@ -1490,8 +1977,8 @@ SELECT
 FROM batches b
 LEFT JOIN (
   SELECT batch_id, COUNT(*) AS student_count
-  FROM users
-  WHERE role = 'student' AND deleted_at IS NULL
+  FROM student_batches
+  WHERE removed_at IS NULL
   GROUP BY batch_id
 ) s ON s.batch_id = b.id
 LEFT JOIN (
@@ -1515,12 +2002,17 @@ RETURNS user_role AS $$
   WHERE id = auth.uid() AND deleted_at IS NULL AND status = 'active'
 $$ LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public;
 
--- Get the current user's batch_id (for students)
--- Returns NULL for non-students or unassigned students — they see zero batches/courses/classes
-CREATE OR REPLACE FUNCTION auth_batch_id()
-RETURNS uuid AS $$
-  SELECT batch_id FROM public.users
-  WHERE id = auth.uid() AND deleted_at IS NULL AND status = 'active'
+-- Get the current student's active batch IDs
+-- Returns empty array for non-students or students with no active enrollments
+CREATE OR REPLACE FUNCTION auth_batch_ids()
+RETURNS uuid[] AS $$
+  SELECT COALESCE(
+    ARRAY(
+      SELECT sb.batch_id FROM public.student_batches sb
+      WHERE sb.student_id = auth.uid() AND sb.removed_at IS NULL
+    ),
+    '{}'::uuid[]
+  )
 $$ LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public;
 
 
@@ -1546,14 +2038,19 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public
 -- Enable RLS on all tables
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE batches ENABLE ROW LEVEL SECURITY;
+ALTER TABLE student_batches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE student_batch_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE courses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE batch_courses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE lectures ENABLE ROW LEVEL SECURITY;
 ALTER TABLE curriculum_modules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE batch_materials ENABLE ROW LEVEL SECURITY;
+ALTER TABLE zoom_accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE zoom_classes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE class_recordings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE announcements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE lecture_progress ENABLE ROW LEVEL SECURITY;
+ALTER TABLE zoom_attendance ENABLE ROW LEVEL SECURITY;
 ALTER TABLE jobs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE job_applications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_sessions ENABLE ROW LEVEL SECURITY;
@@ -1574,7 +2071,7 @@ CREATE POLICY admin_insert_users ON users
   FOR INSERT TO authenticated
   WITH CHECK (auth_role() = 'admin' AND role != 'admin');
 
--- Admin: update non-admin users
+-- Admin: update non-admin users + own profile
 CREATE POLICY admin_update_others ON users
   FOR UPDATE TO authenticated
   USING (auth_role() = 'admin' AND (id = auth.uid() OR role != 'admin'))
@@ -1585,25 +2082,27 @@ CREATE POLICY cc_select_users ON users
   FOR SELECT TO authenticated
   USING (auth_role() = 'course_creator');
 
--- Course Creator: create students only
-CREATE POLICY cc_insert_students ON users
+-- Course Creator: create non-admin users (Decision #32)
+CREATE POLICY cc_insert_users ON users
   FOR INSERT TO authenticated
-  WITH CHECK (auth_role() = 'course_creator' AND role = 'student');
+  WITH CHECK (auth_role() = 'course_creator' AND role != 'admin');
 
--- Course Creator: update students only
-CREATE POLICY cc_update_students ON users
+-- Course Creator: update non-admin users (Decision #32)
+CREATE POLICY cc_update_users ON users
   FOR UPDATE TO authenticated
-  USING (auth_role() = 'course_creator' AND role = 'student')
-  WITH CHECK (role = 'student');
+  USING (auth_role() = 'course_creator' AND (id = auth.uid() OR role != 'admin'))
+  WITH CHECK (role != 'admin');
 
--- Teacher: read own profile + students in own batches
+-- Teacher: read own profile + students enrolled in own batches
 CREATE POLICY teacher_select_users ON users
   FOR SELECT TO authenticated
   USING (
     auth_role() = 'teacher' AND (
       id = auth.uid() OR
-      (role = 'student' AND batch_id IN (
-        SELECT id FROM batches WHERE teacher_id = auth.uid() AND deleted_at IS NULL
+      (role = 'student' AND id IN (
+        SELECT sb.student_id FROM student_batches sb
+        JOIN batches b ON b.id = sb.batch_id
+        WHERE b.teacher_id = auth.uid() AND b.deleted_at IS NULL AND sb.removed_at IS NULL
       ))
     )
   );
@@ -1659,12 +2158,59 @@ CREATE POLICY teacher_select_own_batches ON batches
   FOR SELECT TO authenticated
   USING (auth_role() = 'teacher' AND teacher_id = auth.uid());
 
-CREATE POLICY student_select_own_batch ON batches
+CREATE POLICY student_select_own_batches ON batches
   FOR SELECT TO authenticated
-  USING (auth_role() = 'student' AND id = auth_batch_id());
+  USING (auth_role() = 'student' AND id = ANY(auth_batch_ids()));
 
 -- -------------------------------------------------------
--- 9.3 student_batch_history
+-- 9.3 student_batches
+-- -------------------------------------------------------
+
+-- Admin: full access
+CREATE POLICY admin_select_sb ON student_batches
+  FOR SELECT TO authenticated
+  USING (auth_role() = 'admin');
+
+CREATE POLICY admin_insert_sb ON student_batches
+  FOR INSERT TO authenticated
+  WITH CHECK (auth_role() = 'admin');
+
+CREATE POLICY admin_update_sb ON student_batches
+  FOR UPDATE TO authenticated
+  USING (auth_role() = 'admin')
+  WITH CHECK (auth_role() = 'admin');
+
+-- CC: full access
+CREATE POLICY cc_select_sb ON student_batches
+  FOR SELECT TO authenticated
+  USING (auth_role() = 'course_creator');
+
+CREATE POLICY cc_insert_sb ON student_batches
+  FOR INSERT TO authenticated
+  WITH CHECK (auth_role() = 'course_creator');
+
+CREATE POLICY cc_update_sb ON student_batches
+  FOR UPDATE TO authenticated
+  USING (auth_role() = 'course_creator')
+  WITH CHECK (auth_role() = 'course_creator');
+
+-- Teacher: read enrollments for own batches
+CREATE POLICY teacher_select_sb ON student_batches
+  FOR SELECT TO authenticated
+  USING (
+    auth_role() = 'teacher' AND
+    batch_id IN (
+      SELECT id FROM batches WHERE teacher_id = auth.uid() AND deleted_at IS NULL
+    )
+  );
+
+-- Student: read own enrollments
+CREATE POLICY student_select_own_sb ON student_batches
+  FOR SELECT TO authenticated
+  USING (auth_role() = 'student' AND student_id = auth.uid());
+
+-- -------------------------------------------------------
+-- 9.4 student_batch_history
 -- -------------------------------------------------------
 
 CREATE POLICY admin_select_sbh ON student_batch_history
@@ -1697,7 +2243,7 @@ CREATE POLICY student_select_own_sbh ON student_batch_history
   USING (auth_role() = 'student' AND student_id = auth.uid());
 
 -- -------------------------------------------------------
--- 9.4 courses
+-- 9.5 courses
 -- -------------------------------------------------------
 
 CREATE POLICY admin_select_courses ON courses
@@ -1734,12 +2280,12 @@ CREATE POLICY student_select_courses ON courses
     auth_role() = 'student' AND
     id IN (
       SELECT course_id FROM batch_courses
-      WHERE batch_id = auth_batch_id() AND deleted_at IS NULL
+      WHERE batch_id = ANY(auth_batch_ids()) AND deleted_at IS NULL
     )
   );
 
 -- -------------------------------------------------------
--- 9.5 batch_courses
+-- 9.6 batch_courses
 -- -------------------------------------------------------
 
 CREATE POLICY admin_select_bc ON batch_courses
@@ -1770,10 +2316,10 @@ CREATE POLICY teacher_select_bc ON batch_courses
 
 CREATE POLICY student_select_bc ON batch_courses
   FOR SELECT TO authenticated
-  USING (auth_role() = 'student' AND batch_id = auth_batch_id());
+  USING (auth_role() = 'student' AND batch_id = ANY(auth_batch_ids()));
 
 -- -------------------------------------------------------
--- 9.6 lectures
+-- 9.7 lectures
 -- -------------------------------------------------------
 
 CREATE POLICY admin_select_lectures ON lectures
@@ -1807,11 +2353,11 @@ CREATE POLICY student_select_lectures ON lectures
   FOR SELECT TO authenticated
   USING (
     auth_role() = 'student' AND
-    batch_id = auth_batch_id()
+    batch_id = ANY(auth_batch_ids())
   );
 
 -- -------------------------------------------------------
--- 9.7 curriculum_modules
+-- 9.8 curriculum_modules
 -- -------------------------------------------------------
 
 CREATE POLICY admin_select_cm ON curriculum_modules
@@ -1848,12 +2394,12 @@ CREATE POLICY student_select_cm ON curriculum_modules
     auth_role() = 'student' AND
     course_id IN (
       SELECT course_id FROM batch_courses
-      WHERE batch_id = auth_batch_id() AND deleted_at IS NULL
+      WHERE batch_id = ANY(auth_batch_ids()) AND deleted_at IS NULL
     )
   );
 
 -- -------------------------------------------------------
--- 9.7b batch_materials
+-- 9.9 batch_materials
 -- -------------------------------------------------------
 
 CREATE POLICY admin_select_materials ON batch_materials
@@ -1904,11 +2450,34 @@ CREATE POLICY student_select_materials ON batch_materials
   FOR SELECT TO authenticated
   USING (
     auth_role() = 'student' AND
-    batch_id = auth_batch_id()
+    batch_id = ANY(auth_batch_ids())
   );
 
 -- -------------------------------------------------------
--- 9.8 zoom_classes
+-- 9.10 zoom_accounts
+-- -------------------------------------------------------
+
+CREATE POLICY admin_select_za ON zoom_accounts
+  FOR SELECT TO authenticated
+  USING (auth_role() = 'admin');
+
+CREATE POLICY admin_insert_za ON zoom_accounts
+  FOR INSERT TO authenticated
+  WITH CHECK (auth_role() = 'admin');
+
+CREATE POLICY admin_update_za ON zoom_accounts
+  FOR UPDATE TO authenticated
+  USING (auth_role() = 'admin')
+  WITH CHECK (auth_role() = 'admin');
+
+-- Teachers can SELECT zoom accounts for the scheduling dropdown
+-- Frontend should query only id, name, is_default (exclude client_secret)
+CREATE POLICY teacher_select_za ON zoom_accounts
+  FOR SELECT TO authenticated
+  USING (auth_role() = 'teacher' AND deleted_at IS NULL);
+
+-- -------------------------------------------------------
+-- 9.11 zoom_classes
 -- -------------------------------------------------------
 
 CREATE POLICY admin_select_zc ON zoom_classes
@@ -1945,10 +2514,10 @@ CREATE POLICY teacher_update_zc ON zoom_classes
 
 CREATE POLICY student_select_zc ON zoom_classes
   FOR SELECT TO authenticated
-  USING (auth_role() = 'student' AND batch_id = auth_batch_id());
+  USING (auth_role() = 'student' AND batch_id = ANY(auth_batch_ids()));
 
 -- -------------------------------------------------------
--- 9.9 class_recordings
+-- 9.12 class_recordings
 -- -------------------------------------------------------
 
 CREATE POLICY admin_select_cr ON class_recordings
@@ -1974,12 +2543,149 @@ CREATE POLICY student_select_cr ON class_recordings
     auth_role() = 'student' AND
     status = 'ready' AND
     zoom_class_id IN (
-      SELECT id FROM zoom_classes WHERE batch_id = auth_batch_id()
+      SELECT id FROM zoom_classes WHERE batch_id = ANY(auth_batch_ids())
     )
   );
 
 -- -------------------------------------------------------
--- 9.10 jobs
+-- 9.13 announcements
+-- -------------------------------------------------------
+
+-- Admin: read all announcements
+CREATE POLICY admin_select_ann ON announcements
+  FOR SELECT TO authenticated
+  USING (auth_role() = 'admin');
+
+-- Admin: create institute-wide announcements
+CREATE POLICY admin_insert_ann ON announcements
+  FOR INSERT TO authenticated
+  WITH CHECK (auth_role() = 'admin' AND scope = 'institute');
+
+-- Admin: soft-delete any announcement
+CREATE POLICY admin_update_ann ON announcements
+  FOR UPDATE TO authenticated
+  USING (auth_role() = 'admin');
+
+-- CC: read all announcements
+CREATE POLICY cc_select_ann ON announcements
+  FOR SELECT TO authenticated
+  USING (auth_role() = 'course_creator');
+
+-- CC: create batch or course-scoped announcements
+CREATE POLICY cc_insert_ann ON announcements
+  FOR INSERT TO authenticated
+  WITH CHECK (auth_role() = 'course_creator' AND scope IN ('batch', 'course'));
+
+-- CC: soft-delete own announcements
+CREATE POLICY cc_update_ann ON announcements
+  FOR UPDATE TO authenticated
+  USING (auth_role() = 'course_creator' AND posted_by = auth.uid());
+
+-- Teacher: read institute-wide + own batch-scoped announcements
+CREATE POLICY teacher_select_ann ON announcements
+  FOR SELECT TO authenticated
+  USING (
+    auth_role() = 'teacher' AND (
+      scope = 'institute' OR
+      (scope = 'batch' AND batch_id IN (
+        SELECT id FROM batches WHERE teacher_id = auth.uid() AND deleted_at IS NULL
+      ))
+    )
+  );
+
+-- Teacher: create batch-scoped announcements for own batches
+CREATE POLICY teacher_insert_ann ON announcements
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    auth_role() = 'teacher' AND
+    scope = 'batch' AND
+    batch_id IN (
+      SELECT id FROM batches WHERE teacher_id = auth.uid() AND deleted_at IS NULL
+    )
+  );
+
+-- Teacher: soft-delete own announcements
+CREATE POLICY teacher_update_ann ON announcements
+  FOR UPDATE TO authenticated
+  USING (auth_role() = 'teacher' AND posted_by = auth.uid());
+
+-- Student: read institute-wide + own batch + own batch's course announcements
+CREATE POLICY student_select_ann ON announcements
+  FOR SELECT TO authenticated
+  USING (
+    auth_role() = 'student' AND (
+      scope = 'institute' OR
+      (scope = 'batch' AND batch_id = ANY(auth_batch_ids())) OR
+      (scope = 'course' AND course_id IN (
+        SELECT course_id FROM batch_courses
+        WHERE batch_id = ANY(auth_batch_ids()) AND deleted_at IS NULL
+      ))
+    )
+  );
+
+-- -------------------------------------------------------
+-- 9.14 lecture_progress
+-- -------------------------------------------------------
+
+-- Admin: read all progress
+CREATE POLICY admin_select_lp ON lecture_progress
+  FOR SELECT TO authenticated
+  USING (auth_role() = 'admin');
+
+-- CC: read all progress
+CREATE POLICY cc_select_lp ON lecture_progress
+  FOR SELECT TO authenticated
+  USING (auth_role() = 'course_creator');
+
+-- Student: read own progress
+CREATE POLICY student_select_lp ON lecture_progress
+  FOR SELECT TO authenticated
+  USING (auth_role() = 'student' AND student_id = auth.uid());
+
+-- Student: insert own progress (for UPSERT)
+CREATE POLICY student_insert_lp ON lecture_progress
+  FOR INSERT TO authenticated
+  WITH CHECK (auth_role() = 'student' AND student_id = auth.uid());
+
+-- Student: update own progress (for UPSERT)
+CREATE POLICY student_update_lp ON lecture_progress
+  FOR UPDATE TO authenticated
+  USING (auth_role() = 'student' AND student_id = auth.uid())
+  WITH CHECK (student_id = auth.uid());
+
+-- -------------------------------------------------------
+-- 9.15 zoom_attendance
+-- -------------------------------------------------------
+
+-- Admin: read all attendance
+CREATE POLICY admin_select_zatt ON zoom_attendance
+  FOR SELECT TO authenticated
+  USING (auth_role() = 'admin');
+
+-- CC: read all attendance
+CREATE POLICY cc_select_zatt ON zoom_attendance
+  FOR SELECT TO authenticated
+  USING (auth_role() = 'course_creator');
+
+-- Teacher: read attendance for own classes
+CREATE POLICY teacher_select_zatt ON zoom_attendance
+  FOR SELECT TO authenticated
+  USING (
+    auth_role() = 'teacher' AND
+    zoom_class_id IN (
+      SELECT id FROM zoom_classes WHERE teacher_id = auth.uid()
+    )
+  );
+
+-- Student: read own attendance
+CREATE POLICY student_select_zatt ON zoom_attendance
+  FOR SELECT TO authenticated
+  USING (auth_role() = 'student' AND student_id = auth.uid());
+
+-- INSERT is service_role only (no INSERT policy for authenticated)
+
+-- -------------------------------------------------------
+-- 9.16 jobs
 -- -------------------------------------------------------
 
 CREATE POLICY admin_select_jobs ON jobs
@@ -2004,7 +2710,7 @@ CREATE POLICY student_select_jobs ON jobs
   USING (auth_role() = 'student' AND deleted_at IS NULL);
 
 -- -------------------------------------------------------
--- 9.11 job_applications
+-- 9.17 job_applications
 -- -------------------------------------------------------
 
 CREATE POLICY admin_select_ja ON job_applications
@@ -2036,7 +2742,7 @@ CREATE POLICY student_update_own_ja ON job_applications
   WITH CHECK (student_id = auth.uid());
 
 -- -------------------------------------------------------
--- 9.12 user_sessions
+-- 9.18 user_sessions
 -- -------------------------------------------------------
 
 CREATE POLICY admin_select_sessions ON user_sessions
@@ -2057,7 +2763,7 @@ CREATE POLICY user_update_own_sessions ON user_sessions
   USING (user_id = auth.uid());
 
 -- -------------------------------------------------------
--- 9.13 system_settings
+-- 9.19 system_settings
 -- -------------------------------------------------------
 
 CREATE POLICY admin_select_settings ON system_settings
@@ -2074,7 +2780,7 @@ CREATE POLICY admin_update_settings ON system_settings
   WITH CHECK (auth_role() = 'admin');
 
 -- -------------------------------------------------------
--- 9.14 activity_log
+-- 9.20 activity_log
 -- -------------------------------------------------------
 
 CREATE POLICY admin_select_log ON activity_log
@@ -2088,13 +2794,14 @@ CREATE POLICY admin_select_log ON activity_log
 -- 10. SEED DATA
 -- =====================
 
-INSERT INTO system_settings (setting_key, value, description)
-VALUES ('max_device_limit', '2', 'Maximum number of concurrent login sessions allowed per user');
+INSERT INTO system_settings (setting_key, value, description) VALUES
+  ('max_device_limit', '2', 'Maximum number of concurrent login sessions allowed per user'),
+  ('post_batch_grace_period_days', '90', 'Number of days after batch end date that students retain read-only access to content');
 ```
 
 ---
 
-## Appendix: Storage Bucket SQL
+## Appendix A: Storage Bucket SQL
 
 Run these in Supabase Dashboard > Storage or via SQL:
 
@@ -2208,16 +2915,18 @@ CREATE POLICY "Material admin read all" ON storage.objects
 
 ---
 
-## 13. Insights Page — Data Source Note
+## Appendix B: Insights Page — Data Source Note
 
 The **Admin Insights** page derives all of its data from existing tables. **No new schema or tables are required.**
 
 | Insight | Data Source |
 |---------|-----------|
-| KPI cards (students, batches, courses, sessions, teachers, lectures, materials) | Counts / filters on `users`, `batches`, `courses`, `device_sessions`, `lectures`, `course_materials` |
-| Student & Enrollment charts | `users` (role = student, grouped by status), `batches` (studentCount), date-aggregated `users.created_at` |
-| Batch Performance charts | `batches` (grouped by status), `batches` + `users` (teacher → batch → student counts) |
-| Course & Content charts | `courses` (grouped by status), `lectures` (grouped by course_id), `course_materials` (grouped by file_type) |
-| Device & Security charts | `device_sessions` (active/at-limit/none), date-aggregated `device_sessions.logged_in_at` |
+| KPI cards (students, batches, courses, sessions, teachers, lectures, materials) | Counts / filters on `users`, `batches`, `courses`, `user_sessions`, `lectures`, `batch_materials` |
+| Student & Enrollment charts | `users` (role = student, grouped by status), `batches` (student count), date-aggregated `users.created_at` |
+| Batch Performance charts | `batches` (grouped by status), `batches` + `users` (teacher -> batch -> student counts) |
+| Course & Content charts | `courses` (grouped by status), `lectures` (grouped by course_id), `batch_materials` (grouped by file_type) |
+| Device & Security charts | `user_sessions` (active/at-limit/none), date-aggregated `user_sessions.logged_in_at` |
+| Lecture Progress charts | `lecture_progress` (completion rates per course, per batch) |
+| Zoom Attendance charts | `zoom_attendance` (attendance rates per class, per batch) |
 
-When connected to a real backend, monthly trend data (Enrollment Growth, Monthly Sessions & Issues) will use date-aggregated queries on `device_sessions.logged_in_at` and `users.created_at` instead of the current `monthlyInsightsData` mock array.
+When connected to a real backend, monthly trend data (Enrollment Growth, Monthly Sessions & Issues) will use date-aggregated queries on `user_sessions.logged_in_at` and `users.created_at` instead of the current `monthlyInsightsData` mock array. Lecture progress and zoom attendance data provide new insight dimensions for student engagement analytics.

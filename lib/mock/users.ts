@@ -12,8 +12,8 @@ export function getAllUsers(): UnifiedUser[] {
     phone: s.phone,
     role: 'student' as const,
     status: s.status,
-    batchId: s.batchId,
-    batchName: s.batchName,
+    batchIds: s.batchIds,
+    batchNames: s.batchNames,
     joinDate: s.joinDate,
   }));
 

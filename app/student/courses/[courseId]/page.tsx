@@ -15,7 +15,7 @@ export default function CourseDetailPage() {
   const params = useParams();
   const courseId = params.courseId as string;
   const user = useAuth();
-  const studentBatchId = user.batchId!;
+  const studentBatchId = user.batchIds?.[0]!;
   const course = courses.find((c) => c.id === courseId);
   const courseLectures = lectures.filter((l) => l.batchId === studentBatchId && l.courseId === courseId).sort((a, b) => a.order - b.order);
   const courseRecordings = zoomClasses.filter(

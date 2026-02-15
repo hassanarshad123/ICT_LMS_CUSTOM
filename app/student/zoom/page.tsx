@@ -8,7 +8,7 @@ import { Video, ExternalLink, Clock, Calendar } from 'lucide-react';
 
 export default function StudentZoom() {
   const user = useAuth();
-  const studentBatchId = user.batchId!;
+  const studentBatchId = user.batchIds?.[0]!;
   const studentClasses = zoomClasses.filter((z) => z.batchId === studentBatchId);
   const upcoming = studentClasses.filter((z) => z.status === 'upcoming');
   const completed = studentClasses.filter((z) => z.status === 'completed');

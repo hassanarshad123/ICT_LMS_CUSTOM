@@ -55,11 +55,11 @@ export default function UserDetailView({ role, userName, backHref }: UserDetailV
   }
 
   // Data for student profile
-  const userCourses = editData.role === 'student' && editData.batchId
-    ? courses.filter((c) => c.batchIds.includes(editData.batchId!))
+  const userCourses = editData.role === 'student' && editData.batchIds?.length
+    ? courses.filter((c) => editData.batchIds!.some((bid) => c.batchIds.includes(bid)))
     : [];
-  const userZoomClasses = editData.role === 'student' && editData.batchId
-    ? zoomClasses.filter((z) => z.batchId === editData.batchId)
+  const userZoomClasses = editData.role === 'student' && editData.batchIds?.length
+    ? zoomClasses.filter((z) => editData.batchIds!.includes(z.batchId))
     : [];
   const upcomingClasses = userZoomClasses.filter((z) => z.status === 'upcoming');
   const pastClasses = userZoomClasses.filter((z) => z.status === 'completed');
@@ -210,10 +210,10 @@ export default function UserDetailView({ role, userName, backHref }: UserDetailV
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Batch</label>
                   <select
-                    value={editData.batchId || ''}
+                    value={editData.batchIds?.[0] || ''}
                     onChange={(e) => {
                       const batch = batches.find((b) => b.id === e.target.value);
-                      setEditData({ ...editData, batchId: e.target.value, batchName: batch?.name || '' });
+                      setEditData({ ...editData, batchIds: e.target.value ? [e.target.value] : [], batchNames: batch ? [batch.name] : [] });
                     }}
                     disabled={!isEditing}
                     className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50 disabled:opacity-60"
@@ -366,7 +366,7 @@ export default function UserDetailView({ role, userName, backHref }: UserDetailV
               ) : (
                 <div className="space-y-3">
                   {teacherBatches.map((batch) => {
-                    const batchStudentCount = students.filter((s) => s.batchId === batch.id).length;
+                    const batchStudentCount = students.filter((s) => s.batchIds.includes(batch.id)).length;
                     return (
                       <div key={batch.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
                         <div>
@@ -413,12 +413,12 @@ export default function UserDetailView({ role, userName, backHref }: UserDetailV
                   <p className="text-sm font-medium text-[#1A1A1A] capitalize">{editData.status}</p>
                 </div>
               </div>
-              {editData.role === 'student' && editData.batchName && (
+              {editData.role === 'student' && editData.batchNames?.length && (
                 <div className="flex items-center gap-3">
                   <Users size={16} className="text-gray-400" />
                   <div>
                     <p className="text-xs text-gray-500">Batch</p>
-                    <p className="text-sm font-medium text-[#1A1A1A]">{editData.batchName}</p>
+                    <p className="text-sm font-medium text-[#1A1A1A]">{editData.batchNames.join(', ')}</p>
                   </div>
                 </div>
               )}

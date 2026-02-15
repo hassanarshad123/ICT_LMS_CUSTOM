@@ -10,7 +10,7 @@ import Link from 'next/link';
 export default function TeacherDashboard() {
   const user = useAuth();
   const teacherBatches = batches.filter((b) => b.teacherId === user.teacherId);
-  const teacherStudents = students.filter((s) => teacherBatches.some((b) => b.id === s.batchId));
+  const teacherStudents = students.filter((s) => teacherBatches.some((b) => s.batchIds.includes(b.id)));
   const teacherClasses = zoomClasses.filter((z) => z.teacherName === user.name);
   const upcomingClasses = teacherClasses.filter((z) => z.status === 'upcoming');
 
