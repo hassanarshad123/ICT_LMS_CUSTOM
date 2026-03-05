@@ -2,11 +2,11 @@
 # ================================================================
 # ICT LMS Backend — EC2 Deployment Script
 #
-# Run this ON your EC2 instance (Ubuntu 22.04):
+# Run this ON your EC2 instance (Ubuntu 22.04 or 24.04):
 #   chmod +x deploy.sh && ./deploy.sh
 #
 # Prerequisites:
-#   - Ubuntu 22.04 EC2 with SSH access
+#   - Ubuntu EC2 with SSH access
 #   - Elastic IP assigned
 #   - Domain apiict.zensbot.site pointing to the Elastic IP
 # ================================================================
@@ -26,10 +26,12 @@ echo "========================================="
 echo ""
 echo "[1/8] Installing system packages..."
 sudo apt update && sudo apt upgrade -y
-sudo apt install -y python3.11 python3.11-venv python3.11-dev python3-pip \
+sudo apt install -y python3 python3-venv python3-dev python3-pip \
     nginx certbot python3-certbot-nginx git
 
-echo "  Python: $(python3.11 --version)"
+# Detect Python version
+PYTHON=$(command -v python3)
+echo "  Python: $($PYTHON --version)"
 echo "  Nginx:  $(nginx -v 2>&1)"
 echo "  Git:    $(git --version)"
 
@@ -49,7 +51,7 @@ echo ""
 echo "[3/8] Setting up Python environment..."
 cd "$BACKEND_DIR"
 if [ ! -d "venv" ]; then
-    python3.11 -m venv venv
+    $PYTHON -m venv venv
 fi
 source venv/bin/activate
 pip install --upgrade pip -q
@@ -69,21 +71,20 @@ if [ ! -f "$BACKEND_DIR/.env" ]; then
     # Set production values
     sed -i "s|APP_ENV=development|APP_ENV=production|" "$BACKEND_DIR/.env"
     sed -i "s|APP_DEBUG=true|APP_DEBUG=false|" "$BACKEND_DIR/.env"
-    sed -i "s|FRONTEND_URL=http://localhost:3000|FRONTEND_URL=https://ict.zensbot.site|" "$BACKEND_DIR/.env"
 
     echo ""
-    echo "  ┌─────────────────────────────────────────────┐"
-    echo "  │  .env created! You MUST edit it now:         │"
-    echo "  │                                              │"
-    echo "  │  nano $BACKEND_DIR/.env                      │"
-    echo "  │                                              │"
-    echo "  │  Fill in:                                    │"
-    echo "  │   - DATABASE_URL (Neon pooler URL)           │"
-    echo "  │   - DATABASE_URL_DIRECT (Neon direct URL)    │"
-    echo "  │   - ALLOWED_ORIGINS                          │"
-    echo "  │                                              │"
-    echo "  │  Then re-run this script.                    │"
-    echo "  └─────────────────────────────────────────────┘"
+    echo "  ┌──────────────────────────────────────────────────┐"
+    echo "  │  .env created! You MUST edit it now:              │"
+    echo "  │                                                   │"
+    echo "  │  nano $BACKEND_DIR/.env     │"
+    echo "  │                                                   │"
+    echo "  │  Fill in:                                         │"
+    echo "  │   - DATABASE_URL (Neon pooler URL)                │"
+    echo "  │   - DATABASE_URL_DIRECT (Neon direct URL)         │"
+    echo "  │   - ALLOWED_ORIGINS                               │"
+    echo "  │                                                   │"
+    echo "  │  Then re-run this script.                         │"
+    echo "  └──────────────────────────────────────────────────┘"
     echo ""
     exit 0
 else
@@ -111,7 +112,7 @@ asyncio.run(test())
 # ─── Step 6: systemd service ───
 echo ""
 echo "[6/8] Setting up systemd service..."
-sudo tee /etc/systemd/system/ict-lms-api.service > /dev/null <<EOF
+sudo tee /etc/systemd/system/ict-lms-api.service > /dev/null <<SVCEOF
 [Unit]
 Description=ICT LMS FastAPI Backend
 After=network.target
@@ -128,7 +129,7 @@ RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
-EOF
+SVCEOF
 
 sudo systemctl daemon-reload
 sudo systemctl enable ict-lms-api
@@ -145,20 +146,20 @@ fi
 # ─── Step 7: Nginx reverse proxy ───
 echo ""
 echo "[7/8] Configuring Nginx..."
-sudo tee /etc/nginx/sites-available/ict-lms-api > /dev/null <<EOF
+sudo tee /etc/nginx/sites-available/ict-lms-api > /dev/null <<'NGXEOF'
 server {
     listen 80;
-    server_name $DOMAIN;
+    server_name apiict.zensbot.site;
 
     client_max_body_size 110M;
 
     # API routes
     location / {
         proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_read_timeout 300s;
         proxy_connect_timeout 60s;
     }
@@ -167,14 +168,14 @@ server {
     location /ws/ {
         proxy_pass http://127.0.0.1:8000;
         proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
         proxy_read_timeout 86400s;
     }
 }
-EOF
+NGXEOF
 
 sudo ln -sf /etc/nginx/sites-available/ict-lms-api /etc/nginx/sites-enabled/
 sudo rm -f /etc/nginx/sites-enabled/default

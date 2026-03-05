@@ -1,35 +1,35 @@
 # FastAPI + Server
-fastapi[standard]==0.115.6
-uvicorn[standard]==0.34.0
+fastapi[standard]>=0.115.0
+uvicorn[standard]>=0.34.0
 
 # Database
-sqlmodel==0.0.37
-asyncpg==0.30.0
-sqlalchemy[asyncio]==2.0.36
-alembic==1.14.1
+sqlmodel>=0.0.22
+asyncpg>=0.30.0
+sqlalchemy[asyncio]>=2.0.36
+alembic>=1.14.0
 
 # Auth
-python-jose[cryptography]==3.3.0
-bcrypt==4.3.0
-python-multipart==0.0.19
+python-jose[cryptography]>=3.3.0
+bcrypt>=4.2.0
+python-multipart>=0.0.18
 
 # Config
-pydantic-settings==2.7.1
+pydantic-settings>=2.7.0
 
 # HTTP client (Zoom, Bunny.net)
-httpx==0.28.1
+httpx>=0.28.0
 
 # Rate limiting
-slowapi==0.1.9
+slowapi>=0.1.9
 
 # Scheduler
-apscheduler==3.10.4
+apscheduler>=3.10.4
 
 # AWS S3
-boto3==1.35.86
+boto3>=1.35.0
 
 # Email
-resend==2.23.0
+resend>=2.20.0
 
 # Encryption (Zoom credentials)
-cryptography==44.0.0
+cryptography>=44.0.0
