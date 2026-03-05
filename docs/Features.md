@@ -1,6 +1,6 @@
 # ICT Institute LMS — Complete Feature Requirements
 
-This document describes every feature the LMS supports, written in plain English. It serves as the **master specification for backend development** — a dev team should be able to build the Supabase backend, Bunny.net video integration, Zoom API integration, and Flutter mobile app from this document alone.
+This document describes every feature the LMS supports, written in plain English. It serves as the **master specification for backend development** — a dev team should be able to build the FastAPI backend, Neon PostgreSQL database, Bunny.net video integration, Zoom API integration, and Flutter mobile app from this document alone.
 
 Each section describes: what it does, who can do it, what data is involved, and edge cases.
 
@@ -38,7 +38,7 @@ The ICT Institute LMS is a Learning Management System for a Pakistan-based ICT t
 
 **Technology stack:**
 - **Web frontend:** Next.js (App Router), TypeScript, Tailwind CSS, Radix UI / shadcn components
-- **Backend:** Supabase (PostgreSQL, Auth, Row-Level Security, Edge Functions, Storage)
+- **Backend:** FastAPI (Python 3.11+) + Neon PostgreSQL + JWT Auth + RBAC + AWS S3
 - **Video hosting:** Bunny.net Stream (with DRM and watermarking)
 - **Live classes:** Zoom API (OAuth, meeting creation, recordings, attendance)
 - **Mobile app:** Flutter (Students + Teachers only)
@@ -664,7 +664,7 @@ The video type (upload vs. external) is stored per lecture so the player knows h
 Videos uploaded to Bunny.net are protected with DRM:
 - **Bunny.net DRM** — prevents unauthorized downloading and playback on non-authorized devices.
 - **Visible watermark** — the student's name and ID are overlaid on the video during playback. This discourages screen recording.
-- Signed URLs are generated per-session via a Supabase Edge Function, ensuring only authenticated students can access the stream.
+- Signed URLs are generated per-session via the FastAPI `/api/lectures/{id}/stream` endpoint, ensuring only authenticated students can access the stream.
 
 ### Progress Tracking
 
@@ -721,7 +721,7 @@ After a meeting ends, the backend **auto-tracks attendance** using Zoom API part
 
 ### 9.6 Email Reminders
 
-Students receive an **email reminder** before a scheduled Zoom class (e.g., 1 hour before). This is sent via Supabase Edge Function + email provider (e.g., Resend, SendGrid).
+Students receive an **email reminder** before a scheduled Zoom class (e.g., 1 hour before). This is sent via APScheduler cron job in the FastAPI backend + Resend email service.
 
 ---
 

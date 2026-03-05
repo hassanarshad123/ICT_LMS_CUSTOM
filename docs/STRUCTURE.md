@@ -1,23 +1,42 @@
 # Project Structure Guide
 
-Quick reference for backend developers picking up this codebase.
+Quick reference for developers picking up this codebase.
 
 ---
 
-## Top-Level Layout
+## Top-Level Layout (Monorepo)
 
 ```
-app/              Next.js 13 App Router pages (all routes)
-components/       Reusable UI components
-lib/              Types, mock data, constants, auth context, utilities
-hooks/            Custom React hooks
-docs/             Project documentation (this file, schema, features, tech stack)
-public/           Static assets
+ICT_LMS_CUSTOM/
+├── frontend/     Next.js 13 web app (TypeScript + Tailwind)
+├── backend/      FastAPI Python API (SQLModel + Neon PostgreSQL)
+├── docs/         All project documentation
+├── .gitignore    Shared gitignore for both projects
+└── .gitattributes
 ```
 
 ---
 
-## `app/` — Pages by Role
+## `frontend/` — Next.js App
+
+```
+frontend/
+├── app/              Next.js 13 App Router pages (all routes)
+├── components/       Reusable UI components
+├── lib/              Types, mock data, constants, auth context, utilities
+├── hooks/            Custom React hooks
+├── package.json      Node dependencies
+├── tsconfig.json     TypeScript config (@/* path alias)
+├── tailwind.config.ts
+├── next.config.js
+└── postcss.config.js
+```
+
+### `frontend/app/` — Pages by Role
+
+---
+
+### Pages by Role
 
 Every page is a `'use client'` component. No server components or data fetching — all data comes from mock arrays in `lib/mock/`.
 
@@ -58,10 +77,10 @@ Every page is a `'use client'` component. No server components or data fetching 
 
 ---
 
-## `components/`
+### `frontend/components/`
 
 ```
-components/
+frontend/components/
   layout/
     dashboard-layout.tsx    Wraps every page: sidebar + main area + AuthProvider
     dashboard-header.tsx    Page title + subtitle bar
@@ -76,10 +95,10 @@ components/
 
 ---
 
-## `lib/`
+### `frontend/lib/`
 
 ```
-lib/
+frontend/lib/
   types/                    TypeScript interfaces, split by domain
     user.ts                 UserRole, User, Student, Teacher, CourseCreator, UnifiedUser
     batch.ts                Batch
@@ -114,21 +133,51 @@ lib/
 
 ---
 
+## `backend/` — FastAPI API
+
+```
+backend/
+├── main.py               FastAPI app entry point (CORS, routers, health check)
+├── requirements.txt      Python dependencies (pinned)
+├── .env / .env.example   Environment variables (Neon, JWT, AWS, etc.)
+├── app/
+│   ├── config.py         Pydantic Settings (reads .env)
+│   ├── database.py       Async SQLAlchemy engine + session factory
+│   ├── models/           SQLModel table models (20 tables + 12 enums)
+│   ├── schemas/          Pydantic request/response schemas
+│   ├── routers/          FastAPI route handlers (auth, users, ...)
+│   ├── services/         Business logic layer
+│   ├── middleware/       Auth middleware (JWT + RBAC)
+│   ├── utils/            Security helpers (bcrypt, JWT)
+│   ├── websockets/       WebSocket handlers (Phase 1D)
+│   └── scheduler/        APScheduler cron jobs (Phase 1C)
+├── alembic/              Database migration files
+└── tests/                Unit + integration tests
+```
+
+See `docs/BackendStructure.md` for full details on patterns and conventions.
+
+---
+
 ## `docs/`
 
 | File | Contents |
 |------|----------|
 | `STRUCTURE.md` | This file |
-| `DatabaseSchema.md` | Complete Supabase/PostgreSQL schema (14 tables, RLS policies, SQL) |
+| `DatabaseSchema.md` | Complete Neon PostgreSQL schema (20 tables, indexes, triggers, SQL) |
 | `Features.md` | Full feature requirements in plain English |
-| `TechStack.md` | Technology choices with rationale |
+| `stack-tech.md` | Complete tech stack: FastAPI + Neon + AWS architecture, costs, env vars |
+| `API.md` | All 80+ API endpoints across 12 routers with request/response schemas |
+| `Security.md` | JWT auth, RBAC, video signing, device limits, encryption |
+| `Deployment.md` | Step-by-step deployment: Neon, EC2, S3, Bunny.net, Vercel, CI/CD |
+| `BackendStructure.md` | FastAPI `/backend` folder layout, patterns, dependency injection |
 
 ---
 
 ## Key Patterns
 
-1. **All pages use mock data** — No API calls. Replace `lib/mock/` imports with Supabase queries.
-2. **Auth is mocked** — `useAuth()` returns a hardcoded user per role. Replace with real Supabase Auth.
+1. **All pages use mock data** — No API calls. Replace `lib/mock/` imports with FastAPI endpoint calls.
+2. **Auth is mocked** — `useAuth()` returns a hardcoded user per role. Replace with real JWT auth via FastAPI `/api/auth/login`.
 3. **Barrel re-exports** — `@/lib/types` and `@/lib/mock-data` resolve through `index.ts` files.
 4. **Shared components** — Users list, user detail, and settings are extracted into `components/shared/` with role/config props.
 5. **Design system** — `#1A1A1A` (dark), `#C5D86D` (accent green), `#F0F0F0` (bg), white cards with `rounded-2xl` and `card-shadow`.
