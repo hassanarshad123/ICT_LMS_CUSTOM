@@ -13,8 +13,9 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
-    # CORS
+    # CORS (comma-separated for multiple origins)
     FRONTEND_URL: str = "http://localhost:3000"
+    ALLOWED_ORIGINS: str = ""  # e.g. "https://ict.zensbot.site,http://localhost:3000"
 
     # AWS S3
     AWS_ACCESS_KEY_ID: str = ""

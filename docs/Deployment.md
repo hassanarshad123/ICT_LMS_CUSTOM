@@ -509,7 +509,7 @@ sudo systemctl restart nginx
 1. Go to https://vercel.com → **New Project**
 2. Import the GitHub repository
 3. **Framework Preset:** Next.js
-4. **Root Directory:** `.` (the monorepo root — Next.js files are in root)
+4. **Root Directory:** `frontend` (the Next.js app is inside the frontend/ folder)
 
 ### 9.2 Environment Variables
 
@@ -517,7 +517,7 @@ In Vercel project settings → **Environment Variables**:
 
 | Key | Value |
 |-----|-------|
-| `NEXT_PUBLIC_API_URL` | `https://api.ictlms.com` |
+| `NEXT_PUBLIC_API_URL` | `https://apiict.zensbot.site` |
 
 ### 9.3 Deploy
 
