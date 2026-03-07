@@ -22,7 +22,9 @@ if config.config_file_name is not None:
 target_metadata = SQLModel.metadata
 
 # Use direct (non-pooled) URL for migrations
+# asyncpg uses "ssl" not "sslmode", so convert if needed
 db_url = settings.DATABASE_URL_DIRECT or settings.DATABASE_URL
+db_url = db_url.replace("sslmode=", "ssl=")
 config.set_main_option("sqlalchemy.url", db_url)
 
 

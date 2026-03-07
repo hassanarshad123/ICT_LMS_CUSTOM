@@ -4,8 +4,11 @@ from app.config import get_settings
 
 settings = get_settings()
 
+# asyncpg uses "ssl" not "sslmode"
+_db_url = settings.DATABASE_URL.replace("sslmode=", "ssl=")
+
 engine = create_async_engine(
-    settings.DATABASE_URL,
+    _db_url,
     echo=settings.APP_DEBUG,
     pool_size=5,
     max_overflow=10,
