@@ -1,74 +1,115 @@
 'use client';
 
-import { createContext, useContext, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import { UserRole } from './types';
+import { login as apiLogin, logout as apiLogout, getMe, AuthUser } from './api/auth';
 
-interface MockUser {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  role: UserRole;
-  batchIds?: string[];
-  batchNames?: string[];
-  teacherId?: string;
-  specialization?: string;
+interface AuthContextType {
+  user: AuthUser | null;
+  isLoading: boolean;
+  login: (email: string, password: string) => Promise<AuthUser>;
+  logout: () => Promise<void>;
 }
 
-const mockUsers: Record<UserRole, MockUser> = {
-  admin: {
-    id: 'admin1',
-    name: 'Admin User',
-    email: 'admin@ict.edu.pk',
-    phone: '0300-0000000',
-    role: 'admin',
-  },
-  'course-creator': {
-    id: 'cc1',
-    name: 'Asad Mehmood',
-    email: 'asad@ict.edu.pk',
-    phone: '0300-4444444',
-    role: 'course-creator',
-  },
-  teacher: {
-    id: 't1',
-    name: 'Ahmed Khan',
-    email: 'ahmed@ict.edu.pk',
-    phone: '0300-1111111',
-    role: 'teacher',
-    teacherId: 't1',
-    specialization: 'Web Development',
-  },
-  student: {
-    id: 's1',
-    name: 'Muhammad Imran',
-    email: 'imran@email.com',
-    phone: '0300-1234567',
-    role: 'student',
-    batchIds: ['b3'],
-    batchNames: ['Batch 3 - August 2024'],
-  },
+const AuthContext = createContext<AuthContextType | null>(null);
+
+const rolePathMap: Record<string, string> = {
+  admin: '/admin',
+  course_creator: '/course-creator',
+  teacher: '/teacher',
+  student: '/student',
 };
 
-const AuthContext = createContext<MockUser | null>(null);
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
+  const pathname = usePathname();
 
-interface AuthProviderProps {
-  role: UserRole;
-  children: ReactNode;
-}
+  // Load user from localStorage on mount
+  useEffect(() => {
+    const stored = localStorage.getItem('user');
+    const token = localStorage.getItem('access_token');
+    if (stored && token) {
+      try {
+        setUser(JSON.parse(stored));
+      } catch {}
+    }
+    setIsLoading(false);
+  }, []);
 
-export function AuthProvider({ role, children }: AuthProviderProps) {
+  const login = useCallback(async (email: string, password: string): Promise<AuthUser> => {
+    const res = await apiLogin(email, password);
+    localStorage.setItem('access_token', res.access_token);
+    localStorage.setItem('refresh_token', res.refresh_token);
+    localStorage.setItem('user', JSON.stringify(res.user));
+    setUser(res.user);
+    return res.user;
+  }, []);
+
+  const logout = useCallback(async () => {
+    const refreshToken = localStorage.getItem('refresh_token');
+    if (refreshToken) {
+      try {
+        await apiLogout(refreshToken);
+      } catch {}
+    }
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('user');
+    setUser(null);
+    router.push('/');
+  }, [router]);
+
   return (
-    <AuthContext.Provider value={mockUsers[role]}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-export function useAuth(): MockUser {
-  const user = useContext(AuthContext);
-  if (!user) {
-    throw new Error('useAuth must be used within an AuthProvider');
+// Legacy compatibility: role-specific AuthProvider that wraps the real one
+// This allows existing layouts to work without changes during migration
+export function RoleAuthProvider({ role, children }: { role: UserRole; children: ReactNode }) {
+  return <AuthProvider>{children}</AuthProvider>;
+}
+
+export function useAuth() {
+  const ctx = useContext(AuthContext);
+  if (!ctx) {
+    // Fallback for components outside AuthProvider — return a mock-like object
+    // This keeps existing pages working during the migration
+    return {
+      id: '',
+      name: '',
+      email: '',
+      phone: '',
+      role: 'student' as UserRole,
+      user: null as AuthUser | null,
+      isLoading: true,
+      login: async () => ({} as AuthUser),
+      logout: async () => {},
+    };
   }
-  return user;
+
+  // Return user properties directly for backward compatibility
+  const u = ctx.user;
+  return {
+    // Legacy properties (direct user fields)
+    id: u?.id || '',
+    name: u?.name || '',
+    email: u?.email || '',
+    phone: u?.phone || '',
+    role: (u?.role?.replace('_', '-') || 'student') as UserRole,
+    batchIds: u?.batch_ids || [],
+    batchNames: u?.batch_names || [],
+    specialization: undefined as string | undefined,
+    teacherId: u?.id,
+    // New properties
+    user: u,
+    isLoading: ctx.isLoading,
+    login: ctx.login,
+    logout: ctx.logout,
+  };
 }

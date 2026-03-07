@@ -26,6 +26,9 @@ backend/*.egg-info/
 .env
 .env*.local
 
+# ─── IDE / Tool ───
+.claude/
+
 # ─── Debug logs ───
 npm-debug.log*
 yarn-debug.log*

@@ -2,27 +2,43 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { UserRole } from '@/lib/types';
-import { GraduationCap, Shield, BookOpen, Users, ChevronRight } from 'lucide-react';
+import { GraduationCap, ChevronRight, Loader2 } from 'lucide-react';
+import { login } from '@/lib/api/auth';
 
-const roles: { role: UserRole; label: string; description: string; icon: React.ReactNode; path: string }[] = [
-  { role: 'admin', label: 'Admin', description: 'Manage batches, students & teachers', icon: <Shield size={28} />, path: '/admin' },
-  { role: 'course-creator', label: 'Course Creator', description: 'Create lectures & curriculum', icon: <BookOpen size={28} />, path: '/course-creator' },
-  { role: 'teacher', label: 'Teacher', description: 'Teach batches & schedule classes', icon: <GraduationCap size={28} />, path: '/teacher' },
-  { role: 'student', label: 'Student', description: 'Watch lectures & attend classes', icon: <Users size={28} />, path: '/student' },
-];
+const rolePathMap: Record<string, string> = {
+  admin: '/admin',
+  course_creator: '/course-creator',
+  teacher: '/teacher',
+  student: '/student',
+};
 
 export default function LoginPage() {
   const router = useRouter();
-  const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedRole) return;
-    const rolePath = roles.find((r) => r.role === selectedRole)?.path;
-    if (rolePath) router.push(rolePath);
+    if (!email || !password) return;
+
+    setError('');
+    setLoading(true);
+
+    try {
+      const res = await login(email, password);
+      localStorage.setItem('access_token', res.access_token);
+      localStorage.setItem('refresh_token', res.refresh_token);
+      localStorage.setItem('user', JSON.stringify(res.user));
+
+      const path = rolePathMap[res.user.role] || '/student';
+      router.push(path);
+    } catch (err: any) {
+      setError(err.message || 'Login failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -37,29 +53,13 @@ export default function LoginPage() {
         </div>
 
         <div className="bg-white rounded-2xl p-5 sm:p-8 card-shadow">
-          <h2 className="text-lg font-semibold text-[#1A1A1A] mb-4">Select Your Role</h2>
+          <h2 className="text-lg font-semibold text-[#1A1A1A] mb-6">Login to your account</h2>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
-            {roles.map((r) => (
-              <button
-                key={r.role}
-                onClick={() => setSelectedRole(r.role)}
-                className={`p-4 rounded-xl border-2 text-left transition-all duration-200 ${
-                  selectedRole === r.role
-                    ? 'border-[#1A1A1A] bg-[#1A1A1A] text-white'
-                    : 'border-gray-200 hover:border-gray-300 bg-white text-[#1A1A1A]'
-                }`}
-              >
-                <div className={`mb-2 ${selectedRole === r.role ? 'text-[#C5D86D]' : 'text-gray-400'}`}>
-                  {r.icon}
-                </div>
-                <div className="font-medium text-sm">{r.label}</div>
-                <div className={`text-xs mt-1 ${selectedRole === r.role ? 'text-gray-300' : 'text-gray-400'}`}>
-                  {r.description}
-                </div>
-              </button>
-            ))}
-          </div>
+          {error && (
+            <div className="mb-4 p-3 rounded-xl bg-red-50 text-red-600 text-sm">
+              {error}
+            </div>
+          )}
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
@@ -69,6 +69,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Enter your email"
+                required
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] transition-colors bg-gray-50"
               />
             </div>
@@ -79,20 +80,18 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
+                required
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] transition-colors bg-gray-50"
               />
             </div>
             <button
               type="submit"
-              disabled={!selectedRole}
-              className={`w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all duration-200 ${
-                selectedRole
-                  ? 'bg-[#1A1A1A] text-white hover:bg-[#333]'
-                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-              }`}
+              disabled={loading}
+              className="w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all duration-200 bg-[#1A1A1A] text-white hover:bg-[#333] disabled:opacity-50"
             >
+              {loading ? <Loader2 size={16} className="animate-spin" /> : null}
               Login
-              <ChevronRight size={16} />
+              {!loading && <ChevronRight size={16} />}
             </button>
           </form>
         </div>

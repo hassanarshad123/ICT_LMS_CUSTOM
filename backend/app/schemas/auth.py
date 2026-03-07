@@ -30,7 +30,21 @@ class UserBrief(BaseModel):
     id: uuid.UUID
     email: str
     name: str
+    phone: Optional[str] = None
     role: str
+    status: str = "active"
     avatar_url: Optional[str] = None
+    batch_ids: list[str] = []
+    batch_names: list[str] = []
 
     model_config = {"from_attributes": True}
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+class LogoutAllResponse(BaseModel):
+    detail: str
+    sessions_terminated: int

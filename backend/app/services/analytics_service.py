@@ -1,0 +1,227 @@
+import uuid
+from datetime import date, datetime, timezone
+from typing import Optional
+
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select, func, col
+
+from app.models.user import User
+from app.models.batch import Batch, StudentBatch
+from app.models.course import Course, Lecture, BatchMaterial, BatchCourse
+from app.models.other import UserSession, SystemSetting, ActivityLog
+from app.models.enums import UserRole, UserStatus
+
+
+async def get_dashboard(session: AsyncSession) -> dict:
+    today = date.today()
+
+    # Total batches
+    r = await session.execute(
+        select(func.count()).select_from(Batch).where(Batch.deleted_at.is_(None))
+    )
+    total_batches = r.scalar() or 0
+
+    # Active batches (start_date <= today <= end_date)
+    r = await session.execute(
+        select(func.count()).select_from(Batch).where(
+            Batch.deleted_at.is_(None),
+            Batch.start_date <= today,
+            Batch.end_date >= today,
+        )
+    )
+    active_batches = r.scalar() or 0
+
+    # Students
+    r = await session.execute(
+        select(func.count()).select_from(User).where(
+            User.deleted_at.is_(None), User.role == UserRole.student
+        )
+    )
+    total_students = r.scalar() or 0
+
+    r = await session.execute(
+        select(func.count()).select_from(User).where(
+            User.deleted_at.is_(None), User.role == UserRole.student, User.status == UserStatus.active
+        )
+    )
+    active_students = r.scalar() or 0
+
+    # Teachers
+    r = await session.execute(
+        select(func.count()).select_from(User).where(
+            User.deleted_at.is_(None), User.role == UserRole.teacher
+        )
+    )
+    total_teachers = r.scalar() or 0
+
+    # Course creators
+    r = await session.execute(
+        select(func.count()).select_from(User).where(
+            User.deleted_at.is_(None), User.role == UserRole.course_creator
+        )
+    )
+    total_course_creators = r.scalar() or 0
+
+    # Courses
+    r = await session.execute(
+        select(func.count()).select_from(Course).where(Course.deleted_at.is_(None))
+    )
+    total_courses = r.scalar() or 0
+
+    # Recent batches
+    r = await session.execute(
+        select(Batch).where(Batch.deleted_at.is_(None))
+        .order_by(Batch.created_at.desc()).limit(5)
+    )
+    recent_batches = [
+        {"id": str(b.id), "name": b.name, "start_date": str(b.start_date)}
+        for b in r.scalars().all()
+    ]
+
+    # Recent students
+    r = await session.execute(
+        select(User).where(User.deleted_at.is_(None), User.role == UserRole.student)
+        .order_by(User.created_at.desc()).limit(5)
+    )
+    recent_students = [
+        {"id": str(u.id), "name": u.name, "email": u.email}
+        for u in r.scalars().all()
+    ]
+
+    return {
+        "total_batches": total_batches,
+        "active_batches": active_batches,
+        "total_students": total_students,
+        "active_students": active_students,
+        "total_teachers": total_teachers,
+        "total_course_creators": total_course_creators,
+        "total_courses": total_courses,
+        "recent_batches": recent_batches,
+        "recent_students": recent_students,
+    }
+
+
+async def get_insights(session: AsyncSession) -> dict:
+    # Students by status
+    r = await session.execute(
+        select(User.status, func.count()).where(
+            User.deleted_at.is_(None), User.role == UserRole.student
+        ).group_by(User.status)
+    )
+    students_by_status = {row[0].value: row[1] for row in r.all()}
+
+    # Batches by status (computed)
+    today = date.today()
+    r = await session.execute(
+        select(Batch).where(Batch.deleted_at.is_(None))
+    )
+    batches = r.scalars().all()
+    batches_by_status = {"upcoming": 0, "active": 0, "completed": 0}
+    for b in batches:
+        if today < b.start_date:
+            batches_by_status["upcoming"] += 1
+        elif today > b.end_date:
+            batches_by_status["completed"] += 1
+        else:
+            batches_by_status["active"] += 1
+
+    # Enrollment per batch
+    r = await session.execute(
+        select(Batch.id, Batch.name, func.count(StudentBatch.id))
+        .outerjoin(StudentBatch, (StudentBatch.batch_id == Batch.id) & (StudentBatch.removed_at.is_(None)))
+        .where(Batch.deleted_at.is_(None))
+        .group_by(Batch.id, Batch.name)
+    )
+    enrollment_per_batch = [
+        {"batch_id": str(row[0]), "name": row[1], "student_count": row[2]}
+        for row in r.all()
+    ]
+
+    # Teacher workload
+    r = await session.execute(
+        select(User.id, User.name, func.count(Batch.id))
+        .outerjoin(Batch, (Batch.teacher_id == User.id) & (Batch.deleted_at.is_(None)))
+        .where(User.deleted_at.is_(None), User.role == UserRole.teacher)
+        .group_by(User.id, User.name)
+    )
+    teacher_workload = []
+    for row in r.all():
+        # Count students in teacher's batches
+        sr = await session.execute(
+            select(func.count(StudentBatch.id)).where(
+                StudentBatch.batch_id.in_(
+                    select(Batch.id).where(Batch.teacher_id == row[0], Batch.deleted_at.is_(None))
+                ),
+                StudentBatch.removed_at.is_(None),
+            )
+        )
+        student_count = sr.scalar() or 0
+        teacher_workload.append({
+            "teacher_id": str(row[0]),
+            "name": row[1],
+            "batch_count": row[2],
+            "student_count": student_count,
+        })
+
+    # Materials by type
+    r = await session.execute(
+        select(BatchMaterial.file_type, func.count()).where(
+            BatchMaterial.deleted_at.is_(None)
+        ).group_by(BatchMaterial.file_type)
+    )
+    materials_by_type = {row[0].value: row[1] for row in r.all()}
+
+    # Lectures per course
+    r = await session.execute(
+        select(Course.id, Course.title, func.count(Lecture.id))
+        .outerjoin(Lecture, (Lecture.course_id == Course.id) & (Lecture.deleted_at.is_(None)))
+        .where(Course.deleted_at.is_(None))
+        .group_by(Course.id, Course.title)
+    )
+    lectures_per_course = [
+        {"course_id": str(row[0]), "title": row[1], "lecture_count": row[2]}
+        for row in r.all()
+    ]
+
+    # Device overview
+    r = await session.execute(
+        select(func.count()).select_from(User).where(
+            User.deleted_at.is_(None), User.role == UserRole.student
+        )
+    )
+    total_users = r.scalar() or 0
+
+    r = await session.execute(
+        select(UserSession.user_id, func.count()).where(
+            UserSession.is_active.is_(True)
+        ).group_by(UserSession.user_id)
+    )
+    session_counts = {row[0]: row[1] for row in r.all()}
+
+    # Get system device limit
+    sr = await session.execute(
+        select(SystemSetting).where(SystemSetting.setting_key == "max_device_limit")
+    )
+    setting = sr.scalar_one_or_none()
+    device_limit = int(setting.value) if setting else 2
+
+    at_limit = sum(1 for c in session_counts.values() if c >= device_limit)
+    active_with_sessions = len(session_counts)
+    no_sessions = total_users - active_with_sessions
+
+    device_overview = {
+        "at_limit": at_limit,
+        "active": active_with_sessions,
+        "no_sessions": max(0, no_sessions),
+    }
+
+    return {
+        "monthly": [],  # Computed from activity log in production
+        "students_by_status": students_by_status,
+        "batches_by_status": batches_by_status,
+        "enrollment_per_batch": enrollment_per_batch,
+        "teacher_workload": teacher_workload,
+        "materials_by_type": materials_by_type,
+        "lectures_per_course": lectures_per_course,
+        "device_overview": device_overview,
+    }

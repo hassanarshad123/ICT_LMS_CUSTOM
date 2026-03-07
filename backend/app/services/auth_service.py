@@ -122,6 +122,22 @@ async def logout(session: AsyncSession, refresh_token: str) -> None:
         await session.commit()
 
 
+async def logout_all(session: AsyncSession, user_id: uuid.UUID) -> int:
+    """Revoke all active sessions for a user. Returns count terminated."""
+    result = await session.execute(
+        select(UserSession).where(
+            UserSession.user_id == user_id, UserSession.is_active.is_(True)
+        )
+    )
+    sessions = result.scalars().all()
+    count = len(sessions)
+    for s in sessions:
+        s.is_active = False
+        session.add(s)
+    await session.commit()
+    return count
+
+
 async def _enforce_device_limit(session: AsyncSession, user_id: uuid.UUID) -> None:
     """If user has too many active sessions, deactivate the oldest."""
     # Get device limit from system settings

@@ -1,5 +1,31 @@
 'use client';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { AuthProvider } from '@/lib/auth-context';
+
 export default function StudentLayout({ children }: { children: React.ReactNode }) {
-  return <AuthProvider role="student">{children}</AuthProvider>;
+  const router = useRouter();
+  const [authorized, setAuthorized] = useState(false);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('user');
+    if (!stored) {
+      router.push('/');
+      return;
+    }
+    try {
+      const user = JSON.parse(stored);
+      if (user.role !== 'student') {
+        router.push('/');
+        return;
+      }
+      setAuthorized(true);
+    } catch {
+      router.push('/');
+    }
+  }, [router]);
+
+  if (!authorized) return null;
+
+  return <AuthProvider>{children}</AuthProvider>;
 }
