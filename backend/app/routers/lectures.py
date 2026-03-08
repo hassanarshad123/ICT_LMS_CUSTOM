@@ -89,6 +89,14 @@ async def upload_init(
     from app.utils.bunny import create_video_entry, generate_tus_auth
     import httpx as _httpx
 
+    # 0. Check Bunny credentials are configured
+    if not settings.BUNNY_API_KEY or not settings.BUNNY_LIBRARY_ID:
+        logger.error("Bunny credentials not configured (BUNNY_API_KEY or BUNNY_LIBRARY_ID empty)")
+        raise HTTPException(
+            status_code=503,
+            detail="Video upload service is not configured. Please contact the administrator to set up Bunny.net credentials.",
+        )
+
     # 1. Create Bunny video entry
     try:
         result = await create_video_entry(body.title)
