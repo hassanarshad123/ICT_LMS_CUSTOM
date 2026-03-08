@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { getSignedUrl, updateProgress } from '@/lib/api/lectures';
+import { getSignedUrl, getProgress, updateProgress } from '@/lib/api/lectures';
 import { PlayCircle, Loader2, AlertTriangle, RefreshCw } from 'lucide-react';
 
 interface VideoPlayerProps {
@@ -54,9 +54,21 @@ export function VideoPlayer({ lectureId, videoType, videoUrl, videoStatus }: Vid
     setLoading(true);
     setError(null);
     try {
+      // Fetch resume position before loading the video
+      let resumeSeconds = 0;
+      try {
+        const prog = await getProgress(lectureId);
+        if (prog.resumePositionSeconds > 0 && prog.status !== 'completed') {
+          resumeSeconds = prog.resumePositionSeconds;
+        }
+      } catch {
+        // No progress yet — start from beginning
+      }
+
       const res = await getSignedUrl(lectureId);
       if (res.type === 'bunny_embed') {
-        setEmbedUrl(res.url);
+        const url = resumeSeconds > 0 ? `${res.url}&t=${resumeSeconds}` : res.url;
+        setEmbedUrl(url);
         setUrlType('bunny');
       } else if (res.type === 'external' && res.url) {
         const ytEmbed = toYouTubeEmbed(res.url);

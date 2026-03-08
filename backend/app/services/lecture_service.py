@@ -137,6 +137,14 @@ async def soft_delete_lecture(session: AsyncSession, lecture_id: uuid.UUID) -> N
     if not lecture:
         raise ValueError("Lecture not found")
 
+    # Delete video from Bunny if it exists
+    if lecture.bunny_video_id:
+        try:
+            from app.utils.bunny import delete_video
+            await delete_video(lecture.bunny_video_id)
+        except Exception:
+            pass  # Best-effort cleanup; don't block deletion
+
     lecture.deleted_at = datetime.now(timezone.utc)
     session.add(lecture)
     await session.commit()
@@ -179,10 +187,22 @@ async def upsert_progress(
         status = LectureWatchStatus.unwatched
 
     if progress:
-        progress.watch_percentage = watch_percentage
-        progress.resume_position_seconds = resume_position_seconds
-        progress.status = status
-        progress.updated_at = datetime.now(timezone.utc)
+        # High-water-mark: never downgrade watch_percentage or revert completed status
+        if progress.status == LectureWatchStatus.completed:
+            # Once completed, only update resume position
+            progress.resume_position_seconds = resume_position_seconds
+            progress.updated_at = datetime.now(timezone.utc)
+        else:
+            progress.watch_percentage = max(watch_percentage, progress.watch_percentage)
+            progress.resume_position_seconds = resume_position_seconds
+            # Recalculate status based on the (possibly preserved) higher percentage
+            if progress.watch_percentage >= 90:
+                progress.status = LectureWatchStatus.completed
+            elif progress.watch_percentage > 0:
+                progress.status = LectureWatchStatus.in_progress
+            else:
+                progress.status = LectureWatchStatus.unwatched
+            progress.updated_at = datetime.now(timezone.utc)
     else:
         progress = LectureProgress(
             student_id=student_id,

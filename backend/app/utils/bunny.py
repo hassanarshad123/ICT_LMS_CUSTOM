@@ -60,7 +60,7 @@ def generate_embed_token(video_id: str, expires_in: int = 7200) -> tuple[str, in
     token = hashlib.sha256(token_string.encode()).hexdigest()
     embed_url = (
         f"https://iframe.mediadelivery.net/embed/{library_id}/{video_id}"
-        f"?token={token}&expires={expires_at}&autoplay=false"
+        f"?token={token}&expires={expires_at}&autoplay=false&responsive=true"
     )
     return embed_url, expires_at
 

@@ -127,17 +127,40 @@ export default function BatchContentPage() {
     }
   }, [courses.length]);
 
+  const pollingStartTimes = useRef<Record<string, number>>({});
+  const POLLING_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+
   const startStatusPolling = useCallback((lectureId: string, courseId: string) => {
     // Clear existing poll for this lecture
     if (pollingRefs.current[lectureId]) {
       clearInterval(pollingRefs.current[lectureId]);
     }
+    pollingStartTimes.current[lectureId] = Date.now();
     pollingRefs.current[lectureId] = setInterval(async () => {
+      // Timeout check
+      const elapsed = Date.now() - (pollingStartTimes.current[lectureId] || 0);
+      if (elapsed > POLLING_TIMEOUT_MS) {
+        clearInterval(pollingRefs.current[lectureId]);
+        delete pollingRefs.current[lectureId];
+        delete pollingStartTimes.current[lectureId];
+        setUploadProgress((prev) => ({
+          ...prev,
+          [lectureId]: {
+            ...prev[lectureId],
+            status: 'error',
+            error: 'Processing is taking longer than expected. Please check back later.',
+          },
+        }));
+        toast.error('Video processing timed out. It may still complete — check back later.');
+        return;
+      }
+
       try {
         const res = await getLectureStatus(lectureId);
         if (res.videoStatus === 'ready') {
           clearInterval(pollingRefs.current[lectureId]);
           delete pollingRefs.current[lectureId];
+          delete pollingStartTimes.current[lectureId];
           setUploadProgress((prev) => ({
             ...prev,
             [lectureId]: { ...prev[lectureId], status: 'ready', progress: 100 },
@@ -147,6 +170,7 @@ export default function BatchContentPage() {
         } else if (res.videoStatus === 'failed') {
           clearInterval(pollingRefs.current[lectureId]);
           delete pollingRefs.current[lectureId];
+          delete pollingStartTimes.current[lectureId];
           setUploadProgress((prev) => ({
             ...prev,
             [lectureId]: { ...prev[lectureId], status: 'failed', error: 'Encoding failed' },
@@ -168,6 +192,12 @@ export default function BatchContentPage() {
     if (!lectureForm.title.trim()) return;
 
     if (uploadMode === 'upload' && videoFile) {
+      // File size validation (10 GB max)
+      const MAX_FILE_SIZE = 10 * 1024 * 1024 * 1024;
+      if (videoFile.size > MAX_FILE_SIZE) {
+        toast.error('File is too large. Maximum file size is 10 GB.');
+        return;
+      }
       // TUS direct upload flow
       setSubmittingUpload(true);
       try {

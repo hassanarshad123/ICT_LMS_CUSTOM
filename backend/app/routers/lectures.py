@@ -1,3 +1,4 @@
+import logging
 import uuid
 import math
 from datetime import datetime, timezone
@@ -20,6 +21,8 @@ from app.models.batch import StudentBatch
 from app.utils.formatters import format_duration
 from app.utils.rate_limit import limiter
 from app.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 settings = get_settings()
@@ -84,9 +87,14 @@ async def upload_init(
 ):
     """Create a Bunny video entry + lecture record, return TUS upload credentials."""
     from app.utils.bunny import create_video_entry, generate_tus_auth
+    import httpx as _httpx
 
     # 1. Create Bunny video entry
-    result = await create_video_entry(body.title)
+    try:
+        result = await create_video_entry(body.title)
+    except (_httpx.HTTPStatusError, _httpx.ConnectError, _httpx.TimeoutException) as exc:
+        logger.error("Bunny create_video_entry failed: %s", exc)
+        raise HTTPException(status_code=503, detail="Video service unavailable. Please try again later.")
     video_id = result["video_id"]
     library_id = result["library_id"]
 
@@ -115,15 +123,24 @@ async def upload_init(
 @router.post("/bunny-webhook")
 async def bunny_webhook(request: Request):
     """Handle Bunny Stream encoding webhooks."""
-    # Validate webhook secret
-    webhook_secret = request.headers.get("BunnyWebhookSecret", "")
-    if settings.BUNNY_WEBHOOK_SECRET and webhook_secret != settings.BUNNY_WEBHOOK_SECRET:
-        raise HTTPException(status_code=403, detail="Invalid webhook secret")
-
     body = await request.json()
     video_guid = body.get("VideoGuid")
     if not video_guid:
         return {"status": "ignored"}
+
+    # Validate that this VideoGuid belongs to a lecture we know about
+    from app.database import async_session as _async_session
+    async with _async_session() as _sess:
+        from sqlmodel import select as _select
+        from app.models.course import Lecture as _Lecture
+        check = await _sess.execute(
+            _select(_Lecture.id).where(
+                _Lecture.bunny_video_id == video_guid,
+                _Lecture.deleted_at.is_(None),
+            )
+        )
+        if not check.scalar_one_or_none():
+            return {"status": "ignored"}
 
     # Map Bunny status to our status
     bunny_status = body.get("Status", -1)
@@ -184,8 +201,8 @@ async def get_lecture_status(
                 session.add(lecture)
                 await session.commit()
                 current_status = new_status
-        except Exception:
-            pass  # Return current DB status on API error
+        except Exception as exc:
+            logger.warning("Bunny status poll failed for video %s: %s", lecture.bunny_video_id, exc)
 
     return {"video_status": current_status, "lecture_id": str(lecture.id)}
 
