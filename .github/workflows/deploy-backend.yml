@@ -85,13 +85,18 @@ jobs:
             cd /home/ubuntu/ICT_LMS_CUSTOM
             git fetch origin main
             git reset --hard origin/main
+            git clean -fd backend/migrations/versions/
 
             # Install dependencies
             cd backend
             source venv/bin/activate
             pip install -r requirements.txt --quiet
 
-            # Run migrations (idempotent)
+            # Run migrations (stamp baseline if first time, then upgrade)
+            if ! alembic current 2>/dev/null | grep -q "(head)"; then
+              echo "Stamping baseline migration (tables already exist)..."
+              alembic stamp 001 2>/dev/null || true
+            fi
             alembic upgrade head
 
             # Stop service and wait for port to be released
