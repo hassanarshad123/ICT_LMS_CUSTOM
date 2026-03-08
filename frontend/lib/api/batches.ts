@@ -3,23 +3,23 @@ import { apiClient } from './client';
 export interface BatchOut {
   id: string;
   name: string;
-  start_date: string;
-  end_date: string;
-  teacher_id?: string;
-  teacher_name?: string;
-  student_count: number;
-  course_count: number;
+  startDate: string;
+  endDate: string;
+  teacherId?: string;
+  teacherName?: string;
+  studentCount: number;
+  courseCount: number;
   status: string;
-  created_by?: string;
-  created_at?: string;
+  createdBy?: string;
+  createdAt?: string;
 }
 
 export interface PaginatedBatches {
   data: BatchOut[];
   total: number;
   page: number;
-  per_page: number;
-  total_pages: number;
+  perPage: number;
+  totalPages: number;
 }
 
 export async function listBatches(params?: {

@@ -5,18 +5,18 @@ export interface CourseOut {
   title: string;
   description?: string;
   status: string;
-  batch_ids: string[];
-  cloned_from_id?: string;
-  created_by?: string;
-  created_at?: string;
+  batchIds: string[];
+  clonedFromId?: string;
+  createdBy?: string;
+  createdAt?: string;
 }
 
 export interface PaginatedCourses {
   data: CourseOut[];
   total: number;
   page: number;
-  per_page: number;
-  total_pages: number;
+  perPage: number;
+  totalPages: number;
 }
 
 export async function listCourses(params?: {

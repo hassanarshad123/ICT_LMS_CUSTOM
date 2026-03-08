@@ -1,7 +1,10 @@
+import { snakeToCamel, camelToSnake } from '@/lib/utils/case-convert';
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
 interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | undefined>;
+  skipConversion?: boolean;
 }
 
 function getAccessToken(): string | null {
@@ -37,9 +40,9 @@ export async function apiClient<T = any>(
   path: string,
   options: RequestOptions = {},
 ): Promise<T> {
-  const { params, headers: customHeaders, ...rest } = options;
+  const { params, headers: customHeaders, skipConversion, ...rest } = options;
 
-  // Build URL with query params
+  // Build URL with query params (query params stay snake_case)
   let url = `${API_BASE}${path}`;
   if (params) {
     const searchParams = new URLSearchParams();
@@ -56,6 +59,17 @@ export async function apiClient<T = any>(
     ...(customHeaders as Record<string, string>),
   };
 
+  // Convert request body from camelCase to snake_case (unless skipped or FormData)
+  let processedBody = rest.body;
+  if (processedBody && typeof processedBody === 'string' && !skipConversion && !(rest.body instanceof FormData)) {
+    try {
+      const parsed = JSON.parse(processedBody);
+      processedBody = JSON.stringify(camelToSnake(parsed));
+    } catch {
+      // not JSON, leave as-is
+    }
+  }
+
   // Don't set Content-Type for FormData
   if (!(rest.body instanceof FormData)) {
     headers['Content-Type'] = headers['Content-Type'] || 'application/json';
@@ -66,14 +80,14 @@ export async function apiClient<T = any>(
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  let res = await fetch(url, { ...rest, headers });
+  let res = await fetch(url, { ...rest, body: processedBody, headers });
 
   // Try refresh on 401
   if (res.status === 401 && token) {
     const newToken = await refreshAccessToken();
     if (newToken) {
       headers['Authorization'] = `Bearer ${newToken}`;
-      res = await fetch(url, { ...rest, headers });
+      res = await fetch(url, { ...rest, body: processedBody, headers });
     } else {
       // Clear tokens and redirect to login
       localStorage.removeItem('access_token');
@@ -91,5 +105,9 @@ export async function apiClient<T = any>(
     throw new Error(error.detail || `HTTP ${res.status}`);
   }
 
-  return res.json();
+  const json = await res.json();
+
+  // Auto-convert response from snake_case to camelCase (unless skipped)
+  if (skipConversion) return json;
+  return snakeToCamel(json);
 }

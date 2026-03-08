@@ -41,8 +41,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string): Promise<AuthUser> => {
     const res = await apiLogin(email, password);
-    localStorage.setItem('access_token', res.access_token);
-    localStorage.setItem('refresh_token', res.refresh_token);
+    // API response is auto-converted to camelCase
+    localStorage.setItem('access_token', res.accessToken);
+    localStorage.setItem('refresh_token', res.refreshToken);
     localStorage.setItem('user', JSON.stringify(res.user));
     setUser(res.user);
     return res.user;
@@ -102,8 +103,8 @@ export function useAuth() {
     email: u?.email || '',
     phone: u?.phone || '',
     role: (u?.role?.replace('_', '-') || 'student') as UserRole,
-    batchIds: u?.batch_ids || [],
-    batchNames: u?.batch_names || [],
+    batchIds: u?.batchIds || [],
+    batchNames: u?.batchNames || [],
     specialization: undefined as string | undefined,
     teacherId: u?.id,
     // New properties

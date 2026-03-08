@@ -2,26 +2,26 @@ import { apiClient } from './client';
 
 export interface MaterialOut {
   id: string;
-  batch_id: string;
-  course_id?: string;
+  batchId: string;
+  courseId?: string;
   title: string;
   description?: string;
-  file_name: string;
-  file_type: string;
-  file_size?: string;
-  file_size_bytes?: number;
-  upload_date?: string;
-  uploaded_by?: string;
-  uploaded_by_name?: string;
-  uploaded_by_role?: string;
+  fileName: string;
+  fileType: string;
+  fileSize?: string;
+  fileSizeBytes?: number;
+  uploadDate?: string;
+  uploadedBy?: string;
+  uploadedByName?: string;
+  uploadedByRole?: string;
 }
 
 export interface PaginatedMaterials {
   data: MaterialOut[];
   total: number;
   page: number;
-  per_page: number;
-  total_pages: number;
+  perPage: number;
+  totalPages: number;
 }
 
 export async function listMaterials(params: {
@@ -38,7 +38,7 @@ export async function getUploadUrl(data: {
   content_type: string;
   batch_id: string;
   course_id?: string;
-}): Promise<{ upload_url: string; object_key: string }> {
+}): Promise<{ uploadUrl: string; objectKey: string }> {
   return apiClient('/materials/upload-url', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -61,7 +61,7 @@ export async function createMaterial(data: {
   });
 }
 
-export async function getDownloadUrl(materialId: string): Promise<{ download_url: string; file_name: string }> {
+export async function getDownloadUrl(materialId: string): Promise<{ downloadUrl: string; fileName: string }> {
   return apiClient(`/materials/${materialId}/download-url`);
 }
 

@@ -2,12 +2,12 @@ import { apiClient } from './client';
 
 export interface CurriculumModuleOut {
   id: string;
-  course_id: string;
+  courseId: string;
   title: string;
   description?: string;
   topics?: string[];
-  sequence_order: number;
-  created_at?: string;
+  sequenceOrder: number;
+  createdAt?: string;
 }
 
 export async function listModules(courseId: string): Promise<CurriculumModuleOut[]> {

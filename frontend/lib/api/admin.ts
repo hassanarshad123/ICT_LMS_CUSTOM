@@ -1,26 +1,26 @@
 import { apiClient } from './client';
 
 export interface DashboardData {
-  total_batches: number;
-  active_batches: number;
-  total_students: number;
-  active_students: number;
-  total_teachers: number;
-  total_course_creators: number;
-  total_courses: number;
-  recent_batches: any[];
-  recent_students: any[];
+  totalBatches: number;
+  activeBatches: number;
+  totalStudents: number;
+  activeStudents: number;
+  totalTeachers: number;
+  totalCourseCreators: number;
+  totalCourses: number;
+  recentBatches: any[];
+  recentStudents: any[];
 }
 
 export interface InsightsData {
   monthly: any[];
-  students_by_status: Record<string, number>;
-  batches_by_status: Record<string, number>;
-  enrollment_per_batch: any[];
-  teacher_workload: any[];
-  materials_by_type: Record<string, number>;
-  lectures_per_course: any[];
-  device_overview: Record<string, number>;
+  studentsByStatus: Record<string, number>;
+  batchesByStatus: Record<string, number>;
+  enrollmentPerBatch: any[];
+  teacherWorkload: any[];
+  materialsByType: Record<string, number>;
+  lecturesPerCourse: any[];
+  deviceOverview: Record<string, number>;
 }
 
 export async function getDashboard(): Promise<DashboardData> {
@@ -49,13 +49,14 @@ export async function terminateAllUserSessions(userId: string): Promise<void> {
 }
 
 export async function getSettings(): Promise<{ settings: Record<string, string> }> {
-  return apiClient('/admin/settings');
+  return apiClient('/admin/settings', { skipConversion: true });
 }
 
 export async function updateSettings(settings: Record<string, string>): Promise<{ settings: Record<string, string> }> {
   return apiClient('/admin/settings', {
     method: 'PATCH',
     body: JSON.stringify({ settings }),
+    skipConversion: true,
   });
 }
 

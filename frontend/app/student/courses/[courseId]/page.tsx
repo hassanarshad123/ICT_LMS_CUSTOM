@@ -3,41 +3,125 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
-import { courses, lectures, curriculum, zoomClasses, batchMaterials } from '@/lib/mock-data';
-import { MaterialFileType } from '@/lib/types';
-import { statusColors, fileTypeConfig } from '@/lib/constants';
-import { ArrowLeft, BookOpen, Clock, PlayCircle, ChevronDown, ChevronUp, Video, FileText, Download, Paperclip } from 'lucide-react';
-import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
-
+import { useApi } from '@/hooks/use-api';
+import { getCourse } from '@/lib/api/courses';
+import { listModules } from '@/lib/api/curriculum';
+import { listLectures } from '@/lib/api/lectures';
+import { listMaterials, getDownloadUrl } from '@/lib/api/materials';
+import { listClasses } from '@/lib/api/zoom';
+import { PageLoading, PageError } from '@/components/shared/page-states';
+import { statusColors, fileTypeConfig } from '@/lib/constants';
+import { toast } from 'sonner';
+import {
+  ArrowLeft,
+  BookOpen,
+  Clock,
+  PlayCircle,
+  ChevronDown,
+  ChevronUp,
+  Video,
+  FileText,
+  Download,
+  Paperclip,
+  Loader2,
+} from 'lucide-react';
+import Link from 'next/link';
+import type { MaterialFileType } from '@/lib/types';
 
 export default function CourseDetailPage() {
   const params = useParams();
   const courseId = params.courseId as string;
-  const user = useAuth();
-  const studentBatchId = user.batchIds?.[0]!;
-  const course = courses.find((c) => c.id === courseId);
-  const courseLectures = lectures.filter((l) => l.batchId === studentBatchId && l.courseId === courseId).sort((a, b) => a.order - b.order);
-  const courseRecordings = zoomClasses.filter(
-    (z) => z.status === 'completed' && z.batchId === studentBatchId
-  );
+  const { name, batchIds } = useAuth();
+  const studentBatchId = batchIds?.[0];
 
   const [expandedModule, setExpandedModule] = useState<string | null>(null);
   const [playlistTab, setPlaylistTab] = useState<'lectures' | 'recordings'>('lectures');
-  const [selectedLecture, setSelectedLecture] = useState<string | null>(courseLectures[0]?.id ?? null);
-  const [selectedRecording, setSelectedRecording] = useState<string | null>(courseRecordings[0]?.id ?? null);
+  const [selectedLecture, setSelectedLecture] = useState<string | null>(null);
+  const [selectedRecording, setSelectedRecording] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
-  const activeLecture = courseLectures.find((l) => l.id === selectedLecture);
-  const activeRecording = courseRecordings.find((z) => z.id === selectedRecording);
+  // Fetch course details
+  const { data: course, loading: courseLoading, error: courseError, refetch: refetchCourse } = useApi(
+    () => getCourse(courseId),
+    [courseId],
+  );
 
-  // What's currently playing
+  // Fetch curriculum modules
+  const { data: modules, loading: modulesLoading } = useApi(
+    () => listModules(courseId),
+    [courseId],
+  );
+
+  // Fetch lectures for this course in the student's batch
+  const { data: lecturesData, loading: lecturesLoading } = useApi(
+    () => studentBatchId
+      ? listLectures({ batch_id: studentBatchId, course_id: courseId })
+      : Promise.resolve({ data: [], total: 0, page: 1, perPage: 50, totalPages: 0 }),
+    [courseId, studentBatchId],
+  );
+
+  // Fetch materials for this course in the student's batch
+  const { data: materialsData, loading: materialsLoading } = useApi(
+    () => studentBatchId
+      ? listMaterials({ batch_id: studentBatchId, course_id: courseId })
+      : Promise.resolve({ data: [], total: 0, page: 1, perPage: 50, totalPages: 0 }),
+    [courseId, studentBatchId],
+  );
+
+  // Fetch completed zoom class recordings
+  const { data: recordingsData, loading: recordingsLoading } = useApi(
+    () => studentBatchId
+      ? listClasses({ batch_id: studentBatchId, status: 'completed' })
+      : Promise.resolve({ data: [], total: 0, page: 1, perPage: 50, totalPages: 0 }),
+    [studentBatchId],
+  );
+
+  const lectures = lecturesData?.data || [];
+  const materials = materialsData?.data || [];
+  const recordings = recordingsData?.data || [];
+
+  // Auto-select first lecture/recording when data loads
+  const activeLecture = lectures.find((l) => l.id === selectedLecture) || lectures[0] || null;
+  const activeRecording = recordings.find((r) => r.id === selectedRecording) || recordings[0] || null;
+
   const nowPlaying = playlistTab === 'lectures'
-    ? (activeLecture ? { title: activeLecture.title, subtitle: activeLecture.description, duration: activeLecture.duration, date: `Uploaded ${activeLecture.uploadDate}` } : null)
-    : (activeRecording ? { title: activeRecording.title, subtitle: `by ${activeRecording.teacherName}`, duration: activeRecording.duration, date: activeRecording.date } : null);
+    ? (activeLecture ? { title: activeLecture.title, subtitle: activeLecture.description || '', duration: activeLecture.durationDisplay || `${activeLecture.duration || 0}s`, date: `Uploaded ${activeLecture.uploadDate || ''}` } : null)
+    : (activeRecording ? { title: activeRecording.title, subtitle: `by ${activeRecording.teacherName || 'Teacher'}`, duration: activeRecording.durationDisplay || `${activeRecording.duration}min`, date: activeRecording.scheduledDate } : null);
+
+  const loading = courseLoading;
+
+  const handleDownload = async (materialId: string) => {
+    setDownloadingId(materialId);
+    try {
+      const { downloadUrl } = await getDownloadUrl(materialId);
+      window.open(downloadUrl, '_blank');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to get download link');
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  if (loading) {
+    return (
+      <DashboardLayout role="student" userName={name || 'Student'}>
+        <PageLoading variant="detail" />
+      </DashboardLayout>
+    );
+  }
+
+  if (courseError) {
+    return (
+      <DashboardLayout role="student" userName={name || 'Student'}>
+        <PageError message={courseError} onRetry={refetchCourse} />
+      </DashboardLayout>
+    );
+  }
 
   if (!course) {
     return (
-      <DashboardLayout role="student" userName="Muhammad Imran">
+      <DashboardLayout role="student" userName={name || 'Student'}>
         <div className="bg-white rounded-2xl p-12 card-shadow text-center">
           <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <BookOpen size={28} className="text-gray-400" />
@@ -52,8 +136,11 @@ export default function CourseDetailPage() {
     );
   }
 
+  const sortedModules = (modules || []).sort((a, b) => a.sequenceOrder - b.sequenceOrder);
+  const sortedLectures = lectures.sort((a, b) => a.sequenceOrder - b.sequenceOrder);
+
   return (
-    <DashboardLayout role="student" userName="Muhammad Imran">
+    <DashboardLayout role="student" userName={name || 'Student'}>
       {/* Header Banner */}
       <div className="bg-[#1A1A1A] rounded-2xl p-4 sm:p-6 mb-6 sm:mb-8">
         <Link href="/student/courses" className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors mb-4">
@@ -65,16 +152,16 @@ export default function CourseDetailPage() {
             <h1 className="text-lg sm:text-2xl font-bold text-white mb-2">{course.title}</h1>
             <p className="text-sm text-gray-300 max-w-2xl mb-3">{course.description}</p>
             <div className="flex flex-wrap items-center gap-2 sm:gap-4">
-              <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColors[course.status]}`}>
-                {course.status.charAt(0).toUpperCase() + course.status.slice(1)}
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColors[course.status] || 'bg-gray-100 text-gray-600'}`}>
+                {course.status?.charAt(0).toUpperCase() + course.status?.slice(1)}
               </span>
               <div className="flex items-center gap-1.5 text-xs text-gray-400">
                 <PlayCircle size={14} />
-                {courseLectures.length} lectures
+                {sortedLectures.length} lectures
               </div>
               <div className="flex items-center gap-1.5 text-xs text-gray-400">
                 <Video size={14} />
-                {courseRecordings.length} recordings
+                {recordings.length} recordings
               </div>
             </div>
           </div>
@@ -114,7 +201,7 @@ export default function CourseDetailPage() {
                 <BookOpen size={20} className={playlistTab === 'lectures' ? 'text-[#C5D86D]' : ''} />
                 <span className="text-xs font-bold mt-1.5">Lectures</span>
                 <span className={`text-[10px] mt-0.5 ${playlistTab === 'lectures' ? 'text-gray-300' : 'text-gray-400'}`}>
-                  {courseLectures.length} videos
+                  {sortedLectures.length} videos
                 </span>
               </button>
               <button
@@ -128,7 +215,7 @@ export default function CourseDetailPage() {
                 <Video size={20} className={playlistTab === 'recordings' ? 'text-[#C5D86D]' : ''} />
                 <span className="text-xs font-bold mt-1.5">Class Recordings</span>
                 <span className={`text-[10px] mt-0.5 ${playlistTab === 'recordings' ? 'text-gray-300' : 'text-gray-400'}`}>
-                  {courseRecordings.length} videos
+                  {recordings.length} videos
                 </span>
               </button>
             </div>
@@ -136,15 +223,15 @@ export default function CourseDetailPage() {
             {/* List */}
             <div className="overflow-y-auto flex-1">
               {playlistTab === 'lectures' ? (
-                courseLectures.length === 0 ? (
+                sortedLectures.length === 0 ? (
                   <div className="text-center py-8 px-4">
                     <BookOpen size={24} className="text-gray-300 mx-auto mb-2" />
                     <p className="text-xs text-gray-500">No lectures uploaded yet.</p>
                   </div>
                 ) : (
                   <div className="divide-y divide-gray-50">
-                    {courseLectures.map((lecture, index) => {
-                      const isActive = selectedLecture === lecture.id;
+                    {sortedLectures.map((lecture, index) => {
+                      const isActive = (selectedLecture || sortedLectures[0]?.id) === lecture.id;
                       return (
                         <button
                           key={lecture.id}
@@ -170,7 +257,7 @@ export default function CourseDetailPage() {
                             </p>
                             <div className={`flex items-center gap-1 text-xs mt-0.5 ${isActive ? 'text-gray-300' : 'text-gray-400'}`}>
                               <Clock size={10} />
-                              {lecture.duration}
+                              {lecture.durationDisplay || `${lecture.duration || 0}s`}
                             </div>
                           </div>
                           {isActive && <PlayCircle size={16} className="text-[#C5D86D] flex-shrink-0" />}
@@ -180,15 +267,15 @@ export default function CourseDetailPage() {
                   </div>
                 )
               ) : (
-                courseRecordings.length === 0 ? (
+                recordings.length === 0 ? (
                   <div className="text-center py-8 px-4">
                     <Video size={24} className="text-gray-300 mx-auto mb-2" />
                     <p className="text-xs text-gray-500">No class recordings yet.</p>
                   </div>
                 ) : (
                   <div className="divide-y divide-gray-50">
-                    {courseRecordings.map((recording, index) => {
-                      const isActive = selectedRecording === recording.id;
+                    {recordings.map((recording, index) => {
+                      const isActive = (selectedRecording || recordings[0]?.id) === recording.id;
                       return (
                         <button
                           key={recording.id}
@@ -214,7 +301,7 @@ export default function CourseDetailPage() {
                             </p>
                             <div className={`flex items-center gap-1 text-xs mt-0.5 ${isActive ? 'text-gray-300' : 'text-gray-400'}`}>
                               <Clock size={10} />
-                              {recording.duration} &middot; {recording.date}
+                              {recording.durationDisplay || `${recording.duration}min`} &middot; {recording.scheduledDate}
                             </div>
                           </div>
                           {isActive && <PlayCircle size={16} className="text-[#C5D86D] flex-shrink-0" />}
@@ -248,96 +335,123 @@ export default function CourseDetailPage() {
       {/* Curriculum Modules */}
       <div className="bg-white rounded-2xl card-shadow p-6">
         <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">Curriculum</h3>
-        <div className="space-y-3">
-          {curriculum.filter((m) => m.courseId === courseId).map((mod) => {
-            const isExpanded = expandedModule === mod.id;
-            return (
-              <div key={mod.id} className="border border-gray-100 rounded-xl overflow-hidden">
-                <button
-                  onClick={() => setExpandedModule(isExpanded ? null : mod.id)}
-                  className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-[#C5D86D] bg-opacity-30 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <span className="text-xs font-bold text-[#1A1A1A]">{mod.order}</span>
+        {modulesLoading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="animate-pulse bg-gray-200 rounded-xl h-16" />
+            ))}
+          </div>
+        ) : sortedModules.length === 0 ? (
+          <p className="text-sm text-gray-500 py-4 text-center">No curriculum modules yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {sortedModules.map((mod) => {
+              const isExpanded = expandedModule === mod.id;
+              return (
+                <div key={mod.id} className="border border-gray-100 rounded-xl overflow-hidden">
+                  <button
+                    onClick={() => setExpandedModule(isExpanded ? null : mod.id)}
+                    className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-[#C5D86D] bg-opacity-30 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <span className="text-xs font-bold text-[#1A1A1A]">{mod.sequenceOrder}</span>
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-sm text-[#1A1A1A]">{mod.title}</h4>
+                        <p className="text-xs text-gray-500 mt-0.5">{mod.description}</p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-medium text-sm text-[#1A1A1A]">{mod.title}</h4>
-                      <p className="text-xs text-gray-500 mt-0.5">{mod.description}</p>
+                    {isExpanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+                  </button>
+                  {isExpanded && mod.topics && mod.topics.length > 0 && (
+                    <div className="px-4 pb-4 pt-0">
+                      <div className="ml-11 border-t border-gray-100 pt-3">
+                        <ul className="space-y-2">
+                          {mod.topics.map((topic, i) => (
+                            <li key={i} className="flex items-center gap-2 text-sm text-gray-600">
+                              <div className="w-1.5 h-1.5 rounded-full bg-[#C5D86D]" />
+                              {topic}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
                     </div>
-                  </div>
-                  {isExpanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
-                </button>
-                {isExpanded && (
-                  <div className="px-4 pb-4 pt-0">
-                    <div className="ml-11 border-t border-gray-100 pt-3">
-                      <ul className="space-y-2">
-                        {mod.topics.map((topic, i) => (
-                          <li key={i} className="flex items-center gap-2 text-sm text-gray-600">
-                            <div className="w-1.5 h-1.5 rounded-full bg-[#C5D86D]" />
-                            {topic}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Course Materials */}
-      {(() => {
-        const materials = batchMaterials.filter((m) => m.batchId === studentBatchId && m.courseId === courseId);
-        return (
-          <div className="bg-white rounded-2xl card-shadow p-6 mt-8">
-            <div className="flex items-center gap-3 mb-4">
-              <Paperclip size={20} className="text-[#1A1A1A]" />
-              <h3 className="text-lg font-semibold text-[#1A1A1A]">Course Materials</h3>
-              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                {materials.length}
-              </span>
-            </div>
-            {materials.length === 0 ? (
-              <div className="text-center py-8">
-                <FileText size={28} className="text-gray-300 mx-auto mb-2" />
-                <p className="text-sm text-gray-500">No materials uploaded for this course yet.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {materials.map((material) => {
-                  const config = fileTypeConfig[material.fileType];
-                  return (
-                    <div key={material.id} className="border border-gray-100 rounded-xl p-4 flex items-start gap-4">
-                      <div className={`w-12 h-12 ${config.bgColor} rounded-xl flex items-center justify-center flex-shrink-0`}>
-                        <span className={`text-xs font-bold ${config.textColor}`}>{config.label}</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-medium text-sm text-[#1A1A1A] truncate">{material.title}</h4>
-                        {material.description && (
-                          <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{material.description}</p>
-                        )}
-                        <div className="flex items-center gap-2 mt-2 text-xs text-gray-400">
-                          <span>{material.fileSize}</span>
+      <div className="bg-white rounded-2xl card-shadow p-6 mt-8">
+        <div className="flex items-center gap-3 mb-4">
+          <Paperclip size={20} className="text-[#1A1A1A]" />
+          <h3 className="text-lg font-semibold text-[#1A1A1A]">Course Materials</h3>
+          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+            {materials.length}
+          </span>
+        </div>
+        {materialsLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {Array.from({ length: 2 }).map((_, i) => (
+              <div key={i} className="animate-pulse bg-gray-200 rounded-xl h-24" />
+            ))}
+          </div>
+        ) : materials.length === 0 ? (
+          <div className="text-center py-8">
+            <FileText size={28} className="text-gray-300 mx-auto mb-2" />
+            <p className="text-sm text-gray-500">No materials uploaded for this course yet.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {materials.map((material) => {
+              const config = fileTypeConfig[material.fileType as MaterialFileType] || fileTypeConfig.other;
+              return (
+                <div key={material.id} className="border border-gray-100 rounded-xl p-4 flex items-start gap-4">
+                  <div className={`w-12 h-12 ${config.bgColor} rounded-xl flex items-center justify-center flex-shrink-0`}>
+                    <span className={`text-xs font-bold ${config.textColor}`}>{config.label}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-medium text-sm text-[#1A1A1A] truncate">{material.title}</h4>
+                    {material.description && (
+                      <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{material.description}</p>
+                    )}
+                    <div className="flex items-center gap-2 mt-2 text-xs text-gray-400">
+                      {material.fileSize && <span>{material.fileSize}</span>}
+                      {material.uploadDate && (
+                        <>
                           <span className="text-gray-300">|</span>
                           <span>{material.uploadDate}</span>
+                        </>
+                      )}
+                      {material.uploadedByName && (
+                        <>
                           <span className="text-gray-300">|</span>
-                          <span>by {material.uploadedBy}</span>
-                        </div>
-                      </div>
-                      <button className="flex-shrink-0 p-2 bg-[#1A1A1A] text-white rounded-lg hover:bg-[#333] transition-colors">
-                        <Download size={14} />
-                      </button>
+                          <span>by {material.uploadedByName}</span>
+                        </>
+                      )}
                     </div>
-                  );
-                })}
-              </div>
-            )}
+                  </div>
+                  <button
+                    onClick={() => handleDownload(material.id)}
+                    disabled={downloadingId === material.id}
+                    className="flex-shrink-0 p-2 bg-[#1A1A1A] text-white rounded-lg hover:bg-[#333] transition-colors disabled:opacity-60"
+                  >
+                    {downloadingId === material.id ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Download size={14} />
+                    )}
+                  </button>
+                </div>
+              );
+            })}
           </div>
-        );
-      })()}
+        )}
+      </div>
     </DashboardLayout>
   );
 }

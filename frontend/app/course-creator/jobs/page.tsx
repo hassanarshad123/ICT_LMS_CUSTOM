@@ -3,252 +3,302 @@
 import { useState } from 'react';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import DashboardHeader from '@/components/layout/dashboard-header';
-import { jobs as initialJobs } from '@/lib/mock-data';
-import { Job } from '@/lib/types';
-import { jobTypeColors } from '@/lib/constants';
-import { Plus, Briefcase, MapPin, DollarSign, Clock, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
+import { usePaginatedApi } from '@/hooks/use-paginated-api';
+import { useMutation } from '@/hooks/use-api';
+import { listJobs, createJob, deleteJob, listApplications } from '@/lib/api/jobs';
+import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
+import { toast } from 'sonner';
+import { Plus, X, Briefcase, MapPin, DollarSign, Clock, Trash2, ChevronDown, ChevronUp, Loader2, Users } from 'lucide-react';
 
 export default function CourseCreatorJobs() {
-  const [jobList, setJobList] = useState<Job[]>(initialJobs);
+  const { name } = useAuth();
   const [showForm, setShowForm] = useState(false);
   const [expandedJob, setExpandedJob] = useState<string | null>(null);
+  const [applications, setApplications] = useState<Record<string, any[]>>({});
+  const [loadingApps, setLoadingApps] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     company: '',
     location: '',
-    type: 'full-time' as Job['type'],
+    jobType: 'full-time',
     salary: '',
     description: '',
     requirements: '',
     deadline: '',
   });
 
-  const handleAdd = (e: React.FormEvent) => {
+  const { data: jobList, total, page, totalPages, loading, error, setPage, refetch } = usePaginatedApi(
+    (params) => listJobs({ ...params }),
+    15,
+  );
+
+  const { execute: doCreate, loading: creating } = useMutation(createJob);
+  const { execute: doDelete } = useMutation(deleteJob);
+
+  const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newJob: Job = {
-      id: `j${Date.now()}`,
-      title: formData.title,
-      company: formData.company,
-      location: formData.location,
-      type: formData.type,
-      salary: formData.salary,
-      description: formData.description,
-      requirements: formData.requirements.split(',').map((r) => r.trim()).filter(Boolean),
-      postedDate: new Date().toISOString().split('T')[0],
-      deadline: formData.deadline,
-    };
-    setJobList([newJob, ...jobList]);
-    setFormData({ title: '', company: '', location: '', type: 'full-time', salary: '', description: '', requirements: '', deadline: '' });
-    setShowForm(false);
+    try {
+      await doCreate({
+        title: formData.title,
+        company: formData.company,
+        location: formData.location,
+        jobType: formData.jobType,
+        salary: formData.salary,
+        description: formData.description,
+        requirements: formData.requirements.split(',').map((r: string) => r.trim()).filter(Boolean),
+        deadline: formData.deadline,
+      });
+      toast.success('Job posted');
+      setFormData({ title: '', company: '', location: '', jobType: 'full-time', salary: '', description: '', requirements: '', deadline: '' });
+      setShowForm(false);
+      refetch();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
   };
 
-  const deleteJob = (id: string) => {
-    setJobList(jobList.filter((j) => j.id !== id));
+  const handleDelete = async (jobId: string) => {
+    try {
+      await doDelete(jobId);
+      toast.success('Job deleted');
+      refetch();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
   };
+
+  const toggleExpand = async (jobId: string) => {
+    if (expandedJob === jobId) {
+      setExpandedJob(null);
+      return;
+    }
+    setExpandedJob(jobId);
+    if (!applications[jobId]) {
+      setLoadingApps(jobId);
+      try {
+        const apps = await listApplications(jobId);
+        setApplications((prev) => ({ ...prev, [jobId]: Array.isArray(apps) ? apps : [] }));
+      } catch {
+        setApplications((prev) => ({ ...prev, [jobId]: [] }));
+      } finally {
+        setLoadingApps(null);
+      }
+    }
+  };
+
+  const inputClass = 'w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50';
 
   return (
-    <DashboardLayout role="course-creator" userName="Course Creator">
+    <DashboardLayout role="course-creator" userName={name || 'Course Creator'}>
       <DashboardHeader greeting="Jobs" subtitle="Post job opportunities for students" />
 
-      <div className="mb-6">
-        {showForm ? (
-          <div className="bg-white rounded-2xl p-6 card-shadow mb-6">
-            <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">New Job Posting</h3>
-            <form onSubmit={handleAdd} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Job Title</label>
-                <input
-                  type="text"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  placeholder="e.g. Data Entry Operator"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A1A1A] focus:border-transparent bg-gray-50"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Company</label>
-                <input
-                  type="text"
-                  value={formData.company}
-                  onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                  placeholder="e.g. TechVentures Lahore"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A1A1A] focus:border-transparent bg-gray-50"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Location</label>
-                <input
-                  type="text"
-                  value={formData.location}
-                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                  placeholder="e.g. Lahore"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A1A1A] focus:border-transparent bg-gray-50"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Job Type</label>
-                <select
-                  value={formData.type}
-                  onChange={(e) => setFormData({ ...formData, type: e.target.value as Job['type'] })}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A1A1A] focus:border-transparent bg-gray-50"
-                >
-                  <option value="full-time">Full-time</option>
-                  <option value="part-time">Part-time</option>
-                  <option value="internship">Internship</option>
-                  <option value="remote">Remote</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Salary</label>
-                <input
-                  type="text"
-                  value={formData.salary}
-                  onChange={(e) => setFormData({ ...formData, salary: e.target.value })}
-                  placeholder="e.g. PKR 35,000 - 45,000"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A1A1A] focus:border-transparent bg-gray-50"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Deadline</label>
-                <input
-                  type="date"
-                  value={formData.deadline}
-                  onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A1A1A] focus:border-transparent bg-gray-50"
-                  required
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Description</label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Describe the job role and responsibilities"
-                  rows={3}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A1A1A] focus:border-transparent bg-gray-50 resize-none"
-                  required
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Requirements (comma separated)</label>
-                <input
-                  type="text"
-                  value={formData.requirements}
-                  onChange={(e) => setFormData({ ...formData, requirements: e.target.value })}
-                  placeholder="e.g. Basic computer skills, MS Office proficiency, Attention to detail"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A1A1A] focus:border-transparent bg-gray-50"
-                  required
-                />
-              </div>
-              <div className="sm:col-span-2 flex gap-3">
-                <button
-                  type="submit"
-                  className="px-6 py-3 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#333] transition-colors"
-                >
-                  Post Job
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setShowForm(false); setFormData({ title: '', company: '', location: '', type: 'full-time', salary: '', description: '', requirements: '', deadline: '' }); }}
-                  className="px-6 py-3 bg-gray-100 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-200 transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        ) : (
-          <button
-            onClick={() => setShowForm(true)}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#1A1A1A] text-white text-sm font-medium rounded-xl hover:bg-[#333] transition-colors"
-          >
-            <Plus size={16} />
-            Post New Job
-          </button>
-        )}
+      <div className="flex justify-end mb-6">
+        <button
+          onClick={() => setShowForm(!showForm)}
+          className="flex items-center gap-2 px-5 py-2.5 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#333] transition-colors"
+        >
+          {showForm ? <X size={16} /> : <Plus size={16} />}
+          {showForm ? 'Cancel' : 'Post New Job'}
+        </button>
       </div>
 
-      {jobList.length === 0 ? (
-        <div className="bg-white rounded-2xl p-12 card-shadow text-center">
-          <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <Briefcase size={28} className="text-gray-400" />
-          </div>
-          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-2">No jobs posted yet</h3>
-          <p className="text-sm text-gray-500">Post your first job opportunity for students.</p>
+      {showForm && (
+        <div className="bg-white rounded-2xl p-6 card-shadow mb-6">
+          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">New Job Posting</h3>
+          <form onSubmit={handleAdd} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Job Title</label>
+              <input type="text" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} placeholder="e.g. Data Entry Operator" className={inputClass} required />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Company</label>
+              <input type="text" value={formData.company} onChange={(e) => setFormData({ ...formData, company: e.target.value })} placeholder="e.g. TechVentures Lahore" className={inputClass} required />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Location</label>
+              <input type="text" value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value })} placeholder="e.g. Lahore" className={inputClass} required />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Job Type</label>
+              <select value={formData.jobType} onChange={(e) => setFormData({ ...formData, jobType: e.target.value })} className={inputClass}>
+                <option value="full-time">Full-time</option>
+                <option value="part-time">Part-time</option>
+                <option value="internship">Internship</option>
+                <option value="remote">Remote</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Salary</label>
+              <input type="text" value={formData.salary} onChange={(e) => setFormData({ ...formData, salary: e.target.value })} placeholder="e.g. PKR 35,000 - 45,000" className={inputClass} required />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Deadline</label>
+              <input type="date" value={formData.deadline} onChange={(e) => setFormData({ ...formData, deadline: e.target.value })} className={inputClass} required />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Description</label>
+              <textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} placeholder="Describe the job role and responsibilities" rows={3} className={`${inputClass} resize-none`} required />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Requirements (comma separated)</label>
+              <input type="text" value={formData.requirements} onChange={(e) => setFormData({ ...formData, requirements: e.target.value })} placeholder="e.g. Basic computer skills, MS Office proficiency" className={inputClass} />
+            </div>
+            <div className="sm:col-span-2">
+              <button type="submit" disabled={creating} className="flex items-center gap-2 px-6 py-3 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#333] transition-colors disabled:opacity-60">
+                {creating && <Loader2 size={16} className="animate-spin" />}
+                Post Job
+              </button>
+            </div>
+          </form>
         </div>
-      ) : (
-        <div className="space-y-4">
-          {jobList.map((job) => {
-            const isExpanded = expandedJob === job.id;
-            return (
-              <div key={job.id} className="bg-white rounded-2xl card-shadow overflow-hidden">
-                <div className="flex items-start justify-between p-5">
-                  <button
-                    onClick={() => setExpandedJob(isExpanded ? null : job.id)}
-                    className="flex items-start gap-4 flex-1 text-left"
-                  >
-                    <div className="w-11 h-11 bg-[#C5D86D] bg-opacity-30 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <Briefcase size={18} className="text-[#1A1A1A]" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-[#1A1A1A]">{job.title}</h4>
-                      <p className="text-sm text-gray-500 mt-0.5">{job.company}</p>
-                      <div className="flex items-center gap-3 mt-2 flex-wrap">
-                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${jobTypeColors[job.type]}`}>
-                          {job.type}
-                        </span>
-                        <span className="flex items-center gap-1 text-xs text-gray-400">
-                          <MapPin size={12} />
-                          {job.location}
-                        </span>
-                        <span className="flex items-center gap-1 text-xs text-gray-400">
-                          <DollarSign size={12} />
-                          {job.salary}
-                        </span>
-                        <span className="flex items-center gap-1 text-xs text-gray-400">
-                          <Clock size={12} />
-                          Deadline: {job.deadline}
-                        </span>
-                      </div>
-                    </div>
-                    {isExpanded ? <ChevronUp size={16} className="text-gray-400 mt-1" /> : <ChevronDown size={16} className="text-gray-400 mt-1" />}
-                  </button>
-                  <button
-                    onClick={() => deleteJob(job.id)}
-                    className="ml-3 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
-                    title="Delete job"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
+      )}
 
-                {isExpanded && (
-                  <div className="border-t border-gray-100 px-4 sm:px-5 py-4 ml-0 sm:ml-16">
-                    <p className="text-sm text-gray-700 mb-4">{job.description}</p>
-                    {job.requirements.length > 0 && (
-                      <div>
-                        <h5 className="text-xs font-semibold text-gray-500 uppercase mb-2">Requirements</h5>
-                        <ul className="space-y-1.5">
-                          {job.requirements.map((req, i) => (
-                            <li key={i} className="flex items-center gap-2 text-sm text-gray-600">
-                              <div className="w-1.5 h-1.5 rounded-full bg-[#C5D86D]" />
-                              {req}
-                            </li>
-                          ))}
-                        </ul>
+      {loading && <PageLoading variant="table" />}
+      {error && <PageError message={error} onRetry={refetch} />}
+
+      {!loading && !error && jobList.length === 0 ? (
+        <EmptyState
+          icon={<Briefcase size={28} className="text-gray-400" />}
+          title="No jobs posted yet"
+          description="Post your first job opportunity for students."
+          action={{ label: 'Post New Job', onClick: () => setShowForm(true) }}
+        />
+      ) : !loading && !error && (
+        <>
+          <div className="space-y-4">
+            {jobList.map((job) => {
+              const isExpanded = expandedJob === job.id;
+              const jobApps = applications[job.id] || [];
+              const isLoadingApps = loadingApps === job.id;
+
+              return (
+                <div key={job.id} className="bg-white rounded-2xl card-shadow overflow-hidden">
+                  <div className="flex items-start justify-between p-5">
+                    <button
+                      onClick={() => toggleExpand(job.id)}
+                      className="flex items-start gap-4 flex-1 text-left"
+                    >
+                      <div className="w-11 h-11 bg-[#C5D86D] bg-opacity-30 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Briefcase size={18} className="text-[#1A1A1A]" />
                       </div>
-                    )}
-                    <p className="text-xs text-gray-400 mt-4">Posted {job.postedDate}</p>
+                      <div>
+                        <h4 className="font-semibold text-[#1A1A1A]">{job.title}</h4>
+                        <p className="text-sm text-gray-500 mt-0.5">{job.company}</p>
+                        <div className="flex items-center gap-3 mt-2 flex-wrap">
+                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            job.type === 'full-time' ? 'bg-blue-100 text-blue-700' :
+                            job.type === 'part-time' ? 'bg-purple-100 text-purple-700' :
+                            job.type === 'internship' ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-green-100 text-green-700'
+                          }`}>
+                            {job.type}
+                          </span>
+                          {job.location && (
+                            <span className="flex items-center gap-1 text-xs text-gray-400">
+                              <MapPin size={12} />
+                              {job.location}
+                            </span>
+                          )}
+                          {job.salary && (
+                            <span className="flex items-center gap-1 text-xs text-gray-400">
+                              <DollarSign size={12} />
+                              {job.salary}
+                            </span>
+                          )}
+                          {job.deadline && (
+                            <span className="flex items-center gap-1 text-xs text-gray-400">
+                              <Clock size={12} />
+                              Deadline: {job.deadline}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {isExpanded ? <ChevronUp size={16} className="text-gray-400 mt-1" /> : <ChevronDown size={16} className="text-gray-400 mt-1" />}
+                    </button>
+                    <button
+                      onClick={() => handleDelete(job.id)}
+                      className="ml-3 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
+                      title="Delete job"
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </div>
-                )}
+
+                  {isExpanded && (
+                    <div className="border-t border-gray-100 px-4 sm:px-5 py-4 ml-0 sm:ml-16">
+                      {job.description && (
+                        <p className="text-sm text-gray-700 mb-4">{job.description}</p>
+                      )}
+                      {(job.requirements || []).length > 0 && (
+                        <div className="mb-4">
+                          <h5 className="text-xs font-semibold text-gray-500 uppercase mb-2">Requirements</h5>
+                          <ul className="space-y-1.5">
+                            {job.requirements!.map((req, i) => (
+                              <li key={i} className="flex items-center gap-2 text-sm text-gray-600">
+                                <div className="w-1.5 h-1.5 rounded-full bg-[#C5D86D]" />
+                                {req}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Applications */}
+                      <div className="mt-4 pt-4 border-t border-gray-100">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Users size={14} className="text-gray-500" />
+                          <h5 className="text-xs font-semibold text-gray-500 uppercase">Applications</h5>
+                        </div>
+                        {isLoadingApps ? (
+                          <div className="flex items-center gap-2 py-2">
+                            <Loader2 size={14} className="animate-spin text-gray-400" />
+                            <span className="text-xs text-gray-500">Loading applications...</span>
+                          </div>
+                        ) : jobApps.length === 0 ? (
+                          <p className="text-xs text-gray-400">No applications yet.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {jobApps.map((app: any) => (
+                              <div key={app.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50">
+                                <div>
+                                  <p className="text-sm font-medium text-[#1A1A1A]">{app.studentName || app.name || 'Student'}</p>
+                                  <p className="text-xs text-gray-400">{app.email || ''}</p>
+                                </div>
+                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                  app.status === 'accepted' ? 'bg-green-100 text-green-700' :
+                                  app.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                                  'bg-yellow-100 text-yellow-700'
+                                }`}>
+                                  {app.status || 'pending'}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <p className="text-xs text-gray-400 mt-4">Posted {job.postedDate ? new Date(job.postedDate).toLocaleDateString() : '—'}</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between mt-6">
+              <p className="text-sm text-gray-500 mb-2 sm:mb-0">
+                Page {page} of {totalPages} ({total} jobs)
+              </p>
+              <div className="flex gap-2">
+                <button onClick={() => setPage(page - 1)} disabled={page === 1} className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">Previous</button>
+                <button onClick={() => setPage(page + 1)} disabled={page === totalPages} className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">Next</button>
               </div>
-            );
-          })}
-        </div>
+            </div>
+          )}
+        </>
       )}
     </DashboardLayout>
   );

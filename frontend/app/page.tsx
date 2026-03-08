@@ -28,8 +28,8 @@ export default function LoginPage() {
 
     try {
       const res = await login(email, password);
-      localStorage.setItem('access_token', res.access_token);
-      localStorage.setItem('refresh_token', res.refresh_token);
+      localStorage.setItem('access_token', res.accessToken);
+      localStorage.setItem('refresh_token', res.refreshToken);
       localStorage.setItem('user', JSON.stringify(res.user));
 
       const path = rolePathMap[res.user.role] || '/student';

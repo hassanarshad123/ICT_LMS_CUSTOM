@@ -4,26 +4,26 @@ export interface LectureOut {
   id: string;
   title: string;
   description?: string;
-  video_type: string;
-  video_url?: string;
-  bunny_video_id?: string;
+  videoType: string;
+  videoUrl?: string;
+  bunnyVideoId?: string;
   duration?: number;
-  duration_display?: string;
-  file_size?: number;
-  batch_id: string;
-  course_id?: string;
-  sequence_order: number;
-  thumbnail_url?: string;
-  upload_date?: string;
-  created_at?: string;
+  durationDisplay?: string;
+  fileSize?: number;
+  batchId: string;
+  courseId?: string;
+  sequenceOrder: number;
+  thumbnailUrl?: string;
+  uploadDate?: string;
+  createdAt?: string;
 }
 
 export interface PaginatedLectures {
   data: LectureOut[];
   total: number;
   page: number;
-  per_page: number;
-  total_pages: number;
+  perPage: number;
+  totalPages: number;
 }
 
 export async function listLectures(params: {
@@ -65,14 +65,14 @@ export async function deleteLecture(lectureId: string): Promise<void> {
   return apiClient(`/lectures/${lectureId}`, { method: 'DELETE' });
 }
 
-export async function getSignedUrl(lectureId: string): Promise<{ url: string; expires_at: string }> {
+export async function getSignedUrl(lectureId: string): Promise<{ url: string; expiresAt: string }> {
   return apiClient(`/lectures/${lectureId}/signed-url`, { method: 'POST' });
 }
 
 export async function updateProgress(lectureId: string, data: {
   watch_percentage: number;
   resume_position_seconds?: number;
-}): Promise<{ lecture_id: string; watch_percentage: number; status: string }> {
+}): Promise<{ lectureId: string; watchPercentage: number; status: string }> {
   return apiClient(`/lectures/${lectureId}/progress`, {
     method: 'POST',
     body: JSON.stringify(data),
@@ -80,9 +80,9 @@ export async function updateProgress(lectureId: string, data: {
 }
 
 export async function getProgress(lectureId: string): Promise<{
-  lecture_id: string;
-  watch_percentage: number;
-  resume_position_seconds: number;
+  lectureId: string;
+  watchPercentage: number;
+  resumePositionSeconds: number;
   status: string;
 }> {
   return apiClient(`/lectures/${lectureId}/progress`);

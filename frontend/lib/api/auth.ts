@@ -1,9 +1,9 @@
 import { apiClient } from './client';
 
 export interface LoginResponse {
-  access_token: string;
-  refresh_token: string;
-  token_type: string;
+  accessToken: string;
+  refreshToken: string;
+  tokenType: string;
   user: AuthUser;
 }
 
@@ -14,9 +14,9 @@ export interface AuthUser {
   phone?: string;
   role: string;
   status: string;
-  avatar_url?: string;
-  batch_ids: string[];
-  batch_names: string[];
+  avatarUrl?: string;
+  batchIds: string[];
+  batchNames: string[];
 }
 
 export async function login(email: string, password: string): Promise<LoginResponse> {
@@ -33,7 +33,7 @@ export async function logout(refreshToken: string): Promise<void> {
   });
 }
 
-export async function logoutAll(): Promise<{ detail: string; sessions_terminated: number }> {
+export async function logoutAll(): Promise<{ detail: string; sessionsTerminated: number }> {
   return apiClient('/auth/logout-all', { method: 'POST' });
 }
 

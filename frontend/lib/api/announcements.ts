@@ -5,20 +5,20 @@ export interface AnnouncementOut {
   title: string;
   content: string;
   scope: string;
-  batch_id?: string;
-  course_id?: string;
-  posted_by?: string;
-  posted_by_name?: string;
-  expires_at?: string;
-  created_at?: string;
+  batchId?: string;
+  courseId?: string;
+  postedBy?: string;
+  postedByName?: string;
+  expiresAt?: string;
+  createdAt?: string;
 }
 
 export interface PaginatedAnnouncements {
   data: AnnouncementOut[];
   total: number;
   page: number;
-  per_page: number;
-  total_pages: number;
+  perPage: number;
+  totalPages: number;
 }
 
 export async function listAnnouncements(params?: {

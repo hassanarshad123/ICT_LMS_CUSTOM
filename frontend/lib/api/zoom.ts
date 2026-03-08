@@ -2,37 +2,37 @@ import { apiClient } from './client';
 
 export interface ZoomAccountOut {
   id: string;
-  account_name: string;
-  account_id?: string;
-  client_id?: string;
-  is_default: boolean;
-  created_at?: string;
+  accountName: string;
+  accountId?: string;
+  clientId?: string;
+  isDefault: boolean;
+  createdAt?: string;
 }
 
 export interface ZoomClassOut {
   id: string;
   title: string;
-  batch_id: string;
-  batch_name?: string;
-  teacher_id: string;
-  teacher_name?: string;
-  zoom_meeting_url?: string;
-  zoom_start_url?: string;
-  scheduled_date: string;
-  scheduled_time: string;
+  batchId: string;
+  batchName?: string;
+  teacherId: string;
+  teacherName?: string;
+  zoomMeetingUrl?: string;
+  zoomStartUrl?: string;
+  scheduledDate: string;
+  scheduledTime: string;
   duration: number;
-  duration_display?: string;
+  durationDisplay?: string;
   status: string;
-  zoom_account_id: string;
-  created_at?: string;
+  zoomAccountId: string;
+  createdAt?: string;
 }
 
 export interface PaginatedZoomClasses {
   data: ZoomClassOut[];
   total: number;
   page: number;
-  per_page: number;
-  total_pages: number;
+  perPage: number;
+  totalPages: number;
 }
 
 export async function listAccounts(): Promise<ZoomAccountOut[]> {

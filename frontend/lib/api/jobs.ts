@@ -9,17 +9,17 @@ export interface JobOut {
   salary?: string;
   description?: string;
   requirements?: string[];
-  posted_date?: string;
+  postedDate?: string;
   deadline?: string;
-  posted_by?: string;
+  postedBy?: string;
 }
 
 export interface PaginatedJobs {
   data: JobOut[];
   total: number;
   page: number;
-  per_page: number;
-  total_pages: number;
+  perPage: number;
+  totalPages: number;
 }
 
 export async function listJobs(params?: {

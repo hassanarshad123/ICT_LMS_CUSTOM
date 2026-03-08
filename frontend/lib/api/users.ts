@@ -7,20 +7,21 @@ export interface UserOut {
   phone?: string;
   role: string;
   specialization?: string;
-  avatar_url?: string;
+  avatarUrl?: string;
   status: string;
-  created_at: string;
-  updated_at: string;
-  batch_ids?: string[];
-  batch_names?: string[];
-  join_date?: string;
+  createdAt: string;
+  updatedAt: string;
+  batchIds?: string[];
+  batchNames?: string[];
+  joinDate?: string;
 }
 
 export interface PaginatedUsers {
   data: UserOut[];
   total: number;
   page: number;
-  per_page: number;
+  perPage: number;
+  totalPages: number;
 }
 
 export async function listUsers(params?: {
@@ -45,7 +46,7 @@ export async function createUser(data: {
   phone?: string;
   role: string;
   specialization?: string;
-}): Promise<{ id: string; temporary_password: string }> {
+}): Promise<{ id: string; temporaryPassword: string }> {
   return apiClient('/users', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -66,7 +67,7 @@ export async function changeUserStatus(userId: string, status: string): Promise<
   });
 }
 
-export async function resetPassword(userId: string): Promise<{ temporary_password: string }> {
+export async function resetPassword(userId: string): Promise<{ temporaryPassword: string }> {
   return apiClient(`/users/${userId}/reset-password`, { method: 'POST' });
 }
 
