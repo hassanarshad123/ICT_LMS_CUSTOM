@@ -52,6 +52,7 @@ async def list_lectures(
             "batch_id": lec.batch_id,
             "course_id": lec.course_id,
             "sequence_order": lec.sequence_order,
+            "video_status": lec.video_status,
             "thumbnail_url": lec.thumbnail_url,
             "upload_date": lec.created_at,
             "created_at": lec.created_at,
@@ -81,6 +82,7 @@ async def create_lecture(
     bunny_library_id: Optional[str] = None,
     file_size: Optional[int] = None,
     thumbnail_url: Optional[str] = None,
+    video_status: Optional[str] = None,
 ) -> Lecture:
     # Auto-assign sequence_order
     result = await session.execute(
@@ -105,6 +107,7 @@ async def create_lecture(
         bunny_library_id=bunny_library_id,
         file_size=file_size,
         thumbnail_url=thumbnail_url,
+        video_status=video_status,
         created_by=created_by,
     )
     session.add(lecture)
@@ -193,6 +196,24 @@ async def upsert_progress(
     await session.commit()
     await session.refresh(progress)
     return progress
+
+
+async def update_lecture_status(
+    session: AsyncSession, bunny_video_id: str, status: str
+) -> None:
+    """Find lecture by bunny_video_id and update its video_status."""
+    result = await session.execute(
+        select(Lecture).where(
+            Lecture.bunny_video_id == bunny_video_id,
+            Lecture.deleted_at.is_(None),
+        )
+    )
+    lecture = result.scalar_one_or_none()
+    if lecture:
+        lecture.video_status = status
+        lecture.updated_at = datetime.now(timezone.utc)
+        session.add(lecture)
+        await session.commit()
 
 
 async def get_progress(

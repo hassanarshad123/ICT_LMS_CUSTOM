@@ -1,4 +1,4 @@
-"""Bunny.net video CDN integration."""
+"""Bunny.net Stream video integration — TUS direct upload + embed tokens."""
 import hashlib
 import time
 from typing import Optional
@@ -9,16 +9,21 @@ from app.config import get_settings
 
 settings = get_settings()
 
+# Bunny encoding status codes → our status strings
+_BUNNY_STATUS_MAP = {
+    0: "processing",   # queued
+    1: "processing",   # processing
+    2: "processing",   # encoding
+    3: "ready",        # finished
+    4: "ready",        # resolution_finished
+    5: "failed",       # failed
+}
 
-async def upload_video(
-    title: str,
-    file_data: bytes,
-) -> dict:
-    """Upload a video to Bunny.net Stream. Returns {video_id, library_id}."""
+
+async def create_video_entry(title: str) -> dict:
+    """Create a Bunny Stream video entry. Returns {"video_id": str, "library_id": str}."""
     library_id = settings.BUNNY_LIBRARY_ID
-
-    async with httpx.AsyncClient(timeout=300) as client:
-        # Create video entry
+    async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(
             f"https://video.bunnycdn.com/library/{library_id}/videos",
             headers={"AccessKey": settings.BUNNY_API_KEY},
@@ -26,37 +31,55 @@ async def upload_video(
         )
         resp.raise_for_status()
         video_id = resp.json()["guid"]
-
-        # Upload video data
-        resp = await client.put(
-            f"https://video.bunnycdn.com/library/{library_id}/videos/{video_id}",
-            headers={"AccessKey": settings.BUNNY_API_KEY},
-            content=file_data,
-        )
-        resp.raise_for_status()
-
         return {"video_id": video_id, "library_id": library_id}
 
 
-def generate_signed_url(
-    video_id: str,
-    expires_in: int = 3600,
-) -> tuple[str, int]:
-    """Generate a signed URL for Bunny.net video playback. Returns (url, expires_at_ts)."""
-    hostname = settings.BUNNY_CDN_HOSTNAME
+def generate_tus_auth(video_id: str, expires_in: int = 3600) -> dict:
+    """Generate TUS direct-upload authorization for frontend."""
+    library_id = settings.BUNNY_LIBRARY_ID
+    expiry = int(time.time()) + expires_in
+    # TUS auth formula: SHA256(library_id + api_key + expiry + video_id)
+    sig_string = f"{library_id}{settings.BUNNY_API_KEY}{expiry}{video_id}"
+    signature = hashlib.sha256(sig_string.encode()).hexdigest()
+    return {
+        "tus_endpoint": f"https://video.bunnycdn.com/tusupload",
+        "auth_signature": signature,
+        "auth_expire": expiry,
+        "video_id": video_id,
+        "library_id": library_id,
+    }
+
+
+def generate_embed_token(video_id: str, expires_in: int = 7200) -> tuple[str, int]:
+    """Generate a signed Bunny Stream embed URL. Returns (embed_url, expires_at)."""
+    library_id = settings.BUNNY_LIBRARY_ID
     token_key = settings.BUNNY_TOKEN_KEY
     expires_at = int(time.time()) + expires_in
-    path = f"/{video_id}/playlist.m3u8"
-
-    # Generate token: SHA256(token_key + path + expires_at)
-    token_string = f"{token_key}{path}{expires_at}"
+    # Bunny Stream embed token: SHA256(token_key + video_id + expires_at)
+    token_string = f"{token_key}{video_id}{expires_at}"
     token = hashlib.sha256(token_string.encode()).hexdigest()
+    embed_url = (
+        f"https://iframe.mediadelivery.net/embed/{library_id}/{video_id}"
+        f"?token={token}&expires={expires_at}&autoplay=false"
+    )
+    return embed_url, expires_at
 
-    url = f"https://{hostname}{path}?token={token}&expires={expires_at}"
-    return url, expires_at
+
+async def get_video_status(video_id: str) -> str:
+    """Poll Bunny API for encoding status. Returns our status string."""
+    library_id = settings.BUNNY_LIBRARY_ID
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.get(
+            f"https://video.bunnycdn.com/library/{library_id}/videos/{video_id}",
+            headers={"AccessKey": settings.BUNNY_API_KEY},
+        )
+        resp.raise_for_status()
+        bunny_status = resp.json().get("status", 0)
+        return _BUNNY_STATUS_MAP.get(bunny_status, "processing")
 
 
 async def delete_video(video_id: str) -> None:
+    """Delete a video from Bunny Stream."""
     library_id = settings.BUNNY_LIBRARY_ID
     async with httpx.AsyncClient() as client:
         resp = await client.delete(

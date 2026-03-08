@@ -6,7 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, func, col
 
 from app.models.batch import Batch, StudentBatch, StudentBatchHistory
-from app.models.course import BatchCourse, Course
+from app.models.course import BatchCourse, Course, Lecture, BatchMaterial, CurriculumModule
+from app.models.zoom import ZoomClass
+from app.models.other import Announcement
 from app.models.user import User
 from app.models.enums import UserRole, BatchHistoryAction
 
@@ -29,6 +31,8 @@ async def list_batches(
     teacher_id: Optional[uuid.UUID] = None,
     search: Optional[str] = None,
 ) -> tuple[list[dict], int]:
+    today = date.today()
+
     query = select(Batch).where(Batch.deleted_at.is_(None))
     count_query = select(func.count()).select_from(Batch).where(Batch.deleted_at.is_(None))
 
@@ -53,52 +57,69 @@ async def list_batches(
         query = query.where(col(Batch.name).ilike(pattern))
         count_query = count_query.where(col(Batch.name).ilike(pattern))
 
+    # Status filter in SQL — avoids loading all rows into Python
+    if status_filter == "upcoming":
+        query = query.where(Batch.start_date > today)
+        count_query = count_query.where(Batch.start_date > today)
+    elif status_filter == "active":
+        query = query.where(Batch.start_date <= today, Batch.end_date >= today)
+        count_query = count_query.where(Batch.start_date <= today, Batch.end_date >= today)
+    elif status_filter == "completed":
+        query = query.where(Batch.end_date < today)
+        count_query = count_query.where(Batch.end_date < today)
+
+    # Total count (one query)
     result = await session.execute(count_query)
     total = result.scalar() or 0
 
+    # Paginated page (one query)
     offset = (page - 1) * per_page
     query = query.order_by(Batch.created_at.desc()).offset(offset).limit(per_page)
     result = await session.execute(query)
     batches = result.scalars().all()
 
+    if not batches:
+        return [], total
+
+    batch_ids = [b.id for b in batches]
+
+    # Batch-load teacher names — one query for the whole page
+    teacher_ids = list({b.teacher_id for b in batches if b.teacher_id})
+    teacher_names: dict = {}
+    if teacher_ids:
+        r = await session.execute(
+            select(User.id, User.name).where(User.id.in_(teacher_ids))
+        )
+        teacher_names = {row[0]: row[1] for row in r.all()}
+
+    # Batch-load student counts — one query for the whole page
+    sc_result = await session.execute(
+        select(StudentBatch.batch_id, func.count().label("cnt"))
+        .where(StudentBatch.batch_id.in_(batch_ids), StudentBatch.removed_at.is_(None))
+        .group_by(StudentBatch.batch_id)
+    )
+    student_counts = {row[0]: row[1] for row in sc_result.all()}
+
+    # Batch-load course counts — one query for the whole page
+    cc_result = await session.execute(
+        select(BatchCourse.batch_id, func.count().label("cnt"))
+        .where(BatchCourse.batch_id.in_(batch_ids), BatchCourse.deleted_at.is_(None))
+        .group_by(BatchCourse.batch_id)
+    )
+    course_counts = {row[0]: row[1] for row in cc_result.all()}
+
     items = []
     for b in batches:
-        computed_status = _compute_status(b.start_date, b.end_date)
-        if status_filter and computed_status != status_filter:
-            total -= 1
-            continue
-
-        # Get teacher name
-        teacher_name = None
-        if b.teacher_id:
-            r = await session.execute(select(User.name).where(User.id == b.teacher_id))
-            teacher_name = r.scalar_one_or_none()
-
-        # Get counts
-        sc = await session.execute(
-            select(func.count()).select_from(StudentBatch).where(
-                StudentBatch.batch_id == b.id, StudentBatch.removed_at.is_(None)
-            )
-        )
-        student_count = sc.scalar() or 0
-
-        cc = await session.execute(
-            select(func.count()).select_from(BatchCourse).where(
-                BatchCourse.batch_id == b.id, BatchCourse.deleted_at.is_(None)
-            )
-        )
-        course_count = cc.scalar() or 0
-
         items.append({
             "id": b.id,
             "name": b.name,
             "start_date": b.start_date,
             "end_date": b.end_date,
             "teacher_id": b.teacher_id,
-            "teacher_name": teacher_name,
-            "student_count": student_count,
-            "course_count": course_count,
-            "status": computed_status,
+            "teacher_name": teacher_names.get(b.teacher_id),
+            "student_count": student_counts.get(b.id, 0),
+            "course_count": course_counts.get(b.id, 0),
+            "status": _compute_status(b.start_date, b.end_date),
             "created_by": b.created_by,
             "created_at": b.created_at,
         })
@@ -193,8 +214,70 @@ async def soft_delete_batch(session: AsyncSession, batch_id: uuid.UUID) -> None:
     if not batch:
         raise ValueError("Batch not found")
 
-    batch.deleted_at = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
+    batch.deleted_at = now
     session.add(batch)
+
+    # Cascade: remove student enrollments
+    sb_result = await session.execute(
+        select(StudentBatch).where(
+            StudentBatch.batch_id == batch_id, StudentBatch.removed_at.is_(None)
+        )
+    )
+    for sb in sb_result.scalars().all():
+        sb.removed_at = now
+        session.add(sb)
+
+    # Cascade: remove batch-course links
+    bc_result = await session.execute(
+        select(BatchCourse).where(
+            BatchCourse.batch_id == batch_id, BatchCourse.deleted_at.is_(None)
+        )
+    )
+    for bc in bc_result.scalars().all():
+        bc.deleted_at = now
+        session.add(bc)
+
+    # Cascade: soft-delete lectures
+    lec_result = await session.execute(
+        select(Lecture).where(
+            Lecture.batch_id == batch_id, Lecture.deleted_at.is_(None)
+        )
+    )
+    for lec in lec_result.scalars().all():
+        lec.deleted_at = now
+        session.add(lec)
+
+    # Cascade: soft-delete batch materials
+    mat_result = await session.execute(
+        select(BatchMaterial).where(
+            BatchMaterial.batch_id == batch_id, BatchMaterial.deleted_at.is_(None)
+        )
+    )
+    for mat in mat_result.scalars().all():
+        mat.deleted_at = now
+        session.add(mat)
+
+    # Cascade: soft-delete zoom classes
+    zc_result = await session.execute(
+        select(ZoomClass).where(
+            ZoomClass.batch_id == batch_id, ZoomClass.deleted_at.is_(None)
+        )
+    )
+    for zc in zc_result.scalars().all():
+        zc.deleted_at = now
+        session.add(zc)
+
+    # Cascade: soft-delete announcements
+    ann_result = await session.execute(
+        select(Announcement).where(
+            Announcement.batch_id == batch_id, Announcement.deleted_at.is_(None)
+        )
+    )
+    for ann in ann_result.scalars().all():
+        ann.deleted_at = now
+        session.add(ann)
+
     await session.commit()
 
 

@@ -57,8 +57,20 @@ async def soft_delete_account(session: AsyncSession, account_id: uuid.UUID) -> N
     if not account:
         raise ValueError("Zoom account not found")
 
-    account.deleted_at = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
+    account.deleted_at = now
     session.add(account)
+
+    # Cascade: soft-delete zoom classes using this account
+    zc_result = await session.execute(
+        select(ZoomClass).where(
+            ZoomClass.zoom_account_id == account_id, ZoomClass.deleted_at.is_(None)
+        )
+    )
+    for zc in zc_result.scalars().all():
+        zc.deleted_at = now
+        session.add(zc)
+
     await session.commit()
 
 

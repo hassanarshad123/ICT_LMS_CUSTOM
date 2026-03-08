@@ -7,16 +7,27 @@ import { useAuth } from '@/lib/auth-context';
 import { usePaginatedApi } from '@/hooks/use-paginated-api';
 import { useMutation } from '@/hooks/use-api';
 import { useApi } from '@/hooks/use-api';
-import { listBatches, createBatch } from '@/lib/api/batches';
+import { listBatches, createBatch, deleteBatch } from '@/lib/api/batches';
 import { listUsers } from '@/lib/api/users';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
-import { Plus, X, Layers, Loader2 } from 'lucide-react';
+import { Plus, X, Layers, Loader2, Trash2 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export default function AdminBatches() {
   const { name } = useAuth();
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({ name: '', startDate: '', endDate: '', teacherId: '' });
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const { data: batchList, total, page, totalPages, loading, error, setPage, refetch } = usePaginatedApi(
     (params) => listBatches({ ...params }),
@@ -29,6 +40,7 @@ export default function AdminBatches() {
   const teachers = teachersData?.data || [];
 
   const { execute: doCreate, loading: creating } = useMutation(createBatch);
+  const { execute: doDelete } = useMutation(deleteBatch);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,6 +57,18 @@ export default function AdminBatches() {
       refetch();
     } catch (err: any) {
       toast.error(err.message);
+    }
+  };
+
+  const handleDelete = async (batchId: string) => {
+    try {
+      await doDelete(batchId);
+      toast.success('Batch deleted');
+      setDeleteConfirmId(null);
+      refetch();
+    } catch (err: any) {
+      toast.error(err.message);
+      setDeleteConfirmId(null);
     }
   };
 
@@ -114,6 +138,7 @@ export default function AdminBatches() {
                     <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Students</th>
                     <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Duration</th>
                     <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Status</th>
+                    <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -134,6 +159,11 @@ export default function AdminBatches() {
                           {batch.status}
                         </span>
                       </td>
+                      <td className="px-3 sm:px-6 py-3 sm:py-4">
+                        <button onClick={() => setDeleteConfirmId(batch.id)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                          <Trash2 size={16} />
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -153,6 +183,18 @@ export default function AdminBatches() {
           </div>
         </>
       )}
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Batch</AlertDialogTitle>
+            <AlertDialogDescription>Are you sure you want to delete this batch? This will cascade to student enrollments, linked courses, lectures, materials, and zoom classes.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)} className="bg-red-600 hover:bg-red-700 text-white">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }

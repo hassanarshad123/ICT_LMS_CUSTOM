@@ -12,6 +12,7 @@ class LectureCreate(BaseModel):
     duration: Optional[int] = None
     batch_id: uuid.UUID
     course_id: Optional[uuid.UUID] = None
+    video_status: Optional[str] = None
 
 
 class LectureUpdate(BaseModel):
@@ -28,6 +29,7 @@ class LectureOut(BaseModel):
     video_type: str
     video_url: Optional[str] = None
     bunny_video_id: Optional[str] = None
+    video_status: Optional[str] = None
     duration: Optional[int] = None
     duration_display: Optional[str] = None
     file_size: Optional[int] = None
@@ -39,6 +41,14 @@ class LectureOut(BaseModel):
     created_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
+
+
+class UploadInitRequest(BaseModel):
+    title: str
+    batch_id: uuid.UUID
+    course_id: Optional[uuid.UUID] = None
+    description: Optional[str] = None
+    duration: Optional[int] = None
 
 
 class LectureReorderRequest(BaseModel):

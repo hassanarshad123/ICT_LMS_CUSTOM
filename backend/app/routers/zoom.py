@@ -179,9 +179,9 @@ async def create_class(
             start_time=scheduled_dt,
             duration=body.duration,
         )
-    except Exception:
-        # If Zoom API fails, still create without meeting details
-        pass
+    except Exception as e:
+        import logging
+        logging.getLogger("ict_lms").error("Zoom API meeting creation failed: %s", e)
 
     zc = await zoom_service.create_class(
         session, title=body.title, batch_id=body.batch_id,
@@ -221,10 +221,32 @@ async def update_class(
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
-        await zoom_service.update_class(session, class_id, **body.model_dump(exclude_unset=True))
+        zc = await zoom_service.update_class(session, class_id, **body.model_dump(exclude_unset=True))
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    return {"detail": "Updated"}
+
+    from app.utils.formatters import format_duration
+    from sqlmodel import select
+    from app.models.batch import Batch
+
+    r = await session.execute(select(Batch.name).where(Batch.id == zc.batch_id))
+    batch_name = r.scalar_one_or_none()
+
+    teacher_name = None
+    r = await session.execute(select(User.name).where(User.id == zc.teacher_id))
+    teacher_name = r.scalar_one_or_none()
+
+    return ZoomClassOut(
+        id=zc.id, title=zc.title, batch_id=zc.batch_id, batch_name=batch_name,
+        teacher_id=zc.teacher_id, teacher_name=teacher_name,
+        zoom_meeting_url=zc.zoom_meeting_url, zoom_start_url=zc.zoom_start_url,
+        scheduled_date=zc.scheduled_date,
+        scheduled_time=zc.scheduled_time.strftime("%H:%M") if zc.scheduled_time else None,
+        duration=zc.duration,
+        duration_display=format_duration(zc.duration * 60) if zc.duration else None,
+        status=zc.status.value, zoom_account_id=zc.zoom_account_id,
+        created_at=zc.created_at,
+    )
 
 
 @router.delete("/classes/{class_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -313,7 +335,10 @@ async def zoom_webhook(request: Request):
             from sqlmodel import select
             from app.models.zoom import ZoomClass
             r = await session.execute(
-                select(ZoomClass).where(ZoomClass.zoom_meeting_id == meeting_id)
+                select(ZoomClass).where(
+                    ZoomClass.zoom_meeting_id == meeting_id,
+                    ZoomClass.deleted_at.is_(None),
+                )
             )
             zc = r.scalar_one_or_none()
             if zc:

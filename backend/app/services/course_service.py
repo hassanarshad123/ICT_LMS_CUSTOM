@@ -5,7 +5,7 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, func, col
 
-from app.models.course import Course, BatchCourse, CurriculumModule
+from app.models.course import Course, BatchCourse, CurriculumModule, Lecture
 from app.models.batch import Batch, StudentBatch
 from app.models.user import User
 from app.models.enums import CourseStatus, UserRole
@@ -69,22 +69,27 @@ async def list_courses(
     result = await session.execute(query)
     courses = result.scalars().all()
 
+    if not courses:
+        return [], total
+
+    # Batch-load all batch_ids for the page (single query)
+    course_ids = [c.id for c in courses]
+    bc_result = await session.execute(
+        select(BatchCourse.course_id, BatchCourse.batch_id)
+        .where(BatchCourse.course_id.in_(course_ids), BatchCourse.deleted_at.is_(None))
+    )
+    batch_ids_map: dict = {}
+    for cid, bid in bc_result.all():
+        batch_ids_map.setdefault(cid, []).append(bid)
+
     items = []
     for c in courses:
-        # Get batch_ids
-        r = await session.execute(
-            select(BatchCourse.batch_id).where(
-                BatchCourse.course_id == c.id, BatchCourse.deleted_at.is_(None)
-            )
-        )
-        batch_ids = [row[0] for row in r.all()]
-
         items.append({
             "id": c.id,
             "title": c.title,
             "description": c.description,
             "status": c.status.value,
-            "batch_ids": batch_ids,
+            "batch_ids": batch_ids_map.get(c.id, []),
             "cloned_from_id": c.cloned_from_id,
             "created_by": c.created_by,
             "created_at": c.created_at,
@@ -159,8 +164,42 @@ async def soft_delete_course(session: AsyncSession, course_id: uuid.UUID) -> Non
     if not course:
         raise ValueError("Course not found")
 
-    course.deleted_at = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
+    course.deleted_at = now
     session.add(course)
+
+    # Cascade: soft-delete curriculum modules
+    mod_result = await session.execute(
+        select(CurriculumModule).where(
+            CurriculumModule.course_id == course_id,
+            CurriculumModule.deleted_at.is_(None),
+        )
+    )
+    for mod in mod_result.scalars().all():
+        mod.deleted_at = now
+        session.add(mod)
+
+    # Cascade: remove batch-course links
+    bc_result = await session.execute(
+        select(BatchCourse).where(
+            BatchCourse.course_id == course_id,
+            BatchCourse.deleted_at.is_(None),
+        )
+    )
+    for bc in bc_result.scalars().all():
+        bc.deleted_at = now
+        session.add(bc)
+
+    # Cascade: soft-delete lectures linked to this course
+    lec_result = await session.execute(
+        select(Lecture).where(
+            Lecture.course_id == course_id, Lecture.deleted_at.is_(None)
+        )
+    )
+    for lec in lec_result.scalars().all():
+        lec.deleted_at = now
+        session.add(lec)
+
     await session.commit()
 
 

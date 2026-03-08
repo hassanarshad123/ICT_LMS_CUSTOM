@@ -8,6 +8,16 @@ import { getSettings, updateSettings } from '@/lib/api/admin';
 import { listAccounts, createAccount, updateAccount, deleteAccount, setDefaultAccount, ZoomAccountOut } from '@/lib/api/zoom';
 import { toast } from 'sonner';
 import { PageLoading } from '@/components/shared/page-states';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export default function AdminSettings() {
   const { data: settingsData, loading: settingsLoading } = useApi(getSettings);
@@ -19,6 +29,7 @@ export default function AdminSettings() {
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
   const [newAccount, setNewAccount] = useState({ accountName: '', accountId: '', clientId: '', clientSecret: '' });
   const [editForm, setEditForm] = useState({ accountName: '', accountId: '', clientId: '', clientSecret: '' });
+  const [deleteAccountId, setDeleteAccountId] = useState<string | null>(null);
 
   const { execute: saveSettings, loading: savingSettings } = useMutation(updateSettings);
   const { execute: doCreateAccount, loading: creatingAccount } = useMutation(createAccount);
@@ -80,9 +91,11 @@ export default function AdminSettings() {
     try {
       await doDeleteAccount(id);
       toast.success('Zoom account deleted');
+      setDeleteAccountId(null);
       refetchAccounts();
     } catch (err: any) {
       toast.error(err.message);
+      setDeleteAccountId(null);
     }
   };
 
@@ -127,6 +140,7 @@ export default function AdminSettings() {
   const inputClass = 'w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50';
 
   return (
+    <>
     <SettingsView
       role="admin"
       userName=""
@@ -318,7 +332,7 @@ export default function AdminSettings() {
                           <button onClick={() => startEdit(account)} title="Edit" className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-[#1A1A1A] hover:bg-white transition-colors">
                             <Edit3 size={16} />
                           </button>
-                          <button onClick={() => handleDeleteAccount(account.id)} title="Delete" className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-white transition-colors">
+                          <button onClick={() => setDeleteAccountId(account.id)} title="Delete" className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-white transition-colors">
                             <Trash2 size={16} />
                           </button>
                         </div>
@@ -332,5 +346,18 @@ export default function AdminSettings() {
         </>
       }
     />
+      <AlertDialog open={!!deleteAccountId} onOpenChange={(open) => !open && setDeleteAccountId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Zoom Account</AlertDialogTitle>
+            <AlertDialogDescription>Are you sure you want to delete this Zoom account? This will also cascade to all zoom classes using this account.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteAccountId && handleDeleteAccount(deleteAccountId)} className="bg-red-600 hover:bg-red-700 text-white">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     BUNNY_LIBRARY_ID: str = ""
     BUNNY_CDN_HOSTNAME: str = ""
     BUNNY_TOKEN_KEY: str = ""
+    BUNNY_WEBHOOK_SECRET: str = ""
 
     # Zoom
     ZOOM_CLIENT_ID: str = ""
@@ -42,7 +43,7 @@ class Settings(BaseSettings):
 
     # App
     APP_ENV: str = "development"
-    APP_DEBUG: bool = True
+    APP_DEBUG: bool = False
     DEVICE_LIMIT: int = 2
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}

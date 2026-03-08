@@ -15,6 +15,7 @@ from app.models.user import User
 from app.models.batch import StudentBatch, Batch
 from app.models.enums import UserRole
 from app.utils.security import verify_password, hash_password
+from app.utils.rate_limit import limiter
 
 router = APIRouter()
 
@@ -50,9 +51,10 @@ async def _build_user_brief(session: AsyncSession, user: User) -> UserBrief:
 
 
 @router.post("/login", response_model=LoginResponse)
+@limiter.limit("5/minute")
 async def login(
-    body: LoginRequest,
     request: Request,
+    body: LoginRequest,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -76,7 +78,9 @@ async def login(
 
 
 @router.post("/refresh", response_model=TokenResponse)
+@limiter.limit("10/minute")
 async def refresh(
+    request: Request,
     body: RefreshRequest,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):

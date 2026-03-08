@@ -7,6 +7,7 @@ export interface LectureOut {
   videoType: string;
   videoUrl?: string;
   bunnyVideoId?: string;
+  videoStatus?: string;
   duration?: number;
   durationDisplay?: string;
   fileSize?: number;
@@ -24,6 +25,15 @@ export interface PaginatedLectures {
   page: number;
   perPage: number;
   totalPages: number;
+}
+
+export interface UploadInitResponse {
+  lecture: LectureOut;
+  tusEndpoint: string;
+  authSignature: string;
+  authExpire: number;
+  videoId: string;
+  libraryId: string;
 }
 
 export async function listLectures(params: {
@@ -54,6 +64,23 @@ export async function createLecture(data: {
   });
 }
 
+export async function initVideoUpload(data: {
+  title: string;
+  batch_id: string;
+  course_id?: string;
+  description?: string;
+  duration?: number;
+}): Promise<UploadInitResponse> {
+  return apiClient('/lectures/upload-init', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getLectureStatus(lectureId: string): Promise<{ videoStatus: string; lectureId: string }> {
+  return apiClient(`/lectures/${lectureId}/status`);
+}
+
 export async function updateLecture(lectureId: string, data: Record<string, any>): Promise<LectureOut> {
   return apiClient(`/lectures/${lectureId}`, {
     method: 'PATCH',
@@ -65,7 +92,7 @@ export async function deleteLecture(lectureId: string): Promise<void> {
   return apiClient(`/lectures/${lectureId}`, { method: 'DELETE' });
 }
 
-export async function getSignedUrl(lectureId: string): Promise<{ url: string; expiresAt: string }> {
+export async function getSignedUrl(lectureId: string): Promise<{ url: string; expiresAt: string; type: string }> {
   return apiClient(`/lectures/${lectureId}/signed-url`, { method: 'POST' });
 }
 

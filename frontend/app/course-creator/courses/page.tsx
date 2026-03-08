@@ -11,6 +11,16 @@ import { PageLoading, PageError, EmptyState } from '@/components/shared/page-sta
 import { toast } from 'sonner';
 import { BookOpen, Plus, X, Layers, Trash2, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export default function CourseCreatorCourses() {
   const { name } = useAuth();
@@ -25,6 +35,7 @@ export default function CourseCreatorCourses() {
 
   const { execute: doCreate, loading: creating } = useMutation(createCourse);
   const { execute: doDelete } = useMutation(deleteCourse);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,9 +56,11 @@ export default function CourseCreatorCourses() {
     try {
       await doDelete(courseId);
       toast.success('Course deleted');
+      setDeleteConfirmId(null);
       refetch();
     } catch (err: any) {
       toast.error(err.message);
+      setDeleteConfirmId(null);
     }
   };
 
@@ -142,7 +155,7 @@ export default function CourseCreatorCourses() {
                   </div>
                 </Link>
                 <button
-                  onClick={() => handleDelete(course.id)}
+                  onClick={() => setDeleteConfirmId(course.id)}
                   className="absolute top-3 right-3 p-2 bg-white/80 backdrop-blur text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
                   title="Delete course"
                 >
@@ -166,6 +179,18 @@ export default function CourseCreatorCourses() {
           )}
         </>
       )}
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Course</AlertDialogTitle>
+            <AlertDialogDescription>Are you sure you want to delete this course? This will cascade to curriculum modules, batch links, and lectures.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)} className="bg-red-600 hover:bg-red-700 text-white">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }

@@ -10,6 +10,16 @@ import { listJobs, createJob, deleteJob, listApplications } from '@/lib/api/jobs
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
 import { Plus, X, Briefcase, MapPin, DollarSign, Clock, Trash2, ChevronDown, ChevronUp, Loader2, Users } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export default function CourseCreatorJobs() {
   const { name } = useAuth();
@@ -27,6 +37,7 @@ export default function CourseCreatorJobs() {
     requirements: '',
     deadline: '',
   });
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const { data: jobList, total, page, totalPages, loading, error, setPage, refetch } = usePaginatedApi(
     (params) => listJobs({ ...params }),
@@ -62,9 +73,11 @@ export default function CourseCreatorJobs() {
     try {
       await doDelete(jobId);
       toast.success('Job deleted');
+      setDeleteConfirmId(null);
       refetch();
     } catch (err: any) {
       toast.error(err.message);
+      setDeleteConfirmId(null);
     }
   };
 
@@ -217,7 +230,7 @@ export default function CourseCreatorJobs() {
                       {isExpanded ? <ChevronUp size={16} className="text-gray-400 mt-1" /> : <ChevronDown size={16} className="text-gray-400 mt-1" />}
                     </button>
                     <button
-                      onClick={() => handleDelete(job.id)}
+                      onClick={() => setDeleteConfirmId(job.id)}
                       className="ml-3 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
                       title="Delete job"
                     >
@@ -300,6 +313,18 @@ export default function CourseCreatorJobs() {
           )}
         </>
       )}
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Job</AlertDialogTitle>
+            <AlertDialogDescription>Are you sure you want to delete this job posting? This will also delete all associated applications.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)} className="bg-red-600 hover:bg-red-700 text-white">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }

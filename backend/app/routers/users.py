@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, func, col
 
 from app.database import get_session
-from app.schemas.user import UserCreate, UserUpdate, UserOut, UserListResponse
+from app.schemas.user import UserCreate, UserUpdate, UserOut, UserListResponse, StatusUpdate
 from app.schemas.common import PaginatedResponse
 from app.services.user_service import (
     create_user,
@@ -76,7 +76,8 @@ async def get_me(
     current_user: AllRoles,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    return UserOut.model_validate(current_user)
+    data = await _enrich_user(session, current_user)
+    return UserOut(**data)
 
 
 @router.patch("/me", response_model=UserOut)
@@ -87,16 +88,17 @@ async def update_me(
 ):
     # Self-update: only name and phone
     allowed = {}
-    data = body.model_dump(exclude_unset=True)
+    payload = body.model_dump(exclude_unset=True)
     for key in ("name", "phone"):
-        if key in data:
-            allowed[key] = data[key]
+        if key in payload:
+            allowed[key] = payload[key]
 
     if allowed:
         user = await update_user(session, current_user.id, **allowed)
     else:
         user = current_user
-    return UserOut.model_validate(user)
+    data = await _enrich_user(session, user)
+    return UserOut(**data)
 
 
 @router.get("", response_model=UserListResponse)
@@ -114,25 +116,52 @@ async def list_users_endpoint(
     db_role = to_db(role) if role else None
 
     users, total = await list_users(
-        session, page=page, per_page=per_page, role=db_role, status=status, search=search
+        session, page=page, per_page=per_page, role=db_role, status=status,
+        search=search, batch_id=batch_id,
     )
 
-    # Filter by batch_id if provided
-    if batch_id:
-        result = await session.execute(
-            select(StudentBatch.student_id).where(
-                StudentBatch.batch_id == batch_id, StudentBatch.removed_at.is_(None)
+    # Batch-load batch data for all students on this page (single query)
+    student_ids = [u.id for u in users if u.role == UserRole.student]
+    batch_data: dict = {uid: {"ids": [], "names": []} for uid in student_ids}
+    if student_ids:
+        r = await session.execute(
+            select(StudentBatch.student_id, StudentBatch.batch_id, Batch.name)
+            .join(Batch, StudentBatch.batch_id == Batch.id)
+            .where(
+                StudentBatch.student_id.in_(student_ids),
+                StudentBatch.removed_at.is_(None),
+                Batch.deleted_at.is_(None),
             )
         )
-        enrolled_ids = {row[0] for row in result.all()}
-        users = [u for u in users if u.id in enrolled_ids]
-        total = len(users)
+        for sid, bid, bname in r.all():
+            batch_data[sid]["ids"].append(str(bid))
+            batch_data[sid]["names"].append(bname)
+
+    enriched = []
+    for u in users:
+        bd = batch_data.get(u.id, {"ids": [], "names": []})
+        enriched.append(UserOut(
+            id=u.id,
+            email=u.email,
+            name=u.name,
+            phone=u.phone,
+            role=u.role.value,
+            specialization=u.specialization,
+            avatar_url=u.avatar_url,
+            status=u.status.value,
+            created_at=u.created_at,
+            updated_at=u.updated_at,
+            batch_ids=bd["ids"],
+            batch_names=bd["names"],
+            join_date=u.created_at,
+        ))
 
     return UserListResponse(
-        data=[UserOut.model_validate(u) for u in users],
+        data=enriched,
         total=total,
         page=page,
         per_page=per_page,
+        total_pages=math.ceil(total / per_page) if total else 0,
     )
 
 
@@ -184,7 +213,8 @@ async def get_user_endpoint(
     user = await get_user(session, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    return UserOut.model_validate(user)
+    data = await _enrich_user(session, user)
+    return UserOut(**data)
 
 
 @router.patch("/{user_id}", response_model=UserOut)
@@ -200,17 +230,18 @@ async def update_user_endpoint(
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    return UserOut.model_validate(user)
+    data = await _enrich_user(session, user)
+    return UserOut(**data)
 
 
 @router.patch("/{user_id}/status", response_model=UserOut)
 async def change_user_status(
     user_id: uuid.UUID,
-    body: dict,
+    body: StatusUpdate,
     current_user: AdminOrCC,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    new_status = body.get("status")
+    new_status = body.status
     if new_status not in ("active", "inactive"):
         raise HTTPException(status_code=400, detail="Status must be 'active' or 'inactive'")
 
@@ -222,7 +253,8 @@ async def change_user_status(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-    return UserOut.model_validate(user)
+    data = await _enrich_user(session, user)
+    return UserOut(**data)
 
 
 @router.post("/{user_id}/reset-password")
@@ -249,6 +281,9 @@ async def delete_user_endpoint(
     current_user: AdminUser,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
+
     try:
         await soft_delete_user(session, user_id)
     except ValueError as e:

@@ -6,7 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, func, col
 
 from app.models.user import User
-from app.models.other import UserSession
+from app.models.other import UserSession, Announcement
+from app.models.zoom import ZoomClass
+from app.models.batch import StudentBatch
 from app.models.enums import UserRole, UserStatus
 from app.utils.security import hash_password
 
@@ -60,6 +62,7 @@ async def list_users(
     role: Optional[str] = None,
     status: Optional[str] = None,
     search: Optional[str] = None,
+    batch_id: Optional[uuid.UUID] = None,
 ) -> tuple[list[User], int]:
     """Return (users, total_count) with pagination and filters."""
     query = select(User).where(User.deleted_at.is_(None))
@@ -81,6 +84,13 @@ async def list_users(
         count_query = count_query.where(
             (col(User.name).ilike(pattern)) | (col(User.email).ilike(pattern))
         )
+
+    if batch_id:
+        enrolled_sub = select(StudentBatch.student_id).where(
+            StudentBatch.batch_id == batch_id, StudentBatch.removed_at.is_(None)
+        )
+        query = query.where(User.id.in_(enrolled_sub))
+        count_query = count_query.where(User.id.in_(enrolled_sub))
 
     # Get total
     result = await session.execute(count_query)
@@ -157,7 +167,8 @@ async def soft_delete_user(session: AsyncSession, user_id: uuid.UUID) -> None:
     if not user:
         raise ValueError("User not found")
 
-    user.deleted_at = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
+    user.deleted_at = now
     user.status = UserStatus.inactive
     session.add(user)
 
@@ -170,6 +181,39 @@ async def soft_delete_user(session: AsyncSession, user_id: uuid.UUID) -> None:
     for s in result.scalars().all():
         s.is_active = False
         session.add(s)
+
+    # Cascade: remove student enrollments
+    if user.role == UserRole.student:
+        sb_result = await session.execute(
+            select(StudentBatch).where(
+                StudentBatch.student_id == user_id,
+                StudentBatch.removed_at.is_(None),
+            )
+        )
+        for sb in sb_result.scalars().all():
+            sb.removed_at = now
+            session.add(sb)
+
+    # Cascade: soft-delete teacher's zoom classes
+    if user.role == UserRole.teacher:
+        zc_result = await session.execute(
+            select(ZoomClass).where(
+                ZoomClass.teacher_id == user_id, ZoomClass.deleted_at.is_(None)
+            )
+        )
+        for zc in zc_result.scalars().all():
+            zc.deleted_at = now
+            session.add(zc)
+
+    # Cascade: soft-delete user's announcements
+    ann_result = await session.execute(
+        select(Announcement).where(
+            Announcement.posted_by == user_id, Announcement.deleted_at.is_(None)
+        )
+    )
+    for ann in ann_result.scalars().all():
+        ann.deleted_at = now
+        session.add(ann)
 
     await session.commit()
 

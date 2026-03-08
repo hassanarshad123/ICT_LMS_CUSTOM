@@ -7,7 +7,7 @@ import DashboardHeader from '@/components/layout/dashboard-header';
 import { useAuth } from '@/lib/auth-context';
 import { usePaginatedApi } from '@/hooks/use-paginated-api';
 import { useMutation, useApi } from '@/hooks/use-api';
-import { listUsers, createUser, changeUserStatus } from '@/lib/api/users';
+import { listUsers, createUser, deleteUser } from '@/lib/api/users';
 import { listBatches } from '@/lib/api/batches';
 import { enrollStudent } from '@/lib/api/batches';
 import { PageLoading, PageError } from '@/components/shared/page-states';
@@ -69,7 +69,7 @@ export default function UsersListView({ role, userName, basePath }: UsersListVie
   const batches = batchesData?.data || [];
 
   const { execute: doCreate, loading: creating } = useMutation(createUser);
-  const { execute: doChangeStatus } = useMutation(changeUserStatus);
+  const { execute: doDeleteUser } = useMutation(deleteUser);
   const { execute: doEnroll } = useMutation(enrollStudent);
 
   const handleFilterChange = (setter: (v: string) => void, value: string) => {
@@ -103,8 +103,8 @@ export default function UsersListView({ role, userName, basePath }: UsersListVie
 
   const handleSoftDelete = async (userId: string) => {
     try {
-      await doChangeStatus(userId, 'inactive');
-      toast.success('User deactivated');
+      await doDeleteUser(userId);
+      toast.success('User deleted');
       setDeleteConfirmId(null);
       refetch();
     } catch (err: any) {
@@ -290,12 +290,12 @@ export default function UsersListView({ role, userName, basePath }: UsersListVie
       <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Deactivate User</AlertDialogTitle>
-            <AlertDialogDescription>Are you sure you want to deactivate this user? Their account will be set to inactive. This action can be reversed from the user detail page.</AlertDialogDescription>
+            <AlertDialogTitle>Delete User</AlertDialogTitle>
+            <AlertDialogDescription>Are you sure you want to delete this user? This will soft-delete their account and cascade to related data. This action cannot be easily reversed.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => deleteConfirmId && handleSoftDelete(deleteConfirmId)} className="bg-red-600 hover:bg-red-700 text-white">Deactivate</AlertDialogAction>
+            <AlertDialogAction onClick={() => deleteConfirmId && handleSoftDelete(deleteConfirmId)} className="bg-red-600 hover:bg-red-700 text-white">Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

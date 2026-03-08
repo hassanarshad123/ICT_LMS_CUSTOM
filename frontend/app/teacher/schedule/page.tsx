@@ -1,15 +1,25 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import DashboardHeader from '@/components/layout/dashboard-header';
 import { useAuth } from '@/lib/auth-context';
 import { useApi, useMutation } from '@/hooks/use-api';
-import { listClasses, createClass, listAccounts } from '@/lib/api/zoom';
+import { listClasses, createClass, deleteClass, listAccounts } from '@/lib/api/zoom';
 import { listBatches } from '@/lib/api/batches';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
-import { Plus, X, Video, ExternalLink, Clock, Info, Loader2, Calendar } from 'lucide-react';
+import { Plus, X, Video, ExternalLink, Clock, Info, Loader2, Calendar, Trash2 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export default function TeacherSchedule() {
   const { name, id } = useAuth();
@@ -26,6 +36,8 @@ export default function TeacherSchedule() {
   const { data: accountsData } = useApi(listAccounts);
 
   const { execute: doCreate, loading: creating } = useMutation(createClass);
+  const { execute: doDelete } = useMutation(deleteClass);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const teacherBatches = batchesData?.data || [];
   const accounts = accountsData || [];
@@ -41,10 +53,12 @@ export default function TeacherSchedule() {
     duration: '60',
   });
 
-  // Set default zoom account once loaded
-  if (!formData.zoomAccountId && defaultAccount) {
-    setFormData((prev) => ({ ...prev, zoomAccountId: defaultAccount.id }));
-  }
+  // Set default zoom account once loaded (useEffect prevents render loop)
+  useEffect(() => {
+    if (!formData.zoomAccountId && defaultAccount) {
+      setFormData((prev) => ({ ...prev, zoomAccountId: defaultAccount.id }));
+    }
+  }, [defaultAccount?.id]);
 
   const selectedAccount = accounts.find((a: any) => a.id === formData.zoomAccountId);
 
@@ -76,6 +90,18 @@ export default function TeacherSchedule() {
       refetchClasses();
     } catch (err: any) {
       toast.error(err.message);
+    }
+  };
+
+  const handleDeleteClass = async (classId: string) => {
+    try {
+      await doDelete(classId);
+      toast.success('Class deleted');
+      setDeleteConfirmId(null);
+      refetchClasses();
+    } catch (err: any) {
+      toast.error(err.message);
+      setDeleteConfirmId(null);
     }
   };
 
@@ -190,6 +216,13 @@ export default function TeacherSchedule() {
                           <ExternalLink size={16} className="text-white" />
                         </a>
                       )}
+                      <button
+                        onClick={() => setDeleteConfirmId(cls.id)}
+                        className="w-10 h-10 rounded-xl flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                        title="Delete class"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -233,6 +266,18 @@ export default function TeacherSchedule() {
           )}
         </>
       )}
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Zoom Class</AlertDialogTitle>
+            <AlertDialogDescription>Are you sure you want to delete this scheduled class? This action cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteConfirmId && handleDeleteClass(deleteConfirmId)} className="bg-red-600 hover:bg-red-700 text-white">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }

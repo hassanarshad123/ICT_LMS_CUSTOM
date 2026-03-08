@@ -25,6 +25,16 @@ import {
   Loader2,
 } from 'lucide-react';
 import Link from 'next/link';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export default function CourseCreatorCourseDetail() {
   const params = useParams();
@@ -55,6 +65,7 @@ export default function CourseCreatorCourseDetail() {
   const [editingModuleId, setEditingModuleId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ title: '', description: '', topics: '' });
   const [expandedModule, setExpandedModule] = useState<string | null>(null);
+  const [deleteModuleId, setDeleteModuleId] = useState<string | null>(null);
 
   const loading = courseLoading || modulesLoading || batchesLoading;
 
@@ -127,9 +138,11 @@ export default function CourseCreatorCourseDetail() {
     try {
       await doDeleteModule(moduleId);
       toast.success('Module deleted');
+      setDeleteModuleId(null);
       refetchModules();
     } catch (err: any) {
       toast.error(err.message);
+      setDeleteModuleId(null);
     }
   };
 
@@ -429,7 +442,7 @@ export default function CourseCreatorCourseDetail() {
                             <Edit3 size={14} />
                           </button>
                           <button
-                            onClick={() => handleDeleteModule(mod.id)}
+                            onClick={() => setDeleteModuleId(mod.id)}
                             className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                           >
                             <Trash2 size={14} />
@@ -458,6 +471,18 @@ export default function CourseCreatorCourseDetail() {
           </div>
         )}
       </div>
+      <AlertDialog open={!!deleteModuleId} onOpenChange={(open) => !open && setDeleteModuleId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Module</AlertDialogTitle>
+            <AlertDialogDescription>Are you sure you want to delete this curriculum module? This action cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteModuleId && handleDeleteModule(deleteModuleId)} className="bg-red-600 hover:bg-red-700 text-white">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }

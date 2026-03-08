@@ -12,6 +12,16 @@ import { PageLoading, PageError, EmptyState } from '@/components/shared/page-sta
 import { toast } from 'sonner';
 import { Plus, X, Users, ChevronDown, ChevronUp, Trash2, FolderOpen, Loader2, Layers } from 'lucide-react';
 import Link from 'next/link';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export default function CourseCreatorBatches() {
   const { name } = useAuth();
@@ -20,6 +30,7 @@ export default function CourseCreatorBatches() {
   const [expandedBatch, setExpandedBatch] = useState<string | null>(null);
   const [batchStudents, setBatchStudents] = useState<Record<string, any[]>>({});
   const [loadingStudents, setLoadingStudents] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const { data: batchList, total, page, totalPages, loading, error, setPage, refetch } = usePaginatedApi(
     (params) => listBatches({ ...params }),
@@ -56,9 +67,11 @@ export default function CourseCreatorBatches() {
     try {
       await doDelete(batchId);
       toast.success('Batch deleted');
+      setDeleteConfirmId(null);
       refetch();
     } catch (err: any) {
       toast.error(err.message);
+      setDeleteConfirmId(null);
     }
   };
 
@@ -216,7 +229,7 @@ export default function CourseCreatorBatches() {
                         Manage Content
                       </Link>
                       <button
-                        onClick={() => handleDelete(batch.id)}
+                        onClick={() => setDeleteConfirmId(batch.id)}
                         className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                         title="Delete batch"
                       >
@@ -277,6 +290,18 @@ export default function CourseCreatorBatches() {
           )}
         </>
       )}
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Batch</AlertDialogTitle>
+            <AlertDialogDescription>Are you sure you want to delete this batch? This will cascade to student enrollments, linked courses, lectures, materials, and zoom classes.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)} className="bg-red-600 hover:bg-red-700 text-white">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }

@@ -74,6 +74,7 @@ class Lecture(SQLModel, table=True):
     video_url: Optional[str] = Field(default=None)
     bunny_video_id: Optional[str] = Field(default=None)
     bunny_library_id: Optional[str] = Field(default=None)
+    video_status: Optional[str] = Field(default="pending", nullable=True)
     thumbnail_url: Optional[str] = Field(default=None)
     sequence_order: int = Field(nullable=False)
     created_by: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id")

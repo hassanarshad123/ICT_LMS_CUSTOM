@@ -1,19 +1,19 @@
 'use client';
 
 import { useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { useAuth } from '@/lib/auth-context';
 import { useApi, useMutation } from '@/hooks/use-api';
-import { getUser, updateUser, changeUserStatus, resetPassword } from '@/lib/api/users';
+import { getUser, updateUser, changeUserStatus, resetPassword, deleteUser } from '@/lib/api/users';
 import { listBatches } from '@/lib/api/batches';
 import { listCourses } from '@/lib/api/courses';
 import { listClasses } from '@/lib/api/zoom';
 import { PageLoading, PageError } from '@/components/shared/page-states';
 import { toast } from 'sonner';
 import { UserRole } from '@/lib/types';
-import { ArrowLeft, Edit3, Save, BookOpen, Video, Briefcase, Users, Calendar, Shield, Loader2, KeyRound } from 'lucide-react';
+import { ArrowLeft, Edit3, Save, BookOpen, Video, Briefcase, Users, Calendar, Shield, Loader2, KeyRound, Trash2 } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,6 +36,7 @@ export default function UserDetailView({ role, userName, backHref }: UserDetailV
   const params = useParams();
   const userId = params.userId as string;
   const auth = useAuth();
+  const router = useRouter();
   const displayName = auth.name || userName;
 
   const { data: userData, loading, error, refetch } = useApi(() => getUser(userId), [userId]);
@@ -47,6 +48,8 @@ export default function UserDetailView({ role, userName, backHref }: UserDetailV
   const { execute: doUpdate, loading: saving } = useMutation(updateUser);
   const { execute: doChangeStatus } = useMutation(changeUserStatus);
   const { execute: doResetPassword } = useMutation(resetPassword);
+  const { execute: doDelete } = useMutation(deleteUser);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   // Initialize edit data when user data loads
   if (userData && !editData) {
@@ -121,6 +124,17 @@ export default function UserDetailView({ role, userName, backHref }: UserDetailV
     try {
       const result = await doResetPassword(userId);
       toast.success(`Password reset. Temporary password: ${result.temporaryPassword}`, { duration: 10000 });
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const handleDelete = async () => {
+    try {
+      await doDelete(userId);
+      toast.success('User deleted');
+      setShowDeleteDialog(false);
+      router.push(backHref);
     } catch (err: any) {
       toast.error(err.message);
     }
@@ -260,6 +274,17 @@ export default function UserDetailView({ role, userName, backHref }: UserDetailV
               {user.status === 'active' ? 'Deactivate User' : 'Reactivate User'}
             </button>
           </div>
+
+          <div className="bg-white rounded-2xl p-6 card-shadow border border-red-200">
+            <h3 className="text-sm font-semibold text-red-600 uppercase mb-3">Delete User</h3>
+            <p className="text-xs text-gray-500 mb-4">
+              Permanently delete this user. This will cascade to their sessions, enrollments, and related data.
+            </p>
+            <button onClick={() => setShowDeleteDialog(true)} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-colors">
+              <Trash2 size={16} />
+              Delete User
+            </button>
+          </div>
         </div>
       </div>
 
@@ -277,6 +302,23 @@ export default function UserDetailView({ role, userName, backHref }: UserDetailV
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={toggleStatus} className={user.status === 'active' ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-green-600 hover:bg-green-700 text-white'}>
               {user.status === 'active' ? 'Deactivate' : 'Reactivate'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete User</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {user.name}? This will soft-delete their account and cascade to related data. This action cannot be easily reversed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700 text-white">
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

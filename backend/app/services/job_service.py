@@ -126,8 +126,20 @@ async def soft_delete_job(session: AsyncSession, job_id: uuid.UUID) -> None:
     if not job:
         raise ValueError("Job not found")
 
-    job.deleted_at = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
+    job.deleted_at = now
     session.add(job)
+
+    # Cascade: soft-delete job applications
+    app_result = await session.execute(
+        select(JobApplication).where(
+            JobApplication.job_id == job_id, JobApplication.deleted_at.is_(None)
+        )
+    )
+    for app in app_result.scalars().all():
+        app.deleted_at = now
+        session.add(app)
+
     await session.commit()
 
 

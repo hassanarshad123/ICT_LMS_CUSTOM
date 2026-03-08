@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import type { MaterialFileType } from '@/lib/types';
+import { VideoPlayer } from '@/components/shared/video-player';
 
 export default function CourseDetailPage() {
   const params = useParams();
@@ -172,17 +173,24 @@ export default function CourseDetailPage() {
       <div className="flex flex-col lg:flex-row gap-6 mb-6 sm:mb-8">
         {/* Left: Video Player */}
         <div className="flex-1 min-w-0">
-          <div className="bg-[#1A1A1A] rounded-2xl overflow-hidden">
-            <div className="aspect-video bg-gray-800 flex items-center justify-center">
+          {playlistTab === 'lectures' && activeLecture ? (
+            <VideoPlayer
+              key={activeLecture.id}
+              lectureId={activeLecture.id}
+              videoType={activeLecture.videoType}
+              videoUrl={activeLecture.videoUrl}
+              videoStatus={activeLecture.videoStatus}
+            />
+          ) : (
+            <div className="aspect-video bg-gray-800 rounded-2xl flex items-center justify-center">
               <div className="text-center">
                 <PlayCircle size={64} className="text-[#C5D86D] mx-auto mb-3" />
                 <p className="text-white text-sm">
                   {nowPlaying ? nowPlaying.title : 'Select a video'}
                 </p>
-                <p className="text-gray-400 text-xs mt-1">Video will play here when connected to backend</p>
               </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Right: Playlist with toggle */}
