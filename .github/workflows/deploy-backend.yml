@@ -93,21 +93,10 @@ jobs:
             pip install -r requirements.txt --quiet
 
             # Run migrations
-            # Clear stale alembic_version if it references a removed revision
+            # If alembic_version references a removed revision, purge and re-stamp
             if alembic current 2>&1 | grep -q "Can't locate revision"; then
-              echo "Clearing stale alembic_version..."
-              python -c "
-import asyncio
-from sqlalchemy import text
-from app.database import engine
-async def fix():
-    async with engine.connect() as conn:
-        await conn.execute(text('DELETE FROM alembic_version'))
-        await conn.commit()
-asyncio.run(fix())
-"
-              alembic stamp 001
-              echo "Stamped baseline revision 001"
+              echo "Clearing stale alembic revision and stamping baseline..."
+              alembic stamp --purge 001
             fi
             alembic upgrade head
 
