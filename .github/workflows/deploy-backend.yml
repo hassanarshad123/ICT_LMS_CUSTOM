@@ -74,10 +74,17 @@ jobs:
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
+        env:
+          BUNNY_API_KEY: ${{ secrets.BUNNY_API_KEY }}
+          BUNNY_LIBRARY_ID: ${{ secrets.BUNNY_LIBRARY_ID }}
+          BUNNY_CDN_HOSTNAME: ${{ secrets.BUNNY_CDN_HOSTNAME }}
+          BUNNY_TOKEN_KEY: ${{ secrets.BUNNY_TOKEN_KEY }}
+          BUNNY_WEBHOOK_SECRET: ${{ secrets.BUNNY_WEBHOOK_SECRET }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
+          envs: BUNNY_API_KEY,BUNNY_LIBRARY_ID,BUNNY_CDN_HOSTNAME,BUNNY_TOKEN_KEY,BUNNY_WEBHOOK_SECRET
           script: |
             set -e
 
@@ -87,8 +94,14 @@ jobs:
             git reset --hard origin/main
             git clean -fd backend/migrations/versions/
 
-            # Install dependencies
+            # Ensure Bunny.net credentials are in .env
             cd backend
+            for VAR in BUNNY_API_KEY BUNNY_LIBRARY_ID BUNNY_CDN_HOSTNAME BUNNY_TOKEN_KEY BUNNY_WEBHOOK_SECRET; do
+              VAL=$(eval echo \$$VAR)
+              if [ -n "$VAL" ]; then
+                grep -q "^${VAR}=" .env 2>/dev/null && sed -i "s|^${VAR}=.*|${VAR}=${VAL}|" .env || echo "${VAR}=${VAL}" >> .env
+              fi
+            done
             source venv/bin/activate
             pip install -r requirements.txt --quiet
 
