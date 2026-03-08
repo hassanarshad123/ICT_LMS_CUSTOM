@@ -3,10 +3,14 @@ name: Backend CI/CD
 on:
   push:
     branches: [main]
-    paths: [backend/**]
+    paths:
+      - backend/**
+      - .github/workflows/deploy-backend.yml
   pull_request:
     branches: [main]
-    paths: [backend/**]
+    paths:
+      - backend/**
+      - .github/workflows/deploy-backend.yml
 
 concurrency:
   group: backend-deploy-${{ github.ref }}
@@ -90,8 +94,16 @@ jobs:
             # Run migrations (idempotent)
             alembic upgrade head
 
-            # Restart service
-            sudo systemctl restart ict-lms-api
+            # Stop service and wait for port to be released
+            sudo systemctl stop ict-lms-api || true
+            sleep 2
+
+            # Kill anything still holding port 8000 (safety net)
+            sudo fuser -k 8000/tcp 2>/dev/null || true
+            sleep 1
+
+            # Start service
+            sudo systemctl start ict-lms-api
 
             # Wait for startup and verify
             sleep 3
