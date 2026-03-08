@@ -17,22 +17,35 @@ function getRefreshToken(): string | null {
   return localStorage.getItem('refresh_token');
 }
 
+let refreshPromise: Promise<string | null> | null = null;
+
 async function refreshAccessToken(): Promise<string | null> {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) return null;
+  // Deduplicate concurrent refresh calls
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) return null;
+
+    try {
+      const res = await fetch(`${API_BASE}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      localStorage.setItem('access_token', data.access_token);
+      return data.access_token;
+    } catch {
+      return null;
+    }
+  })();
 
   try {
-    const res = await fetch(`${API_BASE}/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: refreshToken }),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    localStorage.setItem('access_token', data.access_token);
-    return data.access_token;
-  } catch {
-    return null;
+    return await refreshPromise;
+  } finally {
+    refreshPromise = null;
   }
 }
 
@@ -80,14 +93,34 @@ export async function apiClient<T = any>(
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  let res = await fetch(url, { ...rest, body: processedBody, headers });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+  let res: Response;
+  try {
+    res = await fetch(url, { ...rest, body: processedBody, headers, signal: controller.signal });
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') throw new Error('Request timed out');
+    throw err;
+  }
+  clearTimeout(timeoutId);
 
   // Try refresh on 401
   if (res.status === 401 && token) {
     const newToken = await refreshAccessToken();
     if (newToken) {
       headers['Authorization'] = `Bearer ${newToken}`;
-      res = await fetch(url, { ...rest, body: processedBody, headers });
+      const retryController = new AbortController();
+      const retryTimeout = setTimeout(() => retryController.abort(), 30000);
+      try {
+        res = await fetch(url, { ...rest, body: processedBody, headers, signal: retryController.signal });
+      } catch (err: any) {
+        clearTimeout(retryTimeout);
+        if (err.name === 'AbortError') throw new Error('Request timed out');
+        throw err;
+      }
+      clearTimeout(retryTimeout);
     } else {
       // Clear tokens and redirect to login
       localStorage.removeItem('access_token');

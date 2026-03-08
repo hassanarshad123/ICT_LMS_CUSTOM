@@ -3,7 +3,7 @@ from datetime import date, datetime
 from typing import Optional
 
 from sqlmodel import SQLModel, Field, Column
-from sqlalchemy import ForeignKey, Enum as SAEnum
+from sqlalchemy import ForeignKey, Index, Enum as SAEnum
 from sqlalchemy.dialects.postgresql import TIMESTAMP, UUID as PG_UUID
 
 from app.models.enums import BatchHistoryAction
@@ -38,6 +38,14 @@ class Batch(SQLModel, table=True):
 
 class StudentBatch(SQLModel, table=True):
     __tablename__ = "student_batches"
+    __table_args__ = (
+        Index(
+            "uq_student_batch_active",
+            "student_id", "batch_id",
+            unique=True,
+            postgresql_where=Column("removed_at").is_(None),
+        ),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     student_id: uuid.UUID = Field(nullable=False, foreign_key="users.id")

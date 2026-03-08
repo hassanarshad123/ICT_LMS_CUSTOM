@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlmodel import SQLModel, Field, Column
-from sqlalchemy import Text, Integer, BigInteger, Boolean
+from sqlalchemy import Text, Integer, BigInteger, Boolean, UniqueConstraint
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import TIMESTAMP, JSONB, ARRAY
 
@@ -48,6 +48,9 @@ class Announcement(SQLModel, table=True):
 
 class LectureProgress(SQLModel, table=True):
     __tablename__ = "lecture_progress"
+    __table_args__ = (
+        UniqueConstraint("student_id", "lecture_id", name="uq_lecture_progress_student_lecture"),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     student_id: uuid.UUID = Field(nullable=False, foreign_key="users.id")
@@ -103,6 +106,9 @@ class Job(SQLModel, table=True):
 
 class JobApplication(SQLModel, table=True):
     __tablename__ = "job_applications"
+    __table_args__ = (
+        UniqueConstraint("job_id", "student_id", name="uq_job_application_job_student"),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     job_id: uuid.UUID = Field(nullable=False, foreign_key="jobs.id")

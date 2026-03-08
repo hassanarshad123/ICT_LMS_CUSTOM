@@ -197,7 +197,6 @@ async def get_lecture_status(
             new_status = await get_video_status(lecture.bunny_video_id)
             if new_status != current_status:
                 lecture.video_status = new_status
-                lecture.updated_at = datetime.now(timezone.utc)
                 session.add(lecture)
                 await session.commit()
                 current_status = new_status

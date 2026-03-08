@@ -122,8 +122,8 @@ async def change_password(
     if not verify_password(body.current_password, current_user.hashed_password):
         raise HTTPException(status_code=400, detail="Current password is incorrect")
 
-    if len(body.new_password) < 6:
-        raise HTTPException(status_code=422, detail="New password must be at least 6 characters")
+    if len(body.new_password) < 8:
+        raise HTTPException(status_code=422, detail="New password must be at least 8 characters")
 
     current_user.hashed_password = hash_password(body.new_password)
     session.add(current_user)

@@ -83,4 +83,16 @@ app.include_router(ws_router)
 
 @app.get("/api/health")
 async def health_check():
-    return {"status": "ok", "version": "1.0.0"}
+    from app.database import async_session
+    from sqlalchemy import text
+
+    try:
+        async with async_session() as session:
+            await session.execute(text("SELECT 1"))
+        return {"status": "ok", "version": "1.0.0", "database": "connected"}
+    except Exception:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=503,
+            content={"status": "degraded", "version": "1.0.0", "database": "unreachable"},
+        )

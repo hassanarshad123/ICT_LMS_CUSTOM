@@ -46,13 +46,18 @@ async def get_upload_url(
     current_user: CCOrTeacher,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
+    import logging as _logging
     from app.utils.s3 import generate_upload_url
 
-    url, object_key = generate_upload_url(
-        file_name=body.file_name,
-        content_type=body.content_type,
-        batch_id=body.batch_id,
-    )
+    try:
+        url, object_key = generate_upload_url(
+            file_name=body.file_name,
+            content_type=body.content_type,
+            batch_id=body.batch_id,
+        )
+    except Exception as exc:
+        _logging.getLogger(__name__).error("S3 upload URL generation failed: %s", exc)
+        raise HTTPException(status_code=503, detail="File storage service unavailable")
     return MaterialUploadUrlResponse(upload_url=url, object_key=object_key)
 
 
@@ -93,7 +98,12 @@ async def get_download_url(
     if not material:
         raise HTTPException(status_code=404, detail="Material not found")
 
-    url = generate_download_url(material.file_path, material.file_name)
+    try:
+        url = generate_download_url(material.file_path, material.file_name)
+    except Exception as exc:
+        import logging as _logging
+        _logging.getLogger(__name__).error("S3 download URL generation failed: %s", exc)
+        raise HTTPException(status_code=503, detail="File storage service unavailable")
     return MaterialDownloadUrlResponse(download_url=url, file_name=material.file_name)
 
 

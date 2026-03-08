@@ -51,6 +51,9 @@ async def send_zoom_reminders():
             if scheduled_dt <= reminder_window.replace(tzinfo=None):
                 zc.reminder_sent = True
                 session.add(zc)
-                logger.info("Marked reminder sent for class %s", zc.title)
+                logger.warning(
+                    "Email sending not implemented yet — reminder flagged but not sent for class %s",
+                    zc.title,
+                )
 
         await session.commit()
