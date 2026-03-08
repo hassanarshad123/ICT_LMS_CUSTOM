@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     AWS_REGION: str = "us-east-1"
     S3_BUCKET_NAME: str = "ict-lms-files"
 
-    # Bunny.net
+    # Bunny.net (BUNNY_API_KEY = library API key from Stream library settings, NOT the account API key)
     BUNNY_API_KEY: str = ""
     BUNNY_LIBRARY_ID: str = ""
     BUNNY_CDN_HOSTNAME: str = ""
