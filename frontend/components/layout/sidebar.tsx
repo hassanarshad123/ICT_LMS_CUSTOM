@@ -20,6 +20,7 @@ import {
   UserCog,
   Smartphone,
   BarChart3,
+  Award,
   Settings,
   LogOut,
   Menu,
@@ -43,6 +44,7 @@ const navConfig: Record<UserRole, NavItem[]> = {
     { label: 'Devices', path: '/devices', icon: 'smartphone' },
     { label: 'Insights', path: '/insights', icon: 'bar-chart-3' },
     { label: 'Recordings', path: '/recordings', icon: 'play-circle' },
+    { label: 'Certificates', path: '/certificates', icon: 'award' },
     { label: 'Settings', path: '/settings', icon: 'settings' },
   ],
   'course-creator': [
@@ -52,6 +54,7 @@ const navConfig: Record<UserRole, NavItem[]> = {
     { label: 'Batches', path: '/batches', icon: 'layers' },
     { label: 'Schedule Class', path: '/schedule', icon: 'calendar' },
     { label: 'Recordings', path: '/recordings', icon: 'play-circle' },
+    { label: 'Certificates', path: '/certificates', icon: 'award' },
     { label: 'Jobs', path: '/jobs', icon: 'briefcase' },
     { label: 'Settings', path: '/settings', icon: 'settings' },
   ],
@@ -68,6 +71,7 @@ const navConfig: Record<UserRole, NavItem[]> = {
     { label: 'Courses', path: '/courses', icon: 'book-open' },
     { label: 'Zoom Classes', path: '/classes', icon: 'video' },
     { label: 'Recordings', path: '/recordings', icon: 'play-circle' },
+    { label: 'Certificates', path: '/certificates', icon: 'award' },
     { label: 'Job Opportunities', path: '/jobs', icon: 'briefcase' },
     { label: 'Settings', path: '/settings', icon: 'settings' },
   ],
@@ -87,6 +91,7 @@ const iconMap: Record<string, React.ReactNode> = {
   'user-cog': <UserCog size={20} />,
   smartphone: <Smartphone size={20} />,
   'bar-chart-3': <BarChart3 size={20} />,
+  award: <Award size={20} />,
   settings: <Settings size={20} />,
 };
 

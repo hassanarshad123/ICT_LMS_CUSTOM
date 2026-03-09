@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import SettingsView from '@/components/shared/settings-view';
-import { Minus, Plus, Save, Monitor, Video, Edit3, Trash2, Star, Eye, EyeOff, X, Loader2 } from 'lucide-react';
+import { Minus, Plus, Save, Monitor, Video, Award, Edit3, Trash2, Star, Eye, EyeOff, X, Loader2 } from 'lucide-react';
 import { useBasePath } from '@/hooks/use-base-path';
 import { useApi, useMutation } from '@/hooks/use-api';
 import { getSettings, updateSettings } from '@/lib/api/admin';
@@ -26,6 +26,7 @@ export default function AdminSettings() {
   const { data: accountsData, loading: accountsLoading, refetch: refetchAccounts } = useApi(listAccounts);
 
   const [deviceLimit, setDeviceLimit] = useState(2);
+  const [certThreshold, setCertThreshold] = useState(70);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
@@ -42,6 +43,9 @@ export default function AdminSettings() {
   useEffect(() => {
     if (settingsData?.settings?.max_device_limit) {
       setDeviceLimit(parseInt(settingsData.settings.max_device_limit, 10) || 2);
+    }
+    if (settingsData?.settings?.certificate_completion_threshold) {
+      setCertThreshold(parseInt(settingsData.settings.certificate_completion_threshold, 10) || 70);
     }
   }, [settingsData]);
 
@@ -60,6 +64,23 @@ export default function AdminSettings() {
     } catch (err: any) {
       toast.error(err.message);
     }
+  };
+
+  const handleSaveCertThreshold = async () => {
+    try {
+      await saveSettings({ certificate_completion_threshold: String(certThreshold) });
+      toast.success('Certificate threshold saved');
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const decreaseThreshold = () => {
+    if (certThreshold > 10) setCertThreshold(certThreshold - 5);
+  };
+
+  const increaseThreshold = () => {
+    if (certThreshold < 100) setCertThreshold(certThreshold + 5);
   };
 
   const toggleSecret = (id: string) => {
@@ -192,6 +213,62 @@ export default function AdminSettings() {
 
                 <button
                   onClick={handleSave}
+                  disabled={savingSettings}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#333] transition-colors disabled:opacity-60"
+                >
+                  {savingSettings ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                  Save Changes
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Certificate Settings Card */}
+          <div className="bg-white rounded-2xl p-4 sm:p-6 card-shadow">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 bg-[#C5D86D] rounded-xl flex items-center justify-center">
+                <Award size={20} className="text-[#1A1A1A]" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-[#1A1A1A]">Certificate Settings</h3>
+                <p className="text-xs text-gray-500">Minimum video completion percentage required for certificate eligibility</p>
+              </div>
+            </div>
+
+            {settingsLoading ? (
+              <div className="animate-pulse bg-gray-200 rounded-xl h-32" />
+            ) : (
+              <>
+                <div className="bg-gray-50 rounded-xl p-4 sm:p-5 mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                    Completion Threshold (%)
+                  </label>
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={decreaseThreshold}
+                      disabled={certThreshold <= 10}
+                      className="w-10 h-10 rounded-xl border border-gray-200 bg-white flex items-center justify-center hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <Minus size={18} className="text-gray-600" />
+                    </button>
+                    <div className="w-16 h-12 rounded-xl border border-gray-200 bg-white flex items-center justify-center">
+                      <span className="text-2xl font-bold text-[#1A1A1A]">{certThreshold}</span>
+                    </div>
+                    <button
+                      onClick={increaseThreshold}
+                      disabled={certThreshold >= 100}
+                      className="w-10 h-10 rounded-xl border border-gray-200 bg-white flex items-center justify-center hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <Plus size={18} className="text-gray-600" />
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-3">
+                    Students must watch at least this percentage of all lectures in a course to become eligible for a certificate. Range: 10–100%, step: 5.
+                  </p>
+                </div>
+
+                <button
+                  onClick={handleSaveCertThreshold}
                   disabled={savingSettings}
                   className="flex items-center gap-2 px-5 py-2.5 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#333] transition-colors disabled:opacity-60"
                 >
