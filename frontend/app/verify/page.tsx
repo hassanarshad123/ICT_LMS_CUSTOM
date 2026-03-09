@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { verifyCertificate, CertificateVerifyOut } from '@/lib/api/certificates';
 import { GraduationCap, Search, CheckCircle2, XCircle, Loader2, ShieldCheck, AlertTriangle } from 'lucide-react';
+import ZensbotBadge from '@/components/shared/zensbot-badge';
 
 export default function VerifyPage() {
   const searchParams = useSearchParams();
@@ -172,6 +173,12 @@ export default function VerifyPage() {
             </div>
           </div>
         )}
+
+        {/* Developer attribution */}
+        <div className="mt-10 flex flex-col items-center gap-3">
+          <div className="w-12 h-px bg-gray-300" />
+          <ZensbotBadge variant="light" />
+        </div>
       </div>
     </div>
   );

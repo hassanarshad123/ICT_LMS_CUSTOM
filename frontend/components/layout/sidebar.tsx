@@ -27,6 +27,7 @@ import {
   Menu,
   X,
 } from 'lucide-react';
+import { ZensbotSidebarBadge } from '@/components/shared/zensbot-badge';
 
 interface NavItem {
   label: string;
@@ -209,6 +210,9 @@ export default function Sidebar({ role, userName, onLogout }: SidebarProps) {
             <LogOut size={20} />
             Logout
           </button>
+          <div className="mt-2 border-t border-gray-100 pt-2">
+            <ZensbotSidebarBadge />
+          </div>
         </div>
       </aside>
     </>

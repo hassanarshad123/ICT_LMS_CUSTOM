@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { GraduationCap, ChevronRight, Loader2 } from 'lucide-react';
 import { login } from '@/lib/api/auth';
+import ZensbotBadge from '@/components/shared/zensbot-badge';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -102,9 +103,11 @@ export default function LoginPage() {
           </form>
         </div>
 
-        <p className="text-center text-xs text-gray-400 mt-6">
-          ICT Institute LMS - All rights reserved
-        </p>
+        {/* Developer attribution */}
+        <div className="mt-8 flex flex-col items-center gap-3">
+          <div className="w-12 h-px bg-gray-300" />
+          <ZensbotBadge variant="light" />
+        </div>
       </div>
     </div>
   );
