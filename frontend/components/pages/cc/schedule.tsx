@@ -11,7 +11,8 @@ import { listBatches } from '@/lib/api/batches';
 import { listUsers } from '@/lib/api/users';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
-import { Plus, X, Video, ExternalLink, Clock, Info, Loader2, Calendar, Trash2 } from 'lucide-react';
+import { Plus, X, Video, ExternalLink, Clock, Info, Loader2, Calendar, Trash2, Users } from 'lucide-react';
+import AttendancePanel from '@/components/shared/attendance-panel';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -263,20 +264,23 @@ export default function CourseCreatorSchedule() {
               <h3 className="text-lg font-semibold text-primary mb-4">Completed Classes</h3>
               <div className="space-y-3">
                 {completed.map((cls) => (
-                  <div key={cls.id} className="bg-white rounded-2xl p-4 sm:p-5 card-shadow flex flex-col sm:flex-row sm:items-center justify-between gap-3 opacity-75">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                        <Video size={18} className="text-gray-400" />
+                  <div key={cls.id} className="bg-white rounded-2xl p-4 sm:p-5 card-shadow">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 opacity-75">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                          <Video size={18} className="text-gray-400" />
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-primary">{cls.title}</h4>
+                          <p className="text-xs text-gray-500 mt-0.5">{cls.batchName}{cls.teacherName ? ` \u00B7 ${cls.teacherName}` : ''}</p>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="font-medium text-primary">{cls.title}</h4>
-                        <p className="text-xs text-gray-500 mt-0.5">{cls.batchName}{cls.teacherName ? ` \u00B7 ${cls.teacherName}` : ''}</p>
+                      <div className="text-right ml-14 sm:ml-0">
+                        <p className="text-sm text-gray-600">{cls.scheduledDate}</p>
+                        <p className="text-xs text-gray-400">{cls.scheduledTime} - {cls.durationDisplay || `${cls.duration} min`}</p>
                       </div>
                     </div>
-                    <div className="text-right ml-14 sm:ml-0">
-                      <p className="text-sm text-gray-600">{cls.scheduledDate}</p>
-                      <p className="text-xs text-gray-400">{cls.scheduledTime} - {cls.durationDisplay || `${cls.duration} min`}</p>
-                    </div>
+                    <AttendancePanel classId={cls.id} canSync />
                   </div>
                 ))}
               </div>

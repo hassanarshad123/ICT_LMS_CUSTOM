@@ -8,6 +8,7 @@ import { useApi } from '@/hooks/use-api';
 import { listClasses } from '@/lib/api/zoom';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { Video, ExternalLink, Clock, Calendar, PlayCircle } from 'lucide-react';
+import AttendancePanel from '@/components/shared/attendance-panel';
 
 export default function TeacherZoom() {
   const { name, id } = useAuth();
@@ -107,20 +108,23 @@ export default function TeacherZoom() {
               <h3 className="text-lg font-semibold text-primary mb-4">Past Classes</h3>
               <div className="space-y-3">
                 {completed.map((cls) => (
-                  <div key={cls.id} className="bg-white rounded-2xl p-5 card-shadow flex items-center justify-between opacity-70">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
-                        <Video size={18} className="text-gray-400" />
+                  <div key={cls.id} className="bg-white rounded-2xl p-5 card-shadow">
+                    <div className="flex items-center justify-between opacity-70">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
+                          <Video size={18} className="text-gray-400" />
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-sm text-primary">{cls.title}</h4>
+                          <p className="text-xs text-gray-500 mt-0.5">{cls.batchName}</p>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="font-medium text-sm text-primary">{cls.title}</h4>
-                        <p className="text-xs text-gray-500 mt-0.5">{cls.batchName}</p>
+                      <div className="text-right">
+                        <p className="text-sm text-gray-600">{cls.scheduledDate}</p>
+                        <p className="text-xs text-gray-500">{cls.scheduledTime}</p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm text-gray-600">{cls.scheduledDate}</p>
-                      <p className="text-xs text-gray-500">{cls.scheduledTime}</p>
-                    </div>
+                    <AttendancePanel classId={cls.id} />
                   </div>
                 ))}
               </div>
