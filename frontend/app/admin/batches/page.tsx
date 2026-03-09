@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import DashboardHeader from '@/components/layout/dashboard-header';
 import { useAuth } from '@/lib/auth-context';
@@ -24,6 +25,7 @@ import {
 } from '@/components/ui/alert-dialog';
 
 export default function AdminBatches() {
+  const router = useRouter();
   const { name } = useAuth();
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({ name: '', startDate: '', endDate: '', teacherId: '' });
@@ -143,7 +145,7 @@ export default function AdminBatches() {
                 </thead>
                 <tbody>
                   {batchList.map((batch) => (
-                    <tr key={batch.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                    <tr key={batch.id} onClick={() => router.push(`/admin/batches/${batch.id}`)} className="border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer">
                       <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm font-medium text-[#1A1A1A]">{batch.name}</td>
                       <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{batch.teacherName || 'Unassigned'}</td>
                       <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{batch.studentCount}</td>
@@ -160,7 +162,7 @@ export default function AdminBatches() {
                         </span>
                       </td>
                       <td className="px-3 sm:px-6 py-3 sm:py-4">
-                        <button onClick={() => setDeleteConfirmId(batch.id)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                        <button onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(batch.id); }} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
                           <Trash2 size={16} />
                         </button>
                       </td>
