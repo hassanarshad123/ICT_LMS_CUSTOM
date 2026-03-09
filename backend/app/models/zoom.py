@@ -3,7 +3,7 @@ from datetime import date, time, datetime
 from typing import Optional
 
 from sqlmodel import SQLModel, Field, Column
-from sqlalchemy import Integer, BigInteger, Boolean
+from sqlalchemy import Integer, BigInteger, Boolean, UniqueConstraint, Index
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 
@@ -12,6 +12,14 @@ from app.models.enums import ZoomClassStatus, RecordingStatus
 
 class ZoomAccount(SQLModel, table=True):
     __tablename__ = "zoom_accounts"
+    __table_args__ = (
+        Index(
+            "uq_zoom_account_active",
+            "account_id",
+            unique=True,
+            postgresql_where=Column("deleted_at").is_(None),
+        ),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     account_name: str = Field(nullable=False)
@@ -34,6 +42,9 @@ class ZoomAccount(SQLModel, table=True):
 
 class ZoomClass(SQLModel, table=True):
     __tablename__ = "zoom_classes"
+    __table_args__ = (
+        Index("ix_zoom_classes_batch_id", "batch_id"),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     batch_id: uuid.UUID = Field(nullable=False, foreign_key="batches.id")
@@ -96,6 +107,9 @@ class ClassRecording(SQLModel, table=True):
 
 class ZoomAttendance(SQLModel, table=True):
     __tablename__ = "zoom_attendance"
+    __table_args__ = (
+        UniqueConstraint("zoom_class_id", "student_id", name="uq_zoom_attendance_class_student"),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     zoom_class_id: uuid.UUID = Field(nullable=False, foreign_key="zoom_classes.id")

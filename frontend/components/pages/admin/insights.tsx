@@ -85,23 +85,26 @@ export default function InsightsPage() {
   // Enrollment per batch
   const enrollmentData = enrollmentPerBatch.map((b: any) => ({
     name: (b.name || b.batchName || '').replace(/Batch \d+ - /, ''),
-    students: b.students || b.studentCount || 0,
+    students: b.studentCount || b.students || 0,
   }));
   const enrollmentConfig: ChartConfig = { students: { label: 'Students', color: 'hsl(var(--primary))' } };
 
   // Teacher workload
   const workloadData = teacherWorkload.map((t: any) => ({
     name: (t.name || t.teacherName || '').split(' ')[0],
-    batches: t.batches || t.batchCount || 0,
-    students: t.students || t.studentCount || 0,
+    batches: t.batchCount || t.batches || 0,
+    students: t.studentCount || t.students || 0,
   }));
   const workloadConfig: ChartConfig = { batches: { label: 'Batches', color: 'hsl(var(--primary))' }, students: { label: 'Students', color: 'hsl(var(--accent))' } };
 
   // Lectures per course
-  const lecturesData = lecturesPerCourse.map((c: any) => ({
-    name: (c.name || c.courseTitle || '').length > 18 ? (c.name || c.courseTitle || '').slice(0, 18) + '...' : (c.name || c.courseTitle || ''),
-    lectures: c.lectures || c.lectureCount || 0,
-  }));
+  const lecturesData = lecturesPerCourse.map((c: any) => {
+    const label = c.title || c.name || c.courseTitle || '';
+    return {
+      name: label.length > 18 ? label.slice(0, 18) + '...' : label,
+      lectures: c.lectureCount || c.lectures || 0,
+    };
+  });
   const lecturesConfig: ChartConfig = { lectures: { label: 'Lectures', color: 'hsl(var(--primary))' } };
 
   // Materials by type

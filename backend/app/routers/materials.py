@@ -83,6 +83,8 @@ async def create_material(
         file_size=format_file_size(material.file_size),
         file_size_bytes=material.file_size, upload_date=material.created_at,
         uploaded_by=material.uploaded_by, created_at=material.created_at,
+        uploaded_by_name=current_user.name,
+        uploaded_by_role=to_api(current_user.role.value),
     )
 
 

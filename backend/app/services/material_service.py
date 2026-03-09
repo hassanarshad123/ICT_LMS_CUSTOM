@@ -38,17 +38,16 @@ async def list_materials(
     result = await session.execute(query)
     materials = result.scalars().all()
 
+    # Batch-fetch uploaders in one query instead of N+1
+    uploader_ids = {m.uploaded_by for m in materials if m.uploaded_by}
+    uploaders = {}
+    if uploader_ids:
+        r = await session.execute(select(User).where(User.id.in_(uploader_ids)))
+        uploaders = {u.id: u for u in r.scalars().all()}
+
     items = []
     for m in materials:
-        uploader_name = None
-        uploader_role = None
-        if m.uploaded_by:
-            r = await session.execute(select(User).where(User.id == m.uploaded_by))
-            uploader = r.scalar_one_or_none()
-            if uploader:
-                uploader_name = uploader.name
-                uploader_role = to_api(uploader.role.value)
-
+        uploader = uploaders.get(m.uploaded_by)
         items.append({
             "id": m.id,
             "batch_id": m.batch_id,
@@ -61,8 +60,8 @@ async def list_materials(
             "file_size_bytes": m.file_size,
             "upload_date": m.created_at,
             "uploaded_by": m.uploaded_by,
-            "uploaded_by_name": uploader_name,
-            "uploaded_by_role": uploader_role,
+            "uploaded_by_name": uploader.name if uploader else None,
+            "uploaded_by_role": to_api(uploader.role.value) if uploader else None,
             "created_at": m.created_at,
         })
 

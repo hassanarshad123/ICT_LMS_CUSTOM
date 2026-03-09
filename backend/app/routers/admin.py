@@ -76,14 +76,26 @@ async def list_devices(
     result = await session.execute(query)
     users = result.scalars().all()
 
-    items = []
-    for u in users:
+    # Batch-fetch all active sessions for these users in one query instead of N+1
+    user_ids = [u.id for u in users]
+    if user_ids:
         r = await session.execute(
             select(UserSession).where(
-                UserSession.user_id == u.id, UserSession.is_active.is_(True)
+                UserSession.user_id.in_(user_ids), UserSession.is_active.is_(True)
             )
         )
-        sessions = r.scalars().all()
+        all_sessions = r.scalars().all()
+    else:
+        all_sessions = []
+
+    from collections import defaultdict
+    sessions_by_user = defaultdict(list)
+    for s in all_sessions:
+        sessions_by_user[s.user_id].append(s)
+
+    items = []
+    for u in users:
+        user_sessions = sessions_by_user.get(u.id, [])
         items.append(UserDeviceSummary(
             user_id=u.id, user_name=u.name, user_email=u.email,
             user_role=u.role.value,
@@ -92,7 +104,7 @@ async def list_devices(
                     id=s.id, device_info=s.device_info, ip_address=s.ip_address,
                     logged_in_at=s.logged_in_at, last_active_at=s.last_active_at,
                 )
-                for s in sessions
+                for s in user_sessions
             ],
         ))
 

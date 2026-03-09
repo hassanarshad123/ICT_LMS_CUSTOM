@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlmodel import SQLModel, Field, Column
-from sqlalchemy import Text, Integer, BigInteger, Boolean, UniqueConstraint
+from sqlalchemy import Text, Integer, BigInteger, Boolean, UniqueConstraint, Index, CheckConstraint
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import TIMESTAMP, JSONB, ARRAY
 
@@ -17,6 +17,9 @@ from app.models.enums import (
 
 class Announcement(SQLModel, table=True):
     __tablename__ = "announcements"
+    __table_args__ = (
+        Index("ix_announcements_batch_id", "batch_id"),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     title: str = Field(nullable=False)
@@ -50,6 +53,8 @@ class LectureProgress(SQLModel, table=True):
     __tablename__ = "lecture_progress"
     __table_args__ = (
         UniqueConstraint("student_id", "lecture_id", name="uq_lecture_progress_student_lecture"),
+        Index("ix_lecture_progress_student_id", "student_id"),
+        CheckConstraint("watch_percentage >= 0 AND watch_percentage <= 100", name="ck_lecture_progress_watch_pct"),
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -141,6 +146,10 @@ class JobApplication(SQLModel, table=True):
 
 class UserSession(SQLModel, table=True):
     __tablename__ = "user_sessions"
+    __table_args__ = (
+        UniqueConstraint("session_token", name="uq_user_sessions_token"),
+        Index("ix_user_sessions_user_id", "user_id"),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     user_id: uuid.UUID = Field(nullable=False, foreign_key="users.id")
@@ -176,6 +185,9 @@ class SystemSetting(SQLModel, table=True):
 
 class ActivityLog(SQLModel, table=True):
     __tablename__ = "activity_log"
+    __table_args__ = (
+        Index("ix_activity_log_user_id_created_at", "user_id", "created_at"),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     user_id: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id")

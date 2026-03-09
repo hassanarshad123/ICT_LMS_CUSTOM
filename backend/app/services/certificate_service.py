@@ -159,85 +159,115 @@ async def generate_verification_code() -> str:
 async def get_student_dashboard(
     session: AsyncSession, student_id: uuid.UUID,
 ) -> list[dict]:
-    """Get all enrolled courses with progress and certificate status for a student."""
+    """Get all enrolled courses with progress and certificate status for a student.
+
+    Optimized: 4 queries total instead of N+1 nested loops.
+    """
     threshold = await get_completion_threshold(session)
 
-    # Get all active enrollments
+    # Query 1: All active enrollments with batch info (1 query)
     enrolled_q = (
-        select(StudentBatch)
-        .where(StudentBatch.student_id == student_id, StudentBatch.removed_at.is_(None))
+        select(StudentBatch.batch_id, Batch.name.label("batch_name"))
+        .join(Batch, StudentBatch.batch_id == Batch.id)
+        .where(
+            StudentBatch.student_id == student_id,
+            StudentBatch.removed_at.is_(None),
+            Batch.deleted_at.is_(None),
+        )
     )
     enrolled_result = await session.execute(enrolled_q)
-    enrollments = enrolled_result.scalars().all()
+    enrollments = enrolled_result.all()
 
-    dashboard = []
-    for enrollment in enrollments:
-        batch_id = enrollment.batch_id
+    if not enrollments:
+        return []
 
-        # Get batch name
-        batch = (await session.execute(select(Batch).where(Batch.id == batch_id))).scalar_one_or_none()
-        if not batch or batch.deleted_at is not None:
-            continue
+    batch_ids = [e[0] for e in enrollments]
+    batch_names = {e[0]: e[1] for e in enrollments}
 
-        # Get all courses assigned to this batch
-        bc_q = (
-            select(BatchCourse)
-            .where(BatchCourse.batch_id == batch_id, BatchCourse.deleted_at.is_(None))
+    # Query 2: All batch-courses with course info for enrolled batches (1 query)
+    bc_q = (
+        select(BatchCourse.batch_id, BatchCourse.course_id, Course.title)
+        .join(Course, BatchCourse.course_id == Course.id)
+        .where(
+            BatchCourse.batch_id.in_(batch_ids),
+            BatchCourse.deleted_at.is_(None),
+            Course.deleted_at.is_(None),
         )
-        bc_result = await session.execute(bc_q)
-        batch_courses = bc_result.scalars().all()
+    )
+    bc_result = await session.execute(bc_q)
+    batch_courses = bc_result.all()
 
-        for bc in batch_courses:
-            course = (await session.execute(
-                select(Course).where(Course.id == bc.course_id, Course.deleted_at.is_(None))
-            )).scalar_one_or_none()
-            if not course:
-                continue
+    if not batch_courses:
+        return []
 
-            pct = await calculate_completion_percentage(session, student_id, batch_id, bc.course_id)
+    # Query 3: Bulk completion calculation for all batch-course combos (1 query)
+    completion_q = (
+        select(
+            Lecture.batch_id,
+            Lecture.course_id,
+            func.count(Lecture.id).label("total_lectures"),
+            func.coalesce(func.sum(LectureProgress.watch_percentage), 0).label("total_watched"),
+        )
+        .outerjoin(
+            LectureProgress,
+            and_(
+                LectureProgress.lecture_id == Lecture.id,
+                LectureProgress.student_id == student_id,
+            ),
+        )
+        .where(
+            Lecture.batch_id.in_(batch_ids),
+            Lecture.deleted_at.is_(None),
+        )
+        .group_by(Lecture.batch_id, Lecture.course_id)
+    )
+    completion_result = await session.execute(completion_q)
+    completion_map = {}
+    for batch_id_r, course_id_r, total, watched in completion_result.all():
+        pct = int(watched / total) if total > 0 else 0
+        completion_map[(batch_id_r, course_id_r)] = pct
 
-            # Check for existing certificate record
-            cert_q = (
-                select(Certificate)
-                .where(
-                    Certificate.student_id == student_id,
-                    Certificate.batch_id == batch_id,
-                    Certificate.course_id == bc.course_id,
-                    Certificate.deleted_at.is_(None),
-                )
-            )
-            cert_result = await session.execute(cert_q)
-            cert = cert_result.scalar_one_or_none()
+    # Query 4: All certificates for this student (1 query)
+    cert_q = (
+        select(Certificate)
+        .where(Certificate.student_id == student_id, Certificate.deleted_at.is_(None))
+    )
+    cert_result = await session.execute(cert_q)
+    cert_map = {(c.batch_id, c.course_id): c for c in cert_result.scalars().all()}
 
-            # Determine status
-            if cert:
-                if cert.status == CertificateStatus.approved:
-                    status = "approved"
-                elif cert.status == CertificateStatus.revoked:
-                    status = "revoked"
-                else:
-                    # eligible status in DB = student requested, pending CC approval
-                    status = "pending"
+    # Build dashboard (no more queries)
+    dashboard = []
+    for batch_id, course_id, course_title in batch_courses:
+        pct = completion_map.get((batch_id, course_id), 0)
+        cert = cert_map.get((batch_id, course_id))
+
+        if cert:
+            if cert.status == CertificateStatus.approved:
+                status = "approved"
+            elif cert.status == CertificateStatus.revoked:
+                status = "revoked"
             else:
-                if pct == 0:
-                    status = "not_started"
-                elif pct < threshold:
-                    status = "in_progress"
-                else:
-                    status = "eligible"
+                status = "pending"
+        else:
+            if pct == 0:
+                status = "not_started"
+            elif pct < threshold:
+                status = "in_progress"
+            else:
+                status = "eligible"
 
-            dashboard.append({
-                "batch_id": batch_id,
-                "batch_name": batch.name,
-                "course_id": bc.course_id,
-                "course_title": course.title,
-                "completion_percentage": pct,
-                "threshold": threshold,
-                "status": status,
-                "certificate_id": cert.id if cert else None,
-                "certificate_name": cert.certificate_name if cert else None,
-                "issued_at": cert.issued_at if cert else None,
-            })
+        dashboard.append({
+            "batch_id": batch_id,
+            "batch_name": batch_names[batch_id],
+            "course_id": course_id,
+            "course_title": course_title,
+            "completion_percentage": pct,
+            "threshold": threshold,
+            "status": status,
+            "certificate_id": cert.id if cert else None,
+            "certificate_name": cert.certificate_name if cert else None,
+            "issued_at": cert.issued_at if cert else None,
+        })
 
     return dashboard
 
@@ -592,21 +622,32 @@ async def get_certificate_by_verification_code(session: AsyncSession, code: str)
 async def list_eligible_students(
     session: AsyncSession, batch_id: uuid.UUID, course_id: uuid.UUID, page: int, per_page: int,
 ) -> tuple[list[dict], int]:
-    """Students enrolled in batch who meet threshold and don't have a cert yet."""
+    """Students enrolled in batch who meet threshold and don't have a cert yet.
+
+    Optimized: 4 queries total instead of 2+ per student.
+    """
     threshold = await get_completion_threshold(session)
 
-    # Get enrolled students
+    # Query 1: Get enrolled students with user info (1 JOIN query)
     enrolled_q = (
-        select(StudentBatch.student_id)
-        .where(StudentBatch.batch_id == batch_id, StudentBatch.removed_at.is_(None))
+        select(User.id, User.name, User.email)
+        .join(StudentBatch, StudentBatch.student_id == User.id)
+        .where(
+            StudentBatch.batch_id == batch_id,
+            StudentBatch.removed_at.is_(None),
+            User.deleted_at.is_(None),
+        )
     )
     enrolled_result = await session.execute(enrolled_q)
-    enrolled_ids = [row[0] for row in enrolled_result.all()]
+    enrolled_students = enrolled_result.all()
 
-    if not enrolled_ids:
+    if not enrolled_students:
         return [], 0
 
-    # Exclude students who already have a certificate
+    enrolled_ids = [s[0] for s in enrolled_students]
+    student_info = {s[0]: {"name": s[1], "email": s[2]} for s in enrolled_students}
+
+    # Query 2: Exclude students who already have a certificate
     existing_q = (
         select(Certificate.student_id)
         .where(
@@ -622,22 +663,53 @@ async def list_eligible_students(
     if not candidate_ids:
         return [], 0
 
-    # Calculate completion for each candidate
+    # Query 3: Total lectures for this batch-course
+    total_q = (
+        select(func.count(Lecture.id))
+        .where(
+            Lecture.batch_id == batch_id,
+            Lecture.course_id == course_id,
+            Lecture.deleted_at.is_(None),
+        )
+    )
+    total_lectures = (await session.execute(total_q)).scalar() or 0
+
+    if total_lectures == 0:
+        return [], 0
+
+    # Query 4: Bulk completion for all candidates at once
+    completion_q = (
+        select(
+            LectureProgress.student_id,
+            func.coalesce(func.sum(LectureProgress.watch_percentage), 0).label("total_watched"),
+        )
+        .join(Lecture, LectureProgress.lecture_id == Lecture.id)
+        .where(
+            LectureProgress.student_id.in_(candidate_ids),
+            Lecture.batch_id == batch_id,
+            Lecture.course_id == course_id,
+            Lecture.deleted_at.is_(None),
+        )
+        .group_by(LectureProgress.student_id)
+    )
+    completion_result = await session.execute(completion_q)
+    watched_map = dict(completion_result.all())
+
+    # Build eligible list (no more queries)
     eligible = []
     for sid in candidate_ids:
-        pct = await calculate_completion_percentage(session, sid, batch_id, course_id)
+        total_watched = watched_map.get(sid, 0)
+        pct = int(total_watched / total_lectures) if total_lectures > 0 else 0
         if pct >= threshold:
-            # Get student info
-            student = (await session.execute(select(User).where(User.id == sid))).scalar_one()
+            info = student_info[sid]
             eligible.append({
-                "student_id": student.id,
-                "student_name": student.name,
-                "student_email": student.email,
+                "student_id": sid,
+                "student_name": info["name"],
+                "student_email": info["email"],
                 "completion_percentage": pct,
             })
 
     total = len(eligible)
-    # Sort by completion percentage descending
     eligible.sort(key=lambda x: x["completion_percentage"], reverse=True)
     start = (page - 1) * per_page
     return eligible[start : start + per_page], total

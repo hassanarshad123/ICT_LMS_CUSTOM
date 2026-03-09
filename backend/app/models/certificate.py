@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlmodel import SQLModel, Field, Column
-from sqlalchemy import Integer, String, Text, UniqueConstraint
+from sqlalchemy import Integer, String, Text, UniqueConstraint, Index, CheckConstraint
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 
@@ -14,6 +14,8 @@ class Certificate(SQLModel, table=True):
     __tablename__ = "certificates"
     __table_args__ = (
         UniqueConstraint("student_id", "batch_id", "course_id", name="uq_certificate_student_batch_course"),
+        Index("ix_certificates_student_id", "student_id"),
+        CheckConstraint("completion_percentage >= 0 AND completion_percentage <= 100", name="ck_certificate_completion_pct"),
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
