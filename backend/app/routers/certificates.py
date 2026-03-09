@@ -53,9 +53,9 @@ async def list_eligible_students(
 @router.post("/approve/{student_id}", response_model=CertificateOut)
 async def approve_certificate(
     student_id: uuid.UUID,
+    current_user: CC,
     batch_id: uuid.UUID = Query(...),
     course_id: uuid.UUID = Query(...),
-    current_user: CC = Depends(),
     session: AsyncSession = Depends(get_session),
 ):
     """Approve and generate a certificate for a single student."""
@@ -83,9 +83,9 @@ async def approve_certificate(
 @router.post("/approve-batch", response_model=list[CertificateOut])
 async def approve_batch_certificates(
     body: CertificateBatchApproveRequest,
+    current_user: CC,
     batch_id: uuid.UUID = Query(...),
     course_id: uuid.UUID = Query(...),
-    current_user: CC = Depends(),
     session: AsyncSession = Depends(get_session),
 ):
     """Bulk approve certificates for multiple students."""
