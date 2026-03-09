@@ -46,13 +46,13 @@ export default function VerifyPage() {
       <div className="bg-primary text-white">
         <div className="max-w-2xl mx-auto px-4 py-8 text-center">
           <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">
-              {logoUrl ? (
-                <img src={logoUrl} alt={instituteName} className="w-7 h-7 object-contain" />
-              ) : (
+            {logoUrl ? (
+              <img src={logoUrl} alt={instituteName} className="w-12 h-12 object-contain rounded-[20%]" />
+            ) : (
+              <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">
                 <GraduationCap size={24} className="text-accent" />
-              )}
-            </div>
+              </div>
+            )}
             <h1 className="text-2xl font-bold">{instituteName}</h1>
           </div>
           <p className="text-gray-400 text-sm">Certificate Verification Portal</p>

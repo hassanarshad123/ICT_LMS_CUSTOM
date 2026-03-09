@@ -55,13 +55,13 @@ export default function LoginPage() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-lg">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center mx-auto mb-4">
-            {logoUrl ? (
-              <img src={logoUrl} alt={instituteName} className="w-10 h-10 object-contain" />
-            ) : (
+          {logoUrl ? (
+            <img src={logoUrl} alt={instituteName} className="w-16 h-16 object-contain rounded-[20%] mx-auto mb-4" />
+          ) : (
+            <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center mx-auto mb-4">
               <GraduationCap size={32} className="text-white" />
-            )}
-          </div>
+            </div>
+          )}
           <h1 className="text-2xl sm:text-3xl font-bold text-primary">{instituteName}</h1>
           <p className="text-gray-500 mt-2">{tagline}</p>
         </div>

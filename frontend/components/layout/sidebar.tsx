@@ -168,13 +168,13 @@ export default function Sidebar({ role, userName, onLogout }: SidebarProps) {
 
         <div className="p-6 border-b border-gray-100">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
-              {logoUrl ? (
-                <img src={logoUrl} alt={instituteName} className="w-6 h-6 object-contain" />
-              ) : (
+            {logoUrl ? (
+              <img src={logoUrl} alt={instituteName} className="w-10 h-10 object-contain rounded-[20%]" />
+            ) : (
+              <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
                 <GraduationCap size={20} className="text-white" />
-              )}
-            </div>
+              </div>
+            )}
             <div>
               <h2 className="font-semibold text-primary text-sm">{instituteName}</h2>
               <p className="text-xs text-gray-500">{roleLabels[role]}</p>
