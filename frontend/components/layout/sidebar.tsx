@@ -112,9 +112,10 @@ export function MobileTrigger() {
 interface SidebarProps {
   role: UserRole;
   userName: string;
+  onLogout?: () => void;
 }
 
-export default function Sidebar({ role, userName }: SidebarProps) {
+export default function Sidebar({ role, userName, onLogout }: SidebarProps) {
   const pathname = usePathname();
   const items = navConfig[role];
   const { mobileOpen, setMobileOpen } = useSidebar();
@@ -196,13 +197,13 @@ export default function Sidebar({ role, userName }: SidebarProps) {
             </div>
             <span className="text-sm font-medium text-[#1A1A1A] truncate">{userName}</span>
           </div>
-          <Link
-            href="/"
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-500 hover:bg-red-50 hover:text-red-600 transition-all duration-200"
+          <button
+            onClick={onLogout}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-500 hover:bg-red-50 hover:text-red-600 transition-all duration-200"
           >
             <LogOut size={20} />
             Logout
-          </Link>
+          </button>
         </div>
       </aside>
     </>

@@ -27,6 +27,16 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { getDownloadUrl } from '@/lib/api/materials';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export default function TeacherCourseDetailPage() {
   const params = useParams();
@@ -62,6 +72,7 @@ export default function TeacherCourseDetailPage() {
   );
 
   const [expandedModule, setExpandedModule] = useState<string | null>(null);
+  const [deleteMaterialConfirm, setDeleteMaterialConfirm] = useState<string | null>(null);
   const [showMaterialForm, setShowMaterialForm] = useState(false);
   const [materialFile, setMaterialFile] = useState<File | null>(null);
   const [materialTitle, setMaterialTitle] = useState('');
@@ -372,7 +383,7 @@ export default function TeacherCourseDetailPage() {
                     <Download size={14} />
                   </button>
                   <button
-                    onClick={() => handleDeleteMaterial(material.id)}
+                    onClick={() => setDeleteMaterialConfirm(material.id)}
                     className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                   >
                     <Trash2 size={14} />
@@ -383,6 +394,29 @@ export default function TeacherCourseDetailPage() {
           </div>
         )}
       </div>
+      {/* Delete Material Confirmation */}
+      <AlertDialog open={!!deleteMaterialConfirm} onOpenChange={() => setDeleteMaterialConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Material</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this material? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteMaterialConfirm) handleDeleteMaterial(deleteMaterialConfirm);
+                setDeleteMaterialConfirm(null);
+              }}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }

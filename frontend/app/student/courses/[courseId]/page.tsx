@@ -143,6 +143,23 @@ export default function CourseDetailPage() {
     );
   }
 
+  if (!studentBatchId) {
+    return (
+      <DashboardLayout role="student" userName={name || 'Student'}>
+        <div className="bg-white rounded-2xl p-12 card-shadow text-center">
+          <div className="w-16 h-16 bg-yellow-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <BookOpen size={28} className="text-yellow-500" />
+          </div>
+          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-2">Not enrolled</h3>
+          <p className="text-sm text-gray-500 mb-4">You are not enrolled in a batch for this course. Contact your administrator.</p>
+          <Link href="/student/courses" className="text-sm font-medium text-[#1A1A1A] hover:underline">
+            Back to Courses
+          </Link>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   const sortedModules = (modules || []).sort((a, b) => a.sequenceOrder - b.sequenceOrder);
   const sortedLectures = lectures.sort((a, b) => a.sequenceOrder - b.sequenceOrder);
 
