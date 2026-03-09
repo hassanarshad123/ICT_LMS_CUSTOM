@@ -41,6 +41,7 @@ const navConfig: Record<UserRole, NavItem[]> = {
     { label: 'Users', href: '/course-creator/users', icon: 'user-cog' },
     { label: 'Courses', href: '/course-creator/courses', icon: 'book-open' },
     { label: 'Batches', href: '/course-creator/batches', icon: 'layers' },
+    { label: 'Schedule Class', href: '/course-creator/schedule', icon: 'calendar' },
     { label: 'Jobs', href: '/course-creator/jobs', icon: 'briefcase' },
     { label: 'Settings', href: '/course-creator/settings', icon: 'settings' },
   ],
@@ -48,7 +49,7 @@ const navConfig: Record<UserRole, NavItem[]> = {
     { label: 'Dashboard', href: '/teacher', icon: 'home' },
     { label: 'My Courses', href: '/teacher/courses', icon: 'book-open' },
     { label: 'My Batches', href: '/teacher/batches', icon: 'layers' },
-    { label: 'Schedule Class', href: '/teacher/schedule', icon: 'calendar' },
+    { label: 'Zoom Classes', href: '/teacher/zoom', icon: 'video' },
     { label: 'Settings', href: '/teacher/settings', icon: 'settings' },
   ],
   student: [

@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useApi, useMutation } from '@/hooks/use-api';
 import { listClasses, createClass, deleteClass, listAccounts } from '@/lib/api/zoom';
 import { listBatches } from '@/lib/api/batches';
+import { listUsers } from '@/lib/api/users';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
 import { Plus, X, Video, ExternalLink, Clock, Info, Loader2, Calendar, Trash2 } from 'lucide-react';
@@ -21,49 +22,64 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
-export default function TeacherSchedule() {
-  const { name, id } = useAuth();
+export default function CourseCreatorSchedule() {
+  const { name } = useAuth();
   const [showForm, setShowForm] = useState(false);
 
   const { data: classesData, loading: classesLoading, error: classesError, refetch: refetchClasses } = useApi(
-    () => listClasses({ teacher_id: id, per_page: 100 }),
-    [id],
+    () => listClasses({ per_page: 100 }),
+    [],
   );
   const { data: batchesData } = useApi(
-    () => listBatches({ teacher_id: id, per_page: 100 }),
-    [id],
+    () => listBatches({ per_page: 100 }),
+    [],
   );
   const { data: accountsData } = useApi(listAccounts);
+  const { data: teachersData } = useApi(
+    () => listUsers({ role: 'teacher', status: 'active', per_page: 100 }),
+    [],
+  );
 
   const { execute: doCreate, loading: creating } = useMutation(createClass);
   const { execute: doDelete } = useMutation(deleteClass);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-  const teacherBatches = batchesData?.data || [];
+  const batches = batchesData?.data || [];
   const accounts = accountsData || [];
+  const teachers = teachersData?.data || [];
   const hasAccounts = accounts.length > 0;
   const defaultAccount = accounts.find((a: any) => a.isDefault);
 
   const [formData, setFormData] = useState({
     title: '',
     batchId: '',
+    teacherId: '',
     zoomAccountId: '',
     date: '',
     time: '',
     duration: '60',
   });
 
-  // Set default zoom account once loaded (useEffect prevents render loop)
   useEffect(() => {
     if (!formData.zoomAccountId && defaultAccount) {
       setFormData((prev) => ({ ...prev, zoomAccountId: defaultAccount.id }));
     }
   }, [defaultAccount?.id]);
 
+  // Auto-select teacher when batch changes (if batch has an assigned teacher)
+  useEffect(() => {
+    if (formData.batchId) {
+      const batch = batches.find((b: any) => b.id === formData.batchId);
+      if (batch?.teacherId) {
+        setFormData((prev) => ({ ...prev, teacherId: batch.teacherId }));
+      }
+    }
+  }, [formData.batchId]);
+
   const selectedAccount = accounts.find((a: any) => a.id === formData.zoomAccountId);
 
   const allClasses = classesData?.data || [];
-  const upcoming = allClasses.filter((c) => c.status === 'upcoming' || c.status === 'scheduled');
+  const upcoming = allClasses.filter((c) => c.status === 'upcoming' || c.status === 'scheduled' || c.status === 'live');
   const completed = allClasses.filter((c) => c.status === 'completed');
 
   const handleAdd = async (e: React.FormEvent) => {
@@ -72,6 +88,7 @@ export default function TeacherSchedule() {
       await doCreate({
         title: formData.title,
         batch_id: formData.batchId,
+        teacher_id: formData.teacherId,
         zoom_account_id: formData.zoomAccountId,
         scheduled_date: formData.date,
         scheduled_time: formData.time,
@@ -81,6 +98,7 @@ export default function TeacherSchedule() {
       setFormData({
         title: '',
         batchId: '',
+        teacherId: '',
         zoomAccountId: defaultAccount?.id || '',
         date: '',
         time: '',
@@ -108,8 +126,8 @@ export default function TeacherSchedule() {
   const inputClass = 'w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50';
 
   return (
-    <DashboardLayout role="teacher" userName={name || 'Teacher'}>
-      <DashboardHeader greeting="Schedule Classes" subtitle="Manage your Zoom classes" />
+    <DashboardLayout role="course-creator" userName={name || 'Course Creator'}>
+      <DashboardHeader greeting="Schedule Classes" subtitle="Manage Zoom classes for your batches" />
 
       <div className="flex justify-end mb-6">
         <button
@@ -139,8 +157,17 @@ export default function TeacherSchedule() {
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Batch</label>
                 <select value={formData.batchId} onChange={(e) => setFormData({ ...formData, batchId: e.target.value })} className={inputClass} required>
                   <option value="">Select batch</option>
-                  {teacherBatches.map((b) => (
+                  {batches.map((b: any) => (
                     <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Teacher</label>
+                <select value={formData.teacherId} onChange={(e) => setFormData({ ...formData, teacherId: e.target.value })} className={inputClass} required>
+                  <option value="">Select teacher</option>
+                  {teachers.map((t: any) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
                   ))}
                 </select>
               </div>
@@ -187,7 +214,6 @@ export default function TeacherSchedule() {
 
       {!classesLoading && !classesError && (
         <>
-          {/* Upcoming Classes */}
           {upcoming.length > 0 && (
             <div className="mb-8">
               <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">Upcoming Classes</h3>
@@ -200,7 +226,7 @@ export default function TeacherSchedule() {
                       </div>
                       <div>
                         <h4 className="font-medium text-[#1A1A1A]">{cls.title}</h4>
-                        <p className="text-xs text-gray-500 mt-0.5">{cls.batchName}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{cls.batchName}{cls.teacherName ? ` \u00B7 ${cls.teacherName}` : ''}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-4 ml-14 sm:ml-0">
@@ -212,7 +238,7 @@ export default function TeacherSchedule() {
                         </div>
                       </div>
                       {cls.zoomMeetingUrl && (
-                        <a href={cls.zoomStartUrl || cls.zoomMeetingUrl} target="_blank" rel="noopener noreferrer" className="w-10 h-10 bg-[#1A1A1A] rounded-xl flex items-center justify-center hover:bg-[#333] transition-colors">
+                        <a href={cls.zoomMeetingUrl} target="_blank" rel="noopener noreferrer" className="w-10 h-10 bg-[#1A1A1A] rounded-xl flex items-center justify-center hover:bg-[#333] transition-colors">
                           <ExternalLink size={16} className="text-white" />
                         </a>
                       )}
@@ -230,7 +256,6 @@ export default function TeacherSchedule() {
             </div>
           )}
 
-          {/* Completed Classes */}
           {completed.length > 0 && (
             <div>
               <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">Completed Classes</h3>
@@ -243,7 +268,7 @@ export default function TeacherSchedule() {
                       </div>
                       <div>
                         <h4 className="font-medium text-[#1A1A1A]">{cls.title}</h4>
-                        <p className="text-xs text-gray-500 mt-0.5">{cls.batchName}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{cls.batchName}{cls.teacherName ? ` \u00B7 ${cls.teacherName}` : ''}</p>
                       </div>
                     </div>
                     <div className="text-right ml-14 sm:ml-0">

@@ -74,6 +74,7 @@ export async function listClasses(params?: {
 export async function createClass(data: {
   title: string;
   batch_id: string;
+  teacher_id: string;
   zoom_account_id: string;
   scheduled_date: string;
   scheduled_time: string;

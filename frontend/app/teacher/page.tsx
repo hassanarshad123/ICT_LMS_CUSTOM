@@ -76,15 +76,15 @@ export default function TeacherDashboard() {
               </div>
             </Link>
 
-            <Link href="/teacher/schedule">
+            <Link href="/teacher/zoom">
               <div className="bg-white rounded-2xl p-5 sm:p-8 card-shadow hover:card-shadow-hover transition-all duration-200 cursor-pointer group">
                 <div className="w-14 h-14 bg-[#E8E8E8] rounded-2xl flex items-center justify-center mb-5">
                   <Video size={28} className="text-[#1A1A1A]" />
                 </div>
-                <h3 className="text-lg sm:text-xl font-bold text-[#1A1A1A] mb-2">Schedule Class</h3>
-                <p className="text-sm text-gray-500 mb-4">Schedule and manage Zoom classes</p>
+                <h3 className="text-lg sm:text-xl font-bold text-[#1A1A1A] mb-2">Zoom Classes</h3>
+                <p className="text-sm text-gray-500 mb-4">View and join your scheduled classes</p>
                 <div className="flex items-center gap-2 text-sm font-medium text-[#1A1A1A] group-hover:gap-3 transition-all">
-                  Manage Classes <ChevronRight size={16} />
+                  View Classes <ChevronRight size={16} />
                 </div>
               </div>
             </Link>
