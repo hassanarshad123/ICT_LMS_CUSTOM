@@ -14,8 +14,10 @@ class CertificateOut(BaseModel):
     batch_name: str
     course_id: uuid.UUID
     course_title: str
-    certificate_id: str
-    verification_code: str
+    certificate_id: Optional[str] = None
+    verification_code: Optional[str] = None
+    certificate_name: Optional[str] = None
+    requested_at: Optional[datetime] = None
     status: str
     completion_percentage: int
     approved_by: Optional[uuid.UUID] = None
@@ -31,6 +33,29 @@ class EligibleStudentOut(BaseModel):
     student_name: str
     student_email: str
     completion_percentage: int
+    certificate_name: Optional[str] = None
+    requested_at: Optional[datetime] = None
+    has_requested: bool = False
+    cert_uuid: Optional[uuid.UUID] = None
+
+
+class StudentDashboardCourseOut(BaseModel):
+    batch_id: uuid.UUID
+    batch_name: str
+    course_id: uuid.UUID
+    course_title: str
+    completion_percentage: int
+    threshold: int
+    status: str  # not_started | in_progress | eligible | pending | approved | revoked
+    certificate_id: Optional[uuid.UUID] = None  # cert record UUID if exists
+    certificate_name: Optional[str] = None
+    issued_at: Optional[datetime] = None
+
+
+class CertificateRequestBody(BaseModel):
+    batch_id: uuid.UUID
+    course_id: uuid.UUID
+    certificate_name: str
 
 
 class CertificateBatchApproveRequest(BaseModel):
@@ -45,6 +70,7 @@ class CertificateVerifyOut(BaseModel):
     valid: bool
     certificate_id: Optional[str] = None
     student_name: Optional[str] = None
+    certificate_name: Optional[str] = None
     course_title: Optional[str] = None
     batch_name: Optional[str] = None
     issued_at: Optional[datetime] = None

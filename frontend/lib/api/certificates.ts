@@ -9,8 +9,10 @@ export interface CertificateOut {
   batchName: string;
   courseId: string;
   courseTitle: string;
-  certificateId: string;
-  verificationCode: string;
+  certificateId?: string;
+  verificationCode?: string;
+  certificateName?: string;
+  requestedAt?: string;
   status: string;
   completionPercentage: number;
   approvedBy?: string;
@@ -26,6 +28,23 @@ export interface EligibleStudentOut {
   studentName: string;
   studentEmail: string;
   completionPercentage: number;
+  certificateName?: string;
+  requestedAt?: string;
+  hasRequested: boolean;
+  certUuid?: string;
+}
+
+export interface StudentDashboardCourse {
+  batchId: string;
+  batchName: string;
+  courseId: string;
+  courseTitle: string;
+  completionPercentage: number;
+  threshold: number;
+  status: 'not_started' | 'in_progress' | 'eligible' | 'pending' | 'approved' | 'revoked';
+  certificateId?: string;
+  certificateName?: string;
+  issuedAt?: string;
 }
 
 export interface PaginatedCertificates {
@@ -48,6 +67,7 @@ export interface CertificateVerifyOut {
   valid: boolean;
   certificateId?: string;
   studentName?: string;
+  certificateName?: string;
   courseTitle?: string;
   batchName?: string;
   issuedAt?: string;
@@ -75,6 +95,36 @@ export async function listEligibleStudents(params: {
   per_page?: number;
 }): Promise<PaginatedEligible> {
   return apiClient('/certificates/eligible', { params: params as Record<string, string | number | undefined> });
+}
+
+export async function getStudentDashboard(): Promise<StudentDashboardCourse[]> {
+  return apiClient('/certificates/my-dashboard');
+}
+
+export async function requestCertificate(
+  batchId: string,
+  courseId: string,
+  certificateName: string,
+): Promise<CertificateOut> {
+  return apiClient('/certificates/request', {
+    method: 'POST',
+    body: JSON.stringify({ batch_id: batchId, course_id: courseId, certificate_name: certificateName }),
+  });
+}
+
+export async function listCertificateRequests(params?: {
+  batch_id?: string;
+  course_id?: string;
+  page?: number;
+  per_page?: number;
+}): Promise<PaginatedEligible> {
+  return apiClient('/certificates/requests', { params: params as Record<string, string | number | undefined> });
+}
+
+export async function approveCertificateRequest(certUuid: string): Promise<CertificateOut> {
+  return apiClient(`/certificates/approve-request/${certUuid}`, {
+    method: 'POST',
+  });
 }
 
 export async function approveCertificate(
@@ -122,6 +172,7 @@ export async function verifyCertificate(code: string): Promise<CertificateVerify
     valid: json.valid,
     certificateId: json.certificate_id,
     studentName: json.student_name,
+    certificateName: json.certificate_name,
     courseTitle: json.course_title,
     batchName: json.batch_name,
     issuedAt: json.issued_at,

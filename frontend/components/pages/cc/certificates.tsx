@@ -1,12 +1,11 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { useApi, useMutation } from '@/hooks/use-api';
 import {
   listCertificates,
-  listEligibleStudents,
-  approveCertificate,
-  approveBatchCertificates,
+  listCertificateRequests,
+  approveCertificateRequest,
   downloadCertificate,
   revokeCertificate,
   CertificateOut,
@@ -15,7 +14,7 @@ import {
 import { listBatches, BatchOut } from '@/lib/api/batches';
 import { listCourses, CourseOut } from '@/lib/api/courses';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
-import { Award, CheckCircle2, Download, XCircle, Loader2, Users, FileCheck } from 'lucide-react';
+import { Award, CheckCircle2, Download, XCircle, Loader2, Users, FileCheck, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -41,7 +40,7 @@ export default function CCCertificates() {
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-[#1A1A1A]">Certificates</h1>
-        <p className="text-sm text-gray-500 mt-1">Approve student certificates and manage issued ones</p>
+        <p className="text-sm text-gray-500 mt-1">Review student certificate requests and manage issued ones</p>
       </div>
 
       {/* Tabs */}
@@ -54,7 +53,7 @@ export default function CCCertificates() {
         >
           <span className="flex items-center gap-2">
             <Users size={16} />
-            Approval Queue
+            Certificate Requests
           </span>
         </button>
         <button
@@ -78,53 +77,43 @@ export default function CCCertificates() {
 function ApprovalQueue() {
   const [selectedBatch, setSelectedBatch] = useState('');
   const [selectedCourse, setSelectedCourse] = useState('');
-  const [approveDialogStudent, setApproveDialogStudent] = useState<EligibleStudentOut | null>(null);
-  const [approveAllDialog, setApproveAllDialog] = useState(false);
+  const [approveDialog, setApproveDialog] = useState<EligibleStudentOut | null>(null);
 
   const { data: batchesData } = useApi(() => listBatches({ per_page: 100 }));
-  const { data: coursesData } = useApi(() => listCourses({ per_page: 100, batch_id: selectedBatch || undefined }), [selectedBatch]);
+  const { data: coursesData } = useApi(
+    () => listCourses({ per_page: 100, batch_id: selectedBatch || undefined }),
+    [selectedBatch],
+  );
 
-  const shouldFetchEligible = !!selectedBatch && !!selectedCourse;
   const {
-    data: eligibleData,
-    loading: eligibleLoading,
-    refetch: refetchEligible,
+    data: requestsData,
+    loading: requestsLoading,
+    refetch: refetchRequests,
   } = useApi(
-    () => shouldFetchEligible
-      ? listEligibleStudents({ batch_id: selectedBatch, course_id: selectedCourse, per_page: 100 })
-      : Promise.resolve({ data: [], total: 0, page: 1, perPage: 100, totalPages: 1 }),
+    () => listCertificateRequests({
+      batch_id: selectedBatch || undefined,
+      course_id: selectedCourse || undefined,
+      per_page: 100,
+    }),
     [selectedBatch, selectedCourse],
   );
 
-  const { execute: doApprove, loading: approving } = useMutation(approveCertificate);
-  const { execute: doBatchApprove, loading: batchApproving } = useMutation(approveBatchCertificates);
+  const { execute: doApprove, loading: approving } = useMutation(approveCertificateRequest);
 
   const batches: BatchOut[] = batchesData?.data || [];
   const courses: CourseOut[] = coursesData?.data || [];
-  const eligible: EligibleStudentOut[] = eligibleData?.data || [];
+  const requests: EligibleStudentOut[] = requestsData?.data || [];
 
-  const handleApprove = async (student: EligibleStudentOut) => {
+  const handleApprove = async (request: EligibleStudentOut) => {
+    if (!request.certUuid) return;
     try {
-      await doApprove(student.studentId, selectedBatch, selectedCourse);
-      toast.success(`Certificate issued for ${student.studentName}`);
-      setApproveDialogStudent(null);
-      refetchEligible();
+      await doApprove(request.certUuid);
+      toast.success(`Certificate approved for ${request.certificateName || request.studentName}`);
+      setApproveDialog(null);
+      refetchRequests();
     } catch (err: any) {
       toast.error(err.message || 'Failed to approve certificate');
-      setApproveDialogStudent(null);
-    }
-  };
-
-  const handleApproveAll = async () => {
-    try {
-      const ids = eligible.map((s) => s.studentId);
-      const results = await doBatchApprove(ids, selectedBatch, selectedCourse);
-      toast.success(`${results.length} certificate(s) issued`);
-      setApproveAllDialog(false);
-      refetchEligible();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to approve certificates');
-      setApproveAllDialog(false);
+      setApproveDialog(null);
     }
   };
 
@@ -132,30 +121,31 @@ function ApprovalQueue() {
 
   return (
     <>
+      {/* Filters */}
       <div className="bg-white rounded-2xl p-5 card-shadow mb-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1.5">Select Batch</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1.5">Filter by Batch</label>
             <select
               value={selectedBatch}
               onChange={(e) => { setSelectedBatch(e.target.value); setSelectedCourse(''); }}
               className={selectClass}
             >
-              <option value="">Choose a batch...</option>
+              <option value="">All batches</option>
               {batches.map((b) => (
                 <option key={b.id} value={b.id}>{b.name}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1.5">Select Course</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1.5">Filter by Course</label>
             <select
               value={selectedCourse}
               onChange={(e) => setSelectedCourse(e.target.value)}
               className={selectClass}
               disabled={!selectedBatch}
             >
-              <option value="">Choose a course...</option>
+              <option value="">All courses</option>
               {courses.map((c) => (
                 <option key={c.id} value={c.id}>{c.title}</option>
               ))}
@@ -164,67 +154,64 @@ function ApprovalQueue() {
         </div>
       </div>
 
-      {!shouldFetchEligible && (
+      {requestsLoading && <PageLoading variant="table" />}
+
+      {!requestsLoading && requests.length === 0 && (
         <EmptyState
-          icon={<Users size={28} className="text-gray-400" />}
-          title="Select Batch & Course"
-          description="Choose a batch and course above to see eligible students"
+          icon={<Clock size={28} className="text-gray-400" />}
+          title="No Pending Requests"
+          description="No students have requested certificates yet. When students reach the completion threshold and submit a request, they will appear here."
         />
       )}
 
-      {shouldFetchEligible && eligibleLoading && <PageLoading variant="table" />}
-
-      {shouldFetchEligible && !eligibleLoading && eligible.length === 0 && (
-        <EmptyState
-          icon={<Award size={28} className="text-gray-400" />}
-          title="No Eligible Students"
-          description="No students have met the completion threshold for this batch and course yet."
-        />
-      )}
-
-      {shouldFetchEligible && !eligibleLoading && eligible.length > 0 && (
+      {!requestsLoading && requests.length > 0 && (
         <div className="bg-white rounded-2xl card-shadow overflow-hidden">
           <div className="flex items-center justify-between p-5 border-b border-gray-100">
-            <p className="text-sm text-gray-500">{eligible.length} student(s) eligible</p>
-            <button
-              onClick={() => setApproveAllDialog(true)}
-              disabled={batchApproving}
-              className="flex items-center gap-2 px-4 py-2 bg-[#C5D86D] text-[#1A1A1A] rounded-xl text-sm font-medium hover:bg-[#b8cc5c] transition-colors disabled:opacity-60"
-            >
-              {batchApproving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-              Approve All
-            </button>
+            <p className="text-sm text-gray-500">{requests.length} pending request(s)</p>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-100">
-                  <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Name</th>
+                  <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Name on Certificate</th>
+                  <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Student Account</th>
                   <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Email</th>
                   <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Completion</th>
+                  <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Requested</th>
                   <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Action</th>
                 </tr>
               </thead>
               <tbody>
-                {eligible.map((student) => (
-                  <tr key={student.studentId} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                    <td className="px-5 py-3.5 text-sm font-medium text-[#1A1A1A]">{student.studentName}</td>
-                    <td className="px-5 py-3.5 text-sm text-gray-500">{student.studentEmail}</td>
+                {requests.map((request) => (
+                  <tr key={request.certUuid || request.studentId} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                    <td className="px-5 py-3.5">
+                      <p className="text-sm font-semibold text-[#1A1A1A]">{request.certificateName || '—'}</p>
+                      {request.certificateName && request.certificateName !== request.studentName && (
+                        <p className="text-xs text-gray-400 mt-0.5">Account: {request.studentName}</p>
+                      )}
+                    </td>
+                    <td className="px-5 py-3.5 text-sm text-gray-600">{request.studentName}</td>
+                    <td className="px-5 py-3.5 text-sm text-gray-500">{request.studentEmail}</td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-2">
                         <div className="w-20 h-2 bg-gray-200 rounded-full overflow-hidden">
                           <div
                             className="h-full bg-[#C5D86D] rounded-full"
-                            style={{ width: `${Math.min(student.completionPercentage, 100)}%` }}
+                            style={{ width: `${Math.min(request.completionPercentage, 100)}%` }}
                           />
                         </div>
-                        <span className="text-xs font-medium text-gray-600">{student.completionPercentage}%</span>
+                        <span className="text-xs font-medium text-gray-600">{request.completionPercentage}%</span>
                       </div>
+                    </td>
+                    <td className="px-5 py-3.5 text-sm text-gray-500">
+                      {request.requestedAt
+                        ? new Date(request.requestedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                        : '—'}
                     </td>
                     <td className="px-5 py-3.5 text-right">
                       <button
-                        onClick={() => setApproveDialogStudent(student)}
+                        onClick={() => setApproveDialog(request)}
                         disabled={approving}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1A1A1A] text-white rounded-lg text-xs font-medium hover:bg-[#333] transition-colors disabled:opacity-60"
                       >
@@ -240,37 +227,28 @@ function ApprovalQueue() {
         </div>
       )}
 
-      {/* Approve Single Dialog */}
-      <AlertDialog open={!!approveDialogStudent} onOpenChange={(open) => !open && setApproveDialogStudent(null)}>
+      {/* Approve Dialog */}
+      <AlertDialog open={!!approveDialog} onOpenChange={(open) => !open && setApproveDialog(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Approve Certificate</AlertDialogTitle>
+            <AlertDialogTitle>Approve Certificate Request</AlertDialogTitle>
             <AlertDialogDescription>
-              Issue a certificate for <strong>{approveDialogStudent?.studentName}</strong> with {approveDialogStudent?.completionPercentage}% completion? This will generate a PDF certificate.
+              Issue a certificate for <strong>{approveDialog?.certificateName || approveDialog?.studentName}</strong> (
+              {approveDialog?.studentEmail}) with {approveDialog?.completionPercentage}% completion?
+              {approveDialog?.certificateName && approveDialog.certificateName !== approveDialog.studentName && (
+                <span className="block mt-2 text-amber-600">
+                  Note: The certificate name &ldquo;{approveDialog.certificateName}&rdquo; differs from the account name &ldquo;{approveDialog.studentName}&rdquo;.
+                </span>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => approveDialogStudent && handleApprove(approveDialogStudent)} className="bg-[#1A1A1A] hover:bg-[#333] text-white">
-              Approve
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Approve All Dialog */}
-      <AlertDialog open={approveAllDialog} onOpenChange={setApproveAllDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Approve All Certificates</AlertDialogTitle>
-            <AlertDialogDescription>
-              Issue certificates for all {eligible.length} eligible student(s)? This will generate PDF certificates for each student.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleApproveAll} className="bg-[#1A1A1A] hover:bg-[#333] text-white">
-              Approve All
+            <AlertDialogAction
+              onClick={() => approveDialog && handleApprove(approveDialog)}
+              className="bg-[#1A1A1A] hover:bg-[#333] text-white"
+            >
+              Approve & Generate PDF
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -319,7 +297,7 @@ function IssuedCertificates() {
       <EmptyState
         icon={<Award size={28} className="text-gray-400" />}
         title="No Certificates Issued"
-        description="Approve students from the approval queue to issue certificates."
+        description="Approve student requests from the Certificate Requests tab to issue certificates."
       />
     );
   }
@@ -332,6 +310,7 @@ function IssuedCertificates() {
             <thead>
               <tr className="border-b border-gray-100">
                 <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Certificate ID</th>
+                <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Certificate Name</th>
                 <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Student</th>
                 <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Course</th>
                 <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider px-5 py-3">Batch</th>
@@ -343,9 +322,15 @@ function IssuedCertificates() {
             <tbody>
               {certs.map((cert) => (
                 <tr key={cert.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                  <td className="px-5 py-3.5 text-sm font-mono text-[#1A1A1A]">{cert.certificateId}</td>
+                  <td className="px-5 py-3.5 text-sm font-mono text-[#1A1A1A]">{cert.certificateId || '—'}</td>
                   <td className="px-5 py-3.5">
-                    <p className="text-sm font-medium text-[#1A1A1A]">{cert.studentName}</p>
+                    <p className="text-sm font-medium text-[#1A1A1A]">{cert.certificateName || cert.studentName}</p>
+                    {cert.certificateName && cert.certificateName !== cert.studentName && (
+                      <p className="text-xs text-gray-400">Account: {cert.studentName}</p>
+                    )}
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <p className="text-sm text-gray-600">{cert.studentName}</p>
                     <p className="text-xs text-gray-400">{cert.studentEmail}</p>
                   </td>
                   <td className="px-5 py-3.5 text-sm text-gray-600">{cert.courseTitle}</td>
@@ -396,7 +381,7 @@ function IssuedCertificates() {
           <AlertDialogHeader>
             <AlertDialogTitle>Revoke Certificate</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to revoke the certificate for <strong>{revokeDialog?.studentName}</strong>? This action cannot be undone.
+              Are you sure you want to revoke the certificate for <strong>{revokeDialog?.certificateName || revokeDialog?.studentName}</strong>? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="px-6 pb-2">

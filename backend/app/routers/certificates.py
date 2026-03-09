@@ -10,6 +10,8 @@ from app.database import get_session
 from app.schemas.certificate import (
     CertificateOut,
     EligibleStudentOut,
+    StudentDashboardCourseOut,
+    CertificateRequestBody,
     CertificateBatchApproveRequest,
     CertificateRevokeRequest,
     CertificateVerifyOut,
@@ -25,6 +27,7 @@ router = APIRouter()
 
 CC = Annotated[User, Depends(require_roles("course_creator"))]
 AdminOrCC = Annotated[User, Depends(require_roles("admin", "course_creator"))]
+Student = Annotated[User, Depends(require_roles("student"))]
 AllRoles = Annotated[User, Depends(get_current_user)]
 
 
@@ -43,6 +46,57 @@ async def list_eligible_students(
     )
     return PaginatedResponse(
         data=[EligibleStudentOut(**s) for s in students],
+        total=total,
+        page=page,
+        per_page=per_page,
+        total_pages=max(1, math.ceil(total / per_page)),
+    )
+
+
+@router.get("/my-dashboard", response_model=list[StudentDashboardCourseOut])
+async def student_dashboard(
+    current_user: Student,
+    session: AsyncSession = Depends(get_session),
+):
+    """Get all enrolled courses with progress and certificate status for the current student."""
+    items = await certificate_service.get_student_dashboard(session, current_user.id)
+    return [StudentDashboardCourseOut(**item) for item in items]
+
+
+@router.post("/request", response_model=CertificateOut)
+async def request_certificate(
+    body: CertificateRequestBody,
+    current_user: Student,
+    session: AsyncSession = Depends(get_session),
+):
+    """Student requests a certificate with their preferred name."""
+    try:
+        cert = await certificate_service.request_certificate(
+            session, current_user.id, body.batch_id, body.course_id, body.certificate_name,
+        )
+        await session.commit()
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    data = await certificate_service.get_certificate(session, cert.id)
+    return CertificateOut(**data)
+
+
+@router.get("/requests", response_model=PaginatedResponse[EligibleStudentOut])
+async def list_certificate_requests(
+    current_user: CC,
+    session: AsyncSession = Depends(get_session),
+    batch_id: Optional[uuid.UUID] = None,
+    course_id: Optional[uuid.UUID] = None,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+):
+    """List pending certificate requests from students."""
+    requests, total = await certificate_service.list_certificate_requests(
+        session, current_user, batch_id, course_id, page, per_page,
+    )
+    return PaginatedResponse(
+        data=[EligibleStudentOut(**r) for r in requests],
         total=total,
         page=page,
         per_page=per_page,
@@ -109,6 +163,25 @@ async def approve_batch_certificates(
 
     await session.commit()
     return results
+
+
+@router.post("/approve-request/{cert_uuid}", response_model=CertificateOut)
+async def approve_certificate_request(
+    cert_uuid: uuid.UUID,
+    current_user: CC,
+    session: AsyncSession = Depends(get_session),
+):
+    """Approve a pending certificate request from a student."""
+    try:
+        cert = await certificate_service.approve_existing_certificate(
+            session, cert_uuid, current_user.id,
+        )
+        await session.commit()
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    data = await certificate_service.get_certificate(session, cert.id)
+    return CertificateOut(**data)
 
 
 @router.get("/verify/{code}", response_model=CertificateVerifyOut)

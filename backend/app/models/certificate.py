@@ -21,8 +21,9 @@ class Certificate(SQLModel, table=True):
     batch_id: uuid.UUID = Field(nullable=False, foreign_key="batches.id")
     course_id: uuid.UUID = Field(nullable=False, foreign_key="courses.id")
 
-    certificate_id: str = Field(nullable=False, unique=True)  # ICT-2026-00001
-    verification_code: str = Field(nullable=False, unique=True)  # 12-char alphanumeric
+    certificate_id: Optional[str] = Field(default=None, unique=True)  # ICT-2026-00001 (set at approval)
+    verification_code: Optional[str] = Field(default=None, unique=True)  # 12-char alphanumeric (set at approval)
+    certificate_name: Optional[str] = Field(default=None)  # Student's chosen name for the certificate
 
     status: CertificateStatus = Field(
         sa_column=Column(
@@ -32,6 +33,10 @@ class Certificate(SQLModel, table=True):
         )
     )
     completion_percentage: int = Field(default=0)
+
+    requested_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(TIMESTAMP(timezone=True), nullable=True),
+    )
 
     # Approval tracking
     approved_by: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id")

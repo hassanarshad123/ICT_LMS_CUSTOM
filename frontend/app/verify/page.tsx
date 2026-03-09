@@ -99,8 +99,11 @@ export default function VerifyPage() {
             </div>
             <div className="bg-green-50 rounded-xl p-5 space-y-3">
               <div>
-                <p className="text-xs text-green-600 font-medium uppercase tracking-wider">Student Name</p>
-                <p className="text-lg font-semibold text-[#1A1A1A]">{result.studentName}</p>
+                <p className="text-xs text-green-600 font-medium uppercase tracking-wider">Name on Certificate</p>
+                <p className="text-lg font-semibold text-[#1A1A1A]">{result.certificateName || result.studentName}</p>
+                {result.certificateName && result.certificateName !== result.studentName && (
+                  <p className="text-xs text-gray-400 mt-0.5">Account name: {result.studentName}</p>
+                )}
               </div>
               <div>
                 <p className="text-xs text-green-600 font-medium uppercase tracking-wider">Course</p>
@@ -139,8 +142,8 @@ export default function VerifyPage() {
             </div>
             <div className="bg-amber-50 rounded-xl p-5 space-y-3">
               <div>
-                <p className="text-xs text-amber-600 font-medium uppercase tracking-wider">Student Name</p>
-                <p className="text-lg font-semibold text-[#1A1A1A]">{result.studentName}</p>
+                <p className="text-xs text-amber-600 font-medium uppercase tracking-wider">Name on Certificate</p>
+                <p className="text-lg font-semibold text-[#1A1A1A]">{result.certificateName || result.studentName}</p>
               </div>
               <div>
                 <p className="text-xs text-amber-600 font-medium uppercase tracking-wider">Course</p>
