@@ -9,7 +9,7 @@ import { useBasePath } from '@/hooks/use-base-path';
 import { useApi, useMutation } from '@/hooks/use-api';
 import { getBatch, listBatchCourses, listBatchStudents, enrollStudent, removeStudent } from '@/lib/api/batches';
 import { listUsers } from '@/lib/api/users';
-import { listLectures, createLecture, deleteLecture, initVideoUpload, getLectureStatus } from '@/lib/api/lectures';
+import { listLectures, createLecture, deleteLecture, initVideoUpload, getLectureStatus, reencodeVideo } from '@/lib/api/lectures';
 import { listMaterials, getUploadUrl, createMaterial, deleteMaterial } from '@/lib/api/materials';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
@@ -31,6 +31,7 @@ import {
   XCircle,
   Film,
   Link as LinkIcon,
+  RotateCw,
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -80,6 +81,7 @@ export default function BatchContentPage() {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState<Record<string, UploadProgress>>({});
   const pollingRefs = useRef<Record<string, ReturnType<typeof setInterval>>>({});
+  const activeUploadsRef = useRef<Record<string, tus.Upload>>({});
 
   // Per-course material form state
   const [showMaterialForm, setShowMaterialForm] = useState<string | null>(null);
@@ -189,7 +191,7 @@ export default function BatchContentPage() {
   }, [courses.length]);
 
   const pollingStartTimes = useRef<Record<string, number>>({});
-  const POLLING_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+  const POLLING_TIMEOUT_MS = 60 * 60 * 1000; // 60 minutes — long videos take 15-45 min to encode
 
   const startStatusPolling = useCallback((lectureId: string, courseId: string) => {
     // Clear existing poll for this lecture
@@ -208,10 +210,10 @@ export default function BatchContentPage() {
           [lectureId]: {
             ...prev[lectureId],
             status: 'error',
-            error: 'Processing is taking longer than expected. Please check back later.',
+            error: 'Processing timed out after 1 hour. The video may still be encoding — refresh the page to check.',
           },
         }));
-        toast.error('Video processing timed out. It may still complete — check back later.');
+        toast.error('Processing timed out after 1 hour. The video may still be encoding — refresh the page to check.');
         return;
       }
 
@@ -246,8 +248,8 @@ export default function BatchContentPage() {
         // Keep polling on network errors
       }
 
-      // Adaptive interval: 5s for first 2 min, then 15s
-      const interval = elapsed < 2 * 60 * 1000 ? 5000 : 15000;
+      // Adaptive interval: 5s (0-2min), 15s (2-10min), 30s (10-60min)
+      const interval = elapsed < 2 * 60 * 1000 ? 5000 : elapsed < 10 * 60 * 1000 ? 15000 : 30000;
       pollingRefs.current[lectureId] = setTimeout(poll, interval);
     };
 
@@ -296,6 +298,8 @@ export default function BatchContentPage() {
           chunkSize: 50 * 1024 * 1024, // 50 MB chunks (default was 5 MB)
           parallelUploads: 5, // 5 concurrent chunks
           retryDelays: [0, 3000, 5000, 10000, 15000],
+          storeFingerprintForResuming: true,
+          removeFingerprintOnSuccess: true,
           headers: {
             AuthorizationSignature: res.authSignature,
             AuthorizationExpire: String(res.authExpire),
@@ -314,6 +318,7 @@ export default function BatchContentPage() {
             }));
           },
           onSuccess: () => {
+            delete activeUploadsRef.current[lectureId];
             setUploadProgress((prev) => ({
               ...prev,
               [lectureId]: { ...prev[lectureId], progress: 100, status: 'processing' },
@@ -329,6 +334,7 @@ export default function BatchContentPage() {
             toast.error(`Upload failed: ${err.message}`);
           },
         });
+        activeUploadsRef.current[lectureId] = upload;
         upload.start();
 
         // Reset form
@@ -381,6 +387,34 @@ export default function BatchContentPage() {
     } catch (err: any) {
       toast.error(err.message);
       setDeleteLectureConfirm(null);
+    }
+  };
+
+  const handleRetryUpload = (lectureId: string) => {
+    const upload = activeUploadsRef.current[lectureId];
+    if (upload) {
+      setUploadProgress((prev) => ({
+        ...prev,
+        [lectureId]: { ...prev[lectureId], status: 'uploading', progress: prev[lectureId]?.progress || 0, error: undefined },
+      }));
+      upload.start();
+      toast.info('Resuming upload...');
+    } else {
+      toast.error('Cannot resume — please re-upload the file');
+    }
+  };
+
+  const handleReencode = async (lectureId: string, courseId: string) => {
+    try {
+      await reencodeVideo(lectureId);
+      setUploadProgress((prev) => ({
+        ...prev,
+        [lectureId]: { lectureId, progress: 100, status: 'processing' },
+      }));
+      toast.success('Re-encoding started');
+      startStatusPolling(lectureId, courseId);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to start re-encoding');
     }
   };
 
@@ -810,12 +844,36 @@ export default function BatchContentPage() {
                                         <span className="text-xs text-green-600 font-medium">Ready</span>
                                       </div>
                                     )}
-                                    {((up && (up.status === 'failed' || up.status === 'error')) || (!up && lecture.videoStatus === 'failed')) && (
+                                    {((up && up.status === 'error') || (!up && false)) && (
+                                      <div className="flex items-center gap-1.5 mt-1.5">
+                                        <XCircle size={12} className="text-red-500" />
+                                        <span className="text-xs text-red-600 font-medium">
+                                          {up?.error || 'Upload failed'}
+                                        </span>
+                                        {activeUploadsRef.current[lecture.id] && (
+                                          <button
+                                            onClick={() => handleRetryUpload(lecture.id)}
+                                            className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors"
+                                          >
+                                            <RotateCw size={10} />
+                                            Retry Upload
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
+                                    {((up && up.status === 'failed') || (!up && lecture.videoStatus === 'failed')) && (
                                       <div className="flex items-center gap-1.5 mt-1.5">
                                         <XCircle size={12} className="text-red-500" />
                                         <span className="text-xs text-red-600 font-medium">
                                           {up?.error || 'Processing failed'}
                                         </span>
+                                        <button
+                                          onClick={() => handleReencode(lecture.id, course.id)}
+                                          className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-amber-600 bg-amber-50 rounded-md hover:bg-amber-100 transition-colors"
+                                        >
+                                          <RotateCw size={10} />
+                                          Retry Encoding
+                                        </button>
                                       </div>
                                     )}
                                   </div>

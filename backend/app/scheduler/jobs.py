@@ -82,3 +82,39 @@ async def send_zoom_reminders():
                 )
 
         await session.commit()
+
+
+async def cleanup_stale_uploads():
+    """Soft-delete lectures stuck in 'pending' for over 24 hours (daily).
+
+    These are upload-init records where TUS upload never completed.
+    Only cleans 'pending' — never touches 'processing' which may still be encoding.
+    """
+    from sqlmodel import select
+    from app.models.course import Lecture
+    from app.utils.bunny import delete_video
+
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+
+    async with async_session() as session:
+        result = await session.execute(
+            select(Lecture).where(
+                Lecture.video_status == "pending",
+                Lecture.created_at < cutoff,
+                Lecture.deleted_at.is_(None),
+            )
+        )
+        stale = result.scalars().all()
+        for lecture in stale:
+            # Best-effort cleanup of Bunny entry
+            if lecture.bunny_video_id:
+                try:
+                    await delete_video(lecture.bunny_video_id)
+                except Exception as e:
+                    logger.warning("Failed to delete Bunny video %s: %s", lecture.bunny_video_id, e)
+            lecture.deleted_at = datetime.now(timezone.utc)
+            session.add(lecture)
+
+        if stale:
+            await session.commit()
+            logger.info("Cleaned up %d stale pending uploads", len(stale))

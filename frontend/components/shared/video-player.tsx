@@ -64,6 +64,8 @@ export function VideoPlayer({ lectureId, videoType, videoUrl, videoStatus, water
   const [urlType, setUrlType] = useState<string>('');
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const expiresAtRef = useRef<number | null>(null);
 
   const fetchSignedUrl = useCallback(async () => {
     setLoading(true);
@@ -85,6 +87,10 @@ export function VideoPlayer({ lectureId, videoType, videoUrl, videoStatus, water
         const url = resumeSeconds > 0 ? `${res.url}&t=${resumeSeconds}` : res.url;
         setEmbedUrl(url);
         setUrlType('bunny');
+        // Track expiry for auto-refresh
+        if (res.expiresAt) {
+          expiresAtRef.current = new Date(res.expiresAt).getTime();
+        }
       } else if (res.type === 'external' && res.url) {
         const ytEmbed = toYouTubeEmbed(res.url);
         const vimeoEmbed = toVimeoEmbed(res.url);
@@ -161,6 +167,41 @@ export function VideoPlayer({ lectureId, videoType, videoUrl, videoStatus, water
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
+  }, [urlType, embedUrl, lectureId]);
+
+  // Auto-refresh signed URL before expiry (5 minutes before)
+  useEffect(() => {
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = null;
+    }
+    if (urlType !== 'bunny' || !embedUrl || !expiresAtRef.current) return;
+
+    const msUntilExpiry = expiresAtRef.current - Date.now();
+    const refreshIn = msUntilExpiry - 5 * 60 * 1000; // 5 min before expiry
+    if (refreshIn <= 0) return; // Already expired or too close
+
+    refreshTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await getSignedUrl(lectureId);
+        if (res.type === 'bunny_embed') {
+          // Preserve approximate playback position
+          setEmbedUrl(res.url);
+          if (res.expiresAt) {
+            expiresAtRef.current = new Date(res.expiresAt).getTime();
+          }
+        }
+      } catch {
+        // Silently fail — user can manually retry
+      }
+    }, refreshIn);
+
+    return () => {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+      }
+    };
   }, [urlType, embedUrl, lectureId]);
 
   // Processing state

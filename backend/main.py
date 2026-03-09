@@ -45,12 +45,13 @@ async def lifespan(app: FastAPI):
     # Startup — start scheduler
     try:
         from apscheduler.schedulers.asyncio import AsyncIOScheduler
-        from app.scheduler.jobs import cleanup_expired_sessions, send_zoom_reminders, retry_failed_recordings
+        from app.scheduler.jobs import cleanup_expired_sessions, send_zoom_reminders, retry_failed_recordings, cleanup_stale_uploads
 
         scheduler = AsyncIOScheduler()
         scheduler.add_job(cleanup_expired_sessions, "interval", hours=1, id="cleanup_sessions")
         scheduler.add_job(send_zoom_reminders, "interval", minutes=10, id="zoom_reminders")
         scheduler.add_job(retry_failed_recordings, "interval", minutes=30, id="retry_recordings")
+        scheduler.add_job(cleanup_stale_uploads, "interval", hours=24, id="cleanup_stale_uploads")
         scheduler.start()
         app.state.scheduler = scheduler
     except Exception as e:
