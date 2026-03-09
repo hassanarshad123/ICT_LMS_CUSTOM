@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { useAuth } from '@/lib/auth-context';
@@ -34,7 +34,6 @@ export default function CourseDetailPage() {
   const params = useParams();
   const courseId = params.courseId as string;
   const { name, batchIds } = useAuth();
-  const studentBatchId = batchIds?.[0];
 
   const [expandedModule, setExpandedModule] = useState<string | null>(null);
   const [playlistTab, setPlaylistTab] = useState<'lectures' | 'recordings'>('lectures');
@@ -48,13 +47,20 @@ export default function CourseDetailPage() {
     [courseId],
   );
 
+  // Find the batch that links this course to the student
+  // (intersection of student's batches and course's batches)
+  const studentBatchId = useMemo(() => {
+    if (!course?.batchIds?.length || !batchIds?.length) return batchIds?.[0];
+    return batchIds.find((b) => course.batchIds.includes(b)) || batchIds[0];
+  }, [course, batchIds]);
+
   // Fetch curriculum modules
   const { data: modules, loading: modulesLoading } = useApi(
     () => listModules(courseId),
     [courseId],
   );
 
-  // Fetch lectures for this course in the student's batch
+  // Fetch lectures for this course in the matching batch
   const { data: lecturesData, loading: lecturesLoading } = useApi(
     () => studentBatchId
       ? listLectures({ batch_id: studentBatchId, course_id: courseId })
@@ -62,7 +68,7 @@ export default function CourseDetailPage() {
     [courseId, studentBatchId],
   );
 
-  // Fetch materials for this course in the student's batch
+  // Fetch materials for this course in the matching batch
   const { data: materialsData, loading: materialsLoading } = useApi(
     () => studentBatchId
       ? listMaterials({ batch_id: studentBatchId, course_id: courseId })

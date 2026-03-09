@@ -54,6 +54,18 @@ async def list_lectures(
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=1, le=100),
 ):
+    # Students can only list lectures from batches they're enrolled in
+    if current_user.role.value == "student":
+        enrolled = await session.execute(
+            select(StudentBatch).where(
+                StudentBatch.student_id == current_user.id,
+                StudentBatch.batch_id == batch_id,
+                StudentBatch.removed_at.is_(None),
+            )
+        )
+        if not enrolled.scalar_one_or_none():
+            raise HTTPException(status_code=403, detail="Not enrolled in this batch")
+
     items, total = await lecture_service.list_lectures(
         session, batch_id, course_id=course_id, page=page, per_page=per_page,
     )
