@@ -44,35 +44,12 @@ function toVimeoEmbed(url: string): string | null {
   return null;
 }
 
-const WATERMARK_POSITIONS = [
-  'top-4 left-4',
-  'top-4 right-4',
-  'bottom-12 left-4',
-  'bottom-12 right-4',
-  'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2',
-  'top-1/3 right-8',
-  'bottom-1/3 left-8',
-] as const;
-
 function WatermarkOverlay({ text }: { text: string }) {
-  const [posIndex, setPosIndex] = useState(0);
-
-  useEffect(() => {
-    // Shift position every 30 seconds to prevent cropping
-    const interval = setInterval(() => {
-      setPosIndex((prev) => (prev + 1) % WATERMARK_POSITIONS.length);
-    }, 30000);
-    // Start at a random position
-    setPosIndex(Math.floor(Math.random() * WATERMARK_POSITIONS.length));
-    return () => clearInterval(interval);
-  }, []);
-
   return (
-    <div
-      className={`absolute ${WATERMARK_POSITIONS[posIndex]} z-10 pointer-events-none select-none transition-all duration-1000 ease-in-out`}
-    >
-      <span className="text-white/30 text-sm font-mono tracking-wide"
-        style={{ textShadow: '0 0 4px rgba(0,0,0,0.5)' }}
+    <div className="absolute inset-0 z-10 pointer-events-none select-none flex items-center justify-center">
+      <span
+        className="text-white/20 text-2xl sm:text-3xl md:text-4xl font-bold font-mono tracking-widest"
+        style={{ textShadow: '0 0 6px rgba(0,0,0,0.4)' }}
       >
         {text}
       </span>
