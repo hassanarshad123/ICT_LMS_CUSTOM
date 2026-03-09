@@ -107,27 +107,34 @@ export async function apiClient<T = any>(
   clearTimeout(timeoutId);
 
   // Try refresh on 401
-  if (res.status === 401 && token) {
-    const newToken = await refreshAccessToken();
-    if (newToken) {
-      headers['Authorization'] = `Bearer ${newToken}`;
-      const retryController = new AbortController();
-      const retryTimeout = setTimeout(() => retryController.abort(), 30000);
-      try {
-        res = await fetch(url, { ...rest, body: processedBody, headers, signal: retryController.signal });
-      } catch (err: any) {
+  if (res.status === 401) {
+    if (token) {
+      const newToken = await refreshAccessToken();
+      if (newToken) {
+        headers['Authorization'] = `Bearer ${newToken}`;
+        const retryController = new AbortController();
+        const retryTimeout = setTimeout(() => retryController.abort(), 30000);
+        try {
+          res = await fetch(url, { ...rest, body: processedBody, headers, signal: retryController.signal });
+        } catch (err: any) {
+          clearTimeout(retryTimeout);
+          if (err.name === 'AbortError') throw new Error('Request timed out');
+          throw err;
+        }
         clearTimeout(retryTimeout);
-        if (err.name === 'AbortError') throw new Error('Request timed out');
-        throw err;
+      } else {
+        // Refresh failed — clear tokens and redirect to login
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('user');
+        window.location.href = '/';
+        throw new Error('Session expired');
       }
-      clearTimeout(retryTimeout);
     } else {
-      // Clear tokens and redirect to login
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
+      // No token at all — redirect to login
       localStorage.removeItem('user');
       window.location.href = '/';
-      throw new Error('Session expired');
+      throw new Error('Not authenticated');
     }
   }
 
