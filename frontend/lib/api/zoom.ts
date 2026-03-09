@@ -104,28 +104,3 @@ export async function getAttendance(classId: string) {
 export async function getRecordings(classId: string) {
   return apiClient(`/zoom/classes/${classId}/recordings`);
 }
-
-// --- Recordings (used by admin recordings page) ---
-
-export interface RecordingItem {
-  id: string;
-  classTitle: string;
-  teacherName?: string;
-  batchName?: string;
-  scheduledDate: string;
-  scheduledTime?: string;
-  duration?: number;
-  fileSize?: number;
-  thumbnailUrl?: string;
-}
-
-export async function listRecordings(params?: {
-  per_page?: number;
-  page?: number;
-}): Promise<{ data: RecordingItem[] }> {
-  return apiClient('/zoom/recordings', { params: params as Record<string, string | number | undefined> });
-}
-
-export async function getRecordingSignedUrl(recordingId: string): Promise<{ url: string }> {
-  return apiClient(`/zoom/recordings/${recordingId}/signed-url`, { method: 'POST' });
-}
