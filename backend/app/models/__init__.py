@@ -21,6 +21,7 @@ from app.models.other import (  # noqa: F401
     JobApplication,
     UserSession,
     SystemSetting,
+    Notification,
     ActivityLog,
 )
 from app.models.certificate import Certificate, CertificateCounter  # noqa: F401
