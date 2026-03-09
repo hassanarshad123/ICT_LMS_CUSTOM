@@ -16,6 +16,29 @@ settings = get_settings()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
+# ── Sentry ──────────────────────────────────────────────────────
+if settings.SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.starlette import StarletteIntegration
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
+
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        environment=settings.APP_ENV,
+        release="ict-lms@1.0.0",
+        send_default_pii=True,
+        traces_sample_rate=0.3,          # 30% of requests get performance tracing
+        profiles_sample_rate=0.1,         # 10% of traced requests get profiled
+        enable_db_query_source=True,      # show which code triggered DB queries
+        include_local_variables=True,     # capture local vars in stack traces
+        max_request_body_size="medium",   # capture request bodies up to 10KB
+        integrations=[
+            StarletteIntegration(transaction_style="endpoint"),
+            FastApiIntegration(transaction_style="endpoint"),
+        ],
+    )
+    logging.getLogger("ict_lms").info("Sentry initialized (env=%s)", settings.APP_ENV)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

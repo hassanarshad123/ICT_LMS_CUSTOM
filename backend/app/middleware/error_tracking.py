@@ -10,6 +10,31 @@ from starlette.responses import Response, JSONResponse
 logger = logging.getLogger("ict_lms")
 
 
+def _sentry_set_context(request: Request, request_id: str, exc: Exception | None = None):
+    """Push request context + user info into the current Sentry scope. Best-effort."""
+    try:
+        import sentry_sdk
+    except ImportError:
+        return
+
+    # Tag the event with our request ID so it's searchable in Sentry
+    sentry_sdk.set_tag("request_id", request_id)
+
+    # Attach user context if auth middleware has set it
+    user_id = getattr(request.state, "user_id", None)
+    user_email = getattr(request.state, "user_email", None)
+    if user_id or user_email:
+        sentry_sdk.set_user({
+            **({"id": str(user_id)} if user_id else {}),
+            **({"email": user_email} if user_email else {}),
+            "ip_address": request.client.host if request.client else None,
+        })
+
+    # If there's an exception, capture it explicitly so Sentry gets full context
+    if exc is not None:
+        sentry_sdk.capture_exception(exc)
+
+
 async def _store_error(
     request: Request,
     request_id: str,
@@ -100,6 +125,7 @@ class ErrorTrackingMiddleware(BaseHTTPMiddleware):
                 request.url.path,
                 exc,
             )
+            _sentry_set_context(request, request_id, exc)
             await _store_error(request, request_id, 500, exc)
             return JSONResponse(
                 status_code=500,
@@ -121,6 +147,7 @@ class ErrorTrackingMiddleware(BaseHTTPMiddleware):
 
         # Store 5xx errors that were handled (e.g., HTTPException with 500)
         if response.status_code >= 500:
+            _sentry_set_context(request, request_id)
             await _store_error(request, request_id, response.status_code)
 
         response.headers["X-Request-ID"] = request_id

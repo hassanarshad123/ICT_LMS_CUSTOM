@@ -300,6 +300,12 @@ async def test_discord_alert(current_user: Admin):
     return {"status": "sent"}
 
 
+@router.get("/sentry-test")
+async def sentry_test(current_user: Admin):
+    """Trigger a test error to verify Sentry is capturing exceptions."""
+    raise RuntimeError("Sentry integration test — this error is intentional")
+
+
 @router.get("/health")
 async def enhanced_health_check(
     session: Annotated[AsyncSession, Depends(get_session)],
