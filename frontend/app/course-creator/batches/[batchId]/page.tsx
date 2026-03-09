@@ -1,15 +1,16 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import * as tus from 'tus-js-client';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { useAuth } from '@/lib/auth-context';
 import { useApi, useMutation } from '@/hooks/use-api';
-import { getBatch, listBatchCourses } from '@/lib/api/batches';
+import { getBatch, listBatchCourses, listBatchStudents, enrollStudent, removeStudent } from '@/lib/api/batches';
+import { listUsers } from '@/lib/api/users';
 import { listLectures, createLecture, deleteLecture, initVideoUpload, getLectureStatus } from '@/lib/api/lectures';
 import { listMaterials, getUploadUrl, createMaterial, deleteMaterial } from '@/lib/api/materials';
-import { PageLoading, PageError } from '@/components/shared/page-states';
+import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
 import {
   ArrowLeft,
@@ -21,6 +22,7 @@ import {
   Upload,
   Paperclip,
   Users,
+  UserPlus,
   Layers,
   Loader2,
   FileText,
@@ -82,6 +84,63 @@ export default function BatchContentPage() {
   const [materialFile, setMaterialFile] = useState<File | null>(null);
   const [materialTitle, setMaterialTitle] = useState('');
   const [materialDescription, setMaterialDescription] = useState('');
+
+  // Student management
+  const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [removeStudentConfirm, setRemoveStudentConfirm] = useState<string | null>(null);
+
+  const { data: students, loading: studentsLoading, refetch: refetchStudents } = useApi(
+    () => listBatchStudents(batchId),
+    [batchId],
+  );
+
+  const { data: allStudentsData } = useApi(
+    () => listUsers({ role: 'student', per_page: 100 }),
+  );
+
+  const { execute: doEnroll, loading: enrolling } = useMutation(
+    (studentId: string) => enrollStudent(batchId, studentId),
+  );
+
+  const { execute: doRemoveStudent } = useMutation(
+    (studentId: string) => removeStudent(batchId, studentId),
+  );
+
+  const enrolledIds = useMemo(() => {
+    if (!students || !Array.isArray(students)) return new Set<string>();
+    return new Set(students.map((s: any) => s.id));
+  }, [students]);
+
+  const availableStudents = useMemo(() => {
+    const all = allStudentsData?.data || [];
+    return all.filter((s) => !enrolledIds.has(s.id));
+  }, [allStudentsData, enrolledIds]);
+
+  const handleEnrollStudent = async () => {
+    if (!selectedStudentId) return;
+    try {
+      await doEnroll(selectedStudentId);
+      toast.success('Student enrolled');
+      setSelectedStudentId('');
+      refetchStudents();
+      refetchBatch();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const handleRemoveStudent = async (studentId: string) => {
+    try {
+      await doRemoveStudent(studentId);
+      toast.success('Student removed');
+      setRemoveStudentConfirm(null);
+      refetchStudents();
+      refetchBatch();
+    } catch (err: any) {
+      toast.error(err.message);
+      setRemoveStudentConfirm(null);
+    }
+  };
 
   const { execute: doCreateLecture, loading: creatingLecture } = useMutation(createLecture);
   const { execute: doDeleteLecture } = useMutation(deleteLecture);
@@ -446,6 +505,85 @@ export default function BatchContentPage() {
                 {c.title}
               </span>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* Student Management */}
+      <div className="bg-white rounded-2xl p-6 card-shadow mb-6">
+        <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">Enroll Student</h3>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <select
+            value={selectedStudentId}
+            onChange={(e) => setSelectedStudentId(e.target.value)}
+            className="flex-1 px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50"
+          >
+            <option value="">Select a student...</option>
+            {availableStudents.map((s) => (
+              <option key={s.id} value={s.id}>{s.name} ({s.email})</option>
+            ))}
+          </select>
+          <button
+            onClick={handleEnrollStudent}
+            disabled={!selectedStudentId || enrolling}
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#333] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {enrolling ? <Loader2 size={16} className="animate-spin" /> : <UserPlus size={16} />}
+            Enroll Student
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl card-shadow overflow-hidden mb-6">
+        <div className="px-6 py-4 border-b border-gray-100">
+          <h3 className="text-lg font-semibold text-[#1A1A1A]">Enrolled Students ({Array.isArray(students) ? students.length : 0})</h3>
+        </div>
+        {studentsLoading ? (
+          <div className="flex items-center gap-2 py-8 justify-center">
+            <Loader2 size={16} className="animate-spin text-gray-400" />
+            <span className="text-sm text-gray-500">Loading students...</span>
+          </div>
+        ) : !Array.isArray(students) || students.length === 0 ? (
+          <div className="p-8">
+            <EmptyState
+              icon={<Users size={28} className="text-gray-400" />}
+              title="No students enrolled"
+              description="Use the dropdown above to enroll students in this batch."
+            />
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[600px]">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Name</th>
+                  <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Email</th>
+                  <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Phone</th>
+                  <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Enrolled Date</th>
+                  <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {students.map((student: any) => (
+                  <tr key={student.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                    <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm font-medium text-[#1A1A1A]">{student.name}</td>
+                    <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{student.email}</td>
+                    <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{student.phone || '—'}</td>
+                    <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">
+                      {student.enrolledAt ? new Date(student.enrolledAt).toLocaleDateString() : student.createdAt ? new Date(student.createdAt).toLocaleDateString() : '—'}
+                    </td>
+                    <td className="px-3 sm:px-6 py-3 sm:py-4">
+                      <button
+                        onClick={() => setRemoveStudentConfirm(student.id)}
+                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
@@ -859,6 +997,19 @@ export default function BatchContentPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={() => deleteMaterialConfirm && handleDeleteMaterial(deleteMaterialConfirm.id, deleteMaterialConfirm.courseId)} className="bg-red-600 hover:bg-red-700 text-white">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!removeStudentConfirm} onOpenChange={(open) => !open && setRemoveStudentConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Student</AlertDialogTitle>
+            <AlertDialogDescription>Are you sure you want to remove this student from the batch? They will lose access to all batch courses and materials.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => removeStudentConfirm && handleRemoveStudent(removeStudentConfirm)} className="bg-red-600 hover:bg-red-700 text-white">Remove</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
