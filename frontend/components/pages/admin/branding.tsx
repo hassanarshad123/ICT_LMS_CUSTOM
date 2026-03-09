@@ -101,6 +101,7 @@ export default function BrandingPage() {
   const [logoPreview, setLogoPreview] = useState<string | null>(branding.logoUrl);
   const [uploading, setUploading] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [pendingLogoFile, setPendingLogoFile] = useState<File | null>(null);
 
   // Certificate design state
   const [certForm, setCertForm] = useState<CertFormState>(CERT_DEFAULTS);
@@ -140,12 +141,12 @@ export default function BrandingPage() {
       form.instituteName !== branding.instituteName ||
       form.tagline !== branding.tagline ||
       form.logoUrl !== branding.logoUrl ||
-      form.presetTheme !== branding.presetTheme;
+      form.presetTheme !== branding.presetTheme ||
+      pendingLogoFile !== null;
     setHasChanges(changed);
-  }, [form, branding]);
+  }, [form, branding, pendingLogoFile]);
 
   const { execute: saveBranding, loading: saving } = useMutation(async () => {
-    // Only send changed fields (logo is saved separately via uploadLogo)
     const payload: Record<string, string | null> = {};
     if (form.primaryColor !== branding.primaryColor) payload.primaryColor = form.primaryColor;
     if (form.accentColor !== branding.accentColor) payload.accentColor = form.accentColor;
@@ -153,15 +154,26 @@ export default function BrandingPage() {
     if (form.instituteName !== branding.instituteName) payload.instituteName = form.instituteName;
     if (form.tagline !== branding.tagline) payload.tagline = form.tagline;
     if (form.presetTheme !== branding.presetTheme) payload.presetTheme = form.presetTheme;
-    // Only send logoUrl if it was removed (set to null), not the full data URL
+    // Send logoUrl=null if logo was removed
     if (form.logoUrl === null && branding.logoUrl !== null) payload.logoUrl = null;
 
-    if (Object.keys(payload).length === 0) {
+    const hasPayload = Object.keys(payload).length > 0;
+
+    if (!hasPayload && !pendingLogoFile) {
       toast.info('No changes to save');
       return;
     }
 
-    await updateBranding(payload);
+    // Upload pending logo file first
+    if (pendingLogoFile) {
+      await uploadLogo(pendingLogoFile);
+      setPendingLogoFile(null);
+    }
+
+    if (hasPayload) {
+      await updateBranding(payload);
+    }
+
     await branding.refetch();
     toast.success('Branding saved successfully');
   });
@@ -182,7 +194,7 @@ export default function BrandingPage() {
     }));
   };
 
-  const handleLogoUpload = async (file: File) => {
+  const handleLogoUpload = (file: File) => {
     if (file.size > 2 * 1024 * 1024) {
       toast.error('Logo must be under 2MB');
       return;
@@ -194,22 +206,21 @@ export default function BrandingPage() {
       return;
     }
 
-    setUploading(true);
-    try {
-      const { logoUrl: dataUrl } = await uploadLogo(file);
+    // Read locally for preview — actual upload happens on Save
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
       updateField('logoUrl', dataUrl);
       setLogoPreview(dataUrl);
-      toast.success('Logo uploaded');
-    } catch (err: any) {
-      toast.error(err.message || 'Logo upload failed');
-    } finally {
-      setUploading(false);
-    }
+      setPendingLogoFile(file);
+    };
+    reader.readAsDataURL(file);
   };
 
   const removeLogo = () => {
     updateField('logoUrl', null);
     setLogoPreview(null);
+    setPendingLogoFile(null);
   };
 
   const handleDrop = (e: React.DragEvent) => {
