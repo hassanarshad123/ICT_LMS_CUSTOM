@@ -9,6 +9,8 @@ interface VideoPlayerProps {
   videoType: string;
   videoUrl?: string;
   videoStatus?: string;
+  /** Student identifier shown as anti-piracy watermark overlay */
+  watermark?: string;
 }
 
 function toYouTubeEmbed(url: string): string | null {
@@ -42,7 +44,43 @@ function toVimeoEmbed(url: string): string | null {
   return null;
 }
 
-export function VideoPlayer({ lectureId, videoType, videoUrl, videoStatus }: VideoPlayerProps) {
+const WATERMARK_POSITIONS = [
+  'top-4 left-4',
+  'top-4 right-4',
+  'bottom-12 left-4',
+  'bottom-12 right-4',
+  'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2',
+  'top-1/3 right-8',
+  'bottom-1/3 left-8',
+] as const;
+
+function WatermarkOverlay({ text }: { text: string }) {
+  const [posIndex, setPosIndex] = useState(0);
+
+  useEffect(() => {
+    // Shift position every 30 seconds to prevent cropping
+    const interval = setInterval(() => {
+      setPosIndex((prev) => (prev + 1) % WATERMARK_POSITIONS.length);
+    }, 30000);
+    // Start at a random position
+    setPosIndex(Math.floor(Math.random() * WATERMARK_POSITIONS.length));
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div
+      className={`absolute ${WATERMARK_POSITIONS[posIndex]} z-10 pointer-events-none select-none transition-all duration-1000 ease-in-out`}
+    >
+      <span className="text-white/30 text-sm font-mono tracking-wide"
+        style={{ textShadow: '0 0 4px rgba(0,0,0,0.5)' }}
+      >
+        {text}
+      </span>
+    </div>
+  );
+}
+
+export function VideoPlayer({ lectureId, videoType, videoUrl, videoStatus, watermark }: VideoPlayerProps) {
   const [embedUrl, setEmbedUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -222,7 +260,8 @@ export function VideoPlayer({ lectureId, videoType, videoUrl, videoStatus }: Vid
   // Iframe player (Bunny, YouTube, Vimeo)
   if (embedUrl) {
     return (
-      <div className="aspect-video bg-black rounded-2xl overflow-hidden">
+      <div className="relative aspect-video bg-black rounded-2xl overflow-hidden">
+        {watermark && <WatermarkOverlay text={watermark} />}
         <iframe
           ref={iframeRef}
           src={embedUrl}
