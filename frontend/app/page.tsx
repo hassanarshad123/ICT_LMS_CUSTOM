@@ -26,6 +26,11 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
 
+    // Clear any stale tokens before attempting login
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('user');
+
     try {
       const res = await login(email, password);
       localStorage.setItem('access_token', res.accessToken);
