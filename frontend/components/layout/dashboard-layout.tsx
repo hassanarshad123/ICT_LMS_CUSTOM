@@ -1,13 +1,10 @@
 'use client';
 
-import { UserRole } from '@/lib/types';
 import { useAuth } from '@/lib/auth-context';
 import Sidebar, { MobileTrigger } from './sidebar';
 import { SidebarProvider } from './sidebar-context';
 
 interface DashboardLayoutProps {
-  role?: UserRole;
-  userName?: string;
   children: React.ReactNode;
 }
 

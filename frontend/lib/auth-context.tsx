@@ -90,7 +90,6 @@ export function useAuth() {
     role: (u?.role?.replace('_', '-') || 'student') as UserRole,
     batchIds: u?.batchIds || [],
     batchNames: u?.batchNames || [],
-    specialization: undefined as string | undefined,
     teacherId: u?.id,
     // New properties
     user: u,

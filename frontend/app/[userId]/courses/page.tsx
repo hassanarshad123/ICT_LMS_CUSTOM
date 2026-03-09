@@ -7,14 +7,20 @@ import CCCourses from '@/components/pages/cc/courses';
 import TeacherCourses from '@/components/pages/teacher/courses';
 import StudentCourses from '@/components/pages/student/courses';
 
+function CoursesForRole({ role }: { role: string }) {
+  switch (role) {
+    case 'course-creator': return <CCCourses />;
+    case 'teacher': return <TeacherCourses />;
+    case 'student': return <StudentCourses />;
+    default: return <AdminCourses />;
+  }
+}
+
 export default function CoursesPage() {
   const { role } = useAuth();
   return (
     <RoleGuard allowed={['admin', 'course-creator', 'teacher', 'student']}>
-      {role === 'course-creator' ? <CCCourses /> :
-       role === 'teacher' ? <TeacherCourses /> :
-       role === 'student' ? <StudentCourses /> :
-       <AdminCourses />}
+      <CoursesForRole role={role} />
     </RoleGuard>
   );
 }
