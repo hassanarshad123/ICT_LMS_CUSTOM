@@ -557,7 +557,7 @@ class TestRunner:
             # Update application status
             if "application" in self.ids:
                 r = self.patch(f"/jobs/{self.ids['job']}/applications/{self.ids['application']}/status", cc_h,
-                               json={"status": "reviewed"})
+                               json={"status": "shortlisted"})
                 self.check("PATCH application status -> 200", r.status_code == 200, f"status={r.status_code}")
 
             # Student my-applications
