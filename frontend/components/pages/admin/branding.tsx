@@ -94,15 +94,23 @@ export default function BrandingPage() {
   }, [form, branding]);
 
   const { execute: saveBranding, loading: saving } = useMutation(async () => {
-    await updateBranding({
-      primaryColor: form.primaryColor,
-      accentColor: form.accentColor,
-      backgroundColor: form.backgroundColor,
-      instituteName: form.instituteName,
-      tagline: form.tagline,
-      logoUrl: form.logoUrl,
-      presetTheme: form.presetTheme,
-    });
+    // Only send changed fields (logo is saved separately via uploadLogo)
+    const payload: Record<string, string | null> = {};
+    if (form.primaryColor !== branding.primaryColor) payload.primaryColor = form.primaryColor;
+    if (form.accentColor !== branding.accentColor) payload.accentColor = form.accentColor;
+    if (form.backgroundColor !== branding.backgroundColor) payload.backgroundColor = form.backgroundColor;
+    if (form.instituteName !== branding.instituteName) payload.instituteName = form.instituteName;
+    if (form.tagline !== branding.tagline) payload.tagline = form.tagline;
+    if (form.presetTheme !== branding.presetTheme) payload.presetTheme = form.presetTheme;
+    // Only send logoUrl if it was removed (set to null), not the full data URL
+    if (form.logoUrl === null && branding.logoUrl !== null) payload.logoUrl = null;
+
+    if (Object.keys(payload).length === 0) {
+      toast.info('No changes to save');
+      return;
+    }
+
+    await updateBranding(payload);
     await branding.refetch();
     toast.success('Branding saved successfully');
   });
