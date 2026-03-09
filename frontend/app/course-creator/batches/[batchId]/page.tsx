@@ -294,7 +294,6 @@ export default function BatchContentPage() {
           chunkSize: 50 * 1024 * 1024, // 50 MB chunks (default was 5 MB)
           parallelUploads: 5, // 5 concurrent chunks
           retryDelays: [0, 3000, 5000, 10000, 15000],
-          uploadSize: videoFile.size,
           headers: {
             AuthorizationSignature: res.authSignature,
             AuthorizationExpire: String(res.authExpire),
