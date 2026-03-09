@@ -25,8 +25,8 @@ router = APIRouter()
 settings = get_settings()
 
 Admin = Annotated[User, Depends(require_roles("admin"))]
-AdminOrTeacher = Annotated[User, Depends(require_roles("admin", "teacher"))]
-Teacher = Annotated[User, Depends(require_roles("teacher"))]
+AdminOrCourseCreator = Annotated[User, Depends(require_roles("admin", "course_creator"))]
+CourseCreator = Annotated[User, Depends(require_roles("course_creator"))]
 AllRoles = Annotated[User, Depends(get_current_user)]
 
 
@@ -34,7 +34,7 @@ AllRoles = Annotated[User, Depends(get_current_user)]
 
 @router.get("/accounts")
 async def list_accounts(
-    current_user: AdminOrTeacher,
+    current_user: AdminOrCourseCreator,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     accounts = await zoom_service.list_accounts(session)
@@ -154,13 +154,28 @@ async def list_classes(
 @router.post("/classes", response_model=ZoomClassOut, status_code=status.HTTP_201_CREATED)
 async def create_class(
     body: ZoomClassCreate,
-    current_user: Teacher,
+    current_user: CourseCreator,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     # Get zoom account for API call
     account = await zoom_service.get_account(session, body.zoom_account_id)
     if not account:
         raise HTTPException(status_code=404, detail="Zoom account not found")
+
+    # Validate batch belongs to this course creator
+    from sqlmodel import select
+    from app.models.batch import Batch
+    from app.models.enums import UserRole
+    r = await session.execute(select(Batch).where(Batch.id == body.batch_id, Batch.deleted_at.is_(None)))
+    batch = r.scalar_one_or_none()
+    if not batch or batch.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only schedule classes for your own batches")
+
+    # Validate teacher_id exists and is a teacher
+    r = await session.execute(select(User).where(User.id == body.teacher_id, User.deleted_at.is_(None)))
+    teacher = r.scalar_one_or_none()
+    if not teacher or teacher.role != UserRole.teacher:
+        raise HTTPException(status_code=400, detail="Invalid teacher selected")
 
     # Call Zoom API to create meeting
     zoom_meeting = None
@@ -185,7 +200,7 @@ async def create_class(
 
     zc = await zoom_service.create_class(
         session, title=body.title, batch_id=body.batch_id,
-        teacher_id=current_user.id, zoom_account_id=body.zoom_account_id,
+        teacher_id=body.teacher_id, zoom_account_id=body.zoom_account_id,
         scheduled_date=body.scheduled_date, scheduled_time=body.scheduled_time,
         duration=body.duration,
         zoom_meeting_id=zoom_meeting["meeting_id"] if zoom_meeting else None,
@@ -194,15 +209,10 @@ async def create_class(
     )
 
     from app.utils.formatters import format_duration
-    from sqlmodel import select
-    from app.models.batch import Batch
-
-    r = await session.execute(select(Batch.name).where(Batch.id == zc.batch_id))
-    batch_name = r.scalar_one_or_none()
 
     return ZoomClassOut(
-        id=zc.id, title=zc.title, batch_id=zc.batch_id, batch_name=batch_name,
-        teacher_id=zc.teacher_id, teacher_name=current_user.name,
+        id=zc.id, title=zc.title, batch_id=zc.batch_id, batch_name=batch.name,
+        teacher_id=zc.teacher_id, teacher_name=teacher.name,
         zoom_meeting_url=zc.zoom_meeting_url, zoom_start_url=zc.zoom_start_url,
         scheduled_date=zc.scheduled_date,
         scheduled_time=zc.scheduled_time.strftime("%H:%M") if zc.scheduled_time else body.scheduled_time,
@@ -217,9 +227,22 @@ async def create_class(
 async def update_class(
     class_id: uuid.UUID,
     body: ZoomClassUpdate,
-    current_user: AdminOrTeacher,
+    current_user: AdminOrCourseCreator,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
+    # Course creators can only update classes in their own batches
+    if current_user.role.value == "course_creator":
+        from sqlmodel import select as sel
+        from app.models.zoom import ZoomClass as ZC
+        from app.models.batch import Batch as B
+        r = await session.execute(
+            sel(ZC).join(B, ZC.batch_id == B.id).where(
+                ZC.id == class_id, ZC.deleted_at.is_(None), B.created_by == current_user.id
+            )
+        )
+        if not r.scalar_one_or_none():
+            raise HTTPException(status_code=403, detail="You can only update classes in your own batches")
+
     try:
         zc = await zoom_service.update_class(session, class_id, **body.model_dump(exclude_unset=True))
     except ValueError as e:
@@ -252,9 +275,22 @@ async def update_class(
 @router.delete("/classes/{class_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_class(
     class_id: uuid.UUID,
-    current_user: AdminOrTeacher,
+    current_user: AdminOrCourseCreator,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
+    # Course creators can only delete classes in their own batches
+    if current_user.role.value == "course_creator":
+        from sqlmodel import select as sel
+        from app.models.zoom import ZoomClass as ZC
+        from app.models.batch import Batch as B
+        r = await session.execute(
+            sel(ZC).join(B, ZC.batch_id == B.id).where(
+                ZC.id == class_id, ZC.deleted_at.is_(None), B.created_by == current_user.id
+            )
+        )
+        if not r.scalar_one_or_none():
+            raise HTTPException(status_code=403, detail="You can only delete classes in your own batches")
+
     try:
         await zoom_service.soft_delete_class(session, class_id)
     except ValueError as e:

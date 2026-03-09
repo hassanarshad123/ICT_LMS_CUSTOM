@@ -38,6 +38,7 @@ class ZoomAccountAdminOut(ZoomAccountOut):
 class ZoomClassCreate(BaseModel):
     title: str
     batch_id: uuid.UUID
+    teacher_id: uuid.UUID
     zoom_account_id: uuid.UUID
     scheduled_date: date
     scheduled_time: str
