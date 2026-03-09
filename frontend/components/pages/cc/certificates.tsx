@@ -13,6 +13,7 @@ import {
 } from '@/lib/api/certificates';
 import { listBatches, BatchOut } from '@/lib/api/batches';
 import { listCourses, CourseOut } from '@/lib/api/courses';
+import DashboardLayout from '@/components/layout/dashboard-layout';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { Award, CheckCircle2, Download, XCircle, Loader2, Users, FileCheck, Clock } from 'lucide-react';
 import { toast } from 'sonner';
@@ -37,6 +38,7 @@ export default function CCCertificates() {
   const [activeTab, setActiveTab] = useState<'queue' | 'issued'>('queue');
 
   return (
+    <DashboardLayout>
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-[#1A1A1A]">Certificates</h1>
@@ -71,6 +73,7 @@ export default function CCCertificates() {
 
       {activeTab === 'queue' ? <ApprovalQueue /> : <IssuedCertificates />}
     </div>
+    </DashboardLayout>
   );
 }
 

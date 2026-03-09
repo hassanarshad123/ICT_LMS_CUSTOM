@@ -9,6 +9,7 @@ import {
   StudentDashboardCourse,
 } from '@/lib/api/certificates';
 import { useAuth } from '@/lib/auth-context';
+import DashboardLayout from '@/components/layout/dashboard-layout';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { Award, Download, Loader2, BookOpen, Clock, CheckCircle2, XCircle, Send } from 'lucide-react';
 import { toast } from 'sonner';
@@ -91,20 +92,23 @@ export default function StudentCertificates() {
     }
   };
 
-  if (loading) return <PageLoading variant="cards" />;
-  if (error) return <PageError message={error} onRetry={refetch} />;
+  if (loading) return <DashboardLayout><PageLoading variant="cards" /></DashboardLayout>;
+  if (error) return <DashboardLayout><PageError message={error} onRetry={refetch} /></DashboardLayout>;
 
   if (!courses || courses.length === 0) {
     return (
-      <EmptyState
-        icon={<BookOpen size={28} className="text-gray-400" />}
-        title="No Courses Found"
-        description="You are not enrolled in any courses yet. Contact your administrator for enrollment."
-      />
+      <DashboardLayout>
+        <EmptyState
+          icon={<BookOpen size={28} className="text-gray-400" />}
+          title="No Courses Found"
+          description="You are not enrolled in any courses yet. Contact your administrator for enrollment."
+        />
+      </DashboardLayout>
     );
   }
 
   return (
+    <DashboardLayout>
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-[#1A1A1A]">My Certificates</h1>
@@ -249,5 +253,6 @@ export default function StudentCertificates() {
         </DialogContent>
       </Dialog>
     </div>
+    </DashboardLayout>
   );
 }
