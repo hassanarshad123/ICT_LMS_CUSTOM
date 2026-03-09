@@ -25,6 +25,7 @@ import {
   Activity,
   Settings,
   Palette,
+  Megaphone,
   LogOut,
   Menu,
   X,
@@ -49,6 +50,7 @@ const navConfig: Record<UserRole, NavItem[]> = {
     { label: 'Insights', path: '/insights', icon: 'bar-chart-3' },
     { label: 'Recordings', path: '/recordings', icon: 'play-circle' },
     { label: 'Certificates', path: '/certificates', icon: 'award' },
+    { label: 'Announcements', path: '/announcements', icon: 'megaphone' },
     { label: 'Monitoring', path: '/monitoring', icon: 'activity' },
     { label: 'Branding', path: '/branding', icon: 'palette' },
     { label: 'Settings', path: '/settings', icon: 'settings' },
@@ -61,6 +63,7 @@ const navConfig: Record<UserRole, NavItem[]> = {
     { label: 'Schedule Class', path: '/schedule', icon: 'calendar' },
     { label: 'Recordings', path: '/recordings', icon: 'play-circle' },
     { label: 'Certificates', path: '/certificates', icon: 'award' },
+    { label: 'Announcements', path: '/announcements', icon: 'megaphone' },
     { label: 'Jobs', path: '/jobs', icon: 'briefcase' },
     { label: 'Settings', path: '/settings', icon: 'settings' },
   ],
@@ -70,6 +73,7 @@ const navConfig: Record<UserRole, NavItem[]> = {
     { label: 'My Batches', path: '/batches', icon: 'layers' },
     { label: 'Zoom Classes', path: '/classes', icon: 'video' },
     { label: 'Recordings', path: '/recordings', icon: 'play-circle' },
+    { label: 'Announcements', path: '/announcements', icon: 'megaphone' },
     { label: 'Settings', path: '/settings', icon: 'settings' },
   ],
   student: [
@@ -77,6 +81,7 @@ const navConfig: Record<UserRole, NavItem[]> = {
     { label: 'Courses', path: '/courses', icon: 'book-open' },
     { label: 'Zoom Classes', path: '/classes', icon: 'video' },
     { label: 'Recordings', path: '/recordings', icon: 'play-circle' },
+    { label: 'Announcements', path: '/announcements', icon: 'megaphone' },
     { label: 'Certificates', path: '/certificates', icon: 'award' },
     { label: 'Job Opportunities', path: '/jobs', icon: 'briefcase' },
     { label: 'Settings', path: '/settings', icon: 'settings' },
@@ -100,6 +105,7 @@ const iconMap: Record<string, React.ReactNode> = {
   award: <Award size={20} />,
   activity: <Activity size={20} />,
   palette: <Palette size={20} />,
+  megaphone: <Megaphone size={20} />,
   settings: <Settings size={20} />,
 };
 
