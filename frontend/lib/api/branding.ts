@@ -38,7 +38,7 @@ export async function getBranding(): Promise<BrandingData> {
   const timeout = setTimeout(() => controller.abort(), 5000);
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}/branding/`, { signal: controller.signal });
+    res = await fetch(`${API_BASE}/branding`, { signal: controller.signal });
   } finally {
     clearTimeout(timeout);
   }
@@ -58,7 +58,7 @@ export async function getBranding(): Promise<BrandingData> {
 }
 
 export async function updateBranding(data: BrandingUpdate): Promise<BrandingData> {
-  return apiClient<BrandingData>('/branding/', {
+  return apiClient<BrandingData>('/branding', {
     method: 'PATCH',
     body: JSON.stringify(data),
   });

@@ -47,7 +47,7 @@ def _field_to_key(field: str) -> str:
     return f"branding_{field}"
 
 
-@router.get("/", response_model=BrandingResponse)
+@router.get("", response_model=BrandingResponse)
 async def get_branding(
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
@@ -70,7 +70,7 @@ async def get_branding(
     return BrandingResponse(**data)
 
 
-@router.patch("/", response_model=BrandingResponse)
+@router.patch("", response_model=BrandingResponse)
 async def update_branding(
     body: BrandingUpdate,
     current_user: Admin,
