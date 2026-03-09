@@ -11,18 +11,18 @@ export default function CourseCreatorLayout({ children }: { children: React.Reac
   useEffect(() => {
     const stored = localStorage.getItem('user');
     if (!stored) {
-      router.push('/');
+      router.push('/login');
       return;
     }
     try {
       const user = JSON.parse(stored);
       if (user.role !== 'course_creator') {
-        router.push('/');
+        router.push('/login');
         return;
       }
       setAuthorized(true);
     } catch {
-      router.push('/');
+      router.push('/login');
     }
   }, [router]);
 

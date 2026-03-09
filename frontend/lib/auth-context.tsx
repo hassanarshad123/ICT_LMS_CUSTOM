@@ -14,13 +14,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-const rolePathMap: Record<string, string> = {
-  admin: '/admin',
-  course_creator: '/course-creator',
-  teacher: '/teacher',
-  student: '/student',
-};
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -60,7 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('user');
     setUser(null);
-    router.push('/');
+    router.push('/login');
   }, [router]);
 
   return (

@@ -127,13 +127,13 @@ export async function apiClient<T = any>(
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
         localStorage.removeItem('user');
-        window.location.href = '/';
+        window.location.href = '/login';
         throw new Error('Session expired');
       }
     } else {
       // No token at all — redirect to login
       localStorage.removeItem('user');
-      window.location.href = '/';
+      window.location.href = '/login';
       throw new Error('Not authenticated');
     }
   }
@@ -147,7 +147,7 @@ export async function apiClient<T = any>(
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
       localStorage.removeItem('user');
-      window.location.href = '/';
+      window.location.href = '/login';
       throw new Error('Session invalid. Please log in again.');
     }
     throw new Error(error.detail || 'Forbidden');

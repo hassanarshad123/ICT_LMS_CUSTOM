@@ -11,18 +11,18 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
   useEffect(() => {
     const stored = localStorage.getItem('user');
     if (!stored) {
-      router.push('/');
+      router.push('/login');
       return;
     }
     try {
       const user = JSON.parse(stored);
       if (user.role !== 'teacher') {
-        router.push('/');
+        router.push('/login');
         return;
       }
       setAuthorized(true);
     } catch {
-      router.push('/');
+      router.push('/login');
     }
   }, [router]);
 
