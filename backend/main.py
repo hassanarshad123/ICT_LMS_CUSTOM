@@ -8,9 +8,9 @@ from slowapi.errors import RateLimitExceeded
 from app.utils.rate_limit import limiter
 
 from app.config import get_settings
-from app.routers import auth, users, batches, courses, curriculum, lectures, materials, jobs, announcements, zoom, admin
+from app.routers import auth, users, batches, courses, curriculum, lectures, materials, jobs, announcements, zoom, admin, certificates, monitoring
 from app.websockets.routes import router as ws_router
-from app.middleware.logging import RequestLoggingMiddleware
+from app.middleware.error_tracking import ErrorTrackingMiddleware
 
 settings = get_settings()
 
@@ -22,11 +22,12 @@ async def lifespan(app: FastAPI):
     # Startup — start scheduler
     try:
         from apscheduler.schedulers.asyncio import AsyncIOScheduler
-        from app.scheduler.jobs import cleanup_expired_sessions, send_zoom_reminders
+        from app.scheduler.jobs import cleanup_expired_sessions, send_zoom_reminders, retry_failed_recordings
 
         scheduler = AsyncIOScheduler()
         scheduler.add_job(cleanup_expired_sessions, "interval", hours=1, id="cleanup_sessions")
         scheduler.add_job(send_zoom_reminders, "interval", minutes=10, id="zoom_reminders")
+        scheduler.add_job(retry_failed_recordings, "interval", minutes=30, id="retry_recordings")
         scheduler.start()
         app.state.scheduler = scheduler
     except Exception as e:
@@ -49,8 +50,8 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# Request logging
-app.add_middleware(RequestLoggingMiddleware)
+# Error tracking + request logging (replaces old RequestLoggingMiddleware)
+app.add_middleware(ErrorTrackingMiddleware)
 
 # CORS
 origins = [settings.FRONTEND_URL]
@@ -76,6 +77,8 @@ app.include_router(jobs.router, prefix="/api/v1/jobs", tags=["Jobs"])
 app.include_router(announcements.router, prefix="/api/v1/announcements", tags=["Announcements"])
 app.include_router(zoom.router, prefix="/api/v1/zoom", tags=["Zoom"])
 app.include_router(admin.router, prefix="/api/v1/admin", tags=["Admin"])
+app.include_router(certificates.router, prefix="/api/v1/certificates", tags=["Certificates"])
+app.include_router(monitoring.router, prefix="/api/v1/monitoring", tags=["Monitoring"])
 
 # WebSocket routes
 app.include_router(ws_router)

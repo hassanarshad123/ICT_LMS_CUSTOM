@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { AuthProvider } from '@/lib/auth-context';
+import { ErrorBoundary } from '@/components/shared/error-boundary';
 
 export default function UserLayout({ children }: { children: React.ReactNode }) {
   const { userId } = useParams<{ userId: string }>();
@@ -38,5 +39,9 @@ export default function UserLayout({ children }: { children: React.ReactNode }) 
     );
   }
 
-  return <AuthProvider>{children}</AuthProvider>;
+  return (
+    <AuthProvider>
+      <ErrorBoundary>{children}</ErrorBoundary>
+    </AuthProvider>
+  );
 }

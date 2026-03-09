@@ -74,3 +74,9 @@ class LectureWatchStatus(str, enum.Enum):
     unwatched = "unwatched"
     in_progress = "in_progress"
     completed = "completed"
+
+
+class CertificateStatus(str, enum.Enum):
+    eligible = "eligible"
+    approved = "approved"
+    revoked = "revoked"

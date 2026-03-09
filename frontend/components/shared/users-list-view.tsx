@@ -70,10 +70,6 @@ export default function UsersListView({ basePath: basePathProp }: UsersListViewP
   const { execute: doDeleteUser } = useMutation(deleteUser);
   const { execute: doEnroll } = useMutation(enrollStudent);
 
-  const handleFilterChange = (setter: (v: string) => void, value: string) => {
-    setter(value);
-  };
-
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedRole) return;
@@ -126,11 +122,11 @@ export default function UsersListView({ basePath: basePathProp }: UsersListViewP
         <div className="flex flex-col sm:flex-row gap-3 flex-1">
           <div className="relative">
             <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input type="text" value={search} onChange={(e) => handleFilterChange(setSearch, e.target.value)} placeholder="Search by name or email..." className="pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-white w-full sm:w-72" />
+            <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name or email..." className="pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-white w-full sm:w-72" />
           </div>
           <div className="flex gap-1 bg-white rounded-xl p-1 card-shadow w-fit">
             {roleOptions.map((opt) => (
-              <button key={opt.value} onClick={() => handleFilterChange(setRoleFilter, opt.value)} className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors ${roleFilter === opt.value ? 'bg-[#1A1A1A] text-white' : 'text-gray-500 hover:text-[#1A1A1A]'}`}>
+              <button key={opt.value} onClick={() => setRoleFilter(opt.value)} className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors ${roleFilter === opt.value ? 'bg-[#1A1A1A] text-white' : 'text-gray-500 hover:text-[#1A1A1A]'}`}>
                 {opt.label}
               </button>
             ))}
@@ -138,13 +134,13 @@ export default function UsersListView({ basePath: basePathProp }: UsersListViewP
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <select value={statusFilter} onChange={(e) => handleFilterChange(setStatusFilter, e.target.value)} className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-white">
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-white">
             <option value="all">All Status</option>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
           </select>
           {(roleFilter === 'all' || roleFilter === 'student') && (
-            <select value={batchFilter} onChange={(e) => handleFilterChange(setBatchFilter, e.target.value)} className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-white">
+            <select value={batchFilter} onChange={(e) => setBatchFilter(e.target.value)} className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-white">
               <option value="all">All Batches</option>
               {batches.map((b) => (
                 <option key={b.id} value={b.id}>{b.name}</option>

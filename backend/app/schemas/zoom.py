@@ -95,3 +95,24 @@ class RecordingOut(BaseModel):
     created_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
+
+
+class RecordingListOut(BaseModel):
+    id: uuid.UUID
+    class_title: str
+    teacher_name: Optional[str] = None
+    batch_name: Optional[str] = None
+    scheduled_date: Optional[date] = None
+    scheduled_time: Optional[str] = None
+    thumbnail_url: Optional[str] = None
+    duration: Optional[int] = None
+    file_size: Optional[int] = None
+    status: str
+    created_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
+class RecordingSignedUrlOut(BaseModel):
+    url: str
+    type: str

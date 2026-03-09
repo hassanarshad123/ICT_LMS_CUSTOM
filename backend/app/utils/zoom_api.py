@@ -78,6 +78,48 @@ async def delete_meeting(
             resp.raise_for_status()
 
 
+async def update_meeting(
+    account_id: str,
+    client_id: str,
+    encrypted_secret: str,
+    meeting_id: str,
+    topic: Optional[str] = None,
+    start_time: Optional[datetime] = None,
+    duration: Optional[int] = None,
+) -> None:
+    token = await _get_access_token(account_id, client_id, encrypted_secret)
+    body: dict = {}
+    if topic is not None:
+        body["topic"] = topic
+    if start_time is not None:
+        body["start_time"] = start_time.strftime("%Y-%m-%dT%H:%M:%S")
+    if duration is not None:
+        body["duration"] = duration
+    if not body:
+        return
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.patch(
+            f"https://api.zoom.us/v2/meetings/{meeting_id}",
+            headers={"Authorization": f"Bearer {token}"},
+            json=body,
+        )
+        if resp.status_code not in (204, 404):
+            resp.raise_for_status()
+
+
+async def get_recording_download_url(
+    account_id: str,
+    client_id: str,
+    encrypted_secret: str,
+    download_url: str,
+) -> str:
+    """Get authenticated Zoom download URL by appending access token."""
+    token = await _get_access_token(account_id, client_id, encrypted_secret)
+    separator = "&" if "?" in download_url else "?"
+    return f"{download_url}{separator}access_token={token}"
+
+
 async def get_meeting_participants(
     account_id: str,
     client_id: str,

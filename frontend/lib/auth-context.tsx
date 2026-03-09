@@ -1,9 +1,10 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { UserRole } from './types';
 import { login as apiLogin, logout as apiLogout, getMe, AuthUser } from './api/auth';
+import { initErrorReporter } from './utils/error-reporter';
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -28,6 +29,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(getInitialUser);
   const [isLoading] = useState(false);
   const router = useRouter();
+  const errorReporterInit = useRef(false);
+
+  useEffect(() => {
+    if (!errorReporterInit.current) {
+      initErrorReporter();
+      errorReporterInit.current = true;
+    }
+  }, []);
 
   const login = useCallback(async (email: string, password: string): Promise<AuthUser> => {
     const res = await apiLogin(email, password);
@@ -90,7 +99,6 @@ export function useAuth() {
     role: (u?.role?.replace('_', '-') || 'student') as UserRole,
     batchIds: u?.batchIds || [],
     batchNames: u?.batchNames || [],
-    specialization: undefined as string | undefined,
     teacherId: u?.id,
     // New properties
     user: u,

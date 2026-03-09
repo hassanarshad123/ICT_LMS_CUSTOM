@@ -6,14 +6,20 @@ import CCCourseDetail from '@/components/pages/cc/course-detail';
 import TeacherCourseDetail from '@/components/pages/teacher/course-detail';
 import StudentCourseDetail from '@/components/pages/student/course-detail';
 
+function CourseDetailForRole({ role }: { role: string }) {
+  switch (role) {
+    case 'course-creator': return <CCCourseDetail />;
+    case 'teacher': return <TeacherCourseDetail />;
+    case 'student': return <StudentCourseDetail />;
+    default: return <CCCourseDetail />;
+  }
+}
+
 export default function CourseDetailPage() {
   const { role } = useAuth();
   return (
     <RoleGuard allowed={['admin', 'course-creator', 'teacher', 'student']}>
-      {role === 'course-creator' ? <CCCourseDetail /> :
-       role === 'teacher' ? <TeacherCourseDetail /> :
-       role === 'student' ? <StudentCourseDetail /> :
-       <CCCourseDetail />}
+      <CourseDetailForRole role={role} />
     </RoleGuard>
   );
 }

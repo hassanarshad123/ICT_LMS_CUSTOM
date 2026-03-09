@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     RESEND_API_KEY: str = ""
     EMAIL_FROM: str = "noreply@ictinstitute.com"
 
+    # Monitoring
+    DISCORD_WEBHOOK_URL: str = ""
+
     # App
     APP_ENV: str = "development"
     APP_DEBUG: bool = False
