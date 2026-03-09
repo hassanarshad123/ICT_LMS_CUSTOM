@@ -95,7 +95,7 @@ export default function AdminBatchDetail() {
   return (
     <DashboardLayout>
       <div className="mb-6">
-        <Link href={`${basePath}/batches`} className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-[#1A1A1A] transition-colors">
+        <Link href={`${basePath}/batches`} className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-primary transition-colors">
           <ArrowLeft size={16} />
           Back to Batches
         </Link>
@@ -109,7 +109,7 @@ export default function AdminBatchDetail() {
           {/* Batch Info Card */}
           <div className="bg-white rounded-2xl p-6 card-shadow mb-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
-              <h2 className="text-xl font-bold text-[#1A1A1A]">{batch.name}</h2>
+              <h2 className="text-xl font-bold text-primary">{batch.name}</h2>
               <span className={`mt-2 sm:mt-0 inline-block px-3 py-1 rounded-full text-xs font-medium ${
                 batch.status === 'active' ? 'bg-green-100 text-green-700' :
                 batch.status === 'upcoming' ? 'bg-yellow-100 text-yellow-700' :
@@ -125,7 +125,7 @@ export default function AdminBatchDetail() {
                 </div>
                 <div>
                   <p className="text-xs text-gray-500">Teacher</p>
-                  <p className="text-sm font-medium text-[#1A1A1A]">{batch.teacherName || 'Unassigned'}</p>
+                  <p className="text-sm font-medium text-primary">{batch.teacherName || 'Unassigned'}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -134,7 +134,7 @@ export default function AdminBatchDetail() {
                 </div>
                 <div>
                   <p className="text-xs text-gray-500">Students</p>
-                  <p className="text-sm font-medium text-[#1A1A1A]">{batch.studentCount}</p>
+                  <p className="text-sm font-medium text-primary">{batch.studentCount}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -143,7 +143,7 @@ export default function AdminBatchDetail() {
                 </div>
                 <div>
                   <p className="text-xs text-gray-500">Courses</p>
-                  <p className="text-sm font-medium text-[#1A1A1A]">{batch.courseCount}</p>
+                  <p className="text-sm font-medium text-primary">{batch.courseCount}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -152,7 +152,7 @@ export default function AdminBatchDetail() {
                 </div>
                 <div>
                   <p className="text-xs text-gray-500">Duration</p>
-                  <p className="text-sm font-medium text-[#1A1A1A]">
+                  <p className="text-sm font-medium text-primary">
                     {batch.startDate ? new Date(batch.startDate).toLocaleDateString() : '—'} - {batch.endDate ? new Date(batch.endDate).toLocaleDateString() : '—'}
                   </p>
                 </div>
@@ -162,12 +162,12 @@ export default function AdminBatchDetail() {
 
           {/* Add Student Section */}
           <div className="bg-white rounded-2xl p-6 card-shadow mb-6">
-            <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">Enroll Student</h3>
+            <h3 className="text-lg font-semibold text-primary mb-4">Enroll Student</h3>
             <div className="flex flex-col sm:flex-row gap-3">
               <select
                 value={selectedStudentId}
                 onChange={(e) => setSelectedStudentId(e.target.value)}
-                className="flex-1 px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50"
+                className="flex-1 px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
               >
                 <option value="">Select a student...</option>
                 {availableStudents.map((s) => (
@@ -177,7 +177,7 @@ export default function AdminBatchDetail() {
               <button
                 onClick={handleEnroll}
                 disabled={!selectedStudentId || enrolling}
-                className="flex items-center justify-center gap-2 px-6 py-3 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#333] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                className="flex items-center justify-center gap-2 px-6 py-3 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {enrolling ? <Loader2 size={16} className="animate-spin" /> : <UserPlus size={16} />}
                 Enroll Student
@@ -188,7 +188,7 @@ export default function AdminBatchDetail() {
           {/* Enrolled Students Table */}
           <div className="bg-white rounded-2xl card-shadow overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-100">
-              <h3 className="text-lg font-semibold text-[#1A1A1A]">Enrolled Students ({Array.isArray(students) ? students.length : 0})</h3>
+              <h3 className="text-lg font-semibold text-primary">Enrolled Students ({Array.isArray(students) ? students.length : 0})</h3>
             </div>
 
             {!Array.isArray(students) || students.length === 0 ? (
@@ -214,7 +214,7 @@ export default function AdminBatchDetail() {
                   <tbody>
                     {students.map((student: any) => (
                       <tr key={student.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm font-medium text-[#1A1A1A]">{student.name}</td>
+                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm font-medium text-primary">{student.name}</td>
                         <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{student.email}</td>
                         <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{student.phone || '—'}</td>
                         <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">

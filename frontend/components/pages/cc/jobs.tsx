@@ -102,7 +102,7 @@ export default function CourseCreatorJobs() {
     }
   };
 
-  const inputClass = 'w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50';
+  const inputClass = 'w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50';
 
   return (
     <DashboardLayout>
@@ -111,7 +111,7 @@ export default function CourseCreatorJobs() {
       <div className="flex justify-end mb-6">
         <button
           onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#333] transition-colors"
+          className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors"
         >
           {showForm ? <X size={16} /> : <Plus size={16} />}
           {showForm ? 'Cancel' : 'Post New Job'}
@@ -120,7 +120,7 @@ export default function CourseCreatorJobs() {
 
       {showForm && (
         <div className="bg-white rounded-2xl p-6 card-shadow mb-6">
-          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">New Job Posting</h3>
+          <h3 className="text-lg font-semibold text-primary mb-4">New Job Posting</h3>
           <form onSubmit={handleAdd} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Job Title</label>
@@ -160,7 +160,7 @@ export default function CourseCreatorJobs() {
               <input type="text" value={formData.requirements} onChange={(e) => setFormData({ ...formData, requirements: e.target.value })} placeholder="e.g. Basic computer skills, MS Office proficiency" className={inputClass} />
             </div>
             <div className="sm:col-span-2">
-              <button type="submit" disabled={creating} className="flex items-center gap-2 px-6 py-3 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#333] transition-colors disabled:opacity-60">
+              <button type="submit" disabled={creating} className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors disabled:opacity-60">
                 {creating && <Loader2 size={16} className="animate-spin" />}
                 Post Job
               </button>
@@ -194,11 +194,11 @@ export default function CourseCreatorJobs() {
                       onClick={() => toggleExpand(job.id)}
                       className="flex items-start gap-4 flex-1 text-left"
                     >
-                      <div className="w-11 h-11 bg-[#C5D86D] bg-opacity-30 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <Briefcase size={18} className="text-[#1A1A1A]" />
+                      <div className="w-11 h-11 bg-accent bg-opacity-30 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Briefcase size={18} className="text-primary" />
                       </div>
                       <div>
-                        <h4 className="font-semibold text-[#1A1A1A]">{job.title}</h4>
+                        <h4 className="font-semibold text-primary">{job.title}</h4>
                         <p className="text-sm text-gray-500 mt-0.5">{job.company}</p>
                         <div className="flex items-center gap-3 mt-2 flex-wrap">
                           <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -251,7 +251,7 @@ export default function CourseCreatorJobs() {
                           <ul className="space-y-1.5">
                             {job.requirements!.map((req, i) => (
                               <li key={i} className="flex items-center gap-2 text-sm text-gray-600">
-                                <div className="w-1.5 h-1.5 rounded-full bg-[#C5D86D]" />
+                                <div className="w-1.5 h-1.5 rounded-full bg-accent" />
                                 {req}
                               </li>
                             ))}
@@ -277,7 +277,7 @@ export default function CourseCreatorJobs() {
                             {jobApps.map((app: any) => (
                               <div key={app.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50">
                                 <div>
-                                  <p className="text-sm font-medium text-[#1A1A1A]">{app.studentName || app.name || 'Student'}</p>
+                                  <p className="text-sm font-medium text-primary">{app.studentName || app.name || 'Student'}</p>
                                   <p className="text-xs text-gray-400">{app.email || ''}</p>
                                 </div>
                                 <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${

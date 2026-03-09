@@ -38,7 +38,7 @@
   }
   body {
     @apply text-foreground antialiased;
-    background-color: #F0F0F0;
+    background-color: hsl(var(--background));
   }
 }
 

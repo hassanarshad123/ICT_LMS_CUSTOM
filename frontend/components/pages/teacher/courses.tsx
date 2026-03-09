@@ -40,8 +40,8 @@ export default function TeacherCourses() {
           {courses.map((course) => (
             <Link key={course.id} href={`${basePath}/courses/${course.id}`}>
               <div className="bg-white rounded-2xl card-shadow hover:card-shadow-hover transition-all duration-200 cursor-pointer group overflow-hidden">
-                <div className="h-32 bg-gradient-to-br from-[#1A1A1A] to-[#333] flex items-center justify-center">
-                  <BookOpen size={40} className="text-[#C5D86D]" />
+                <div className="h-32 bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center">
+                  <BookOpen size={40} className="text-accent" />
                 </div>
                 <div className="p-6">
                   <div className="flex items-center justify-between mb-3">
@@ -53,7 +53,7 @@ export default function TeacherCourses() {
                       {course.status?.charAt(0).toUpperCase() + course.status?.slice(1)}
                     </span>
                   </div>
-                  <h3 className="text-lg font-bold text-[#1A1A1A] mb-2">{course.title}</h3>
+                  <h3 className="text-lg font-bold text-primary mb-2">{course.title}</h3>
                   <p className="text-sm text-gray-500 line-clamp-2 mb-4">{course.description}</p>
                   <div className="flex items-center gap-4 text-xs text-gray-500 mb-4">
                     <div className="flex items-center gap-1.5">
@@ -61,7 +61,7 @@ export default function TeacherCourses() {
                       {(course.batchIds || []).length} batch(es)
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 text-sm font-medium text-[#1A1A1A] group-hover:gap-3 transition-all">
+                  <div className="flex items-center gap-2 text-sm font-medium text-primary group-hover:gap-3 transition-all">
                     View Course <ChevronRight size={16} />
                   </div>
                 </div>

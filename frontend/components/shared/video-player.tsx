@@ -179,7 +179,7 @@ export function VideoPlayer({ lectureId, videoType, videoUrl, videoStatus, water
     return (
       <div className="aspect-video bg-gray-800 rounded-2xl flex items-center justify-center">
         <div className="text-center">
-          <Loader2 size={48} className="text-[#C5D86D] mx-auto mb-3 animate-spin" />
+          <Loader2 size={48} className="text-accent mx-auto mb-3 animate-spin" />
           <p className="text-white text-sm font-medium">Video is being processed...</p>
           <p className="text-gray-400 text-xs mt-1">This may take a few minutes</p>
         </div>
@@ -191,7 +191,7 @@ export function VideoPlayer({ lectureId, videoType, videoUrl, videoStatus, water
   if (loading) {
     return (
       <div className="aspect-video bg-gray-800 rounded-2xl flex items-center justify-center">
-        <Loader2 size={48} className="text-[#C5D86D] animate-spin" />
+        <Loader2 size={48} className="text-accent animate-spin" />
       </div>
     );
   }
@@ -220,12 +220,12 @@ export function VideoPlayer({ lectureId, videoType, videoUrl, videoStatus, water
     return (
       <div className="aspect-video bg-gray-800 rounded-2xl flex items-center justify-center">
         <div className="text-center">
-          <PlayCircle size={64} className="text-[#C5D86D] mx-auto mb-3" />
+          <PlayCircle size={64} className="text-accent mx-auto mb-3" />
           <a
             href={embedUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#C5D86D] text-[#1A1A1A] text-sm font-medium rounded-xl hover:bg-[#d4e57c] transition-colors"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-accent text-primary text-sm font-medium rounded-xl hover:bg-accent/80 transition-colors"
           >
             Open Video in New Tab
           </a>
@@ -255,7 +255,7 @@ export function VideoPlayer({ lectureId, videoType, videoUrl, videoStatus, water
   return (
     <div className="aspect-video bg-gray-800 rounded-2xl flex items-center justify-center">
       <div className="text-center">
-        <PlayCircle size={64} className="text-[#C5D86D] mx-auto mb-3" />
+        <PlayCircle size={64} className="text-accent mx-auto mb-3" />
         <p className="text-white text-sm">Select a video to play</p>
       </div>
     </div>

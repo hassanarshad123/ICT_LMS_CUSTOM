@@ -103,7 +103,7 @@ export default function CourseCreatorBatches() {
       <div className="flex justify-end mb-6">
         <button
           onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#333] transition-colors"
+          className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors"
         >
           {showForm ? <X size={16} /> : <Plus size={16} />}
           {showForm ? 'Cancel' : 'Create Batch'}
@@ -112,7 +112,7 @@ export default function CourseCreatorBatches() {
 
       {showForm && (
         <div className="bg-white rounded-2xl p-6 card-shadow mb-6">
-          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">New Batch</h3>
+          <h3 className="text-lg font-semibold text-primary mb-4">New Batch</h3>
           <form onSubmit={handleAdd} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Batch Name</label>
@@ -121,7 +121,7 @@ export default function CourseCreatorBatches() {
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 placeholder="e.g. Batch 5 - March 2025"
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50"
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
                 required
               />
             </div>
@@ -130,7 +130,7 @@ export default function CourseCreatorBatches() {
               <select
                 value={formData.teacherId}
                 onChange={(e) => setFormData({ ...formData, teacherId: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50"
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
               >
                 <option value="">Select teacher (optional)</option>
                 {teachers.map((t) => (
@@ -144,7 +144,7 @@ export default function CourseCreatorBatches() {
                 type="date"
                 value={formData.startDate}
                 onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50"
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
                 required
               />
             </div>
@@ -154,7 +154,7 @@ export default function CourseCreatorBatches() {
                 type="date"
                 value={formData.endDate}
                 onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50"
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
                 required
               />
             </div>
@@ -162,7 +162,7 @@ export default function CourseCreatorBatches() {
               <button
                 type="submit"
                 disabled={creating}
-                className="flex items-center gap-2 px-6 py-3 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#333] transition-colors disabled:opacity-60"
+                className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors disabled:opacity-60"
               >
                 {creating && <Loader2 size={16} className="animate-spin" />}
                 Create Batch
@@ -197,11 +197,11 @@ export default function CourseCreatorBatches() {
                       onClick={() => toggleExpand(batch.id)}
                       className="flex items-center gap-4 flex-1 text-left"
                     >
-                      <div className="w-10 h-10 bg-[#C5D86D] bg-opacity-30 rounded-xl flex items-center justify-center">
-                        <Users size={18} className="text-[#1A1A1A]" />
+                      <div className="w-10 h-10 bg-accent bg-opacity-30 rounded-xl flex items-center justify-center">
+                        <Users size={18} className="text-primary" />
                       </div>
                       <div>
-                        <h4 className="font-semibold text-sm text-[#1A1A1A]">{batch.name}</h4>
+                        <h4 className="font-semibold text-sm text-primary">{batch.name}</h4>
                         <div className="flex flex-wrap items-center gap-2 mt-1">
                           <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                             batch.status === 'active' ? 'bg-green-100 text-green-700' :
@@ -225,7 +225,7 @@ export default function CourseCreatorBatches() {
                     <div className="flex items-center gap-2 ml-4">
                       <Link
                         href={`${basePath}/batches/${batch.id}`}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1A1A1A] text-white text-xs font-medium rounded-lg hover:bg-[#333] transition-colors"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-xs font-medium rounded-lg hover:bg-primary/80 transition-colors"
                       >
                         <FolderOpen size={14} />
                         Manage Content
@@ -252,11 +252,11 @@ export default function CourseCreatorBatches() {
                           {students.map((student: any) => (
                             <div key={student.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50">
                               <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-full bg-[#C5D86D] flex items-center justify-center text-xs font-semibold text-[#1A1A1A]">
+                                <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-xs font-semibold text-primary">
                                   {student.name?.charAt(0) || '?'}
                                 </div>
                                 <div>
-                                  <p className="text-sm font-medium text-[#1A1A1A]">{student.name}</p>
+                                  <p className="text-sm font-medium text-primary">{student.name}</p>
                                   <p className="text-xs text-gray-400">{student.email}</p>
                                 </div>
                               </div>

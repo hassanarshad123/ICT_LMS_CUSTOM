@@ -72,11 +72,11 @@ export default function TeacherBatches() {
                   className="w-full flex items-center justify-between p-6 text-left hover:bg-gray-50 transition-colors"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-[#C5D86D] rounded-xl flex items-center justify-center">
-                      <Users size={22} className="text-[#1A1A1A]" />
+                    <div className="w-12 h-12 bg-accent rounded-xl flex items-center justify-center">
+                      <Users size={22} className="text-primary" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-[#1A1A1A]">{batch.name}</h3>
+                      <h3 className="font-semibold text-primary">{batch.name}</h3>
                       <p className="text-xs text-gray-500 mt-0.5">
                         {batch.startDate ? new Date(batch.startDate).toLocaleDateString() : '—'} to {batch.endDate ? new Date(batch.endDate).toLocaleDateString() : '—'}
                       </p>
@@ -84,7 +84,7 @@ export default function TeacherBatches() {
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="text-right">
-                      <p className="text-lg font-bold text-[#1A1A1A]">{batch.studentCount}</p>
+                      <p className="text-lg font-bold text-primary">{batch.studentCount}</p>
                       <p className="text-xs text-gray-500">students</p>
                     </div>
                     <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
@@ -111,11 +111,11 @@ export default function TeacherBatches() {
                           {students.map((student: any) => (
                             <div key={student.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50">
                               <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-full bg-[#C5D86D] flex items-center justify-center text-xs font-semibold text-[#1A1A1A]">
+                                <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-xs font-semibold text-primary">
                                   {student.name?.charAt(0) || '?'}
                                 </div>
                                 <div>
-                                  <p className="text-sm font-medium text-[#1A1A1A]">{student.name}</p>
+                                  <p className="text-sm font-medium text-primary">{student.name}</p>
                                   <p className="text-xs text-gray-500">{student.email}</p>
                                 </div>
                               </div>

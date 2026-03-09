@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { UserRole } from '@/lib/types';
 import { useAuth } from '@/lib/auth-context';
+import { useBranding } from '@/lib/branding-context';
 import { useSidebar } from './sidebar-context';
 import {
   Home,
@@ -23,6 +24,7 @@ import {
   Award,
   Activity,
   Settings,
+  Palette,
   LogOut,
   Menu,
   X,
@@ -48,6 +50,7 @@ const navConfig: Record<UserRole, NavItem[]> = {
     { label: 'Recordings', path: '/recordings', icon: 'play-circle' },
     { label: 'Certificates', path: '/certificates', icon: 'award' },
     { label: 'Monitoring', path: '/monitoring', icon: 'activity' },
+    { label: 'Branding', path: '/branding', icon: 'palette' },
     { label: 'Settings', path: '/settings', icon: 'settings' },
   ],
   'course-creator': [
@@ -96,6 +99,7 @@ const iconMap: Record<string, React.ReactNode> = {
   'bar-chart-3': <BarChart3 size={20} />,
   award: <Award size={20} />,
   activity: <Activity size={20} />,
+  palette: <Palette size={20} />,
   settings: <Settings size={20} />,
 };
 
@@ -121,6 +125,7 @@ interface SidebarProps {
 export default function Sidebar({ role, userName, onLogout }: SidebarProps) {
   const pathname = usePathname();
   const { id } = useAuth();
+  const { instituteName, logoUrl } = useBranding();
   const items = navConfig[role] || navConfig.student;
   const basePath = `/${id}`;
   const { mobileOpen, setMobileOpen } = useSidebar();
@@ -163,11 +168,15 @@ export default function Sidebar({ role, userName, onLogout }: SidebarProps) {
 
         <div className="p-6 border-b border-gray-100">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-[#1A1A1A] flex items-center justify-center">
-              <GraduationCap size={20} className="text-white" />
+            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
+              {logoUrl ? (
+                <img src={logoUrl} alt={instituteName} className="w-6 h-6 object-contain" />
+              ) : (
+                <GraduationCap size={20} className="text-white" />
+              )}
             </div>
             <div>
-              <h2 className="font-semibold text-[#1A1A1A] text-sm">ICT Institute</h2>
+              <h2 className="font-semibold text-primary text-sm">{instituteName}</h2>
               <p className="text-xs text-gray-500">{roleLabels[role]}</p>
             </div>
           </div>
@@ -185,8 +194,8 @@ export default function Sidebar({ role, userName, onLogout }: SidebarProps) {
                 href={href}
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
                   isActive
-                    ? 'bg-[#1A1A1A] text-white'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-[#1A1A1A]'
+                    ? 'bg-primary text-white'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-primary'
                 }`}
               >
                 {iconMap[item.icon]}
@@ -198,10 +207,10 @@ export default function Sidebar({ role, userName, onLogout }: SidebarProps) {
 
         <div className="p-4 border-t border-gray-100">
           <div className="flex items-center gap-3 px-4 py-3 mb-2">
-            <div className="w-8 h-8 rounded-full bg-[#C5D86D] flex items-center justify-center text-sm font-semibold text-[#1A1A1A]">
+            <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-sm font-semibold text-primary">
               {userName.charAt(0)}
             </div>
-            <span className="text-sm font-medium text-[#1A1A1A] truncate">{userName}</span>
+            <span className="text-sm font-medium text-primary truncate">{userName}</span>
           </div>
           <button
             onClick={onLogout}

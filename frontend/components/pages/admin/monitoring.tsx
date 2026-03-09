@@ -162,7 +162,7 @@ export default function AdminMonitoring() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-[#1A1A1A]">System Monitoring</h1>
+            <h1 className="text-2xl font-bold text-primary">System Monitoring</h1>
             <p className="text-sm text-gray-500 mt-1">Track errors and system health</p>
           </div>
           <div className="flex items-center gap-2">
@@ -194,7 +194,7 @@ export default function AdminMonitoring() {
                 </div>
                 <span className="text-sm text-gray-500">Errors (24h)</span>
               </div>
-              <p className="text-2xl font-bold text-[#1A1A1A]">{stats.totalErrors24h}</p>
+              <p className="text-2xl font-bold text-primary">{stats.totalErrors24h}</p>
             </div>
             <div className="bg-white rounded-2xl p-5 card-shadow">
               <div className="flex items-center gap-3 mb-3">
@@ -203,7 +203,7 @@ export default function AdminMonitoring() {
                 </div>
                 <span className="text-sm text-gray-500">Unresolved</span>
               </div>
-              <p className="text-2xl font-bold text-[#1A1A1A]">{stats.unresolvedCount}</p>
+              <p className="text-2xl font-bold text-primary">{stats.unresolvedCount}</p>
             </div>
             <div className="bg-white rounded-2xl p-5 card-shadow">
               <div className="flex items-center gap-3 mb-3">
@@ -212,7 +212,7 @@ export default function AdminMonitoring() {
                 </div>
                 <span className="text-sm text-gray-500">Backend</span>
               </div>
-              <p className="text-2xl font-bold text-[#1A1A1A]">{stats.errorsBySource.backend || 0}</p>
+              <p className="text-2xl font-bold text-primary">{stats.errorsBySource.backend || 0}</p>
             </div>
             <div className="bg-white rounded-2xl p-5 card-shadow">
               <div className="flex items-center gap-3 mb-3">
@@ -221,7 +221,7 @@ export default function AdminMonitoring() {
                 </div>
                 <span className="text-sm text-gray-500">Frontend</span>
               </div>
-              <p className="text-2xl font-bold text-[#1A1A1A]">{stats.errorsBySource.frontend || 0}</p>
+              <p className="text-2xl font-bold text-primary">{stats.errorsBySource.frontend || 0}</p>
             </div>
           </div>
         )}
@@ -229,7 +229,7 @@ export default function AdminMonitoring() {
         {/* Top Error Paths */}
         {stats && stats.topPaths.length > 0 && (
           <div className="bg-white rounded-2xl card-shadow p-6">
-            <h3 className="text-sm font-semibold text-[#1A1A1A] mb-3 flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-primary mb-3 flex items-center gap-2">
               <Zap size={16} className="text-orange-500" />
               Most Affected Endpoints (24h)
             </h3>
@@ -261,12 +261,12 @@ export default function AdminMonitoring() {
                   value={searchInput}
                   onChange={(e) => setSearchInput(e.target.value)}
                   placeholder="Search error messages..."
-                  className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#1A1A1A]/10"
+                  className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/10"
                 />
               </div>
               <button
                 type="submit"
-                className="px-4 py-2.5 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#333] transition-colors"
+                className="px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors"
               >
                 Search
               </button>
@@ -399,7 +399,7 @@ export default function AdminMonitoring() {
                           <span className="text-xs font-mono text-red-500">{err.statusCode}</span>
                         )}
                       </div>
-                      <p className="text-sm text-[#1A1A1A] truncate font-medium">{err.message}</p>
+                      <p className="text-sm text-primary truncate font-medium">{err.message}</p>
                       <div className="flex items-center gap-3 mt-1.5">
                         <span className="text-xs text-gray-400 flex items-center gap-1">
                           <Clock size={12} />
@@ -512,7 +512,7 @@ export default function AdminMonitoring() {
                 {/* Message */}
                 <div>
                   <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Message</label>
-                  <p className="text-sm text-[#1A1A1A] mt-1 font-medium">{selectedError.message}</p>
+                  <p className="text-sm text-primary mt-1 font-medium">{selectedError.message}</p>
                 </div>
 
                 {/* Context grid */}
@@ -565,7 +565,7 @@ export default function AdminMonitoring() {
                 {selectedError.traceback && (
                   <div>
                     <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Traceback</label>
-                    <pre className="mt-2 p-4 bg-[#1A1A1A] text-green-400 rounded-xl text-xs overflow-x-auto whitespace-pre-wrap font-mono leading-relaxed">
+                    <pre className="mt-2 p-4 bg-primary text-green-400 rounded-xl text-xs overflow-x-auto whitespace-pre-wrap font-mono leading-relaxed">
                       {selectedError.traceback}
                     </pre>
                   </div>

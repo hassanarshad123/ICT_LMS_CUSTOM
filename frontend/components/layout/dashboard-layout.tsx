@@ -13,7 +13,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen bg-[#F0F0F0]">
+      <div className="min-h-screen bg-background">
         <Sidebar role={role} userName={name || 'User'} onLogout={logout} />
         <main className="ml-0 md:ml-64 p-4 sm:p-6 md:p-8">
           <div className="md:hidden mb-4">
