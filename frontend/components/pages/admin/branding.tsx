@@ -10,6 +10,7 @@ import { useBranding } from '@/lib/branding-context';
 import { updateBranding, uploadLogo, getPresetThemes, PresetThemes } from '@/lib/api/branding';
 import { useMutation } from '@/hooks/use-api';
 import { isValidHex, getContrastColor } from '@/lib/utils/color-convert';
+import DashboardLayout from '@/components/layout/dashboard-layout';
 
 interface FormState {
   primaryColor: string;
@@ -173,6 +174,7 @@ export default function BrandingPage() {
   };
 
   return (
+    <DashboardLayout>
     <div className="max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -449,6 +451,7 @@ export default function BrandingPage() {
         </div>
       </div>
     </div>
+    </DashboardLayout>
   );
 }
 
