@@ -21,6 +21,7 @@ import {
   Smartphone,
   BarChart3,
   Award,
+  Activity,
   Settings,
   LogOut,
   Menu,
@@ -45,6 +46,7 @@ const navConfig: Record<UserRole, NavItem[]> = {
     { label: 'Insights', path: '/insights', icon: 'bar-chart-3' },
     { label: 'Recordings', path: '/recordings', icon: 'play-circle' },
     { label: 'Certificates', path: '/certificates', icon: 'award' },
+    { label: 'Monitoring', path: '/monitoring', icon: 'activity' },
     { label: 'Settings', path: '/settings', icon: 'settings' },
   ],
   'course-creator': [
@@ -92,6 +94,7 @@ const iconMap: Record<string, React.ReactNode> = {
   smartphone: <Smartphone size={20} />,
   'bar-chart-3': <BarChart3 size={20} />,
   award: <Award size={20} />,
+  activity: <Activity size={20} />,
   settings: <Settings size={20} />,
 };
 

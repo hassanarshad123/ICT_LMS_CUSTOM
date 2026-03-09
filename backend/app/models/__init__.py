@@ -24,3 +24,4 @@ from app.models.other import (  # noqa: F401
     ActivityLog,
 )
 from app.models.certificate import Certificate, CertificateCounter  # noqa: F401
+from app.models.error_log import ErrorLog  # noqa: F401
