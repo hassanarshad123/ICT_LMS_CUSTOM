@@ -9,6 +9,8 @@ interface VideoPlayerProps {
   videoType: string;
   videoUrl?: string;
   videoStatus?: string;
+  /** Student identifier shown as anti-piracy watermark overlay */
+  watermark?: string;
 }
 
 function toYouTubeEmbed(url: string): string | null {
@@ -42,7 +44,20 @@ function toVimeoEmbed(url: string): string | null {
   return null;
 }
 
-export function VideoPlayer({ lectureId, videoType, videoUrl, videoStatus }: VideoPlayerProps) {
+function WatermarkOverlay({ text }: { text: string }) {
+  return (
+    <div className="absolute inset-0 z-10 pointer-events-none select-none flex items-center justify-center">
+      <span
+        className="text-white/20 text-2xl sm:text-3xl md:text-4xl font-bold font-mono tracking-widest"
+        style={{ textShadow: '0 0 6px rgba(0,0,0,0.4)' }}
+      >
+        {text}
+      </span>
+    </div>
+  );
+}
+
+export function VideoPlayer({ lectureId, videoType, videoUrl, videoStatus, watermark }: VideoPlayerProps) {
   const [embedUrl, setEmbedUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -222,7 +237,8 @@ export function VideoPlayer({ lectureId, videoType, videoUrl, videoStatus }: Vid
   // Iframe player (Bunny, YouTube, Vimeo)
   if (embedUrl) {
     return (
-      <div className="aspect-video bg-black rounded-2xl overflow-hidden">
+      <div className="relative aspect-video bg-black rounded-2xl overflow-hidden">
+        {watermark && <WatermarkOverlay text={watermark} />}
         <iframe
           ref={iframeRef}
           src={embedUrl}

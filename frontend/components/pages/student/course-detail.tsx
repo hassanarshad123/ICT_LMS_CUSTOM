@@ -34,7 +34,7 @@ import { VideoPlayer } from '@/components/shared/video-player';
 export default function CourseDetailPage() {
   const params = useParams();
   const courseId = params.courseId as string;
-  const { name, batchIds } = useAuth();
+  const { name, email, id: studentId, batchIds } = useAuth();
   const basePath = useBasePath();
 
   const [expandedModule, setExpandedModule] = useState<string | null>(null);
@@ -205,6 +205,7 @@ export default function CourseDetailPage() {
               videoType={activeLecture.videoType}
               videoUrl={activeLecture.videoUrl}
               videoStatus={activeLecture.videoStatus}
+              watermark={email || studentId}
             />
           ) : (
             <div className="aspect-video bg-gray-800 rounded-2xl flex items-center justify-center">
