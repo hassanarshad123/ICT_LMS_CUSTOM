@@ -16,7 +16,7 @@ depends_on = None
 
 def upgrade() -> None:
     # Create certificate_status enum
-    certificate_status_enum = sa.Enum("eligible", "approved", "revoked", name="certificate_status")
+    certificate_status_enum = sa.Enum("eligible", "approved", "revoked", name="certificate_status", create_type=False)
     certificate_status_enum.create(op.get_bind(), checkfirst=True)
 
     # Create certificates table
