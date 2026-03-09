@@ -6,7 +6,7 @@ const nextConfig = {
   images: { unoptimized: true },
   async rewrites() {
     const apiUrl = process.env.API_URL || 'http://localhost:8000/api/v1';
-    const wsUrl = process.env.WS_URL || 'http://localhost:8000';
+    const wsUrl = (process.env.WS_URL || 'http://localhost:8000').replace('wss://', 'https://').replace('ws://', 'http://');
     return [
       {
         source: '/api/v1/:path*',
