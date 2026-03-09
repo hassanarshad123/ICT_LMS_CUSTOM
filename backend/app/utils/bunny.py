@@ -78,6 +78,22 @@ async def get_video_status(video_id: str) -> str:
         return _BUNNY_STATUS_MAP.get(bunny_status, "processing")
 
 
+async def create_video_from_url(title: str, source_url: str) -> dict:
+    """Create a Bunny Stream video and tell Bunny to fetch from a remote URL.
+    Returns {"video_id": str, "library_id": str}."""
+    entry = await create_video_entry(title)
+    video_id = entry["video_id"]
+    library_id = entry["library_id"]
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.post(
+            f"https://video.bunnycdn.com/library/{library_id}/videos/{video_id}/fetch",
+            headers={"AccessKey": settings.BUNNY_API_KEY},
+            json={"url": source_url},
+        )
+        resp.raise_for_status()
+    return {"video_id": video_id, "library_id": library_id}
+
+
 async def delete_video(video_id: str) -> None:
     """Delete a video from Bunny Stream."""
     library_id = settings.BUNNY_LIBRARY_ID

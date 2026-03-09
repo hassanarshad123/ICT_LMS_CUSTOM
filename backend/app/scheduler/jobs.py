@@ -28,6 +28,31 @@ async def cleanup_expired_sessions():
             logger.info("Cleaned up %d expired sessions", len(expired))
 
 
+async def retry_failed_recordings():
+    """Retry recordings stuck in 'processing' status (every 30 minutes)."""
+    from sqlmodel import select
+    from app.models.zoom import ClassRecording
+    from app.models.enums import RecordingStatus
+    from app.services import zoom_service
+
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=10)
+
+    async with async_session() as session:
+        result = await session.execute(
+            select(ClassRecording).where(
+                ClassRecording.status == RecordingStatus.processing,
+                ClassRecording.created_at < cutoff,
+            )
+        )
+        stuck = result.scalars().all()
+        for rec in stuck:
+            try:
+                await zoom_service.process_recording(session, rec.id)
+                logger.info("Retried processing for recording %s", rec.id)
+            except Exception as e:
+                logger.error("Retry failed for recording %s: %s", rec.id, e)
+
+
 async def send_zoom_reminders():
     """Send reminders for upcoming Zoom classes (every 10 minutes)."""
     from sqlmodel import select

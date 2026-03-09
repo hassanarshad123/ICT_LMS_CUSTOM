@@ -1,3 +1,5 @@
+import asyncio
+import logging
 import uuid
 import hmac
 import hashlib
@@ -13,7 +15,7 @@ from app.config import get_settings
 from app.schemas.zoom import (
     ZoomAccountCreate, ZoomAccountUpdate, ZoomAccountOut, ZoomAccountAdminOut,
     ZoomClassCreate, ZoomClassUpdate, ZoomClassOut,
-    AttendanceOut, RecordingOut,
+    AttendanceOut, RecordingOut, RecordingListOut, RecordingSignedUrlOut,
 )
 from app.schemas.common import PaginatedResponse
 from app.services import zoom_service
@@ -23,6 +25,7 @@ from app.models.enums import ZoomClassStatus
 
 router = APIRouter()
 settings = get_settings()
+logger = logging.getLogger("ict_lms.zoom")
 
 Admin = Annotated[User, Depends(require_roles("admin"))]
 AdminOrCourseCreator = Annotated[User, Depends(require_roles("admin", "course_creator"))]
@@ -195,8 +198,7 @@ async def create_class(
             duration=body.duration,
         )
     except Exception as e:
-        import logging
-        logging.getLogger("ict_lms").error("Zoom API meeting creation failed: %s", e)
+        logger.error("Zoom API meeting creation failed: %s", e)
 
     zc = await zoom_service.create_class(
         session, title=body.title, batch_id=body.batch_id,
@@ -223,6 +225,8 @@ async def create_class(
     )
 
 
+# --- Phase 3B: Update class + sync Zoom meeting ---
+
 @router.patch("/classes/{class_id}", response_model=ZoomClassOut)
 async def update_class(
     class_id: uuid.UUID,
@@ -243,10 +247,36 @@ async def update_class(
         if not r.scalar_one_or_none():
             raise HTTPException(status_code=403, detail="You can only update classes in your own batches")
 
+    update_fields = body.model_dump(exclude_unset=True)
+
     try:
-        zc = await zoom_service.update_class(session, class_id, **body.model_dump(exclude_unset=True))
+        zc = await zoom_service.update_class(session, class_id, **update_fields)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+    # Sync changes to Zoom meeting
+    if zc.zoom_meeting_id and any(k in update_fields for k in ("title", "scheduled_date", "scheduled_time", "duration")):
+        try:
+            account = await zoom_service.get_account(session, zc.zoom_account_id)
+            if account:
+                from app.utils.zoom_api import update_meeting
+                from datetime import time as dt_time
+
+                start_time = None
+                if "scheduled_date" in update_fields or "scheduled_time" in update_fields:
+                    start_time = datetime.combine(zc.scheduled_date, zc.scheduled_time)
+
+                await update_meeting(
+                    account_id=account.account_id,
+                    client_id=account.client_id,
+                    encrypted_secret=account.client_secret,
+                    meeting_id=zc.zoom_meeting_id,
+                    topic=update_fields.get("title"),
+                    start_time=start_time,
+                    duration=update_fields.get("duration"),
+                )
+        except Exception as e:
+            logger.warning("Failed to update Zoom meeting %s: %s", zc.zoom_meeting_id, e)
 
     from app.utils.formatters import format_duration
     from sqlmodel import select
@@ -325,6 +355,50 @@ async def get_recordings(
     ]
 
 
+# --- Phase 4C: Manual attendance sync ---
+
+@router.post("/classes/{class_id}/sync-attendance")
+async def sync_attendance(
+    class_id: uuid.UUID,
+    current_user: AdminOrCourseCreator,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    count = await zoom_service.sync_attendance(session, class_id)
+    return {"synced": count}
+
+
+# --- Phase 1A: Global recordings endpoints ---
+
+@router.get("/recordings", response_model=PaginatedResponse[RecordingListOut])
+async def list_recordings(
+    current_user: AllRoles,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+):
+    items, total = await zoom_service.list_all_recordings(
+        session, current_user, page=page, per_page=per_page,
+    )
+    return PaginatedResponse(
+        data=[RecordingListOut(**item) for item in items],
+        total=total, page=page, per_page=per_page,
+        total_pages=math.ceil(total / per_page) if total else 0,
+    )
+
+
+@router.post("/recordings/{recording_id}/signed-url", response_model=RecordingSignedUrlOut)
+async def get_recording_signed_url(
+    recording_id: uuid.UUID,
+    current_user: AllRoles,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    try:
+        result = await zoom_service.get_recording_signed_url(session, recording_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return RecordingSignedUrlOut(**result)
+
+
 # --- Webhook ---
 
 @router.post("/webhook")
@@ -364,8 +438,29 @@ async def zoom_webhook(request: Request):
     async with async_session() as session:
         if event == "meeting.started":
             await zoom_service.update_class_status(session, meeting_id, ZoomClassStatus.live)
+
         elif event == "meeting.ended":
             await zoom_service.update_class_status(session, meeting_id, ZoomClassStatus.completed)
+
+            # Phase 4B: Sync attendance after a delay (Zoom needs time to finalize data)
+            async def _delayed_attendance_sync(mid: str):
+                await asyncio.sleep(180)  # 3-minute delay
+                async with async_session() as s:
+                    from sqlmodel import select
+                    from app.models.zoom import ZoomClass
+                    r = await s.execute(
+                        select(ZoomClass).where(ZoomClass.zoom_meeting_id == mid)
+                    )
+                    zc = r.scalar_one_or_none()
+                    if zc:
+                        try:
+                            await zoom_service.sync_attendance(s, zc.id)
+                            logger.info("Auto-synced attendance for class %s", zc.id)
+                        except Exception as e:
+                            logger.error("Auto attendance sync failed for class %s: %s", zc.id, e)
+
+            asyncio.create_task(_delayed_attendance_sync(meeting_id))
+
         elif event == "recording.completed":
             # Find the class by meeting ID and create recording
             from sqlmodel import select
@@ -381,12 +476,22 @@ async def zoom_webhook(request: Request):
                 recordings = payload.get("recording_files", [])
                 for rec in recordings:
                     if rec.get("recording_type") == "shared_screen_with_speaker_view":
-                        await zoom_service.create_recording(
+                        recording = await zoom_service.create_recording(
                             session,
                             zoom_class_id=zc.id,
                             original_download_url=rec.get("download_url"),
                             duration=rec.get("recording_end", 0),
                             file_size=rec.get("file_size"),
                         )
+
+                        # Phase 5D: Process recording in background
+                        async def _process_rec(rec_id):
+                            async with async_session() as s:
+                                try:
+                                    await zoom_service.process_recording(s, rec_id)
+                                except Exception as e:
+                                    logger.error("Background recording processing failed for %s: %s", rec_id, e)
+
+                        asyncio.create_task(_process_rec(recording.id))
 
     return {"status": "ok"}
