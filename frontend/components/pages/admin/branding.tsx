@@ -7,7 +7,7 @@ import {
   GraduationCap, Home, Users, Settings, LogOut, Loader2, RotateCcw
 } from 'lucide-react';
 import { useBranding } from '@/lib/branding-context';
-import { updateBranding, getLogoUploadUrl, getPresetThemes, PresetThemes } from '@/lib/api/branding';
+import { updateBranding, uploadLogo, getPresetThemes, PresetThemes } from '@/lib/api/branding';
 import { useMutation } from '@/hooks/use-api';
 import { isValidHex, getContrastColor } from '@/lib/utils/color-convert';
 
@@ -128,30 +128,17 @@ export default function BrandingPage() {
       return;
     }
 
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
-    const allowed = ['png', 'svg', 'jpg', 'jpeg', 'webp'];
-    if (!allowed.includes(ext)) {
-      toast.error('Only PNG, SVG, JPG, JPEG, WebP files are allowed');
+    const allowed = ['image/png', 'image/svg+xml', 'image/jpeg', 'image/webp'];
+    if (!allowed.includes(file.type)) {
+      toast.error('Only PNG, SVG, JPG, WebP files are allowed');
       return;
     }
 
     setUploading(true);
     try {
-      const { uploadUrl, objectKey } = await getLogoUploadUrl(ext);
-
-      // Upload directly to S3
-      const contentTypeMap: Record<string, string> = {
-        png: 'image/png', svg: 'image/svg+xml',
-        jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp',
-      };
-      await fetch(uploadUrl, {
-        method: 'PUT',
-        body: file,
-        headers: { 'Content-Type': contentTypeMap[ext] || 'image/png' },
-      });
-
-      updateField('logoUrl', objectKey);
-      setLogoPreview(URL.createObjectURL(file));
+      const { logoUrl: dataUrl } = await uploadLogo(file);
+      updateField('logoUrl', dataUrl);
+      setLogoPreview(dataUrl);
       toast.success('Logo uploaded');
     } catch (err: any) {
       toast.error(err.message || 'Logo upload failed');

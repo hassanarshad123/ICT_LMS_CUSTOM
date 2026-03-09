@@ -22,11 +22,6 @@ export interface BrandingUpdate {
   presetTheme?: string | null;
 }
 
-export interface LogoUploadResponse {
-  uploadUrl: string;
-  objectKey: string;
-}
-
 export interface PresetThemes {
   [key: string]: { primary: string; accent: string; background: string };
 }
@@ -69,10 +64,12 @@ export async function updateBranding(data: BrandingUpdate): Promise<BrandingData
   });
 }
 
-export async function getLogoUploadUrl(fileExt: string): Promise<LogoUploadResponse> {
-  return apiClient<LogoUploadResponse>(`/branding/logo-upload`, {
+export async function uploadLogo(file: File): Promise<{ logoUrl: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  return apiClient<{ logoUrl: string }>('/branding/logo-upload', {
     method: 'POST',
-    params: { file_ext: fileExt },
+    body: formData,
   });
 }
 

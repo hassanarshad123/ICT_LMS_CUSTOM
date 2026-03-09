@@ -1,9 +1,10 @@
 """Public branding endpoints + admin branding management."""
 
-import uuid
+import base64
+from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -11,8 +12,7 @@ from app.database import get_session
 from app.middleware.auth import require_roles
 from app.models.other import SystemSetting
 from app.models.user import User
-from app.schemas.branding import BrandingResponse, BrandingUpdate, LogoUploadResponse
-from app.utils.s3 import generate_download_url, delete_object
+from app.schemas.branding import BrandingResponse, BrandingUpdate
 
 router = APIRouter()
 
@@ -40,6 +40,8 @@ BRANDING_KEYS = {
 
 DEFAULTS = BrandingResponse()
 
+MAX_LOGO_SIZE = 2 * 1024 * 1024  # 2MB
+
 
 def _field_to_key(field: str) -> str:
     return f"branding_{field}"
@@ -65,19 +67,6 @@ async def get_branding(
         else:
             data[field_name] = getattr(DEFAULTS, field_name)
 
-    # Generate presigned download URL for logo if it's an S3 key
-    if data.get("logo_url") and not data["logo_url"].startswith("http"):
-        try:
-            data["logo_url"] = generate_download_url(data["logo_url"], "logo.png", expires_in=86400)
-        except Exception:
-            data["logo_url"] = None
-
-    if data.get("favicon_url") and not data["favicon_url"].startswith("http"):
-        try:
-            data["favicon_url"] = generate_download_url(data["favicon_url"], "favicon.png", expires_in=86400)
-        except Exception:
-            data["favicon_url"] = None
-
     return BrandingResponse(**data)
 
 
@@ -88,8 +77,6 @@ async def update_branding(
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Admin only — upsert branding keys into SystemSetting."""
-    from datetime import datetime, timezone
-
     update_data = body.model_dump(exclude_none=True)
 
     for field_name, value in update_data.items():
@@ -107,63 +94,52 @@ async def update_branding(
 
     await session.commit()
 
-    # Return updated branding
     return await get_branding(session)
 
 
-@router.post("/logo-upload", response_model=LogoUploadResponse)
-async def get_logo_upload_url(
+@router.post("/logo-upload")
+async def upload_logo(
     current_user: Admin,
     session: Annotated[AsyncSession, Depends(get_session)],
-    file_ext: str = "png",
+    file: UploadFile = File(...),
 ):
-    """Admin only — returns presigned S3 upload URL for logo."""
-    allowed_extensions = {"png", "svg", "jpg", "jpeg", "webp"}
-    file_ext = file_ext.lower().strip(".")
-    if file_ext not in allowed_extensions:
+    """Admin only — upload logo directly, stored as base64 data URL in DB."""
+    if not file.content_type:
+        raise HTTPException(status_code=400, detail="Missing content type")
+
+    allowed_types = {
+        "image/png", "image/svg+xml", "image/jpeg", "image/webp",
+    }
+    if file.content_type not in allowed_types:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"File type '{file_ext}' not allowed. Use: {', '.join(allowed_extensions)}",
+            status_code=400,
+            detail=f"File type '{file.content_type}' not allowed. Use PNG, SVG, JPG, or WebP.",
         )
 
-    content_type_map = {
-        "png": "image/png",
-        "svg": "image/svg+xml",
-        "jpg": "image/jpeg",
-        "jpeg": "image/jpeg",
-        "webp": "image/webp",
-    }
+    contents = await file.read()
+    if len(contents) > MAX_LOGO_SIZE:
+        raise HTTPException(status_code=400, detail="Logo must be under 2MB")
 
-    # Delete old logo if exists
+    # Convert to data URL
+    b64 = base64.b64encode(contents).decode("utf-8")
+    data_url = f"data:{file.content_type};base64,{b64}"
+
+    # Upsert into SystemSetting
+    db_key = "branding_logo_url"
     result = await session.execute(
-        select(SystemSetting).where(SystemSetting.setting_key == "branding_logo_url")
+        select(SystemSetting).where(SystemSetting.setting_key == db_key)
     )
-    old_setting = result.scalar_one_or_none()
-    if old_setting and old_setting.value and not old_setting.value.startswith("http"):
-        try:
-            delete_object(old_setting.value)
-        except Exception:
-            pass
+    setting = result.scalar_one_or_none()
+    if setting:
+        setting.value = data_url
+        setting.updated_at = datetime.now(timezone.utc)
+        session.add(setting)
+    else:
+        session.add(SystemSetting(setting_key=db_key, value=data_url))
 
-    # Generate presigned upload URL
-    from app.utils.s3 import _get_client
-    from app.config import get_settings
+    await session.commit()
 
-    s3_settings = get_settings()
-    client = _get_client()
-    object_key = f"branding/logo_{uuid.uuid4()}.{file_ext}"
-
-    upload_url = client.generate_presigned_url(
-        "put_object",
-        Params={
-            "Bucket": s3_settings.S3_BUCKET_NAME,
-            "Key": object_key,
-            "ContentType": content_type_map[file_ext],
-        },
-        ExpiresIn=3600,
-    )
-
-    return LogoUploadResponse(upload_url=upload_url, object_key=object_key)
+    return {"logo_url": data_url}
 
 
 @router.get("/preset-themes")

@@ -38,8 +38,3 @@ class BrandingUpdate(BaseModel):
         if v is not None:
             return _validate_hex(v)
         return v
-
-
-class LogoUploadResponse(BaseModel):
-    upload_url: str
-    object_key: str
