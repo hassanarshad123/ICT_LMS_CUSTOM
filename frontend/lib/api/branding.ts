@@ -31,14 +31,22 @@ export interface PresetThemes {
   [key: string]: { primary: string; accent: string; background: string };
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
+// Use relative path so requests go through Next.js rewrites (same as apiClient)
+const API_BASE = '/api/v1';
 
 /**
  * Public endpoint — fetches branding without auth.
  * Uses raw fetch (not apiClient) since this is called before auth is available.
  */
 export async function getBranding(): Promise<BrandingData> {
-  const res = await fetch(`${API_BASE_URL}/branding/`);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/branding/`, { signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
   if (!res.ok) throw new Error('Failed to fetch branding');
   const data = await res.json();
   // Manual snake_case to camelCase conversion for this public endpoint
@@ -69,7 +77,7 @@ export async function getLogoUploadUrl(fileExt: string): Promise<LogoUploadRespo
 }
 
 export async function getPresetThemes(): Promise<PresetThemes> {
-  const res = await fetch(`${API_BASE_URL}/branding/preset-themes`);
+  const res = await fetch(`${API_BASE}/branding/preset-themes`);
   if (!res.ok) throw new Error('Failed to fetch preset themes');
   return res.json();
 }
