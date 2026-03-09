@@ -15,11 +15,10 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Create certificate_status enum
-    certificate_status_enum = sa.Enum("eligible", "approved", "revoked", name="certificate_status", create_type=False)
-    certificate_status_enum.create(op.get_bind(), checkfirst=True)
+    # Create certificate_status enum via raw SQL (IF NOT EXISTS avoids conflict)
+    op.execute("DO $$ BEGIN CREATE TYPE certificate_status AS ENUM ('eligible', 'approved', 'revoked'); EXCEPTION WHEN duplicate_object THEN null; END $$")
 
-    # Create certificates table
+    # Create certificates table (use sa.String for status to avoid auto-enum creation)
     op.create_table(
         "certificates",
         sa.Column("id", UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
@@ -28,7 +27,7 @@ def upgrade() -> None:
         sa.Column("course_id", UUID(as_uuid=True), sa.ForeignKey("courses.id"), nullable=False),
         sa.Column("certificate_id", sa.String, nullable=False, unique=True),
         sa.Column("verification_code", sa.String, nullable=False, unique=True),
-        sa.Column("status", certificate_status_enum, nullable=False, server_default="eligible"),
+        sa.Column("status", sa.String, nullable=False, server_default="eligible"),
         sa.Column("completion_percentage", sa.Integer, nullable=False, server_default="0"),
         sa.Column("approved_by", UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=True),
         sa.Column("approved_at", TIMESTAMP(timezone=True), nullable=True),
@@ -42,6 +41,9 @@ def upgrade() -> None:
         sa.Column("deleted_at", TIMESTAMP(timezone=True), nullable=True),
         sa.UniqueConstraint("student_id", "batch_id", "course_id", name="uq_certificate_student_batch_course"),
     )
+
+    # Alter status column to use the enum type
+    op.execute("ALTER TABLE certificates ALTER COLUMN status TYPE certificate_status USING status::certificate_status")
 
     # Create certificate_counter table
     op.create_table(
@@ -66,5 +68,5 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_table("certificate_counter")
     op.drop_table("certificates")
-    sa.Enum(name="certificate_status").drop(op.get_bind(), checkfirst=True)
+    op.execute("DROP TYPE IF EXISTS certificate_status")
     op.execute("DELETE FROM system_settings WHERE setting_key = 'certificate_completion_threshold'")
