@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { UserRole, NavItem } from '@/lib/types';
+import { UserRole } from '@/lib/types';
+import { useAuth } from '@/lib/auth-context';
+import { useSidebar } from './sidebar-context';
 import {
   Home,
   Layers,
@@ -24,39 +26,47 @@ import {
   X,
 } from 'lucide-react';
 
+interface NavItem {
+  label: string;
+  path: string;
+  icon: string;
+}
+
 const navConfig: Record<UserRole, NavItem[]> = {
   admin: [
-    { label: 'Dashboard', href: '/admin', icon: 'home' },
-    { label: 'Users', href: '/admin/users', icon: 'user-cog' },
-    { label: 'Batches', href: '/admin/batches', icon: 'layers' },
-    { label: 'Students', href: '/admin/students', icon: 'users' },
-    { label: 'Teachers', href: '/admin/teachers', icon: 'graduation-cap' },
-    { label: 'Course Creators', href: '/admin/course-creators', icon: 'pen-tool' },
-    { label: 'Devices', href: '/admin/devices', icon: 'smartphone' },
-    { label: 'Insights', href: '/admin/insights', icon: 'bar-chart-3' },
-    { label: 'Settings', href: '/admin/settings', icon: 'settings' },
+    { label: 'Dashboard', path: '', icon: 'home' },
+    { label: 'Users', path: '/users', icon: 'user-cog' },
+    { label: 'Batches', path: '/batches', icon: 'layers' },
+    { label: 'Students', path: '/students', icon: 'users' },
+    { label: 'Teachers', path: '/teachers', icon: 'graduation-cap' },
+    { label: 'Course Creators', path: '/course-creators', icon: 'pen-tool' },
+    { label: 'Devices', path: '/devices', icon: 'smartphone' },
+    { label: 'Insights', path: '/insights', icon: 'bar-chart-3' },
+    { label: 'Recordings', path: '/recordings', icon: 'play-circle' },
+    { label: 'Settings', path: '/settings', icon: 'settings' },
   ],
   'course-creator': [
-    { label: 'Dashboard', href: '/course-creator', icon: 'home' },
-    { label: 'Users', href: '/course-creator/users', icon: 'user-cog' },
-    { label: 'Courses', href: '/course-creator/courses', icon: 'book-open' },
-    { label: 'Batches', href: '/course-creator/batches', icon: 'layers' },
-    { label: 'Jobs', href: '/course-creator/jobs', icon: 'briefcase' },
-    { label: 'Settings', href: '/course-creator/settings', icon: 'settings' },
+    { label: 'Dashboard', path: '', icon: 'home' },
+    { label: 'Users', path: '/users', icon: 'user-cog' },
+    { label: 'Courses', path: '/courses', icon: 'book-open' },
+    { label: 'Batches', path: '/batches', icon: 'layers' },
+    { label: 'Schedule Class', path: '/schedule', icon: 'calendar' },
+    { label: 'Jobs', path: '/jobs', icon: 'briefcase' },
+    { label: 'Settings', path: '/settings', icon: 'settings' },
   ],
   teacher: [
-    { label: 'Dashboard', href: '/teacher', icon: 'home' },
-    { label: 'My Courses', href: '/teacher/courses', icon: 'book-open' },
-    { label: 'My Batches', href: '/teacher/batches', icon: 'layers' },
-    { label: 'Schedule Class', href: '/teacher/schedule', icon: 'calendar' },
-    { label: 'Settings', href: '/teacher/settings', icon: 'settings' },
+    { label: 'Dashboard', path: '', icon: 'home' },
+    { label: 'My Courses', path: '/courses', icon: 'book-open' },
+    { label: 'My Batches', path: '/batches', icon: 'layers' },
+    { label: 'Zoom Classes', path: '/classes', icon: 'video' },
+    { label: 'Settings', path: '/settings', icon: 'settings' },
   ],
   student: [
-    { label: 'Dashboard', href: '/student', icon: 'home' },
-    { label: 'Courses', href: '/student/courses', icon: 'book-open' },
-    { label: 'Zoom Classes', href: '/student/zoom', icon: 'video' },
-    { label: 'Job Opportunities', href: '/student/jobs', icon: 'briefcase' },
-    { label: 'Settings', href: '/student/settings', icon: 'settings' },
+    { label: 'Dashboard', path: '', icon: 'home' },
+    { label: 'Courses', path: '/courses', icon: 'book-open' },
+    { label: 'Zoom Classes', path: '/classes', icon: 'video' },
+    { label: 'Job Opportunities', path: '/jobs', icon: 'briefcase' },
+    { label: 'Settings', path: '/settings', icon: 'settings' },
   ],
 };
 
@@ -76,25 +86,6 @@ const iconMap: Record<string, React.ReactNode> = {
   'bar-chart-3': <BarChart3 size={20} />,
   settings: <Settings size={20} />,
 };
-
-// Context for mobile sidebar state
-const SidebarContext = createContext<{ mobileOpen: boolean; setMobileOpen: (v: boolean) => void }>({
-  mobileOpen: false,
-  setMobileOpen: () => {},
-});
-
-export function useSidebar() {
-  return useContext(SidebarContext);
-}
-
-export function SidebarProvider({ children }: { children: React.ReactNode }) {
-  const [mobileOpen, setMobileOpen] = useState(false);
-  return (
-    <SidebarContext.Provider value={{ mobileOpen, setMobileOpen }}>
-      {children}
-    </SidebarContext.Provider>
-  );
-}
 
 export function MobileTrigger() {
   const { setMobileOpen } = useSidebar();
@@ -117,7 +108,9 @@ interface SidebarProps {
 
 export default function Sidebar({ role, userName, onLogout }: SidebarProps) {
   const pathname = usePathname();
-  const items = navConfig[role];
+  const { id } = useAuth();
+  const items = navConfig[role] || navConfig.student;
+  const basePath = `/${id}`;
   const { mobileOpen, setMobileOpen } = useSidebar();
 
   // Close mobile sidebar on route change
@@ -170,13 +163,14 @@ export default function Sidebar({ role, userName, onLogout }: SidebarProps) {
 
         <nav className="flex-1 p-4 space-y-1">
           {items.map((item) => {
-            const isActive = item.href.endsWith(`/${role}`)
-              ? pathname === item.href
-              : pathname.startsWith(item.href);
+            const href = item.path === '' ? basePath : `${basePath}${item.path}`;
+            const isActive = item.path === ''
+              ? pathname === basePath
+              : pathname.startsWith(`${basePath}${item.path}`);
             return (
               <Link
-                key={item.href}
-                href={item.href}
+                key={item.path}
+                href={href}
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
                   isActive
                     ? 'bg-[#1A1A1A] text-white'

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useAuth } from '@/lib/auth-context';
 
 interface UseApiResult<T> {
   data: T | null;
@@ -13,19 +14,25 @@ export function useApi<T>(
   fetcher: () => Promise<T>,
   deps: any[] = [],
 ): UseApiResult<T> {
+  const { isLoading: authLoading } = useAuth();
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [trigger, setTrigger] = useState(0);
+  const fetcherRef = useRef(fetcher);
+  fetcherRef.current = fetcher;
 
   const refetch = useCallback(() => setTrigger((t) => t + 1), []);
 
   useEffect(() => {
+    // Don't fire API calls until auth has loaded the token
+    if (authLoading) return;
+
     let cancelled = false;
     setLoading(true);
     setError(null);
 
-    fetcher()
+    fetcherRef.current()
       .then((result) => {
         if (!cancelled) {
           setData(result);
@@ -42,7 +49,8 @@ export function useApi<T>(
     return () => {
       cancelled = true;
     };
-  }, [...deps, trigger]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, ...deps, trigger]);
 
   return { data, loading, error, refetch };
 }

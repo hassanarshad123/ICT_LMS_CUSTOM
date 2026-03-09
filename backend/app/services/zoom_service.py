@@ -119,6 +119,12 @@ async def list_classes(
         )
         query = query.where(ZoomClass.batch_id.in_(my_batches))
         count_query = count_query.where(ZoomClass.batch_id.in_(my_batches))
+    elif current_user.role == UserRole.course_creator:
+        my_batches = select(Batch.id).where(
+            Batch.created_by == current_user.id, Batch.deleted_at.is_(None)
+        )
+        query = query.where(ZoomClass.batch_id.in_(my_batches))
+        count_query = count_query.where(ZoomClass.batch_id.in_(my_batches))
 
     if batch_id:
         query = query.where(ZoomClass.batch_id == batch_id)

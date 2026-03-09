@@ -1,6 +1,6 @@
 import { snakeToCamel, camelToSnake } from '@/lib/utils/case-convert';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+const API_BASE = '/api/v1';
 
 interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | undefined>;
@@ -127,29 +127,22 @@ export async function apiClient<T = any>(
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
         localStorage.removeItem('user');
-        window.location.href = '/';
+        window.location.href = '/login';
         throw new Error('Session expired');
       }
     } else {
       // No token at all — redirect to login
       localStorage.removeItem('user');
-      window.location.href = '/';
+      window.location.href = '/login';
       throw new Error('Not authenticated');
     }
   }
 
   if (res.status === 204) return undefined as T;
 
-  // Handle 403 role mismatch — force re-login
+  // Handle 403 — access denied (don't logout, user may just lack permission for this endpoint)
   if (res.status === 403) {
     const error = await res.json().catch(() => ({ detail: 'Forbidden' }));
-    if (error.detail && error.detail.includes('not authorized')) {
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('user');
-      window.location.href = '/';
-      throw new Error('Session invalid. Please log in again.');
-    }
     throw new Error(error.detail || 'Forbidden');
   }
 

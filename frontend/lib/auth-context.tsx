@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { UserRole } from './types';
 import { login as apiLogin, logout as apiLogout, getMe, AuthUser } from './api/auth';
 
@@ -14,30 +14,20 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-const rolePathMap: Record<string, string> = {
-  admin: '/admin',
-  course_creator: '/course-creator',
-  teacher: '/teacher',
-  student: '/student',
-};
+function getInitialUser(): AuthUser | null {
+  if (typeof window === 'undefined') return null;
+  const stored = localStorage.getItem('user');
+  const token = localStorage.getItem('access_token');
+  if (stored && token) {
+    try { return JSON.parse(stored); } catch { return null; }
+  }
+  return null;
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<AuthUser | null>(getInitialUser);
+  const [isLoading] = useState(false);
   const router = useRouter();
-  const pathname = usePathname();
-
-  // Load user from localStorage on mount
-  useEffect(() => {
-    const stored = localStorage.getItem('user');
-    const token = localStorage.getItem('access_token');
-    if (stored && token) {
-      try {
-        setUser(JSON.parse(stored));
-      } catch {}
-    }
-    setIsLoading(false);
-  }, []);
 
   const login = useCallback(async (email: string, password: string): Promise<AuthUser> => {
     const res = await apiLogin(email, password);
@@ -60,7 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('user');
     setUser(null);
-    router.push('/');
+    router.push('/login');
   }, [router]);
 
   return (
@@ -70,11 +60,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
-// Legacy compatibility: role-specific AuthProvider that wraps the real one
-// This allows existing layouts to work without changes during migration
-export function RoleAuthProvider({ role, children }: { role: UserRole; children: ReactNode }) {
-  return <AuthProvider>{children}</AuthProvider>;
-}
 
 export function useAuth() {
   const ctx = useContext(AuthContext);

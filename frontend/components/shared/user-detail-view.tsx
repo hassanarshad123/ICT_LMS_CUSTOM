@@ -7,12 +7,8 @@ import DashboardLayout from '@/components/layout/dashboard-layout';
 import { useAuth } from '@/lib/auth-context';
 import { useApi, useMutation } from '@/hooks/use-api';
 import { getUser, updateUser, changeUserStatus, resetPassword, deleteUser } from '@/lib/api/users';
-import { listBatches } from '@/lib/api/batches';
-import { listCourses } from '@/lib/api/courses';
-import { listClasses } from '@/lib/api/zoom';
 import { PageLoading, PageError } from '@/components/shared/page-states';
 import { toast } from 'sonner';
-import { UserRole } from '@/lib/types';
 import { ArrowLeft, Edit3, Save, BookOpen, Video, Briefcase, Users, Calendar, Shield, Loader2, KeyRound, Trash2 } from 'lucide-react';
 import {
   AlertDialog,
@@ -27,17 +23,15 @@ import {
 import { roleBadgeColors, roleLabels } from '@/lib/constants';
 
 interface UserDetailViewProps {
-  role: UserRole;
-  userName: string;
-  backHref: string;
+  backHref?: string;
 }
 
-export default function UserDetailView({ role, userName, backHref }: UserDetailViewProps) {
+export default function UserDetailView({ backHref: backHrefProp }: UserDetailViewProps) {
   const params = useParams();
-  const userId = params.userId as string;
+  const userId = (params.id || params.userId) as string;
   const auth = useAuth();
   const router = useRouter();
-  const displayName = auth.name || userName;
+  const backHref = backHrefProp || `/${auth.id}/users`;
 
   const { data: userData, loading, error, refetch } = useApi(() => getUser(userId), [userId]);
 
@@ -60,7 +54,7 @@ export default function UserDetailView({ role, userName, backHref }: UserDetailV
 
   if (loading) {
     return (
-      <DashboardLayout role={role} userName={displayName}>
+      <DashboardLayout>
         <PageLoading variant="detail" />
       </DashboardLayout>
     );
@@ -68,7 +62,7 @@ export default function UserDetailView({ role, userName, backHref }: UserDetailV
 
   if (error) {
     return (
-      <DashboardLayout role={role} userName={displayName}>
+      <DashboardLayout>
         <PageError message={error} onRetry={refetch} />
       </DashboardLayout>
     );
@@ -76,7 +70,7 @@ export default function UserDetailView({ role, userName, backHref }: UserDetailV
 
   if (!user) {
     return (
-      <DashboardLayout role={role} userName={displayName}>
+      <DashboardLayout>
         <div className="bg-white rounded-2xl p-12 card-shadow text-center">
           <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <Users size={28} className="text-gray-400" />
@@ -151,7 +145,7 @@ export default function UserDetailView({ role, userName, backHref }: UserDetailV
   };
 
   return (
-    <DashboardLayout role={role} userName={displayName}>
+    <DashboardLayout>
       <Link href={backHref} className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-[#1A1A1A] transition-colors mb-6">
         <ArrowLeft size={16} />
         Back to Users
