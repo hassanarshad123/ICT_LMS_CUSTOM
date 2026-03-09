@@ -4,10 +4,15 @@ import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import {
   Palette, Upload, X, Check, Eye, Type, Image as ImageIcon,
-  GraduationCap, Home, Users, Settings, LogOut, Loader2, RotateCcw
+  GraduationCap, Home, Users, Settings, LogOut, Loader2, RotateCcw,
+  Award, PenTool, FileText
 } from 'lucide-react';
 import { useBranding } from '@/lib/branding-context';
-import { updateBranding, uploadLogo, getPresetThemes, PresetThemes } from '@/lib/api/branding';
+import {
+  updateBranding, uploadLogo, getPresetThemes, PresetThemes,
+  getCertificateDesign, updateCertificateDesign, uploadSignature,
+  CertificateDesign,
+} from '@/lib/api/branding';
 import { useMutation } from '@/hooks/use-api';
 import { isValidHex, getContrastColor } from '@/lib/utils/color-convert';
 import DashboardLayout from '@/components/layout/dashboard-layout';
@@ -21,6 +26,44 @@ interface FormState {
   logoUrl: string | null;
   presetTheme: string | null;
 }
+
+interface CertFormState {
+  primaryColor: string;
+  accentColor: string;
+  instituteName: string;
+  websiteUrl: string;
+  logoUrl: string | null;
+  title: string;
+  bodyLine1: string;
+  bodyLine2: string;
+  sig1Label: string;
+  sig1Name: string;
+  sig1Image: string | null;
+  sig2Label: string;
+  sig2Name: string;
+  sig2Image: string | null;
+  idPrefix: string;
+  borderStyle: string;
+}
+
+const CERT_DEFAULTS: CertFormState = {
+  primaryColor: '#1A1A1A',
+  accentColor: '#C5D86D',
+  instituteName: 'ICT INSTITUTE',
+  websiteUrl: 'https://ict.net.pk',
+  logoUrl: null,
+  title: 'CERTIFICATE OF COMPLETION',
+  bodyLine1: 'This is to certify that',
+  bodyLine2: 'has successfully completed the course',
+  sig1Label: 'Director',
+  sig1Name: '',
+  sig1Image: null,
+  sig2Label: 'Course Instructor',
+  sig2Name: '',
+  sig2Image: null,
+  idPrefix: 'ICT',
+  borderStyle: 'classic',
+};
 
 const DEFAULT_THEMES: PresetThemes = {
   default:      { primary: '#1A1A1A', accent: '#C5D86D', background: '#F0F0F0' },
@@ -58,6 +101,14 @@ export default function BrandingPage() {
   const [logoPreview, setLogoPreview] = useState<string | null>(branding.logoUrl);
   const [uploading, setUploading] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+
+  // Certificate design state
+  const [certForm, setCertForm] = useState<CertFormState>(CERT_DEFAULTS);
+  const [certLoaded, setCertLoaded] = useState<CertFormState>(CERT_DEFAULTS);
+  const [certHasChanges, setCertHasChanges] = useState(false);
+  const sig1InputRef = useRef<HTMLInputElement>(null);
+  const sig2InputRef = useRef<HTMLInputElement>(null);
+  const certLogoInputRef = useRef<HTMLInputElement>(null);
 
   // Sync form when branding context loads
   useEffect(() => {
@@ -179,6 +230,94 @@ export default function BrandingPage() {
       presetTheme: 'default',
     });
     setLogoPreview(null);
+  };
+
+  // ── Certificate Design ────────────────────────────────────────────
+
+  // Load certificate design on mount
+  useEffect(() => {
+    getCertificateDesign().then((data) => {
+      const mapped: CertFormState = {
+        primaryColor: data.primaryColor,
+        accentColor: data.accentColor,
+        instituteName: data.instituteName,
+        websiteUrl: data.websiteUrl,
+        logoUrl: data.logoUrl,
+        title: data.title,
+        bodyLine1: data.bodyLine1,
+        bodyLine2: data.bodyLine2,
+        sig1Label: data.sig1Label,
+        sig1Name: data.sig1Name,
+        sig1Image: data.sig1Image,
+        sig2Label: data.sig2Label,
+        sig2Name: data.sig2Name,
+        sig2Image: data.sig2Image,
+        idPrefix: data.idPrefix,
+        borderStyle: data.borderStyle,
+      };
+      setCertForm(mapped);
+      setCertLoaded(mapped);
+    }).catch(() => {});
+  }, []);
+
+  // Track cert changes
+  useEffect(() => {
+    setCertHasChanges(JSON.stringify(certForm) !== JSON.stringify(certLoaded));
+  }, [certForm, certLoaded]);
+
+  const updateCertField = (field: keyof CertFormState, value: string | null) => {
+    setCertForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const { execute: saveCertDesign, loading: savingCert } = useMutation(async () => {
+    const payload: Record<string, string | null> = {};
+    for (const key of Object.keys(certForm) as (keyof CertFormState)[]) {
+      if (certForm[key] !== certLoaded[key]) {
+        payload[key] = certForm[key];
+      }
+    }
+    if (Object.keys(payload).length === 0) {
+      toast.info('No certificate design changes to save');
+      return;
+    }
+    await updateCertificateDesign(payload);
+    setCertLoaded({ ...certForm });
+    toast.success('Certificate design saved');
+  });
+
+  const handleSigUpload = async (file: File, position: 1 | 2) => {
+    if (file.size > 1 * 1024 * 1024) {
+      toast.error('Signature image must be under 1MB');
+      return;
+    }
+    const allowed = ['image/png', 'image/jpeg', 'image/webp'];
+    if (!allowed.includes(file.type)) {
+      toast.error('Only PNG, JPG, WebP files are allowed');
+      return;
+    }
+    try {
+      const { imageUrl } = await uploadSignature(file, position);
+      const field = position === 1 ? 'sig1Image' : 'sig2Image';
+      updateCertField(field, imageUrl);
+      setCertLoaded(prev => ({ ...prev, [field]: imageUrl }));
+      toast.success(`Signature ${position} uploaded`);
+    } catch (err: any) {
+      toast.error(err.message || 'Signature upload failed');
+    }
+  };
+
+  const handleCertLogoUpload = async (file: File) => {
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Logo must be under 2MB');
+      return;
+    }
+    // Read as data URL for preview + save
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      updateCertField('logoUrl', dataUrl);
+    };
+    reader.readAsDataURL(file);
   };
 
   return (
@@ -347,6 +486,328 @@ export default function BrandingPage() {
               </div>
             </div>
           </div>
+
+          {/* ── Certificate Design Section ─── */}
+          <div className="pt-4 border-t border-gray-200">
+            <h2 className="text-lg font-bold text-primary mb-4 flex items-center gap-2">
+              <Award size={20} />
+              Certificate Design
+            </h2>
+            <p className="text-sm text-gray-500 mb-4">Customize the PDF certificate issued to students. These settings are independent from your site branding.</p>
+          </div>
+
+          {/* Certificate Colors */}
+          <div className="bg-white rounded-2xl p-6 card-shadow">
+            <h2 className="text-base font-semibold text-primary mb-1 flex items-center gap-2">
+              <Palette size={18} />
+              Certificate Colors
+            </h2>
+            <p className="text-xs text-gray-400 mb-4">These colors only affect the certificate PDF, not your site theme</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <ColorPicker
+                label="Primary Color"
+                description="Text, borders, headings"
+                value={certForm.primaryColor}
+                onChange={(v) => updateCertField('primaryColor', v)}
+              />
+              <ColorPicker
+                label="Accent Color"
+                description="Decorative lines, highlights"
+                value={certForm.accentColor}
+                onChange={(v) => updateCertField('accentColor', v)}
+              />
+            </div>
+          </div>
+
+          {/* Certificate Header */}
+          <div className="bg-white rounded-2xl p-6 card-shadow">
+            <h2 className="text-base font-semibold text-primary mb-4 flex items-center gap-2">
+              <GraduationCap size={18} />
+              Certificate Header
+            </h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Institute Name (on certificate)</label>
+                <input
+                  type="text"
+                  value={certForm.instituteName}
+                  onChange={(e) => updateCertField('instituteName', e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary transition-colors bg-gray-50"
+                  placeholder="e.g. ICT INSTITUTE"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Website URL</label>
+                <input
+                  type="text"
+                  value={certForm.websiteUrl}
+                  onChange={(e) => updateCertField('websiteUrl', e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary transition-colors bg-gray-50"
+                  placeholder="e.g. https://ict.net.pk"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Certificate Logo</label>
+                {certForm.logoUrl ? (
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-xl border border-gray-200 flex items-center justify-center bg-gray-50 overflow-hidden">
+                      <img src={certForm.logoUrl} alt="Cert logo" className="max-w-full max-h-full object-contain" />
+                    </div>
+                    <button
+                      onClick={() => updateCertField('logoUrl', null)}
+                      className="text-sm text-red-500 hover:text-red-700 font-medium"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => certLogoInputRef.current?.click()}
+                    className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center cursor-pointer hover:border-gray-400 transition-colors"
+                  >
+                    <Upload size={20} className="mx-auto text-gray-400 mb-1" />
+                    <p className="text-sm text-gray-600">Click to upload certificate logo</p>
+                    <p className="text-xs text-gray-400 mt-1">PNG, JPG, WebP — max 2MB</p>
+                  </div>
+                )}
+                <input
+                  ref={certLogoInputRef}
+                  type="file"
+                  accept=".png,.jpg,.jpeg,.webp"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleCertLogoUpload(file);
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Certificate Text */}
+          <div className="bg-white rounded-2xl p-6 card-shadow">
+            <h2 className="text-base font-semibold text-primary mb-4 flex items-center gap-2">
+              <FileText size={18} />
+              Certificate Text
+            </h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Title</label>
+                <input
+                  type="text"
+                  value={certForm.title}
+                  onChange={(e) => updateCertField('title', e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary transition-colors bg-gray-50"
+                  placeholder="e.g. CERTIFICATE OF COMPLETION"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Body Line 1</label>
+                <input
+                  type="text"
+                  value={certForm.bodyLine1}
+                  onChange={(e) => updateCertField('bodyLine1', e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary transition-colors bg-gray-50"
+                  placeholder="e.g. This is to certify that"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Body Line 2</label>
+                <input
+                  type="text"
+                  value={certForm.bodyLine2}
+                  onChange={(e) => updateCertField('bodyLine2', e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary transition-colors bg-gray-50"
+                  placeholder="e.g. has successfully completed the course"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Signatures */}
+          <div className="bg-white rounded-2xl p-6 card-shadow">
+            <h2 className="text-base font-semibold text-primary mb-4 flex items-center gap-2">
+              <PenTool size={18} />
+              Signatures
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {/* Signature 1 */}
+              <div className="space-y-3">
+                <p className="text-sm font-semibold text-gray-800">Signature 1 (Left)</p>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Role Label</label>
+                  <input
+                    type="text"
+                    value={certForm.sig1Label}
+                    onChange={(e) => updateCertField('sig1Label', e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
+                    placeholder="e.g. Director"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Signer Name</label>
+                  <input
+                    type="text"
+                    value={certForm.sig1Name}
+                    onChange={(e) => updateCertField('sig1Name', e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
+                    placeholder="e.g. Dr. Ahmed Khan"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Signature Image</label>
+                  {certForm.sig1Image ? (
+                    <div className="flex items-center gap-3">
+                      <div className="h-12 w-24 border border-gray-200 rounded-lg overflow-hidden bg-white flex items-center justify-center">
+                        <img src={certForm.sig1Image} alt="Sig 1" className="max-h-full max-w-full object-contain" />
+                      </div>
+                      <button
+                        onClick={() => { updateCertField('sig1Image', null); }}
+                        className="text-xs text-red-500 hover:text-red-700 font-medium"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => sig1InputRef.current?.click()}
+                      className="w-full border-2 border-dashed border-gray-200 rounded-lg p-3 text-center text-xs text-gray-500 hover:border-gray-400 transition-colors"
+                    >
+                      Upload signature (PNG, max 1MB)
+                    </button>
+                  )}
+                  <input
+                    ref={sig1InputRef}
+                    type="file"
+                    accept=".png,.jpg,.jpeg,.webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleSigUpload(file, 1);
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Signature 2 */}
+              <div className="space-y-3">
+                <p className="text-sm font-semibold text-gray-800">Signature 2 (Right)</p>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Role Label</label>
+                  <input
+                    type="text"
+                    value={certForm.sig2Label}
+                    onChange={(e) => updateCertField('sig2Label', e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
+                    placeholder="e.g. Course Instructor"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Signer Name</label>
+                  <input
+                    type="text"
+                    value={certForm.sig2Name}
+                    onChange={(e) => updateCertField('sig2Name', e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
+                    placeholder="e.g. Prof. Sarah Ali"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Signature Image</label>
+                  {certForm.sig2Image ? (
+                    <div className="flex items-center gap-3">
+                      <div className="h-12 w-24 border border-gray-200 rounded-lg overflow-hidden bg-white flex items-center justify-center">
+                        <img src={certForm.sig2Image} alt="Sig 2" className="max-h-full max-w-full object-contain" />
+                      </div>
+                      <button
+                        onClick={() => { updateCertField('sig2Image', null); }}
+                        className="text-xs text-red-500 hover:text-red-700 font-medium"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => sig2InputRef.current?.click()}
+                      className="w-full border-2 border-dashed border-gray-200 rounded-lg p-3 text-center text-xs text-gray-500 hover:border-gray-400 transition-colors"
+                    >
+                      Upload signature (PNG, max 1MB)
+                    </button>
+                  )}
+                  <input
+                    ref={sig2InputRef}
+                    type="file"
+                    accept=".png,.jpg,.jpeg,.webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleSigUpload(file, 2);
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Certificate ID & Border */}
+          <div className="bg-white rounded-2xl p-6 card-shadow">
+            <h2 className="text-base font-semibold text-primary mb-4 flex items-center gap-2">
+              <Settings size={18} />
+              Certificate ID & Border
+            </h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">ID Prefix</label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="text"
+                    value={certForm.idPrefix}
+                    onChange={(e) => updateCertField('idPrefix', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10))}
+                    className="w-32 px-4 py-3 rounded-xl border border-gray-200 text-sm font-mono focus:outline-none focus:border-primary transition-colors bg-gray-50 uppercase"
+                    placeholder="ICT"
+                    maxLength={10}
+                  />
+                  <span className="text-sm text-gray-400 font-mono">{certForm.idPrefix || 'ICT'}-2026-00001</span>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Border Style</label>
+                <div className="grid grid-cols-3 gap-3">
+                  {([
+                    { key: 'classic', label: 'Classic', desc: 'Double border' },
+                    { key: 'modern', label: 'Modern', desc: 'Rounded single' },
+                    { key: 'ornate', label: 'Ornate', desc: 'Corner accents' },
+                  ] as const).map(({ key, label, desc }) => (
+                    <button
+                      key={key}
+                      onClick={() => updateCertField('borderStyle', key)}
+                      className={`p-3 rounded-xl border-2 transition-all text-left ${
+                        certForm.borderStyle === key
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-100 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="mb-2">
+                        <BorderPreviewMini style={key} primaryColor={certForm.primaryColor} accentColor={certForm.accentColor} />
+                      </div>
+                      <p className="text-sm font-medium text-gray-800">{label}</p>
+                      <p className="text-xs text-gray-400">{desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Save Certificate Design */}
+          <button
+            onClick={saveCertDesign}
+            disabled={savingCert || !certHasChanges}
+            className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold bg-primary text-white hover:bg-primary/80 transition-colors disabled:opacity-50"
+          >
+            {savingCert ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+            Save Certificate Design
+          </button>
         </div>
 
         {/* Right column — Live Preview */}
@@ -456,6 +917,16 @@ export default function BrandingPage() {
               </span>
             </div>
           </div>
+
+          {/* Certificate Preview */}
+          <div className="bg-white rounded-2xl p-6 card-shadow sticky top-[420px]">
+            <h2 className="text-base font-semibold text-primary mb-3 flex items-center gap-2">
+              <Award size={18} />
+              Certificate Preview
+            </h2>
+            <p className="text-[10px] text-gray-400 mb-3">(Preview is approximate)</p>
+            <CertificatePreview design={certForm} />
+          </div>
         </div>
       </div>
     </div>
@@ -510,6 +981,144 @@ function ColorPicker({
             isValidHex(text) ? 'border-gray-200' : 'border-red-300'
           } focus:outline-none focus:border-primary transition-colors`}
         />
+      </div>
+    </div>
+  );
+}
+
+
+/* ─── Border Preview Mini ─── */
+
+function BorderPreviewMini({ style, primaryColor, accentColor }: { style: string; primaryColor: string; accentColor: string }) {
+  const w = 60;
+  const h = 42;
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} className="mx-auto">
+      {style === 'classic' && (
+        <>
+          <rect x={2} y={2} width={w - 4} height={h - 4} fill="none" stroke={primaryColor} strokeWidth={2} />
+          <rect x={4} y={4} width={w - 8} height={h - 8} fill="none" stroke={primaryColor} strokeWidth={0.5} />
+        </>
+      )}
+      {style === 'modern' && (
+        <rect x={2} y={2} width={w - 4} height={h - 4} fill="none" stroke={primaryColor} strokeWidth={2.5} rx={4} />
+      )}
+      {style === 'ornate' && (
+        <>
+          <rect x={2} y={2} width={w - 4} height={h - 4} fill="none" stroke={primaryColor} strokeWidth={2} />
+          <rect x={4} y={4} width={w - 8} height={h - 8} fill="none" stroke={primaryColor} strokeWidth={0.5} />
+          {/* Corner accents */}
+          <line x1={3} y1={3} x2={12} y2={3} stroke={accentColor} strokeWidth={1.5} />
+          <line x1={3} y1={3} x2={3} y2={12} stroke={accentColor} strokeWidth={1.5} />
+          <line x1={w - 3} y1={3} x2={w - 12} y2={3} stroke={accentColor} strokeWidth={1.5} />
+          <line x1={w - 3} y1={3} x2={w - 3} y2={12} stroke={accentColor} strokeWidth={1.5} />
+          <line x1={3} y1={h - 3} x2={12} y2={h - 3} stroke={accentColor} strokeWidth={1.5} />
+          <line x1={3} y1={h - 3} x2={3} y2={h - 12} stroke={accentColor} strokeWidth={1.5} />
+          <line x1={w - 3} y1={h - 3} x2={w - 12} y2={h - 3} stroke={accentColor} strokeWidth={1.5} />
+          <line x1={w - 3} y1={h - 3} x2={w - 3} y2={h - 12} stroke={accentColor} strokeWidth={1.5} />
+        </>
+      )}
+    </svg>
+  );
+}
+
+
+/* ─── Certificate Preview ─── */
+
+function CertificatePreview({ design }: { design: CertFormState }) {
+  return (
+    <div
+      className="w-full bg-white border border-gray-200 rounded-lg overflow-hidden"
+      style={{ aspectRatio: '297 / 210' }}
+    >
+      <div className="relative w-full h-full p-[6%]">
+        {/* Border */}
+        {design.borderStyle === 'classic' && (
+          <>
+            <div className="absolute inset-[3%] border-2 rounded-none" style={{ borderColor: design.primaryColor }} />
+            <div className="absolute inset-[5%] border rounded-none" style={{ borderColor: design.primaryColor, borderWidth: '0.5px' }} />
+          </>
+        )}
+        {design.borderStyle === 'modern' && (
+          <div className="absolute inset-[3%] border-[2.5px] rounded-lg" style={{ borderColor: design.primaryColor }} />
+        )}
+        {design.borderStyle === 'ornate' && (
+          <>
+            <div className="absolute inset-[3%] border-2" style={{ borderColor: design.primaryColor }} />
+            <div className="absolute inset-[5%] border" style={{ borderColor: design.primaryColor, borderWidth: '0.5px' }} />
+            {/* Corner accents */}
+            {['top-left', 'top-right', 'bottom-left', 'bottom-right'].map(corner => (
+              <div
+                key={corner}
+                className="absolute w-[10%] h-[14%]"
+                style={{
+                  ...(corner.includes('top') ? { top: '3.5%' } : { bottom: '3.5%' }),
+                  ...(corner.includes('left') ? { left: '3.5%' } : { right: '3.5%' }),
+                  borderColor: design.accentColor,
+                  borderWidth: '2px',
+                  borderStyle: 'solid',
+                  ...(corner === 'top-left' ? { borderRight: 'none', borderBottom: 'none' } : {}),
+                  ...(corner === 'top-right' ? { borderLeft: 'none', borderBottom: 'none' } : {}),
+                  ...(corner === 'bottom-left' ? { borderRight: 'none', borderTop: 'none' } : {}),
+                  ...(corner === 'bottom-right' ? { borderLeft: 'none', borderTop: 'none' } : {}),
+                }}
+              />
+            ))}
+          </>
+        )}
+
+        {/* Content */}
+        <div className="relative z-10 flex flex-col items-center h-full justify-between py-[4%]">
+          {/* Header */}
+          <div className="text-center">
+            {design.logoUrl && (
+              <img src={design.logoUrl} alt="" className="h-[16px] mx-auto mb-1 object-contain" />
+            )}
+            <p className="text-[7px] font-bold tracking-wide" style={{ color: design.primaryColor }}>
+              {design.instituteName}
+            </p>
+            <p className="text-[4px] text-gray-400">{design.websiteUrl}</p>
+          </div>
+
+          {/* Title + accent line */}
+          <div className="text-center -mt-1">
+            <p className="text-[10px] font-bold tracking-wider" style={{ color: design.primaryColor }}>
+              {design.title}
+            </p>
+            <div className="w-16 h-[1.5px] mx-auto mt-1" style={{ backgroundColor: design.accentColor }} />
+          </div>
+
+          {/* Body */}
+          <div className="text-center -mt-1">
+            <p className="text-[5px] text-gray-500">{design.bodyLine1}</p>
+            <p className="text-[9px] font-bold mt-0.5" style={{ color: design.primaryColor }}>John Doe</p>
+            <div className="w-12 h-[1px] mx-auto mt-0.5" style={{ backgroundColor: design.accentColor }} />
+            <p className="text-[5px] text-gray-500 mt-0.5">{design.bodyLine2}</p>
+            <p className="text-[7px] font-semibold mt-0.5" style={{ color: design.primaryColor }}>Introduction to Programming</p>
+          </div>
+
+          {/* Signatures */}
+          <div className="w-full flex justify-between px-[10%] -mt-1">
+            {[
+              { img: design.sig1Image, name: design.sig1Name, label: design.sig1Label },
+              { img: design.sig2Image, name: design.sig2Name, label: design.sig2Label },
+            ].map((sig, i) => (
+              <div key={i} className="text-center w-[35%]">
+                {sig.img && (
+                  <img src={sig.img} alt="" className="h-[12px] mx-auto mb-0.5 object-contain" />
+                )}
+                <div className="w-full h-[0.5px] bg-gray-300" />
+                {sig.name && <p className="text-[4px] text-gray-500 mt-0.5">{sig.name}</p>}
+                <p className="text-[5px] font-medium" style={{ color: design.primaryColor }}>{sig.label}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Footer */}
+          <p className="text-[3.5px] text-gray-400">
+            Certificate ID: {design.idPrefix || 'ICT'}-2026-00001
+          </p>
+        </div>
       </div>
     </div>
   );

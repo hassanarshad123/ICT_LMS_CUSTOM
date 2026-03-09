@@ -14,12 +14,39 @@ from app.models.batch import Batch, StudentBatch
 from app.models.other import LectureProgress, SystemSetting
 from app.models.user import User
 from app.models.enums import CertificateStatus
-from app.utils.certificate_pdf import generate_certificate_pdf
+from app.utils.certificate_pdf import generate_certificate_pdf, CertDesign
 from app.utils.s3 import _get_client as get_s3_client
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
+
+
+# ── Certificate Design Loader ─────────────────────────────────────────
+
+async def _load_cert_design(session: AsyncSession) -> CertDesign:
+    """Load cert design settings from SystemSetting table."""
+    result = await session.execute(
+        select(SystemSetting).where(SystemSetting.setting_key.like("cert_%"))
+    )
+    raw = {s.setting_key: s.value for s in result.scalars().all()}
+    return CertDesign(
+        primary_color=raw.get("cert_primary_color", "#1A1A1A"),
+        accent_color=raw.get("cert_accent_color", "#C5D86D"),
+        institute_name=raw.get("cert_institute_name", "ICT INSTITUTE"),
+        website_url=raw.get("cert_website_url", "https://ict.net.pk"),
+        logo_data_url=raw.get("cert_logo_url"),
+        title=raw.get("cert_title", "CERTIFICATE OF COMPLETION"),
+        body_line1=raw.get("cert_body_line1", "This is to certify that"),
+        body_line2=raw.get("cert_body_line2", "has successfully completed the course"),
+        sig1_label=raw.get("cert_sig1_label", "Director"),
+        sig1_name=raw.get("cert_sig1_name", ""),
+        sig1_image_data_url=raw.get("cert_sig1_image"),
+        sig2_label=raw.get("cert_sig2_label", "Course Instructor"),
+        sig2_name=raw.get("cert_sig2_name", ""),
+        sig2_image_data_url=raw.get("cert_sig2_image"),
+        border_style=raw.get("cert_border_style", "classic"),
+    )
 
 
 # ── Eligibility ──────────────────────────────────────────────────────
@@ -95,6 +122,13 @@ async def generate_certificate_id(session: AsyncSession) -> str:
     """Generate sequential human-readable ID like ICT-2026-00001, with year rollover."""
     current_year = datetime.now(timezone.utc).year
 
+    # Load custom prefix from settings
+    prefix_row = await session.execute(
+        select(SystemSetting).where(SystemSetting.setting_key == "cert_id_prefix")
+    )
+    prefix_setting = prefix_row.scalar_one_or_none()
+    prefix = prefix_setting.value if prefix_setting else "ICT"
+
     # Lock the counter row for update
     result = await session.execute(
         select(CertificateCounter).where(CertificateCounter.id == 1).with_for_update()
@@ -112,7 +146,7 @@ async def generate_certificate_id(session: AsyncSession) -> str:
     counter.last_sequence += 1
     seq = counter.last_sequence
 
-    return f"ICT-{current_year}-{seq:05d}"
+    return f"{prefix}-{current_year}-{seq:05d}"
 
 
 async def generate_verification_code() -> str:
@@ -300,6 +334,7 @@ async def approve_existing_certificate(
 
     # Generate PDF
     try:
+        design = await _load_cert_design(session)
         pdf_bytes = generate_certificate_pdf(
             student_name=student_name,
             course_title=course.title,
@@ -308,6 +343,7 @@ async def approve_existing_certificate(
             verification_code=verification_code,
             issue_date=issue_date_str,
             verification_url=verification_url,
+            design=design,
         )
 
         s3 = get_s3_client()
@@ -436,6 +472,7 @@ async def create_and_approve_certificate(
 
     # Generate PDF
     try:
+        design = await _load_cert_design(session)
         pdf_bytes = generate_certificate_pdf(
             student_name=student_name,
             course_title=course.title,
@@ -444,6 +481,7 @@ async def create_and_approve_certificate(
             verification_code=verification_code,
             issue_date=issue_date_str,
             verification_url=verification_url,
+            design=design,
         )
 
         # Upload to S3
