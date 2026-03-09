@@ -17,6 +17,16 @@ function getRefreshToken(): string | null {
   return localStorage.getItem('refresh_token');
 }
 
+function isTokenExpired(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    // Refresh 30s before actual expiry to avoid edge cases
+    return payload.exp * 1000 < Date.now() + 30000;
+  } catch {
+    return true;
+  }
+}
+
 let refreshPromise: Promise<string | null> | null = null;
 
 async function refreshAccessToken(): Promise<string | null> {
@@ -88,7 +98,20 @@ export async function apiClient<T = any>(
     headers['Content-Type'] = headers['Content-Type'] || 'application/json';
   }
 
-  const token = getAccessToken();
+  // Proactively refresh expired tokens before making the request
+  let token = getAccessToken();
+  if (token && isTokenExpired(token)) {
+    const newToken = await refreshAccessToken();
+    if (newToken) {
+      token = newToken;
+    } else {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+      throw new Error('Session expired');
+    }
+  }
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
