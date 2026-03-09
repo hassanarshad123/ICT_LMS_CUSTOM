@@ -95,7 +95,7 @@ export default function BatchContentPage() {
   // Cleanup polling on unmount
   useEffect(() => {
     return () => {
-      Object.values(pollingRefs.current).forEach(clearInterval);
+      Object.values(pollingRefs.current).forEach(clearTimeout);
     };
   }, []);
 
@@ -133,14 +133,13 @@ export default function BatchContentPage() {
   const startStatusPolling = useCallback((lectureId: string, courseId: string) => {
     // Clear existing poll for this lecture
     if (pollingRefs.current[lectureId]) {
-      clearInterval(pollingRefs.current[lectureId]);
+      clearTimeout(pollingRefs.current[lectureId]);
     }
     pollingStartTimes.current[lectureId] = Date.now();
-    pollingRefs.current[lectureId] = setInterval(async () => {
-      // Timeout check
+
+    const poll = async () => {
       const elapsed = Date.now() - (pollingStartTimes.current[lectureId] || 0);
       if (elapsed > POLLING_TIMEOUT_MS) {
-        clearInterval(pollingRefs.current[lectureId]);
         delete pollingRefs.current[lectureId];
         delete pollingStartTimes.current[lectureId];
         setUploadProgress((prev) => ({
@@ -158,7 +157,6 @@ export default function BatchContentPage() {
       try {
         const res = await getLectureStatus(lectureId);
         if (res.videoStatus === 'ready') {
-          clearInterval(pollingRefs.current[lectureId]);
           delete pollingRefs.current[lectureId];
           delete pollingStartTimes.current[lectureId];
           setUploadProgress((prev) => ({
@@ -167,8 +165,8 @@ export default function BatchContentPage() {
           }));
           toast.success('Video is ready!');
           loadCourseContent(courseId);
+          return;
         } else if (res.videoStatus === 'failed') {
-          clearInterval(pollingRefs.current[lectureId]);
           delete pollingRefs.current[lectureId];
           delete pollingStartTimes.current[lectureId];
           setUploadProgress((prev) => ({
@@ -176,6 +174,7 @@ export default function BatchContentPage() {
             [lectureId]: { ...prev[lectureId], status: 'failed', error: 'Encoding failed' },
           }));
           toast.error('Video processing failed');
+          return;
         } else {
           setUploadProgress((prev) => ({
             ...prev,
@@ -185,7 +184,14 @@ export default function BatchContentPage() {
       } catch {
         // Keep polling on network errors
       }
-    }, 5000);
+
+      // Adaptive interval: 5s for first 2 min, then 15s
+      const interval = elapsed < 2 * 60 * 1000 ? 5000 : 15000;
+      pollingRefs.current[lectureId] = setTimeout(poll, interval);
+    };
+
+    // Start first poll after 5s
+    pollingRefs.current[lectureId] = setTimeout(poll, 5000);
   }, [loadCourseContent]);
 
   const handleAddLecture = async (courseId: string) => {
@@ -226,7 +232,10 @@ export default function BatchContentPage() {
         // Start TUS upload directly to Bunny
         const upload = new tus.Upload(videoFile, {
           endpoint: res.tusEndpoint,
-          retryDelays: [0, 3000, 5000, 10000],
+          chunkSize: 50 * 1024 * 1024, // 50 MB chunks (default was 5 MB)
+          parallelUploads: 5, // 5 concurrent chunks
+          retryDelays: [0, 3000, 5000, 10000, 15000],
+          uploadSize: videoFile.size,
           headers: {
             AuthorizationSignature: res.authSignature,
             AuthorizationExpire: String(res.authExpire),
@@ -300,7 +309,7 @@ export default function BatchContentPage() {
       setDeleteLectureConfirm(null);
       // Stop polling if active
       if (pollingRefs.current[lectureId]) {
-        clearInterval(pollingRefs.current[lectureId]);
+        clearTimeout(pollingRefs.current[lectureId]);
         delete pollingRefs.current[lectureId];
       }
       setUploadProgress((prev) => {
