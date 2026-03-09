@@ -17,7 +17,7 @@ export default function LoginPage() {
     const stored = localStorage.getItem('user');
     const token = localStorage.getItem('access_token');
     if (stored && token) {
-      router.replace('/');
+      router.replace(`/${JSON.parse(stored).id}`);
     }
   }, [router]);
 
@@ -39,7 +39,7 @@ export default function LoginPage() {
       localStorage.setItem('refresh_token', res.refreshToken);
       localStorage.setItem('user', JSON.stringify(res.user));
 
-      router.push('/');
+      router.push(`/${res.user.id}`);
     } catch (err: any) {
       setError(err.message || 'Login failed');
     } finally {

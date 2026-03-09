@@ -3,6 +3,7 @@
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import DashboardHeader from '@/components/layout/dashboard-header';
 import { useAuth } from '@/lib/auth-context';
+import { useBasePath } from '@/hooks/use-base-path';
 import { useApi } from '@/hooks/use-api';
 import { listCourses } from '@/lib/api/courses';
 import { listClasses } from '@/lib/api/zoom';
@@ -13,6 +14,7 @@ import Link from 'next/link';
 
 export default function StudentDashboard() {
   const { name } = useAuth();
+  const basePath = useBasePath();
 
   const { data: coursesData, loading: coursesLoading, error: coursesError, refetch: refetchCourses } = useApi(
     () => listCourses(),
@@ -34,7 +36,7 @@ export default function StudentDashboard() {
   const upcomingClasses = classes.filter((c) => c.status === 'upcoming' || c.status === 'scheduled');
 
   return (
-    <DashboardLayout role="student" userName={name || 'Student'}>
+    <DashboardLayout>
       <DashboardHeader
         greeting={`Welcome, ${name || 'Student'}!`}
         subtitle="Continue your learning journey"
@@ -52,7 +54,7 @@ export default function StudentDashboard() {
         <>
           {/* KPI Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
-            <Link href="/student/courses">
+            <Link href={`${basePath}/courses`}>
               <div className="bg-white rounded-2xl p-5 sm:p-6 card-shadow hover:card-shadow-hover transition-all duration-200 cursor-pointer group">
                 <div className="w-12 h-12 bg-[#C5D86D] rounded-2xl flex items-center justify-center mb-4">
                   <BookOpen size={24} className="text-[#1A1A1A]" />
@@ -62,7 +64,7 @@ export default function StudentDashboard() {
               </div>
             </Link>
 
-            <Link href="/student/zoom">
+            <Link href={`${basePath}/classes`}>
               <div className="bg-white rounded-2xl p-5 sm:p-6 card-shadow hover:card-shadow-hover transition-all duration-200 cursor-pointer group">
                 <div className="w-12 h-12 bg-[#E8E8E8] rounded-2xl flex items-center justify-center mb-4">
                   <Video size={24} className="text-[#1A1A1A]" />
@@ -72,7 +74,7 @@ export default function StudentDashboard() {
               </div>
             </Link>
 
-            <Link href="/student/jobs">
+            <Link href={`${basePath}/jobs`}>
               <div className="bg-white rounded-2xl p-5 sm:p-6 card-shadow hover:card-shadow-hover transition-all duration-200 cursor-pointer group">
                 <div className="w-12 h-12 bg-[#C5D86D] rounded-2xl flex items-center justify-center mb-4">
                   <Briefcase size={24} className="text-[#1A1A1A]" />
@@ -89,7 +91,7 @@ export default function StudentDashboard() {
             <div className="bg-white rounded-2xl p-4 sm:p-6 card-shadow">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-[#1A1A1A]">Recent Courses</h3>
-                <Link href="/student/courses" className="text-sm font-medium text-gray-500 hover:text-[#1A1A1A] flex items-center gap-1 transition-colors">
+                <Link href={`${basePath}/courses`} className="text-sm font-medium text-gray-500 hover:text-[#1A1A1A] flex items-center gap-1 transition-colors">
                   View All <ChevronRight size={14} />
                 </Link>
               </div>
@@ -98,7 +100,7 @@ export default function StudentDashboard() {
               ) : (
                 <div className="space-y-3">
                   {courses.slice(0, 4).map((course) => (
-                    <Link key={course.id} href={`/student/courses/${course.id}`}>
+                    <Link key={course.id} href={`${basePath}/courses/${course.id}`}>
                       <div className="flex items-center justify-between p-4 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer">
                         <div className="flex items-center gap-4">
                           <div className="w-10 h-10 bg-[#C5D86D] bg-opacity-30 rounded-xl flex items-center justify-center">
@@ -123,7 +125,7 @@ export default function StudentDashboard() {
             <div className="bg-white rounded-2xl p-4 sm:p-6 card-shadow">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-[#1A1A1A]">Upcoming Classes</h3>
-                <Link href="/student/zoom" className="text-sm font-medium text-gray-500 hover:text-[#1A1A1A] flex items-center gap-1 transition-colors">
+                <Link href={`${basePath}/classes`} className="text-sm font-medium text-gray-500 hover:text-[#1A1A1A] flex items-center gap-1 transition-colors">
                   View All <ChevronRight size={14} />
                 </Link>
               </div>

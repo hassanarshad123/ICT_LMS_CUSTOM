@@ -12,7 +12,6 @@ import { listBatches } from '@/lib/api/batches';
 import { enrollStudent } from '@/lib/api/batches';
 import { PageLoading, PageError } from '@/components/shared/page-states';
 import { toast } from 'sonner';
-import { UserRole } from '@/lib/types/user';
 import { Plus, X, Search, Trash2, GraduationCap, BookOpen, PenTool, Loader2 } from 'lucide-react';
 import {
   AlertDialog,
@@ -27,15 +26,14 @@ import {
 import { roleBadgeColors, roleLabels } from '@/lib/constants';
 
 interface UsersListViewProps {
-  role: UserRole;
-  userName: string;
-  basePath: string;
+  basePath?: string;
 }
 
-export default function UsersListView({ role, userName, basePath }: UsersListViewProps) {
+export default function UsersListView({ basePath: basePathProp }: UsersListViewProps) {
   const router = useRouter();
   const auth = useAuth();
-  const displayName = auth.name || userName;
+  const { id: userId } = auth;
+  const basePath = basePathProp || `/${userId}/users`;
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -121,7 +119,7 @@ export default function UsersListView({ role, userName, basePath }: UsersListVie
   ];
 
   return (
-    <DashboardLayout role={role} userName={displayName}>
+    <DashboardLayout>
       <DashboardHeader greeting="Users" subtitle="Manage all users across the platform" />
 
       <div className="flex flex-col lg:flex-row justify-between gap-4 mb-6">

@@ -8,20 +8,16 @@ import { useMutation } from '@/hooks/use-api';
 import { updateUser } from '@/lib/api/users';
 import { changePassword } from '@/lib/api/auth';
 import { toast } from 'sonner';
-import { UserRole } from '@/lib/types';
 import { Save, User, Lock, Loader2 } from 'lucide-react';
 
 interface SettingsViewProps {
-  role: UserRole;
-  userName: string;
-  subtitle: string;
+  subtitle?: string;
   extraProfileFields?: ReactNode;
   extraCards?: ReactNode;
 }
 
-export default function SettingsView({ role, userName, subtitle, extraProfileFields, extraCards }: SettingsViewProps) {
+export default function SettingsView({ subtitle, extraProfileFields, extraCards }: SettingsViewProps) {
   const auth = useAuth();
-  const displayName = auth.name || userName;
 
   const [profileData, setProfileData] = useState({
     name: auth.name,
@@ -82,7 +78,7 @@ export default function SettingsView({ role, userName, subtitle, extraProfileFie
   };
 
   return (
-    <DashboardLayout role={role} userName={displayName}>
+    <DashboardLayout>
       <DashboardHeader greeting="Settings" subtitle={subtitle} />
 
       <div className="max-w-2xl space-y-6">

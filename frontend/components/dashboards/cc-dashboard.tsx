@@ -3,6 +3,7 @@
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import DashboardHeader from '@/components/layout/dashboard-header';
 import { useAuth } from '@/lib/auth-context';
+import { useBasePath } from '@/hooks/use-base-path';
 import { useApi } from '@/hooks/use-api';
 import { listCourses } from '@/lib/api/courses';
 import { listBatches } from '@/lib/api/batches';
@@ -13,6 +14,7 @@ import Link from 'next/link';
 
 export default function CourseCreatorDashboard() {
   const { name } = useAuth();
+  const basePath = useBasePath();
 
   const { data: coursesData, loading: coursesLoading, error: coursesError, refetch: refetchCourses } = useApi(
     () => listCourses({ per_page: 5 }),
@@ -28,7 +30,7 @@ export default function CourseCreatorDashboard() {
   const error = coursesError;
 
   return (
-    <DashboardLayout role="course-creator" userName={name || 'Course Creator'}>
+    <DashboardLayout>
       <DashboardHeader greeting={`Good morning, ${name || 'Creator'}!`} subtitle="Manage your course content" />
 
       {loading && <PageLoading variant="cards" />}
@@ -38,7 +40,7 @@ export default function CourseCreatorDashboard() {
         <>
           {/* KPI Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
-            <Link href="/course-creator/courses">
+            <Link href={`${basePath}/courses`}>
               <div className="bg-white rounded-2xl p-4 sm:p-6 card-shadow hover:card-shadow-hover transition-all duration-200 cursor-pointer">
                 <div className="w-12 h-12 bg-[#C5D86D] rounded-2xl flex items-center justify-center mb-4">
                   <BookOpen size={24} className="text-[#1A1A1A]" />
@@ -47,7 +49,7 @@ export default function CourseCreatorDashboard() {
                 <p className="text-sm text-gray-500 mt-1">Total Courses</p>
               </div>
             </Link>
-            <Link href="/course-creator/batches">
+            <Link href={`${basePath}/batches`}>
               <div className="bg-white rounded-2xl p-4 sm:p-6 card-shadow hover:card-shadow-hover transition-all duration-200 cursor-pointer">
                 <div className="w-12 h-12 bg-[#E8E8E8] rounded-2xl flex items-center justify-center mb-4">
                   <Layers size={24} className="text-[#1A1A1A]" />
@@ -56,7 +58,7 @@ export default function CourseCreatorDashboard() {
                 <p className="text-sm text-gray-500 mt-1">Total Batches</p>
               </div>
             </Link>
-            <Link href="/course-creator/jobs">
+            <Link href={`${basePath}/jobs`}>
               <div className="bg-white rounded-2xl p-4 sm:p-6 card-shadow hover:card-shadow-hover transition-all duration-200 cursor-pointer">
                 <div className="w-12 h-12 bg-[#C5D86D] bg-opacity-40 rounded-2xl flex items-center justify-center mb-4">
                   <Briefcase size={24} className="text-[#1A1A1A]" />
@@ -71,7 +73,7 @@ export default function CourseCreatorDashboard() {
           <div className="bg-white rounded-2xl p-6 card-shadow">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-[#1A1A1A]">Recent Courses</h3>
-              <Link href="/course-creator/courses" className="text-sm font-medium text-gray-500 hover:text-[#1A1A1A] transition-colors">
+              <Link href={`${basePath}/courses`} className="text-sm font-medium text-gray-500 hover:text-[#1A1A1A] transition-colors">
                 View All
               </Link>
             </div>
@@ -80,7 +82,7 @@ export default function CourseCreatorDashboard() {
                 <p className="text-sm text-gray-500 py-4 text-center">No courses yet</p>
               ) : (
                 coursesData!.data.map((course) => (
-                  <Link key={course.id} href={`/course-creator/courses/${course.id}`}>
+                  <Link key={course.id} href={`${basePath}/courses/${course.id}`}>
                     <div className="flex items-center justify-between p-4 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer group">
                       <div className="flex items-center gap-4">
                         <div className="w-10 h-10 bg-[#C5D86D] bg-opacity-30 rounded-xl flex items-center justify-center">

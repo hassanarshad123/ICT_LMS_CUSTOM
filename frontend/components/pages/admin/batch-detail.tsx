@@ -1,0 +1,255 @@
+'use client';
+
+import { useState, useMemo } from 'react';
+import { useParams } from 'next/navigation';
+import Link from 'next/link';
+import DashboardLayout from '@/components/layout/dashboard-layout';
+import DashboardHeader from '@/components/layout/dashboard-header';
+import { useAuth } from '@/lib/auth-context';
+import { useBasePath } from '@/hooks/use-base-path';
+import { useApi, useMutation } from '@/hooks/use-api';
+import { getBatch, listBatchStudents, enrollStudent, removeStudent } from '@/lib/api/batches';
+import { listUsers } from '@/lib/api/users';
+import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
+import { toast } from 'sonner';
+import { ArrowLeft, UserPlus, Trash2, Loader2, Users, Calendar, GraduationCap, BookOpen } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+
+export default function AdminBatchDetail() {
+  const { batchId } = useParams<{ batchId: string }>();
+  const { name } = useAuth();
+  const basePath = useBasePath();
+  const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [removeConfirmId, setRemoveConfirmId] = useState<string | null>(null);
+
+  const { data: batch, loading: batchLoading, error: batchError, refetch: refetchBatch } = useApi(
+    () => getBatch(batchId),
+    [batchId],
+  );
+
+  const { data: students, loading: studentsLoading, error: studentsError, refetch: refetchStudents } = useApi(
+    () => listBatchStudents(batchId),
+    [batchId],
+  );
+
+  const { data: allStudentsData } = useApi(
+    () => listUsers({ role: 'student', per_page: 100 }),
+  );
+
+  const { execute: doEnroll, loading: enrolling } = useMutation(
+    (studentId: string) => enrollStudent(batchId, studentId),
+  );
+
+  const { execute: doRemove } = useMutation(
+    (studentId: string) => removeStudent(batchId, studentId),
+  );
+
+  const enrolledIds = useMemo(() => {
+    if (!students || !Array.isArray(students)) return new Set<string>();
+    return new Set(students.map((s: any) => s.id));
+  }, [students]);
+
+  const availableStudents = useMemo(() => {
+    const all = allStudentsData?.data || [];
+    return all.filter((s) => !enrolledIds.has(s.id));
+  }, [allStudentsData, enrolledIds]);
+
+  const handleEnroll = async () => {
+    if (!selectedStudentId) return;
+    try {
+      await doEnroll(selectedStudentId);
+      toast.success('Student enrolled');
+      setSelectedStudentId('');
+      refetchStudents();
+      refetchBatch();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const handleRemove = async (studentId: string) => {
+    try {
+      await doRemove(studentId);
+      toast.success('Student removed');
+      setRemoveConfirmId(null);
+      refetchStudents();
+      refetchBatch();
+    } catch (err: any) {
+      toast.error(err.message);
+      setRemoveConfirmId(null);
+    }
+  };
+
+  const loading = batchLoading || studentsLoading;
+  const error = batchError || studentsError;
+
+  return (
+    <DashboardLayout>
+      <div className="mb-6">
+        <Link href={`${basePath}/batches`} className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-[#1A1A1A] transition-colors">
+          <ArrowLeft size={16} />
+          Back to Batches
+        </Link>
+      </div>
+
+      {loading && <PageLoading variant="detail" />}
+      {error && <PageError message={error} onRetry={() => { refetchBatch(); refetchStudents(); }} />}
+
+      {!loading && !error && batch && (
+        <>
+          {/* Batch Info Card */}
+          <div className="bg-white rounded-2xl p-6 card-shadow mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
+              <h2 className="text-xl font-bold text-[#1A1A1A]">{batch.name}</h2>
+              <span className={`mt-2 sm:mt-0 inline-block px-3 py-1 rounded-full text-xs font-medium ${
+                batch.status === 'active' ? 'bg-green-100 text-green-700' :
+                batch.status === 'upcoming' ? 'bg-yellow-100 text-yellow-700' :
+                'bg-gray-100 text-gray-600'
+              }`}>
+                {batch.status}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
+                  <GraduationCap size={18} className="text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Teacher</p>
+                  <p className="text-sm font-medium text-[#1A1A1A]">{batch.teacherName || 'Unassigned'}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center">
+                  <Users size={18} className="text-purple-600" />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Students</p>
+                  <p className="text-sm font-medium text-[#1A1A1A]">{batch.studentCount}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center">
+                  <BookOpen size={18} className="text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Courses</p>
+                  <p className="text-sm font-medium text-[#1A1A1A]">{batch.courseCount}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center">
+                  <Calendar size={18} className="text-green-600" />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Duration</p>
+                  <p className="text-sm font-medium text-[#1A1A1A]">
+                    {batch.startDate ? new Date(batch.startDate).toLocaleDateString() : '—'} - {batch.endDate ? new Date(batch.endDate).toLocaleDateString() : '—'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Add Student Section */}
+          <div className="bg-white rounded-2xl p-6 card-shadow mb-6">
+            <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">Enroll Student</h3>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <select
+                value={selectedStudentId}
+                onChange={(e) => setSelectedStudentId(e.target.value)}
+                className="flex-1 px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50"
+              >
+                <option value="">Select a student...</option>
+                {availableStudents.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name} ({s.email})</option>
+                ))}
+              </select>
+              <button
+                onClick={handleEnroll}
+                disabled={!selectedStudentId || enrolling}
+                className="flex items-center justify-center gap-2 px-6 py-3 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#333] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {enrolling ? <Loader2 size={16} className="animate-spin" /> : <UserPlus size={16} />}
+                Enroll Student
+              </button>
+            </div>
+          </div>
+
+          {/* Enrolled Students Table */}
+          <div className="bg-white rounded-2xl card-shadow overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100">
+              <h3 className="text-lg font-semibold text-[#1A1A1A]">Enrolled Students ({Array.isArray(students) ? students.length : 0})</h3>
+            </div>
+
+            {!Array.isArray(students) || students.length === 0 ? (
+              <div className="p-8">
+                <EmptyState
+                  icon={<Users size={28} className="text-gray-400" />}
+                  title="No students enrolled"
+                  description="Use the dropdown above to enroll students in this batch."
+                />
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[600px]">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Name</th>
+                      <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Email</th>
+                      <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Phone</th>
+                      <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Enrolled Date</th>
+                      <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {students.map((student: any) => (
+                      <tr key={student.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm font-medium text-[#1A1A1A]">{student.name}</td>
+                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{student.email}</td>
+                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{student.phone || '—'}</td>
+                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">
+                          {student.enrolledAt ? new Date(student.enrolledAt).toLocaleDateString() : student.createdAt ? new Date(student.createdAt).toLocaleDateString() : '—'}
+                        </td>
+                        <td className="px-3 sm:px-6 py-3 sm:py-4">
+                          <button
+                            onClick={() => setRemoveConfirmId(student.id)}
+                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <AlertDialog open={!!removeConfirmId} onOpenChange={(open) => !open && setRemoveConfirmId(null)}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Remove Student</AlertDialogTitle>
+                <AlertDialogDescription>Are you sure you want to remove this student from the batch? They will lose access to all batch courses and materials.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => removeConfirmId && handleRemove(removeConfirmId)} className="bg-red-600 hover:bg-red-700 text-white">Remove</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </>
+      )}
+    </DashboardLayout>
+  );
+}

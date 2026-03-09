@@ -3,6 +3,7 @@
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import DashboardHeader from '@/components/layout/dashboard-header';
 import { useAuth } from '@/lib/auth-context';
+import { useBasePath } from '@/hooks/use-base-path';
 import { useApi } from '@/hooks/use-api';
 import { getDashboard } from '@/lib/api/admin';
 import { PageLoading } from '@/components/shared/page-states';
@@ -12,10 +13,11 @@ import Link from 'next/link';
 
 export default function AdminDashboard() {
   const { name } = useAuth();
+  const basePath = useBasePath();
   const { data, loading, error, refetch } = useApi(getDashboard);
 
   return (
-    <DashboardLayout role="admin" userName={name || 'Admin'}>
+    <DashboardLayout>
       <DashboardHeader greeting={`Good morning, ${name || 'Admin'}!`} subtitle="Here is your institute overview" />
 
       {loading && <PageLoading variant="cards" />}
@@ -25,10 +27,10 @@ export default function AdminDashboard() {
         <>
           <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
             {[
-              { label: 'Total Batches', value: data.totalBatches, icon: <Layers size={22} />, color: 'bg-[#C5D86D]', href: '/admin/batches' },
-              { label: 'Total Students', value: data.totalStudents, icon: <Users size={22} />, color: 'bg-[#E8E8E8]', href: '/admin/students' },
-              { label: 'Total Teachers', value: data.totalTeachers, icon: <GraduationCap size={22} />, color: 'bg-[#C5D86D]', href: '/admin/teachers' },
-              { label: 'Active Batches', value: data.activeBatches, icon: <TrendingUp size={22} />, color: 'bg-[#E8E8E8]', href: '/admin/batches' },
+              { label: 'Total Batches', value: data.totalBatches, icon: <Layers size={22} />, color: 'bg-[#C5D86D]', href: `${basePath}/batches` },
+              { label: 'Total Students', value: data.totalStudents, icon: <Users size={22} />, color: 'bg-[#E8E8E8]', href: `${basePath}/students` },
+              { label: 'Total Teachers', value: data.totalTeachers, icon: <GraduationCap size={22} />, color: 'bg-[#C5D86D]', href: `${basePath}/teachers` },
+              { label: 'Active Batches', value: data.activeBatches, icon: <TrendingUp size={22} />, color: 'bg-[#E8E8E8]', href: `${basePath}/batches` },
             ].map((stat) => (
               <Link key={stat.label} href={stat.href}>
                 <div className="bg-white rounded-2xl p-4 sm:p-6 card-shadow hover:card-shadow-hover transition-all duration-200 cursor-pointer">

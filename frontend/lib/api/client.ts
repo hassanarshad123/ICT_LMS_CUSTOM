@@ -140,16 +140,9 @@ export async function apiClient<T = any>(
 
   if (res.status === 204) return undefined as T;
 
-  // Handle 403 role mismatch — force re-login
+  // Handle 403 — access denied (don't logout, user may just lack permission for this endpoint)
   if (res.status === 403) {
     const error = await res.json().catch(() => ({ detail: 'Forbidden' }));
-    if (error.detail && error.detail.includes('not authorized')) {
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
-      throw new Error('Session invalid. Please log in again.');
-    }
     throw new Error(error.detail || 'Forbidden');
   }
 

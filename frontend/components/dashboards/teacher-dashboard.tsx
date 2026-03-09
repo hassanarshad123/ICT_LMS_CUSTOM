@@ -3,6 +3,7 @@
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import DashboardHeader from '@/components/layout/dashboard-header';
 import { useAuth } from '@/lib/auth-context';
+import { useBasePath } from '@/hooks/use-base-path';
 import { useApi } from '@/hooks/use-api';
 import { listBatches } from '@/lib/api/batches';
 import { listClasses } from '@/lib/api/zoom';
@@ -12,6 +13,7 @@ import Link from 'next/link';
 
 export default function TeacherDashboard() {
   const { name, id } = useAuth();
+  const basePath = useBasePath();
 
   const { data: batchesData, loading: batchesLoading, error: batchesError, refetch } = useApi(
     () => listBatches({ teacher_id: id, per_page: 100 }),
@@ -30,7 +32,7 @@ export default function TeacherDashboard() {
   const totalStudents = teacherBatches.reduce((sum, b) => sum + (b.studentCount || 0), 0);
 
   return (
-    <DashboardLayout role="teacher" userName={name || 'Teacher'}>
+    <DashboardLayout>
       <DashboardHeader greeting={`Good morning, ${name || 'Teacher'}!`} subtitle="Here is your teaching overview" />
 
       {loading && <PageLoading variant="cards" />}
@@ -63,7 +65,7 @@ export default function TeacherDashboard() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Link href="/teacher/batches">
+            <Link href={`${basePath}/batches`}>
               <div className="bg-white rounded-2xl p-5 sm:p-8 card-shadow hover:card-shadow-hover transition-all duration-200 cursor-pointer group">
                 <div className="w-14 h-14 bg-[#C5D86D] rounded-2xl flex items-center justify-center mb-5">
                   <Layers size={28} className="text-[#1A1A1A]" />
@@ -76,7 +78,7 @@ export default function TeacherDashboard() {
               </div>
             </Link>
 
-            <Link href="/teacher/zoom">
+            <Link href={`${basePath}/classes`}>
               <div className="bg-white rounded-2xl p-5 sm:p-8 card-shadow hover:card-shadow-hover transition-all duration-200 cursor-pointer group">
                 <div className="w-14 h-14 bg-[#E8E8E8] rounded-2xl flex items-center justify-center mb-5">
                   <Video size={28} className="text-[#1A1A1A]" />
