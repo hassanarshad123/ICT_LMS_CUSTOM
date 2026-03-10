@@ -75,9 +75,9 @@ export default function UserDetailView({ backHref: backHrefProp }: UserDetailVie
           <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <Users size={28} className="text-gray-400" />
           </div>
-          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-2">User not found</h3>
+          <h3 className="text-lg font-semibold text-primary mb-2">User not found</h3>
           <p className="text-sm text-gray-500 mb-4">The user you are looking for does not exist.</p>
-          <Link href={backHref} className="text-sm font-medium text-[#1A1A1A] hover:underline">Back to Users</Link>
+          <Link href={backHref} className="text-sm font-medium text-primary hover:underline">Back to Users</Link>
         </div>
       </DashboardLayout>
     );
@@ -146,7 +146,7 @@ export default function UserDetailView({ backHref: backHrefProp }: UserDetailVie
 
   return (
     <DashboardLayout>
-      <Link href={backHref} className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-[#1A1A1A] transition-colors mb-6">
+      <Link href={backHref} className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-primary transition-colors mb-6">
         <ArrowLeft size={16} />
         Back to Users
       </Link>
@@ -154,16 +154,16 @@ export default function UserDetailView({ backHref: backHrefProp }: UserDetailVie
       <div className="bg-white rounded-2xl p-6 card-shadow mb-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-[#C5D86D] flex items-center justify-center text-xl font-bold text-[#1A1A1A]">{user.name?.charAt(0) || '?'}</div>
+            <div className="w-16 h-16 rounded-full bg-accent flex items-center justify-center text-xl font-bold text-primary">{user.name?.charAt(0) || '?'}</div>
             <div>
-              <h1 className="text-xl font-bold text-[#1A1A1A]">{user.name}</h1>
+              <h1 className="text-xl font-bold text-primary">{user.name}</h1>
               <div className="flex items-center gap-2 mt-1">
                 <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${roleBadgeColors[user.role] || 'bg-gray-100 text-gray-600'}`}>{roleLabels[user.role] || user.role}</span>
                 <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${user.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{user.status}</span>
               </div>
             </div>
           </div>
-          <button onClick={isEditing ? cancelEditing : startEditing} className="flex items-center gap-2 px-5 py-2.5 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#333] transition-colors">
+          <button onClick={isEditing ? cancelEditing : startEditing} className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors">
             <Edit3 size={16} />
             {isEditing ? 'Cancel Editing' : 'Edit Profile'}
           </button>
@@ -173,30 +173,30 @@ export default function UserDetailView({ backHref: backHrefProp }: UserDetailVie
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-white rounded-2xl p-6 card-shadow">
-            <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">Profile Information</h3>
+            <h3 className="text-lg font-semibold text-primary mb-4">Profile Information</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name</label>
-                <input type="text" value={isEditing ? editData?.name || '' : user.name || ''} onChange={(e) => editData && setEditData({ ...editData, name: e.target.value })} disabled={!isEditing} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50 disabled:opacity-60" />
+                <input type="text" value={isEditing ? editData?.name || '' : user.name || ''} onChange={(e) => editData && setEditData({ ...editData, name: e.target.value })} disabled={!isEditing} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50 disabled:opacity-60" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
-                <input type="email" value={isEditing ? editData?.email || '' : user.email || ''} onChange={(e) => editData && setEditData({ ...editData, email: e.target.value })} disabled={!isEditing} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50 disabled:opacity-60" />
+                <input type="email" value={isEditing ? editData?.email || '' : user.email || ''} onChange={(e) => editData && setEditData({ ...editData, email: e.target.value })} disabled={!isEditing} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50 disabled:opacity-60" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone</label>
-                <input type="text" value={isEditing ? editData?.phone || '' : user.phone || ''} onChange={(e) => editData && setEditData({ ...editData, phone: e.target.value })} disabled={!isEditing} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50 disabled:opacity-60" />
+                <input type="text" value={isEditing ? editData?.phone || '' : user.phone || ''} onChange={(e) => editData && setEditData({ ...editData, phone: e.target.value })} disabled={!isEditing} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50 disabled:opacity-60" />
               </div>
               {(user.role === 'teacher' || user.role === 'course_creator') && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Specialization</label>
-                  <input type="text" value={isEditing ? editData?.specialization || '' : user.specialization || ''} onChange={(e) => editData && setEditData({ ...editData, specialization: e.target.value })} disabled={!isEditing} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50 disabled:opacity-60" />
+                  <input type="text" value={isEditing ? editData?.specialization || '' : user.specialization || ''} onChange={(e) => editData && setEditData({ ...editData, specialization: e.target.value })} disabled={!isEditing} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50 disabled:opacity-60" />
                 </div>
               )}
             </div>
             {isEditing && (
               <div className="mt-4">
-                <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 px-6 py-3 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#333] transition-colors disabled:opacity-60">
+                <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors disabled:opacity-60">
                   {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                   Save Changes
                 </button>
@@ -208,8 +208,8 @@ export default function UserDetailView({ backHref: backHrefProp }: UserDetailVie
           {user.role === 'student' && user.batchNames && user.batchNames.length > 0 && (
             <div className="bg-white rounded-2xl p-6 card-shadow">
               <div className="flex items-center gap-2 mb-4">
-                <Users size={18} className="text-[#1A1A1A]" />
-                <h3 className="text-lg font-semibold text-[#1A1A1A]">Enrolled Batches</h3>
+                <Users size={18} className="text-primary" />
+                <h3 className="text-lg font-semibold text-primary">Enrolled Batches</h3>
               </div>
               <div className="flex flex-wrap gap-2">
                 {user.batchNames.map((name: string, i: number) => (
@@ -228,14 +228,14 @@ export default function UserDetailView({ backHref: backHrefProp }: UserDetailVie
                 <Shield size={16} className="text-gray-400" />
                 <div>
                   <p className="text-xs text-gray-500">Role</p>
-                  <p className="text-sm font-medium text-[#1A1A1A]">{roleLabels[user.role] || user.role}</p>
+                  <p className="text-sm font-medium text-primary">{roleLabels[user.role] || user.role}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <div className={`w-2 h-2 rounded-full ${user.status === 'active' ? 'bg-green-500' : 'bg-gray-400'}`} />
                 <div>
                   <p className="text-xs text-gray-500">Status</p>
-                  <p className="text-sm font-medium text-[#1A1A1A] capitalize">{user.status}</p>
+                  <p className="text-sm font-medium text-primary capitalize">{user.status}</p>
                 </div>
               </div>
               {user.createdAt && (
@@ -243,7 +243,7 @@ export default function UserDetailView({ backHref: backHrefProp }: UserDetailVie
                   <Calendar size={16} className="text-gray-400" />
                   <div>
                     <p className="text-xs text-gray-500">Joined</p>
-                    <p className="text-sm font-medium text-[#1A1A1A]">{new Date(user.createdAt).toLocaleDateString()}</p>
+                    <p className="text-sm font-medium text-primary">{new Date(user.createdAt).toLocaleDateString()}</p>
                   </div>
                 </div>
               )}
@@ -253,7 +253,7 @@ export default function UserDetailView({ backHref: backHrefProp }: UserDetailVie
           {/* Reset Password */}
           <div className="bg-white rounded-2xl p-6 card-shadow">
             <h3 className="text-sm font-semibold text-gray-500 uppercase mb-3">Password</h3>
-            <button onClick={handleResetPassword} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-gray-100 text-[#1A1A1A] hover:bg-gray-200 transition-colors">
+            <button onClick={handleResetPassword} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-gray-100 text-primary hover:bg-gray-200 transition-colors">
               <KeyRound size={16} />
               Reset Password
             </button>

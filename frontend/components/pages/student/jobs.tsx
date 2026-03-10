@@ -90,7 +90,7 @@ export default function StudentJobs() {
             onClick={() => setFilter(type)}
             className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
               filter === type
-                ? 'bg-[#1A1A1A] text-white'
+                ? 'bg-primary text-white'
                 : 'bg-white text-gray-600 hover:bg-gray-100'
             }`}
           >
@@ -124,12 +124,12 @@ export default function StudentJobs() {
                     className="w-full flex items-start justify-between p-6 text-left"
                   >
                     <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 bg-[#C5D86D] bg-opacity-30 rounded-xl flex items-center justify-center flex-shrink-0">
-                        <Briefcase size={20} className="text-[#1A1A1A]" />
+                      <div className="w-12 h-12 bg-accent bg-opacity-30 rounded-xl flex items-center justify-center flex-shrink-0">
+                        <Briefcase size={20} className="text-primary" />
                       </div>
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className="font-semibold text-[#1A1A1A]">{job.title}</h4>
+                          <h4 className="font-semibold text-primary">{job.title}</h4>
                           {hasApplied && (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
                               <CheckCircle2 size={10} />
@@ -161,7 +161,7 @@ export default function StudentJobs() {
                       {job.deadline && (
                         <div className="text-right hidden sm:block">
                           <p className="text-xs text-gray-500">Deadline</p>
-                          <p className="text-sm font-medium text-[#1A1A1A]">{job.deadline}</p>
+                          <p className="text-sm font-medium text-primary">{job.deadline}</p>
                         </div>
                       )}
                       {isExpanded ? <ChevronUp size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />}
@@ -180,7 +180,7 @@ export default function StudentJobs() {
                             <ul className="space-y-1.5">
                               {job.requirements.map((req, i) => (
                                 <li key={i} className="flex items-center gap-2 text-sm text-gray-600">
-                                  <div className="w-1.5 h-1.5 rounded-full bg-[#C5D86D]" />
+                                  <div className="w-1.5 h-1.5 rounded-full bg-accent" />
                                   {req}
                                 </li>
                               ))}
@@ -197,7 +197,7 @@ export default function StudentJobs() {
                             <button
                               onClick={() => handleApply(job.id)}
                               disabled={applying && applyingJobId === job.id}
-                              className="px-5 py-2.5 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#333] transition-colors flex items-center gap-2 disabled:opacity-60"
+                              className="px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors flex items-center gap-2 disabled:opacity-60"
                             >
                               {applying && applyingJobId === job.id ? (
                                 <Loader2 size={14} className="animate-spin" />

@@ -40,6 +40,18 @@ async def get_current_user(
     if user.status != UserStatus.active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is deactivated")
 
+    # Set Sentry user context for all subsequent error reports in this request
+    try:
+        import sentry_sdk
+        sentry_sdk.set_user({
+            "id": str(user.id),
+            "email": user.email,
+            "username": user.name,
+            "role": user.role.value,
+        })
+    except Exception:
+        pass
+
     return user
 
 

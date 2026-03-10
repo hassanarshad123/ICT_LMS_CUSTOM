@@ -160,7 +160,7 @@ export default function AdminSettings() {
     }
   };
 
-  const inputClass = 'w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50';
+  const inputClass = 'w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50';
 
   return (
     <>
@@ -171,11 +171,11 @@ export default function AdminSettings() {
           {/* Session Settings Card */}
           <div className="bg-white rounded-2xl p-4 sm:p-6 card-shadow">
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 bg-[#C5D86D] rounded-xl flex items-center justify-center">
-                <Monitor size={20} className="text-[#1A1A1A]" />
+              <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center">
+                <Monitor size={20} className="text-primary" />
               </div>
               <div>
-                <h3 className="font-semibold text-[#1A1A1A]">Session Settings</h3>
+                <h3 className="font-semibold text-primary">Session Settings</h3>
                 <p className="text-xs text-gray-500">Control how many devices users can be logged in on simultaneously</p>
               </div>
             </div>
@@ -197,7 +197,7 @@ export default function AdminSettings() {
                       <Minus size={18} className="text-gray-600" />
                     </button>
                     <div className="w-16 h-12 rounded-xl border border-gray-200 bg-white flex items-center justify-center">
-                      <span className="text-2xl font-bold text-[#1A1A1A]">{deviceLimit}</span>
+                      <span className="text-2xl font-bold text-primary">{deviceLimit}</span>
                     </div>
                     <button
                       onClick={increase}
@@ -214,7 +214,7 @@ export default function AdminSettings() {
                 <button
                   onClick={handleSave}
                   disabled={savingSettings}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#333] transition-colors disabled:opacity-60"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors disabled:opacity-60"
                 >
                   {savingSettings ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                   Save Changes
@@ -226,11 +226,11 @@ export default function AdminSettings() {
           {/* Certificate Settings Card */}
           <div className="bg-white rounded-2xl p-4 sm:p-6 card-shadow">
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 bg-[#C5D86D] rounded-xl flex items-center justify-center">
-                <Award size={20} className="text-[#1A1A1A]" />
+              <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center">
+                <Award size={20} className="text-primary" />
               </div>
               <div>
-                <h3 className="font-semibold text-[#1A1A1A]">Certificate Settings</h3>
+                <h3 className="font-semibold text-primary">Certificate Settings</h3>
                 <p className="text-xs text-gray-500">Minimum video completion percentage required for certificate eligibility</p>
               </div>
             </div>
@@ -252,7 +252,7 @@ export default function AdminSettings() {
                       <Minus size={18} className="text-gray-600" />
                     </button>
                     <div className="w-16 h-12 rounded-xl border border-gray-200 bg-white flex items-center justify-center">
-                      <span className="text-2xl font-bold text-[#1A1A1A]">{certThreshold}</span>
+                      <span className="text-2xl font-bold text-primary">{certThreshold}</span>
                     </div>
                     <button
                       onClick={increaseThreshold}
@@ -270,7 +270,7 @@ export default function AdminSettings() {
                 <button
                   onClick={handleSaveCertThreshold}
                   disabled={savingSettings}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#333] transition-colors disabled:opacity-60"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors disabled:opacity-60"
                 >
                   {savingSettings ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                   Save Changes
@@ -283,18 +283,18 @@ export default function AdminSettings() {
           <div className="bg-white rounded-2xl p-4 sm:p-6 card-shadow">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-[#C5D86D] rounded-xl flex items-center justify-center">
-                  <Video size={20} className="text-[#1A1A1A]" />
+                <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center">
+                  <Video size={20} className="text-primary" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-[#1A1A1A]">Zoom Integration</h3>
+                  <h3 className="font-semibold text-primary">Zoom Integration</h3>
                   <p className="text-xs text-gray-500">Manage Zoom API accounts for auto-creating meeting links</p>
                 </div>
               </div>
               {!showAddForm && (
                 <button
                   onClick={() => setShowAddForm(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#333] transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors"
                 >
                   <Plus size={16} />
                   Add Account
@@ -306,7 +306,7 @@ export default function AdminSettings() {
             {showAddForm && (
               <form onSubmit={handleAddAccount} className="bg-gray-50 rounded-xl p-4 sm:p-5 mb-4">
                 <div className="flex items-center justify-between mb-4">
-                  <h4 className="text-sm font-semibold text-[#1A1A1A]">New Zoom Account</h4>
+                  <h4 className="text-sm font-semibold text-primary">New Zoom Account</h4>
                   <button type="button" onClick={() => setShowAddForm(false)} className="text-gray-400 hover:text-gray-600">
                     <X size={18} />
                   </button>
@@ -335,7 +335,7 @@ export default function AdminSettings() {
                   </div>
                 </div>
                 <div className="flex justify-end mt-4">
-                  <button type="submit" disabled={creatingAccount} className="flex items-center gap-2 px-5 py-2.5 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#333] transition-colors disabled:opacity-60">
+                  <button type="submit" disabled={creatingAccount} className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors disabled:opacity-60">
                     {creatingAccount ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
                     Add Account
                   </button>
@@ -381,7 +381,7 @@ export default function AdminSettings() {
                         </div>
                         <div className="flex justify-end gap-2">
                           <button type="button" onClick={() => setEditingAccountId(null)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
-                          <button type="submit" className="flex items-center gap-2 px-4 py-2 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#333] transition-colors">
+                          <button type="submit" className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors">
                             <Save size={14} />
                             Save
                           </button>
@@ -392,9 +392,9 @@ export default function AdminSettings() {
                         <div className="flex items-center gap-3 min-w-0">
                           <div>
                             <div className="flex items-center gap-2">
-                              <h4 className="text-sm font-semibold text-[#1A1A1A]">{account.accountName}</h4>
+                              <h4 className="text-sm font-semibold text-primary">{account.accountName}</h4>
                               {account.isDefault && (
-                                <span className="px-2 py-0.5 bg-[#C5D86D] text-[#1A1A1A] text-[10px] font-bold rounded-full uppercase">Default</span>
+                                <span className="px-2 py-0.5 bg-accent text-primary text-[10px] font-bold rounded-full uppercase">Default</span>
                               )}
                             </div>
                             <p className="text-xs text-gray-500 mt-0.5">ID: {account.accountId || '—'}</p>
@@ -402,11 +402,11 @@ export default function AdminSettings() {
                         </div>
                         <div className="flex items-center gap-1.5 flex-shrink-0">
                           {!account.isDefault && (
-                            <button onClick={() => handleSetDefault(account.id)} title="Set as default" className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-[#C5D86D] hover:bg-white transition-colors">
+                            <button onClick={() => handleSetDefault(account.id)} title="Set as default" className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-accent hover:bg-white transition-colors">
                               <Star size={16} />
                             </button>
                           )}
-                          <button onClick={() => startEdit(account)} title="Edit" className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-[#1A1A1A] hover:bg-white transition-colors">
+                          <button onClick={() => startEdit(account)} title="Edit" className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-primary hover:bg-white transition-colors">
                             <Edit3 size={16} />
                           </button>
                           <button onClick={() => setDeleteAccountId(account.id)} title="Delete" className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-white transition-colors">

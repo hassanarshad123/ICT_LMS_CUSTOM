@@ -86,9 +86,9 @@ export default function CourseCreatorCourseDetail() {
           <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <BookOpen size={28} className="text-gray-400" />
           </div>
-          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-2">Course not found</h3>
+          <h3 className="text-lg font-semibold text-primary mb-2">Course not found</h3>
           <p className="text-sm text-gray-500 mb-4">{courseError || 'The course you are looking for does not exist.'}</p>
-          <Link href={`${basePath}/courses`} className="text-sm font-medium text-[#1A1A1A] hover:underline">
+          <Link href={`${basePath}/courses`} className="text-sm font-medium text-primary hover:underline">
             Back to Courses
           </Link>
         </div>
@@ -174,7 +174,7 @@ export default function CourseCreatorCourseDetail() {
   return (
     <DashboardLayout>
       {/* Dark Header Banner */}
-      <div className="bg-[#1A1A1A] rounded-2xl p-4 sm:p-6 mb-6 sm:mb-8">
+      <div className="bg-primary rounded-2xl p-4 sm:p-6 mb-6 sm:mb-8">
         <Link
           href={`${basePath}/courses`}
           className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors mb-4"
@@ -202,12 +202,12 @@ export default function CourseCreatorCourseDetail() {
       {/* Linked Batches Section */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-[#1A1A1A]">Linked Batches</h3>
+          <h3 className="text-lg font-semibold text-primary">Linked Batches</h3>
           <div className="relative">
             <button
               onClick={() => setShowBatchDropdown(!showBatchDropdown)}
               disabled={unlinkedBatches.length === 0}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#1A1A1A] text-white text-sm font-medium rounded-xl hover:bg-[#333] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Plus size={16} />
               Add Batch
@@ -221,7 +221,7 @@ export default function CourseCreatorCourseDetail() {
                     className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors flex items-center justify-between"
                   >
                     <div>
-                      <p className="text-sm font-medium text-[#1A1A1A]">{batch.name}</p>
+                      <p className="text-sm font-medium text-primary">{batch.name}</p>
                       <p className="text-xs text-gray-400">{batch.studentCount} students</p>
                     </div>
                     <Plus size={14} className="text-gray-400" />
@@ -244,11 +244,11 @@ export default function CourseCreatorCourseDetail() {
               <div key={batch.id} className="bg-white rounded-2xl card-shadow overflow-hidden">
                 <div className="flex items-center justify-between p-5">
                   <div className="flex items-center gap-4 flex-1">
-                    <div className="w-10 h-10 bg-[#C5D86D] bg-opacity-30 rounded-xl flex items-center justify-center">
-                      <Layers size={18} className="text-[#1A1A1A]" />
+                    <div className="w-10 h-10 bg-accent bg-opacity-30 rounded-xl flex items-center justify-center">
+                      <Layers size={18} className="text-primary" />
                     </div>
                     <div>
-                      <h4 className="font-semibold text-sm text-[#1A1A1A]">{batch.name}</h4>
+                      <h4 className="font-semibold text-sm text-primary">{batch.name}</h4>
                       <div className="flex flex-wrap items-center gap-2 mt-1">
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                           batch.status === 'active' ? 'bg-green-100 text-green-700' :
@@ -268,7 +268,7 @@ export default function CourseCreatorCourseDetail() {
                   <div className="flex items-center gap-2 ml-4">
                     <Link
                       href={`${basePath}/batches/${batch.id}`}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1A1A1A] text-white text-xs font-medium rounded-lg hover:bg-[#333] transition-colors"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-xs font-medium rounded-lg hover:bg-primary/80 transition-colors"
                     >
                       <FolderOpen size={12} />
                       Manage Content
@@ -291,11 +291,11 @@ export default function CourseCreatorCourseDetail() {
       {/* Curriculum Section */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-[#1A1A1A]">Curriculum</h3>
+          <h3 className="text-lg font-semibold text-primary">Curriculum</h3>
           {!showModuleForm && (
             <button
               onClick={() => setShowModuleForm(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-[#1A1A1A] text-white text-sm font-medium rounded-xl hover:bg-[#333] transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary/80 transition-colors"
             >
               <Plus size={14} />
               Add Module
@@ -305,7 +305,7 @@ export default function CourseCreatorCourseDetail() {
 
         {showModuleForm && (
           <div className="bg-white rounded-2xl p-6 card-shadow mb-4">
-            <h4 className="text-sm font-semibold text-[#1A1A1A] mb-4">New Module</h4>
+            <h4 className="text-sm font-semibold text-primary mb-4">New Module</h4>
             <form onSubmit={handleAddModule} className="space-y-4 mb-4">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Title</label>
@@ -313,7 +313,7 @@ export default function CourseCreatorCourseDetail() {
                   type="text"
                   value={moduleForm.title}
                   onChange={(e) => setModuleForm({ ...moduleForm, title: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
                   placeholder="Module title"
                   required
                 />
@@ -324,7 +324,7 @@ export default function CourseCreatorCourseDetail() {
                   type="text"
                   value={moduleForm.description}
                   onChange={(e) => setModuleForm({ ...moduleForm, description: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
                   placeholder="Module description"
                 />
               </div>
@@ -334,7 +334,7 @@ export default function CourseCreatorCourseDetail() {
                   type="text"
                   value={moduleForm.topics}
                   onChange={(e) => setModuleForm({ ...moduleForm, topics: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
                   placeholder="Topic 1, Topic 2, Topic 3"
                 />
               </div>
@@ -342,7 +342,7 @@ export default function CourseCreatorCourseDetail() {
                 <button
                   type="submit"
                   disabled={creatingModule}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-[#1A1A1A] text-white text-sm font-medium rounded-xl hover:bg-[#333] transition-colors disabled:opacity-60"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary/80 transition-colors disabled:opacity-60"
                 >
                   {creatingModule && <Loader2 size={16} className="animate-spin" />}
                   Add Module
@@ -378,28 +378,28 @@ export default function CourseCreatorCourseDetail() {
                           type="text"
                           value={editForm.title}
                           onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
-                          className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A]"
+                          className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary"
                           placeholder="Module title"
                         />
                         <input
                           type="text"
                           value={editForm.description}
                           onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                          className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A]"
+                          className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary"
                           placeholder="Description"
                         />
                         <input
                           type="text"
                           value={editForm.topics}
                           onChange={(e) => setEditForm({ ...editForm, topics: e.target.value })}
-                          className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A]"
+                          className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary"
                           placeholder="Topic 1, Topic 2"
                         />
                       </div>
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleUpdateModule(mod.id)}
-                          className="px-4 py-2 bg-[#1A1A1A] text-white text-sm font-medium rounded-xl hover:bg-[#333] transition-colors"
+                          className="px-4 py-2 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary/80 transition-colors"
                         >
                           Save
                         </button>
@@ -418,11 +418,11 @@ export default function CourseCreatorCourseDetail() {
                           onClick={() => setExpandedModule(isExpanded ? null : mod.id)}
                           className="flex items-center gap-3 flex-1 text-left"
                         >
-                          <div className="w-8 h-8 bg-[#C5D86D] bg-opacity-30 rounded-lg flex items-center justify-center flex-shrink-0">
-                            <span className="text-xs font-bold text-[#1A1A1A]">{mod.sequenceOrder}</span>
+                          <div className="w-8 h-8 bg-accent bg-opacity-30 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <span className="text-xs font-bold text-primary">{mod.sequenceOrder}</span>
                           </div>
                           <div>
-                            <h4 className="font-medium text-sm text-[#1A1A1A]">{mod.title}</h4>
+                            <h4 className="font-medium text-sm text-primary">{mod.title}</h4>
                             <p className="text-xs text-gray-500 mt-0.5">{mod.description}</p>
                           </div>
                           {(mod.topics || []).length > 0 && (
@@ -439,7 +439,7 @@ export default function CourseCreatorCourseDetail() {
                                 topics: (mod.topics || []).join(', '),
                               });
                             }}
-                            className="p-2 text-gray-400 hover:text-[#1A1A1A] hover:bg-gray-50 rounded-lg transition-colors"
+                            className="p-2 text-gray-400 hover:text-primary hover:bg-gray-50 rounded-lg transition-colors"
                           >
                             <Edit3 size={14} />
                           </button>
@@ -457,7 +457,7 @@ export default function CourseCreatorCourseDetail() {
                             <ul className="space-y-1.5">
                               {mod.topics!.map((topic, i) => (
                                 <li key={i} className="flex items-center gap-2 text-sm text-gray-600">
-                                  <div className="w-1.5 h-1.5 rounded-full bg-[#C5D86D]" />
+                                  <div className="w-1.5 h-1.5 rounded-full bg-accent" />
                                   {topic}
                                 </li>
                               ))}

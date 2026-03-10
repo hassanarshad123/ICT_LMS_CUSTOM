@@ -73,7 +73,7 @@ export default function CourseCreatorCourses() {
       <div className="flex justify-end mb-6">
         <button
           onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#333] transition-colors"
+          className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors"
         >
           {showForm ? <X size={16} /> : <Plus size={16} />}
           {showForm ? 'Cancel' : 'Create Course'}
@@ -82,7 +82,7 @@ export default function CourseCreatorCourses() {
 
       {showForm && (
         <div className="bg-white rounded-2xl p-6 card-shadow mb-6">
-          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">New Course</h3>
+          <h3 className="text-lg font-semibold text-primary mb-4">New Course</h3>
           <form onSubmit={handleCreate} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Title</label>
@@ -90,7 +90,7 @@ export default function CourseCreatorCourses() {
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50"
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
                 placeholder="Course title"
                 required
               />
@@ -101,14 +101,14 @@ export default function CourseCreatorCourses() {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50 resize-none"
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50 resize-none"
                 placeholder="Course description"
               />
             </div>
             <button
               type="submit"
               disabled={creating}
-              className="flex items-center gap-2 px-6 py-3 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#333] transition-colors disabled:opacity-60"
+              className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors disabled:opacity-60"
             >
               {creating && <Loader2 size={16} className="animate-spin" />}
               Create Course
@@ -133,8 +133,8 @@ export default function CourseCreatorCourses() {
             {courseList.map((course) => (
               <div key={course.id} className="bg-white rounded-2xl card-shadow hover:card-shadow-hover transition-all duration-200 overflow-hidden group relative">
                 <Link href={`${basePath}/courses/${course.id}`}>
-                  <div className="h-32 bg-gradient-to-br from-[#1A1A1A] to-[#333] flex items-center justify-center">
-                    <BookOpen size={40} className="text-[#C5D86D]" />
+                  <div className="h-32 bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center">
+                    <BookOpen size={40} className="text-accent" />
                   </div>
                   <div className="p-6">
                     <div className="flex items-center justify-between mb-3">
@@ -146,7 +146,7 @@ export default function CourseCreatorCourses() {
                         {course.status?.charAt(0).toUpperCase() + course.status?.slice(1)}
                       </span>
                     </div>
-                    <h3 className="text-lg font-bold text-[#1A1A1A] mb-2">{course.title}</h3>
+                    <h3 className="text-lg font-bold text-primary mb-2">{course.title}</h3>
                     <p className="text-sm text-gray-500 line-clamp-2 mb-4">{course.description}</p>
                     <div className="flex items-center gap-4 text-xs text-gray-500">
                       <div className="flex items-center gap-1.5">

@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     EMAIL_FROM: str = "noreply@ictinstitute.com"
 
     # Monitoring
+    SENTRY_DSN: str = ""
     DISCORD_WEBHOOK_URL: str = ""
 
     # App

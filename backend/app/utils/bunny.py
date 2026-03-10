@@ -34,7 +34,7 @@ async def create_video_entry(title: str) -> dict:
         return {"video_id": video_id, "library_id": library_id}
 
 
-def generate_tus_auth(video_id: str, expires_in: int = 3600) -> dict:
+def generate_tus_auth(video_id: str, expires_in: int = 21600) -> dict:
     """Generate TUS direct-upload authorization for frontend."""
     library_id = settings.BUNNY_LIBRARY_ID
     expiry = int(time.time()) + expires_in
@@ -92,6 +92,17 @@ async def create_video_from_url(title: str, source_url: str) -> dict:
         )
         resp.raise_for_status()
     return {"video_id": video_id, "library_id": library_id}
+
+
+async def reencode_video(video_id: str) -> None:
+    """Request Bunny to re-encode a video from already-uploaded source."""
+    library_id = settings.BUNNY_LIBRARY_ID
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.post(
+            f"https://video.bunnycdn.com/library/{library_id}/videos/{video_id}/reencode",
+            headers={"AccessKey": settings.BUNNY_API_KEY},
+        )
+        resp.raise_for_status()
 
 
 async def delete_video(video_id: str) -> None:

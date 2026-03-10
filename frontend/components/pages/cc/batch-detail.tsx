@@ -9,7 +9,7 @@ import { useBasePath } from '@/hooks/use-base-path';
 import { useApi, useMutation } from '@/hooks/use-api';
 import { getBatch, listBatchCourses, listBatchStudents, enrollStudent, removeStudent } from '@/lib/api/batches';
 import { listUsers } from '@/lib/api/users';
-import { listLectures, createLecture, deleteLecture, initVideoUpload, getLectureStatus } from '@/lib/api/lectures';
+import { listLectures, createLecture, deleteLecture, initVideoUpload, getLectureStatus, reencodeVideo } from '@/lib/api/lectures';
 import { listMaterials, getUploadUrl, createMaterial, deleteMaterial } from '@/lib/api/materials';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
@@ -31,6 +31,7 @@ import {
   XCircle,
   Film,
   Link as LinkIcon,
+  RotateCw,
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -80,6 +81,7 @@ export default function BatchContentPage() {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState<Record<string, UploadProgress>>({});
   const pollingRefs = useRef<Record<string, ReturnType<typeof setInterval>>>({});
+  const activeUploadsRef = useRef<Record<string, tus.Upload>>({});
 
   // Per-course material form state
   const [showMaterialForm, setShowMaterialForm] = useState<string | null>(null);
@@ -189,7 +191,7 @@ export default function BatchContentPage() {
   }, [courses.length]);
 
   const pollingStartTimes = useRef<Record<string, number>>({});
-  const POLLING_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+  const POLLING_TIMEOUT_MS = 60 * 60 * 1000; // 60 minutes — long videos take 15-45 min to encode
 
   const startStatusPolling = useCallback((lectureId: string, courseId: string) => {
     // Clear existing poll for this lecture
@@ -208,10 +210,10 @@ export default function BatchContentPage() {
           [lectureId]: {
             ...prev[lectureId],
             status: 'error',
-            error: 'Processing is taking longer than expected. Please check back later.',
+            error: 'Processing timed out after 1 hour. The video may still be encoding — refresh the page to check.',
           },
         }));
-        toast.error('Video processing timed out. It may still complete — check back later.');
+        toast.error('Processing timed out after 1 hour. The video may still be encoding — refresh the page to check.');
         return;
       }
 
@@ -246,8 +248,8 @@ export default function BatchContentPage() {
         // Keep polling on network errors
       }
 
-      // Adaptive interval: 5s for first 2 min, then 15s
-      const interval = elapsed < 2 * 60 * 1000 ? 5000 : 15000;
+      // Adaptive interval: 5s (0-2min), 15s (2-10min), 30s (10-60min)
+      const interval = elapsed < 2 * 60 * 1000 ? 5000 : elapsed < 10 * 60 * 1000 ? 15000 : 30000;
       pollingRefs.current[lectureId] = setTimeout(poll, interval);
     };
 
@@ -296,6 +298,8 @@ export default function BatchContentPage() {
           chunkSize: 50 * 1024 * 1024, // 50 MB chunks (default was 5 MB)
           parallelUploads: 5, // 5 concurrent chunks
           retryDelays: [0, 3000, 5000, 10000, 15000],
+          storeFingerprintForResuming: true,
+          removeFingerprintOnSuccess: true,
           headers: {
             AuthorizationSignature: res.authSignature,
             AuthorizationExpire: String(res.authExpire),
@@ -314,6 +318,7 @@ export default function BatchContentPage() {
             }));
           },
           onSuccess: () => {
+            delete activeUploadsRef.current[lectureId];
             setUploadProgress((prev) => ({
               ...prev,
               [lectureId]: { ...prev[lectureId], progress: 100, status: 'processing' },
@@ -329,6 +334,7 @@ export default function BatchContentPage() {
             toast.error(`Upload failed: ${err.message}`);
           },
         });
+        activeUploadsRef.current[lectureId] = upload;
         upload.start();
 
         // Reset form
@@ -381,6 +387,34 @@ export default function BatchContentPage() {
     } catch (err: any) {
       toast.error(err.message);
       setDeleteLectureConfirm(null);
+    }
+  };
+
+  const handleRetryUpload = (lectureId: string) => {
+    const upload = activeUploadsRef.current[lectureId];
+    if (upload) {
+      setUploadProgress((prev) => ({
+        ...prev,
+        [lectureId]: { ...prev[lectureId], status: 'uploading', progress: prev[lectureId]?.progress || 0, error: undefined },
+      }));
+      upload.start();
+      toast.info('Resuming upload...');
+    } else {
+      toast.error('Cannot resume — please re-upload the file');
+    }
+  };
+
+  const handleReencode = async (lectureId: string, courseId: string) => {
+    try {
+      await reencodeVideo(lectureId);
+      setUploadProgress((prev) => ({
+        ...prev,
+        [lectureId]: { lectureId, progress: 100, status: 'processing' },
+      }));
+      toast.success('Re-encoding started');
+      startStatusPolling(lectureId, courseId);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to start re-encoding');
     }
   };
 
@@ -462,9 +496,9 @@ export default function BatchContentPage() {
           <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <Layers size={28} className="text-gray-400" />
           </div>
-          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-2">Batch not found</h3>
+          <h3 className="text-lg font-semibold text-primary mb-2">Batch not found</h3>
           <p className="text-sm text-gray-500 mb-4">{batchError || 'The batch you are looking for does not exist.'}</p>
-          <Link href={`${basePath}/batches`} className="text-sm font-medium text-[#1A1A1A] hover:underline">
+          <Link href={`${basePath}/batches`} className="text-sm font-medium text-primary hover:underline">
             Back to Batches
           </Link>
         </div>
@@ -475,7 +509,7 @@ export default function BatchContentPage() {
   return (
     <DashboardLayout>
       {/* Dark Header Banner */}
-      <div className="bg-[#1A1A1A] rounded-2xl p-4 sm:p-6 mb-6 sm:mb-8">
+      <div className="bg-primary rounded-2xl p-4 sm:p-6 mb-6 sm:mb-8">
         <Link
           href={`${basePath}/batches`}
           className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors mb-4"
@@ -512,12 +546,12 @@ export default function BatchContentPage() {
 
       {/* Student Management */}
       <div className="bg-white rounded-2xl p-6 card-shadow mb-6">
-        <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">Enroll Student</h3>
+        <h3 className="text-lg font-semibold text-primary mb-4">Enroll Student</h3>
         <div className="flex flex-col sm:flex-row gap-3">
           <select
             value={selectedStudentId}
             onChange={(e) => setSelectedStudentId(e.target.value)}
-            className="flex-1 px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50"
+            className="flex-1 px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
           >
             <option value="">Select a student...</option>
             {availableStudents.map((s) => (
@@ -527,7 +561,7 @@ export default function BatchContentPage() {
           <button
             onClick={handleEnrollStudent}
             disabled={!selectedStudentId || enrolling}
-            className="flex items-center justify-center gap-2 px-6 py-3 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#333] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {enrolling ? <Loader2 size={16} className="animate-spin" /> : <UserPlus size={16} />}
             Enroll Student
@@ -537,7 +571,7 @@ export default function BatchContentPage() {
 
       <div className="bg-white rounded-2xl card-shadow overflow-hidden mb-6">
         <div className="px-6 py-4 border-b border-gray-100">
-          <h3 className="text-lg font-semibold text-[#1A1A1A]">Enrolled Students ({Array.isArray(students) ? students.length : 0})</h3>
+          <h3 className="text-lg font-semibold text-primary">Enrolled Students ({Array.isArray(students) ? students.length : 0})</h3>
         </div>
         {studentsLoading ? (
           <div className="flex items-center gap-2 py-8 justify-center">
@@ -567,7 +601,7 @@ export default function BatchContentPage() {
               <tbody>
                 {students.map((student: any) => (
                   <tr key={student.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm font-medium text-[#1A1A1A]">{student.name}</td>
+                    <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm font-medium text-primary">{student.name}</td>
                     <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{student.email}</td>
                     <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{student.phone || '—'}</td>
                     <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">
@@ -593,7 +627,7 @@ export default function BatchContentPage() {
       {courses.length === 0 ? (
         <div className="bg-white rounded-2xl p-12 card-shadow text-center">
           <BookOpen size={28} className="text-gray-300 mx-auto mb-2" />
-          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-2">No courses linked</h3>
+          <h3 className="text-lg font-semibold text-primary mb-2">No courses linked</h3>
           <p className="text-sm text-gray-500">Assign this batch to a course to start managing content.</p>
         </div>
       ) : (
@@ -607,10 +641,10 @@ export default function BatchContentPage() {
               <div key={course.id} className="space-y-6">
                 {/* Course Header */}
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-[#C5D86D] bg-opacity-30 rounded-lg flex items-center justify-center">
-                    <BookOpen size={16} className="text-[#1A1A1A]" />
+                  <div className="w-8 h-8 bg-accent bg-opacity-30 rounded-lg flex items-center justify-center">
+                    <BookOpen size={16} className="text-primary" />
                   </div>
-                  <h2 className="text-lg font-bold text-[#1A1A1A]">{course.title}</h2>
+                  <h2 className="text-lg font-bold text-primary">{course.title}</h2>
                 </div>
 
                 {isContentLoading ? (
@@ -623,7 +657,7 @@ export default function BatchContentPage() {
                     {/* Lectures Section */}
                     <div>
                       <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-sm font-semibold text-[#1A1A1A] uppercase tracking-wide">Lectures</h3>
+                        <h3 className="text-sm font-semibold text-primary uppercase tracking-wide">Lectures</h3>
                         {showLectureForm !== course.id && (
                           <button
                             onClick={() => {
@@ -632,7 +666,7 @@ export default function BatchContentPage() {
                               setVideoFile(null);
                               setUploadMode('upload');
                             }}
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-[#1A1A1A] text-white text-sm font-medium rounded-xl hover:bg-[#333] transition-colors"
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary/80 transition-colors"
                           >
                             <Plus size={14} />
                             Add Lecture
@@ -642,7 +676,7 @@ export default function BatchContentPage() {
 
                       {showLectureForm === course.id && (
                         <div className="bg-white rounded-2xl p-6 card-shadow mb-4">
-                          <h4 className="text-sm font-semibold text-[#1A1A1A] mb-4">New Lecture</h4>
+                          <h4 className="text-sm font-semibold text-primary mb-4">New Lecture</h4>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                             <div>
                               <label className="block text-xs font-medium text-gray-600 mb-1">Title</label>
@@ -650,7 +684,7 @@ export default function BatchContentPage() {
                                 type="text"
                                 value={lectureForm.title}
                                 onChange={(e) => setLectureForm({ ...lectureForm, title: e.target.value })}
-                                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50"
+                                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
                                 placeholder="Lecture title"
                               />
                             </div>
@@ -660,7 +694,7 @@ export default function BatchContentPage() {
                                 type="number"
                                 value={lectureForm.duration}
                                 onChange={(e) => setLectureForm({ ...lectureForm, duration: e.target.value })}
-                                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50"
+                                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
                                 placeholder="e.g. 45"
                               />
                             </div>
@@ -670,7 +704,7 @@ export default function BatchContentPage() {
                                 type="text"
                                 value={lectureForm.description}
                                 onChange={(e) => setLectureForm({ ...lectureForm, description: e.target.value })}
-                                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50"
+                                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
                                 placeholder="Lecture description"
                               />
                             </div>
@@ -682,7 +716,7 @@ export default function BatchContentPage() {
                               onClick={() => setUploadMode('upload')}
                               className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-colors ${
                                 uploadMode === 'upload'
-                                  ? 'bg-[#1A1A1A] text-white'
+                                  ? 'bg-primary text-white'
                                   : 'text-gray-500 hover:text-gray-700'
                               }`}
                             >
@@ -693,7 +727,7 @@ export default function BatchContentPage() {
                               onClick={() => setUploadMode('external')}
                               className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-colors ${
                                 uploadMode === 'external'
-                                  ? 'bg-[#1A1A1A] text-white'
+                                  ? 'bg-primary text-white'
                                   : 'text-gray-500 hover:text-gray-700'
                               }`}
                             >
@@ -709,7 +743,7 @@ export default function BatchContentPage() {
                                 <Upload size={24} className="text-gray-400 mx-auto mb-2" />
                                 {videoFile ? (
                                   <div>
-                                    <p className="text-sm font-medium text-[#1A1A1A]">{videoFile.name}</p>
+                                    <p className="text-sm font-medium text-primary">{videoFile.name}</p>
                                     <p className="text-xs text-gray-400 mt-1">{formatFileSize(videoFile.size)}</p>
                                   </div>
                                 ) : (
@@ -736,7 +770,7 @@ export default function BatchContentPage() {
                                 type="text"
                                 value={lectureForm.videoUrl}
                                 onChange={(e) => setLectureForm({ ...lectureForm, videoUrl: e.target.value })}
-                                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50"
+                                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
                                 placeholder="https://youtube.com/watch?v=..."
                               />
                             </div>
@@ -746,7 +780,7 @@ export default function BatchContentPage() {
                             <button
                               onClick={() => handleAddLecture(course.id)}
                               disabled={creatingLecture || submittingUpload || (uploadMode === 'upload' && !videoFile)}
-                              className="flex items-center gap-2 px-5 py-2.5 bg-[#1A1A1A] text-white text-sm font-medium rounded-xl hover:bg-[#333] transition-colors disabled:opacity-60"
+                              className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary/80 transition-colors disabled:opacity-60"
                             >
                               {(creatingLecture || submittingUpload) && <Loader2 size={16} className="animate-spin" />}
                               {uploadMode === 'upload' ? 'Upload & Add' : 'Add Lecture'}
@@ -777,11 +811,11 @@ export default function BatchContentPage() {
                             return (
                               <div key={lecture.id} className="flex items-center justify-between p-4 bg-white rounded-xl card-shadow">
                                 <div className="flex items-center gap-4 flex-1 min-w-0">
-                                  <div className="w-10 h-10 bg-[#C5D86D] bg-opacity-30 rounded-xl flex items-center justify-center flex-shrink-0">
-                                    <span className="text-xs font-bold text-[#1A1A1A]">{lecture.sequenceOrder}</span>
+                                  <div className="w-10 h-10 bg-accent bg-opacity-30 rounded-xl flex items-center justify-center flex-shrink-0">
+                                    <span className="text-xs font-bold text-primary">{lecture.sequenceOrder}</span>
                                   </div>
                                   <div className="flex-1 min-w-0">
-                                    <p className="font-medium text-sm text-[#1A1A1A]">{lecture.title}</p>
+                                    <p className="font-medium text-sm text-primary">{lecture.title}</p>
                                     <p className="text-xs text-gray-500 mt-0.5 truncate">{lecture.description}</p>
                                     {/* Upload/processing status */}
                                     {up && up.status === 'uploading' && (
@@ -810,12 +844,36 @@ export default function BatchContentPage() {
                                         <span className="text-xs text-green-600 font-medium">Ready</span>
                                       </div>
                                     )}
-                                    {((up && (up.status === 'failed' || up.status === 'error')) || (!up && lecture.videoStatus === 'failed')) && (
+                                    {((up && up.status === 'error') || (!up && false)) && (
+                                      <div className="flex items-center gap-1.5 mt-1.5">
+                                        <XCircle size={12} className="text-red-500" />
+                                        <span className="text-xs text-red-600 font-medium">
+                                          {up?.error || 'Upload failed'}
+                                        </span>
+                                        {activeUploadsRef.current[lecture.id] && (
+                                          <button
+                                            onClick={() => handleRetryUpload(lecture.id)}
+                                            className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors"
+                                          >
+                                            <RotateCw size={10} />
+                                            Retry Upload
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
+                                    {((up && up.status === 'failed') || (!up && lecture.videoStatus === 'failed')) && (
                                       <div className="flex items-center gap-1.5 mt-1.5">
                                         <XCircle size={12} className="text-red-500" />
                                         <span className="text-xs text-red-600 font-medium">
                                           {up?.error || 'Processing failed'}
                                         </span>
+                                        <button
+                                          onClick={() => handleReencode(lecture.id, course.id)}
+                                          className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-amber-600 bg-amber-50 rounded-md hover:bg-amber-100 transition-colors"
+                                        >
+                                          <RotateCw size={10} />
+                                          Retry Encoding
+                                        </button>
                                       </div>
                                     )}
                                   </div>
@@ -849,11 +907,11 @@ export default function BatchContentPage() {
                     {/* Materials Section */}
                     <div>
                       <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-sm font-semibold text-[#1A1A1A] uppercase tracking-wide">Materials</h3>
+                        <h3 className="text-sm font-semibold text-primary uppercase tracking-wide">Materials</h3>
                         {showMaterialForm !== course.id && (
                           <button
                             onClick={() => { setShowMaterialForm(course.id); setMaterialFile(null); setMaterialTitle(''); setMaterialDescription(''); }}
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-[#1A1A1A] text-white text-sm font-medium rounded-xl hover:bg-[#333] transition-colors"
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary/80 transition-colors"
                           >
                             <Plus size={14} />
                             Upload Material
@@ -863,7 +921,7 @@ export default function BatchContentPage() {
 
                       {showMaterialForm === course.id && (
                         <div className="bg-white rounded-2xl p-6 card-shadow mb-4">
-                          <h4 className="text-sm font-semibold text-[#1A1A1A] mb-4">Upload New Material</h4>
+                          <h4 className="text-sm font-semibold text-primary mb-4">Upload New Material</h4>
                           <div className="space-y-4 mb-4">
                             <div>
                               <label className="block text-xs font-medium text-gray-600 mb-1">Title</label>
@@ -871,7 +929,7 @@ export default function BatchContentPage() {
                                 type="text"
                                 value={materialTitle}
                                 onChange={(e) => setMaterialTitle(e.target.value)}
-                                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50"
+                                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
                                 placeholder="Material title"
                               />
                             </div>
@@ -881,7 +939,7 @@ export default function BatchContentPage() {
                                 type="text"
                                 value={materialDescription}
                                 onChange={(e) => setMaterialDescription(e.target.value)}
-                                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50"
+                                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
                                 placeholder="Brief description"
                               />
                             </div>
@@ -909,7 +967,7 @@ export default function BatchContentPage() {
                           <div className="flex gap-3">
                             <button
                               onClick={() => handleUploadMaterial(course.id)}
-                              className="px-5 py-2.5 bg-[#1A1A1A] text-white text-sm font-medium rounded-xl hover:bg-[#333] transition-colors"
+                              className="px-5 py-2.5 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary/80 transition-colors"
                             >
                               Upload
                             </button>
@@ -937,7 +995,7 @@ export default function BatchContentPage() {
                                   <FileText size={18} className="text-blue-600" />
                                 </div>
                                 <div>
-                                  <p className="font-medium text-sm text-[#1A1A1A]">{material.title}</p>
+                                  <p className="font-medium text-sm text-primary">{material.title}</p>
                                   <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-400">
                                     <span>{material.fileName}</span>
                                     {material.fileSize && (

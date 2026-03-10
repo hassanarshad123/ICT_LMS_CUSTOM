@@ -11,7 +11,8 @@ import { listBatches } from '@/lib/api/batches';
 import { listUsers } from '@/lib/api/users';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
-import { Plus, X, Video, ExternalLink, Clock, Info, Loader2, Calendar, Trash2 } from 'lucide-react';
+import { Plus, X, Video, ExternalLink, Clock, Info, Loader2, Calendar, Trash2, Users } from 'lucide-react';
+import AttendancePanel from '@/components/shared/attendance-panel';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -125,7 +126,7 @@ export default function CourseCreatorSchedule() {
     }
   };
 
-  const inputClass = 'w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50';
+  const inputClass = 'w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50';
 
   return (
     <DashboardLayout>
@@ -134,7 +135,7 @@ export default function CourseCreatorSchedule() {
       <div className="flex justify-end mb-6">
         <button
           onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#333] transition-colors"
+          className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors"
         >
           {showForm ? <X size={16} /> : <Plus size={16} />}
           {showForm ? 'Cancel' : 'Schedule New Class'}
@@ -143,7 +144,7 @@ export default function CourseCreatorSchedule() {
 
       {showForm && (
         <div className="bg-white rounded-2xl p-6 card-shadow mb-6">
-          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">New Zoom Class</h3>
+          <h3 className="text-lg font-semibold text-primary mb-4">New Zoom Class</h3>
           {!hasAccounts ? (
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
               <Info size={18} className="text-amber-500 flex-shrink-0 mt-0.5" />
@@ -201,7 +202,7 @@ export default function CourseCreatorSchedule() {
                 <input type="number" value={formData.duration} onChange={(e) => setFormData({ ...formData, duration: e.target.value })} placeholder="e.g. 60" className={inputClass} required min={1} />
               </div>
               <div className="flex items-end">
-                <button type="submit" disabled={creating} className="flex items-center gap-2 px-6 py-3 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#333] transition-colors disabled:opacity-60">
+                <button type="submit" disabled={creating} className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors disabled:opacity-60">
                   {creating && <Loader2 size={16} className="animate-spin" />}
                   Schedule Class
                 </button>
@@ -218,29 +219,29 @@ export default function CourseCreatorSchedule() {
         <>
           {upcoming.length > 0 && (
             <div className="mb-8">
-              <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">Upcoming Classes</h3>
+              <h3 className="text-lg font-semibold text-primary mb-4">Upcoming Classes</h3>
               <div className="space-y-3">
                 {upcoming.map((cls) => (
                   <div key={cls.id} className="bg-white rounded-2xl p-4 sm:p-5 card-shadow flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#C5D86D] rounded-xl flex items-center justify-center flex-shrink-0">
-                        <Video size={22} className="text-[#1A1A1A]" />
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 bg-accent rounded-xl flex items-center justify-center flex-shrink-0">
+                        <Video size={22} className="text-primary" />
                       </div>
                       <div>
-                        <h4 className="font-medium text-[#1A1A1A]">{cls.title}</h4>
+                        <h4 className="font-medium text-primary">{cls.title}</h4>
                         <p className="text-xs text-gray-500 mt-0.5">{cls.batchName}{cls.teacherName ? ` \u00B7 ${cls.teacherName}` : ''}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-4 ml-14 sm:ml-0">
                       <div className="text-right">
-                        <p className="text-sm font-medium text-[#1A1A1A]">{cls.scheduledDate}</p>
+                        <p className="text-sm font-medium text-primary">{cls.scheduledDate}</p>
                         <div className="flex items-center gap-1.5 text-xs text-gray-500 justify-end">
                           <Clock size={12} />
                           {cls.scheduledTime} - {cls.durationDisplay || `${cls.duration} min`}
                         </div>
                       </div>
                       {cls.zoomMeetingUrl && (
-                        <a href={cls.zoomMeetingUrl} target="_blank" rel="noopener noreferrer" className="w-10 h-10 bg-[#1A1A1A] rounded-xl flex items-center justify-center hover:bg-[#333] transition-colors">
+                        <a href={cls.zoomMeetingUrl} target="_blank" rel="noopener noreferrer" className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center hover:bg-primary/80 transition-colors">
                           <ExternalLink size={16} className="text-white" />
                         </a>
                       )}
@@ -260,23 +261,26 @@ export default function CourseCreatorSchedule() {
 
           {completed.length > 0 && (
             <div>
-              <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">Completed Classes</h3>
+              <h3 className="text-lg font-semibold text-primary mb-4">Completed Classes</h3>
               <div className="space-y-3">
                 {completed.map((cls) => (
-                  <div key={cls.id} className="bg-white rounded-2xl p-4 sm:p-5 card-shadow flex flex-col sm:flex-row sm:items-center justify-between gap-3 opacity-75">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                        <Video size={18} className="text-gray-400" />
+                  <div key={cls.id} className="bg-white rounded-2xl p-4 sm:p-5 card-shadow">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 opacity-75">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                          <Video size={18} className="text-gray-400" />
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-primary">{cls.title}</h4>
+                          <p className="text-xs text-gray-500 mt-0.5">{cls.batchName}{cls.teacherName ? ` \u00B7 ${cls.teacherName}` : ''}</p>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="font-medium text-[#1A1A1A]">{cls.title}</h4>
-                        <p className="text-xs text-gray-500 mt-0.5">{cls.batchName}{cls.teacherName ? ` \u00B7 ${cls.teacherName}` : ''}</p>
+                      <div className="text-right ml-14 sm:ml-0">
+                        <p className="text-sm text-gray-600">{cls.scheduledDate}</p>
+                        <p className="text-xs text-gray-400">{cls.scheduledTime} - {cls.durationDisplay || `${cls.duration} min`}</p>
                       </div>
                     </div>
-                    <div className="text-right ml-14 sm:ml-0">
-                      <p className="text-sm text-gray-600">{cls.scheduledDate}</p>
-                      <p className="text-xs text-gray-400">{cls.scheduledTime} - {cls.durationDisplay || `${cls.duration} min`}</p>
-                    </div>
+                    <AttendancePanel classId={cls.id} canSync />
                   </div>
                 ))}
               </div>

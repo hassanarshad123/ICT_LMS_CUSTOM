@@ -64,6 +64,8 @@ export function VideoPlayer({ lectureId, videoType, videoUrl, videoStatus, water
   const [urlType, setUrlType] = useState<string>('');
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const expiresAtRef = useRef<number | null>(null);
 
   const fetchSignedUrl = useCallback(async () => {
     setLoading(true);
@@ -85,6 +87,10 @@ export function VideoPlayer({ lectureId, videoType, videoUrl, videoStatus, water
         const url = resumeSeconds > 0 ? `${res.url}&t=${resumeSeconds}` : res.url;
         setEmbedUrl(url);
         setUrlType('bunny');
+        // Track expiry for auto-refresh
+        if (res.expiresAt) {
+          expiresAtRef.current = new Date(res.expiresAt).getTime();
+        }
       } else if (res.type === 'external' && res.url) {
         const ytEmbed = toYouTubeEmbed(res.url);
         const vimeoEmbed = toVimeoEmbed(res.url);
@@ -163,6 +169,41 @@ export function VideoPlayer({ lectureId, videoType, videoUrl, videoStatus, water
     return () => window.removeEventListener('message', handleMessage);
   }, [urlType, embedUrl, lectureId]);
 
+  // Auto-refresh signed URL before expiry (5 minutes before)
+  useEffect(() => {
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = null;
+    }
+    if (urlType !== 'bunny' || !embedUrl || !expiresAtRef.current) return;
+
+    const msUntilExpiry = expiresAtRef.current - Date.now();
+    const refreshIn = msUntilExpiry - 5 * 60 * 1000; // 5 min before expiry
+    if (refreshIn <= 0) return; // Already expired or too close
+
+    refreshTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await getSignedUrl(lectureId);
+        if (res.type === 'bunny_embed') {
+          // Preserve approximate playback position
+          setEmbedUrl(res.url);
+          if (res.expiresAt) {
+            expiresAtRef.current = new Date(res.expiresAt).getTime();
+          }
+        }
+      } catch {
+        // Silently fail — user can manually retry
+      }
+    }, refreshIn);
+
+    return () => {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+      }
+    };
+  }, [urlType, embedUrl, lectureId]);
+
   // Processing state
   if (videoType === 'upload' && videoStatus && videoStatus !== 'ready') {
     if (videoStatus === 'failed') {
@@ -179,7 +220,7 @@ export function VideoPlayer({ lectureId, videoType, videoUrl, videoStatus, water
     return (
       <div className="aspect-video bg-gray-800 rounded-2xl flex items-center justify-center">
         <div className="text-center">
-          <Loader2 size={48} className="text-[#C5D86D] mx-auto mb-3 animate-spin" />
+          <Loader2 size={48} className="text-accent mx-auto mb-3 animate-spin" />
           <p className="text-white text-sm font-medium">Video is being processed...</p>
           <p className="text-gray-400 text-xs mt-1">This may take a few minutes</p>
         </div>
@@ -191,7 +232,7 @@ export function VideoPlayer({ lectureId, videoType, videoUrl, videoStatus, water
   if (loading) {
     return (
       <div className="aspect-video bg-gray-800 rounded-2xl flex items-center justify-center">
-        <Loader2 size={48} className="text-[#C5D86D] animate-spin" />
+        <Loader2 size={48} className="text-accent animate-spin" />
       </div>
     );
   }
@@ -220,12 +261,12 @@ export function VideoPlayer({ lectureId, videoType, videoUrl, videoStatus, water
     return (
       <div className="aspect-video bg-gray-800 rounded-2xl flex items-center justify-center">
         <div className="text-center">
-          <PlayCircle size={64} className="text-[#C5D86D] mx-auto mb-3" />
+          <PlayCircle size={64} className="text-accent mx-auto mb-3" />
           <a
             href={embedUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#C5D86D] text-[#1A1A1A] text-sm font-medium rounded-xl hover:bg-[#d4e57c] transition-colors"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-accent text-primary text-sm font-medium rounded-xl hover:bg-accent/80 transition-colors"
           >
             Open Video in New Tab
           </a>
@@ -255,7 +296,7 @@ export function VideoPlayer({ lectureId, videoType, videoUrl, videoStatus, water
   return (
     <div className="aspect-video bg-gray-800 rounded-2xl flex items-center justify-center">
       <div className="text-center">
-        <PlayCircle size={64} className="text-[#C5D86D] mx-auto mb-3" />
+        <PlayCircle size={64} className="text-accent mx-auto mb-3" />
         <p className="text-white text-sm">Select a video to play</p>
       </div>
     </div>

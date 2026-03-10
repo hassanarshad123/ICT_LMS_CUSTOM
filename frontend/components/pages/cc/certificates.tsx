@@ -41,7 +41,7 @@ export default function CCCertificates() {
     <DashboardLayout>
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[#1A1A1A]">Certificates</h1>
+        <h1 className="text-2xl font-bold text-primary">Certificates</h1>
         <p className="text-sm text-gray-500 mt-1">Review student certificate requests and manage issued ones</p>
       </div>
 
@@ -50,7 +50,7 @@ export default function CCCertificates() {
         <button
           onClick={() => setActiveTab('queue')}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-            activeTab === 'queue' ? 'bg-white text-[#1A1A1A] shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            activeTab === 'queue' ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'
           }`}
         >
           <span className="flex items-center gap-2">
@@ -61,7 +61,7 @@ export default function CCCertificates() {
         <button
           onClick={() => setActiveTab('issued')}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-            activeTab === 'issued' ? 'bg-white text-[#1A1A1A] shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            activeTab === 'issued' ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'
           }`}
         >
           <span className="flex items-center gap-2">
@@ -120,7 +120,7 @@ function ApprovalQueue() {
     }
   };
 
-  const selectClass = 'w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50';
+  const selectClass = 'w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50';
 
   return (
     <>
@@ -189,7 +189,7 @@ function ApprovalQueue() {
                 {requests.map((request) => (
                   <tr key={request.certUuid || request.studentId} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                     <td className="px-5 py-3.5">
-                      <p className="text-sm font-semibold text-[#1A1A1A]">{request.certificateName || '—'}</p>
+                      <p className="text-sm font-semibold text-primary">{request.certificateName || '—'}</p>
                       {request.certificateName && request.certificateName !== request.studentName && (
                         <p className="text-xs text-gray-400 mt-0.5">Account: {request.studentName}</p>
                       )}
@@ -200,7 +200,7 @@ function ApprovalQueue() {
                       <div className="flex items-center gap-2">
                         <div className="w-20 h-2 bg-gray-200 rounded-full overflow-hidden">
                           <div
-                            className="h-full bg-[#C5D86D] rounded-full"
+                            className="h-full bg-accent rounded-full"
                             style={{ width: `${Math.min(request.completionPercentage, 100)}%` }}
                           />
                         </div>
@@ -216,7 +216,7 @@ function ApprovalQueue() {
                       <button
                         onClick={() => setApproveDialog(request)}
                         disabled={approving}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1A1A1A] text-white rounded-lg text-xs font-medium hover:bg-[#333] transition-colors disabled:opacity-60"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-medium hover:bg-primary/80 transition-colors disabled:opacity-60"
                       >
                         {approving ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
                         Approve
@@ -249,7 +249,7 @@ function ApprovalQueue() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => approveDialog && handleApprove(approveDialog)}
-              className="bg-[#1A1A1A] hover:bg-[#333] text-white"
+              className="bg-primary hover:bg-primary/80 text-white"
             >
               Approve & Generate PDF
             </AlertDialogAction>
@@ -325,9 +325,9 @@ function IssuedCertificates() {
             <tbody>
               {certs.map((cert) => (
                 <tr key={cert.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                  <td className="px-5 py-3.5 text-sm font-mono text-[#1A1A1A]">{cert.certificateId || '—'}</td>
+                  <td className="px-5 py-3.5 text-sm font-mono text-primary">{cert.certificateId || '—'}</td>
                   <td className="px-5 py-3.5">
-                    <p className="text-sm font-medium text-[#1A1A1A]">{cert.certificateName || cert.studentName}</p>
+                    <p className="text-sm font-medium text-primary">{cert.certificateName || cert.studentName}</p>
                     {cert.certificateName && cert.certificateName !== cert.studentName && (
                       <p className="text-xs text-gray-400">Account: {cert.studentName}</p>
                     )}
@@ -353,7 +353,7 @@ function IssuedCertificates() {
                           <button
                             onClick={() => handleDownload(cert)}
                             title="Download"
-                            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-[#1A1A1A] hover:bg-gray-100 transition-colors"
+                            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-primary hover:bg-gray-100 transition-colors"
                           >
                             <Download size={16} />
                           </button>
@@ -393,7 +393,7 @@ function IssuedCertificates() {
               value={revokeReason}
               onChange={(e) => setRevokeReason(e.target.value)}
               placeholder="Enter the reason for revoking this certificate..."
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50 resize-none"
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50 resize-none"
               rows={3}
             />
           </div>

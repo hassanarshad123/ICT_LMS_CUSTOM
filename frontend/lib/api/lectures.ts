@@ -92,6 +92,10 @@ export async function deleteLecture(lectureId: string): Promise<void> {
   return apiClient(`/lectures/${lectureId}`, { method: 'DELETE' });
 }
 
+export async function reencodeVideo(lectureId: string): Promise<{ status: string; lectureId: string }> {
+  return apiClient(`/lectures/${lectureId}/reencode`, { method: 'POST' });
+}
+
 export async function getSignedUrl(lectureId: string): Promise<{ url: string; expiresAt: string; type: string }> {
   return apiClient(`/lectures/${lectureId}/signed-url`, { method: 'POST' });
 }

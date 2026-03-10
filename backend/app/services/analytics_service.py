@@ -1,4 +1,5 @@
 import uuid
+from collections import defaultdict
 from datetime import date, datetime, timezone
 from typing import Optional
 
@@ -68,24 +69,51 @@ async def get_dashboard(session: AsyncSession) -> dict:
     )
     total_courses = r.scalar() or 0
 
-    # Recent batches
+    # Recent batches with teacher name, student count, and computed status
     r = await session.execute(
-        select(Batch).where(Batch.deleted_at.is_(None))
+        select(Batch, User.name.label("teacher_name"),
+               func.count(StudentBatch.id).label("student_count"))
+        .outerjoin(User, Batch.teacher_id == User.id)
+        .outerjoin(StudentBatch, (StudentBatch.batch_id == Batch.id) & (StudentBatch.removed_at.is_(None)))
+        .where(Batch.deleted_at.is_(None))
+        .group_by(Batch.id, User.name)
         .order_by(Batch.created_at.desc()).limit(5)
     )
-    recent_batches = [
-        {"id": str(b.id), "name": b.name, "start_date": str(b.start_date)}
-        for b in r.scalars().all()
-    ]
+    recent_batches = []
+    for row in r.all():
+        b = row[0]
+        status = "upcoming" if today < b.start_date else ("completed" if today > b.end_date else "active")
+        recent_batches.append({
+            "id": str(b.id), "name": b.name, "start_date": str(b.start_date),
+            "teacher_name": row[1] or "Unassigned",
+            "student_count": row[2],
+            "status": status,
+        })
 
-    # Recent students
+    # Recent students with status and batch names
     r = await session.execute(
         select(User).where(User.deleted_at.is_(None), User.role == UserRole.student)
         .order_by(User.created_at.desc()).limit(5)
     )
+    students = r.scalars().all()
+
+    batch_names_by_student: dict = {}
+    student_ids = [u.id for u in students]
+    if student_ids:
+        br = await session.execute(
+            select(StudentBatch.student_id, Batch.name)
+            .join(Batch, StudentBatch.batch_id == Batch.id)
+            .where(StudentBatch.student_id.in_(student_ids), StudentBatch.removed_at.is_(None), Batch.deleted_at.is_(None))
+        )
+        batch_names_by_student = defaultdict(list)
+        for sid, bname in br.all():
+            batch_names_by_student[sid].append(bname)
+
     recent_students = [
-        {"id": str(u.id), "name": u.name, "email": u.email}
-        for u in r.scalars().all()
+        {"id": str(u.id), "name": u.name, "email": u.email,
+         "status": u.status.value,
+         "batch_names": batch_names_by_student.get(u.id, [])}
+        for u in students
     ]
 
     return {
@@ -137,30 +165,34 @@ async def get_insights(session: AsyncSession) -> dict:
         for row in r.all()
     ]
 
-    # Teacher workload
+    # Teacher workload (2 queries instead of N+1)
     r = await session.execute(
         select(User.id, User.name, func.count(Batch.id))
         .outerjoin(Batch, (Batch.teacher_id == User.id) & (Batch.deleted_at.is_(None)))
         .where(User.deleted_at.is_(None), User.role == UserRole.teacher)
         .group_by(User.id, User.name)
     )
-    teacher_workload = []
-    for row in r.all():
-        # Count students in teacher's batches
+    teachers = r.all()
+
+    # Batch-fetch student counts grouped by teacher
+    teacher_ids = [t[0] for t in teachers]
+    student_counts = {}
+    if teacher_ids:
         sr = await session.execute(
-            select(func.count(StudentBatch.id)).where(
-                StudentBatch.batch_id.in_(
-                    select(Batch.id).where(Batch.teacher_id == row[0], Batch.deleted_at.is_(None))
-                ),
-                StudentBatch.removed_at.is_(None),
-            )
+            select(Batch.teacher_id, func.count(StudentBatch.id))
+            .join(StudentBatch, (StudentBatch.batch_id == Batch.id) & (StudentBatch.removed_at.is_(None)))
+            .where(Batch.teacher_id.in_(teacher_ids), Batch.deleted_at.is_(None))
+            .group_by(Batch.teacher_id)
         )
-        student_count = sr.scalar() or 0
+        student_counts = dict(sr.all())
+
+    teacher_workload = []
+    for row in teachers:
         teacher_workload.append({
             "teacher_id": str(row[0]),
             "name": row[1],
             "batch_count": row[2],
-            "student_count": student_count,
+            "student_count": student_counts.get(row[0], 0),
         })
 
     # Materials by type

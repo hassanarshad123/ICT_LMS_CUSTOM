@@ -305,7 +305,10 @@ async def update_class_status(
     session: AsyncSession, meeting_id: str, new_status: ZoomClassStatus
 ) -> ZoomClass | None:
     result = await session.execute(
-        select(ZoomClass).where(ZoomClass.zoom_meeting_id == meeting_id)
+        select(ZoomClass).where(
+            ZoomClass.zoom_meeting_id == meeting_id,
+            ZoomClass.deleted_at.is_(None),
+        )
     )
     zc = result.scalar_one_or_none()
     if not zc:
@@ -460,9 +463,12 @@ async def sync_attendance(session: AsyncSession, class_id: uuid.UUID) -> int:
     if (existing.scalar() or 0) > 0:
         return 0  # Already synced
 
-    # Get the class + account
+    # Get the class + account (skip deleted classes)
     result = await session.execute(
-        select(ZoomClass).where(ZoomClass.id == class_id)
+        select(ZoomClass).where(
+            ZoomClass.id == class_id,
+            ZoomClass.deleted_at.is_(None),
+        )
     )
     zc = result.scalar_one_or_none()
     if not zc or not zc.zoom_meeting_id:

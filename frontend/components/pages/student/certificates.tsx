@@ -111,7 +111,7 @@ export default function StudentCertificates() {
     <DashboardLayout>
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[#1A1A1A]">My Certificates</h1>
+        <h1 className="text-2xl font-bold text-primary">My Certificates</h1>
         <p className="text-sm text-gray-500 mt-1">Track your progress and request certificates for completed courses</p>
       </div>
 
@@ -123,13 +123,13 @@ export default function StudentCertificates() {
             <div key={`${course.batchId}-${course.courseId}`} className="bg-white rounded-2xl p-5 card-shadow flex flex-col">
               {/* Header */}
               <div className="flex items-start justify-between mb-3">
-                <div className="w-10 h-10 bg-[#F5F5F5] rounded-xl flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center flex-shrink-0">
                   {course.status === 'approved' ? (
                     <Award size={20} className="text-green-600" />
                   ) : course.status === 'revoked' ? (
                     <XCircle size={20} className="text-red-500" />
                   ) : (
-                    <BookOpen size={20} className="text-[#1A1A1A]" />
+                    <BookOpen size={20} className="text-primary" />
                   )}
                 </div>
                 <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${config.color} ${config.bg}`}>
@@ -138,7 +138,7 @@ export default function StudentCertificates() {
               </div>
 
               {/* Course info */}
-              <h3 className="font-semibold text-[#1A1A1A] mb-1 line-clamp-2">{course.courseTitle}</h3>
+              <h3 className="font-semibold text-primary mb-1 line-clamp-2">{course.courseTitle}</h3>
               <p className="text-xs text-gray-500 mb-1">{course.batchName}</p>
 
               {/* Progress bar */}
@@ -152,7 +152,7 @@ export default function StudentCertificates() {
                 {course.status === 'eligible' && (
                   <button
                     onClick={() => openRequestDialog(course)}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-[#C5D86D] text-[#1A1A1A] rounded-xl text-sm font-medium hover:bg-[#b8cc5c] transition-colors"
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-accent text-primary rounded-xl text-sm font-medium hover:bg-accent/80 transition-colors"
                   >
                     <Send size={16} />
                     Request Certificate
@@ -175,7 +175,7 @@ export default function StudentCertificates() {
                     )}
                     <button
                       onClick={() => handleDownload(course)}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#333] transition-colors"
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors"
                     >
                       <Download size={16} />
                       Download Certificate
@@ -212,7 +212,7 @@ export default function StudentCertificates() {
                 value={certName}
                 onChange={(e) => setCertName(e.target.value)}
                 placeholder="Enter your full name"
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50"
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
                 autoFocus
               />
             </div>
@@ -222,7 +222,7 @@ export default function StudentCertificates() {
               <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-5 border border-gray-200">
                 <p className="text-[10px] text-gray-400 uppercase tracking-widest text-center mb-1">Certificate Preview</p>
                 <p className="text-xs text-gray-400 text-center mb-3">This is to certify that</p>
-                <p className="text-xl font-serif font-semibold text-[#1A1A1A] text-center mb-3">{certName.trim()}</p>
+                <p className="text-xl font-serif font-semibold text-primary text-center mb-3">{certName.trim()}</p>
                 <p className="text-xs text-gray-400 text-center">
                   has successfully completed <span className="font-medium text-gray-600">{requestDialog?.courseTitle}</span>
                 </p>
@@ -244,7 +244,7 @@ export default function StudentCertificates() {
             <button
               onClick={handleRequest}
               disabled={!certName.trim() || requesting}
-              className="flex items-center gap-2 px-5 py-2.5 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#333] transition-colors disabled:opacity-60"
+              className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors disabled:opacity-60"
             >
               {requesting ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
               Request Certificate

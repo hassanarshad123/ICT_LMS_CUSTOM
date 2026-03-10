@@ -103,13 +103,13 @@ export default function AdminCourses() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search courses..."
-              className="pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-white w-full sm:w-64"
+              className="pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-white w-full sm:w-64"
             />
           </div>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-white"
+            className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-white"
           >
             {statusOptions.map((opt) => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -118,7 +118,7 @@ export default function AdminCourses() {
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#333] transition-colors"
+          className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors"
         >
           {showForm ? <X size={16} /> : <Plus size={16} />}
           {showForm ? 'Cancel' : 'Create Course'}
@@ -127,7 +127,7 @@ export default function AdminCourses() {
 
       {showForm && (
         <div className="bg-white rounded-2xl p-6 card-shadow mb-6">
-          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">New Course</h3>
+          <h3 className="text-lg font-semibold text-primary mb-4">New Course</h3>
           <form onSubmit={handleCreate} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Title</label>
@@ -135,7 +135,7 @@ export default function AdminCourses() {
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50"
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
                 placeholder="Course title"
                 required
               />
@@ -146,14 +146,14 @@ export default function AdminCourses() {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50 resize-none"
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50 resize-none"
                 placeholder="Course description"
               />
             </div>
             <button
               type="submit"
               disabled={creating}
-              className="flex items-center gap-2 px-6 py-3 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#333] transition-colors disabled:opacity-60"
+              className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors disabled:opacity-60"
             >
               {creating && <Loader2 size={16} className="animate-spin" />}
               Create Course
@@ -164,7 +164,7 @@ export default function AdminCourses() {
 
       {editingCourse && (
         <div className="bg-white rounded-2xl p-6 card-shadow mb-6">
-          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">Edit Course</h3>
+          <h3 className="text-lg font-semibold text-primary mb-4">Edit Course</h3>
           <form onSubmit={handleUpdate} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Title</label>
@@ -172,7 +172,7 @@ export default function AdminCourses() {
                 type="text"
                 value={editingCourse.title}
                 onChange={(e) => setEditingCourse({ ...editingCourse, title: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50"
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
                 required
               />
             </div>
@@ -182,14 +182,14 @@ export default function AdminCourses() {
                 value={editingCourse.description}
                 onChange={(e) => setEditingCourse({ ...editingCourse, description: e.target.value })}
                 rows={3}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-[#1A1A1A] bg-gray-50 resize-none"
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50 resize-none"
               />
             </div>
             <div className="flex gap-3">
               <button
                 type="submit"
                 disabled={updating}
-                className="flex items-center gap-2 px-6 py-3 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#333] transition-colors disabled:opacity-60"
+                className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors disabled:opacity-60"
               >
                 {updating && <Loader2 size={16} className="animate-spin" />}
                 Save Changes
@@ -233,7 +233,7 @@ export default function AdminCourses() {
                 <tbody>
                   {courseList.map((course) => (
                     <tr key={course.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 text-sm font-medium text-[#1A1A1A]">{course.title}</td>
+                      <td className="px-6 py-4 text-sm font-medium text-primary">{course.title}</td>
                       <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">{course.description || '—'}</td>
                       <td className="px-6 py-4 text-sm text-gray-600">{(course.batchIds || []).length}</td>
                       <td className="px-6 py-4">
@@ -249,7 +249,7 @@ export default function AdminCourses() {
                         <div className="flex items-center gap-1">
                           <button
                             onClick={() => setEditingCourse({ id: course.id, title: course.title, description: course.description || '' })}
-                            className="p-2 text-gray-400 hover:text-[#1A1A1A] hover:bg-gray-100 rounded-lg transition-colors"
+                            className="p-2 text-gray-400 hover:text-primary hover:bg-gray-100 rounded-lg transition-colors"
                             title="Edit course"
                           >
                             <Edit3 size={15} />

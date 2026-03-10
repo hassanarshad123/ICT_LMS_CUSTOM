@@ -72,13 +72,15 @@ async def list_announcements(
     result = await session.execute(query)
     announcements = result.scalars().all()
 
+    # Batch-fetch poster names in one query instead of N+1
+    poster_ids = {a.posted_by for a in announcements if a.posted_by}
+    poster_names = {}
+    if poster_ids:
+        r = await session.execute(select(User.id, User.name).where(User.id.in_(poster_ids)))
+        poster_names = dict(r.all())
+
     items = []
     for a in announcements:
-        poster_name = None
-        if a.posted_by:
-            r = await session.execute(select(User.name).where(User.id == a.posted_by))
-            poster_name = r.scalar_one_or_none()
-
         items.append({
             "id": a.id,
             "title": a.title,
@@ -87,7 +89,7 @@ async def list_announcements(
             "batch_id": a.batch_id,
             "course_id": a.course_id,
             "posted_by": a.posted_by,
-            "posted_by_name": poster_name,
+            "posted_by_name": poster_names.get(a.posted_by),
             "expires_at": a.expires_at,
             "created_at": a.created_at,
         })

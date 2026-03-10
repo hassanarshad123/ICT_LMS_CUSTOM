@@ -135,9 +135,9 @@ export default function CourseDetailPage() {
           <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <BookOpen size={28} className="text-gray-400" />
           </div>
-          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-2">Course not found</h3>
+          <h3 className="text-lg font-semibold text-primary mb-2">Course not found</h3>
           <p className="text-sm text-gray-500 mb-4">The course you are looking for does not exist.</p>
-          <Link href={`${basePath}/courses`} className="text-sm font-medium text-[#1A1A1A] hover:underline">
+          <Link href={`${basePath}/courses`} className="text-sm font-medium text-primary hover:underline">
             Back to Courses
           </Link>
         </div>
@@ -152,9 +152,9 @@ export default function CourseDetailPage() {
           <div className="w-16 h-16 bg-yellow-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <BookOpen size={28} className="text-yellow-500" />
           </div>
-          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-2">Not enrolled</h3>
+          <h3 className="text-lg font-semibold text-primary mb-2">Not enrolled</h3>
           <p className="text-sm text-gray-500 mb-4">You are not enrolled in a batch for this course. Contact your administrator.</p>
-          <Link href={`${basePath}/courses`} className="text-sm font-medium text-[#1A1A1A] hover:underline">
+          <Link href={`${basePath}/courses`} className="text-sm font-medium text-primary hover:underline">
             Back to Courses
           </Link>
         </div>
@@ -168,7 +168,7 @@ export default function CourseDetailPage() {
   return (
     <DashboardLayout>
       {/* Header Banner */}
-      <div className="bg-[#1A1A1A] rounded-2xl p-4 sm:p-6 mb-6 sm:mb-8">
+      <div className="bg-primary rounded-2xl p-4 sm:p-6 mb-6 sm:mb-8">
         <Link href={`${basePath}/courses`} className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors mb-4">
           <ArrowLeft size={16} />
           Back to Courses
@@ -210,7 +210,7 @@ export default function CourseDetailPage() {
           ) : (
             <div className="aspect-video bg-gray-800 rounded-2xl flex items-center justify-center">
               <div className="text-center">
-                <PlayCircle size={64} className="text-[#C5D86D] mx-auto mb-3" />
+                <PlayCircle size={64} className="text-accent mx-auto mb-3" />
                 <p className="text-white text-sm">
                   {nowPlaying ? nowPlaying.title : 'Select a video'}
                 </p>
@@ -228,11 +228,11 @@ export default function CourseDetailPage() {
                 onClick={() => setPlaylistTab('lectures')}
                 className={`flex flex-col items-center justify-center py-4 transition-colors ${
                   playlistTab === 'lectures'
-                    ? 'bg-[#1A1A1A] text-white'
+                    ? 'bg-primary text-white'
                     : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
                 }`}
               >
-                <BookOpen size={20} className={playlistTab === 'lectures' ? 'text-[#C5D86D]' : ''} />
+                <BookOpen size={20} className={playlistTab === 'lectures' ? 'text-accent' : ''} />
                 <span className="text-xs font-bold mt-1.5">Lectures</span>
                 <span className={`text-[10px] mt-0.5 ${playlistTab === 'lectures' ? 'text-gray-300' : 'text-gray-400'}`}>
                   {sortedLectures.length} videos
@@ -242,11 +242,11 @@ export default function CourseDetailPage() {
                 onClick={() => setPlaylistTab('recordings')}
                 className={`flex flex-col items-center justify-center py-4 transition-colors ${
                   playlistTab === 'recordings'
-                    ? 'bg-[#1A1A1A] text-white'
+                    ? 'bg-primary text-white'
                     : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
                 }`}
               >
-                <Video size={20} className={playlistTab === 'recordings' ? 'text-[#C5D86D]' : ''} />
+                <Video size={20} className={playlistTab === 'recordings' ? 'text-accent' : ''} />
                 <span className="text-xs font-bold mt-1.5">Class Recordings</span>
                 <span className={`text-[10px] mt-0.5 ${playlistTab === 'recordings' ? 'text-gray-300' : 'text-gray-400'}`}>
                   {recordings.length} videos
@@ -272,21 +272,21 @@ export default function CourseDetailPage() {
                           onClick={() => setSelectedLecture(lecture.id)}
                           className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
                             isActive
-                              ? 'bg-[#1A1A1A] text-white'
-                              : 'hover:bg-gray-50 text-[#1A1A1A]'
+                              ? 'bg-primary text-white'
+                              : 'hover:bg-gray-50 text-primary'
                           }`}
                         >
                           <div
                             className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold ${
                               isActive
-                                ? 'bg-[#C5D86D] text-[#1A1A1A]'
+                                ? 'bg-accent text-primary'
                                 : 'bg-gray-100 text-gray-500'
                             }`}
                           >
                             {index + 1}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-medium truncate ${isActive ? 'text-white' : 'text-[#1A1A1A]'}`}>
+                            <p className={`text-sm font-medium truncate ${isActive ? 'text-white' : 'text-primary'}`}>
                               {lecture.title}
                             </p>
                             <div className={`flex items-center gap-1 text-xs mt-0.5 ${isActive ? 'text-gray-300' : 'text-gray-400'}`}>
@@ -294,7 +294,7 @@ export default function CourseDetailPage() {
                               {lecture.durationDisplay || `${lecture.duration || 0}s`}
                             </div>
                           </div>
-                          {isActive && <PlayCircle size={16} className="text-[#C5D86D] flex-shrink-0" />}
+                          {isActive && <PlayCircle size={16} className="text-accent flex-shrink-0" />}
                         </button>
                       );
                     })}
@@ -316,21 +316,21 @@ export default function CourseDetailPage() {
                           onClick={() => setSelectedRecording(recording.id)}
                           className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
                             isActive
-                              ? 'bg-[#1A1A1A] text-white'
-                              : 'hover:bg-gray-50 text-[#1A1A1A]'
+                              ? 'bg-primary text-white'
+                              : 'hover:bg-gray-50 text-primary'
                           }`}
                         >
                           <div
                             className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold ${
                               isActive
-                                ? 'bg-[#C5D86D] text-[#1A1A1A]'
+                                ? 'bg-accent text-primary'
                                 : 'bg-gray-100 text-gray-500'
                             }`}
                           >
                             {index + 1}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-medium truncate ${isActive ? 'text-white' : 'text-[#1A1A1A]'}`}>
+                            <p className={`text-sm font-medium truncate ${isActive ? 'text-white' : 'text-primary'}`}>
                               {recording.title}
                             </p>
                             <div className={`flex items-center gap-1 text-xs mt-0.5 ${isActive ? 'text-gray-300' : 'text-gray-400'}`}>
@@ -338,7 +338,7 @@ export default function CourseDetailPage() {
                               {recording.durationDisplay || `${recording.duration}min`} &middot; {recording.scheduledDate}
                             </div>
                           </div>
-                          {isActive && <PlayCircle size={16} className="text-[#C5D86D] flex-shrink-0" />}
+                          {isActive && <PlayCircle size={16} className="text-accent flex-shrink-0" />}
                         </button>
                       );
                     })}
@@ -353,7 +353,7 @@ export default function CourseDetailPage() {
       {/* Info Card below video */}
       {nowPlaying && (
         <div className="bg-white rounded-2xl card-shadow p-6 mb-8">
-          <h3 className="text-lg font-semibold text-[#1A1A1A] mb-2">{nowPlaying.title}</h3>
+          <h3 className="text-lg font-semibold text-primary mb-2">{nowPlaying.title}</h3>
           <p className="text-sm text-gray-600 mb-3">{nowPlaying.subtitle}</p>
           <div className="flex items-center gap-4 text-xs text-gray-400">
             <div className="flex items-center gap-1.5">
@@ -368,7 +368,7 @@ export default function CourseDetailPage() {
 
       {/* Curriculum Modules */}
       <div className="bg-white rounded-2xl card-shadow p-6">
-        <h3 className="text-lg font-semibold text-[#1A1A1A] mb-4">Curriculum</h3>
+        <h3 className="text-lg font-semibold text-primary mb-4">Curriculum</h3>
         {modulesLoading ? (
           <div className="space-y-3">
             {Array.from({ length: 3 }).map((_, i) => (
@@ -388,11 +388,11 @@ export default function CourseDetailPage() {
                     className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50 transition-colors"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-[#C5D86D] bg-opacity-30 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <span className="text-xs font-bold text-[#1A1A1A]">{mod.sequenceOrder}</span>
+                      <div className="w-8 h-8 bg-accent bg-opacity-30 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <span className="text-xs font-bold text-primary">{mod.sequenceOrder}</span>
                       </div>
                       <div>
-                        <h4 className="font-medium text-sm text-[#1A1A1A]">{mod.title}</h4>
+                        <h4 className="font-medium text-sm text-primary">{mod.title}</h4>
                         <p className="text-xs text-gray-500 mt-0.5">{mod.description}</p>
                       </div>
                     </div>
@@ -404,7 +404,7 @@ export default function CourseDetailPage() {
                         <ul className="space-y-2">
                           {mod.topics.map((topic, i) => (
                             <li key={i} className="flex items-center gap-2 text-sm text-gray-600">
-                              <div className="w-1.5 h-1.5 rounded-full bg-[#C5D86D]" />
+                              <div className="w-1.5 h-1.5 rounded-full bg-accent" />
                               {topic}
                             </li>
                           ))}
@@ -422,8 +422,8 @@ export default function CourseDetailPage() {
       {/* Course Materials */}
       <div className="bg-white rounded-2xl card-shadow p-6 mt-8">
         <div className="flex items-center gap-3 mb-4">
-          <Paperclip size={20} className="text-[#1A1A1A]" />
-          <h3 className="text-lg font-semibold text-[#1A1A1A]">Course Materials</h3>
+          <Paperclip size={20} className="text-primary" />
+          <h3 className="text-lg font-semibold text-primary">Course Materials</h3>
           <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
             {materials.length}
           </span>
@@ -449,7 +449,7 @@ export default function CourseDetailPage() {
                     <span className={`text-xs font-bold ${config.textColor}`}>{config.label}</span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h4 className="font-medium text-sm text-[#1A1A1A] truncate">{material.title}</h4>
+                    <h4 className="font-medium text-sm text-primary truncate">{material.title}</h4>
                     {material.description && (
                       <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{material.description}</p>
                     )}
@@ -472,7 +472,7 @@ export default function CourseDetailPage() {
                   <button
                     onClick={() => handleDownload(material.id)}
                     disabled={downloadingId === material.id}
-                    className="flex-shrink-0 p-2 bg-[#1A1A1A] text-white rounded-lg hover:bg-[#333] transition-colors disabled:opacity-60"
+                    className="flex-shrink-0 p-2 bg-primary text-white rounded-lg hover:bg-primary/80 transition-colors disabled:opacity-60"
                   >
                     {downloadingId === material.id ? (
                       <Loader2 size={14} className="animate-spin" />

@@ -97,8 +97,23 @@ export async function deleteClass(classId: string): Promise<void> {
   return apiClient(`/zoom/classes/${classId}`, { method: 'DELETE' });
 }
 
-export async function getAttendance(classId: string) {
+export interface AttendanceItem {
+  id: string;
+  zoomClassId: string;
+  studentId: string;
+  studentName?: string;
+  attended: boolean;
+  joinTime?: string;
+  leaveTime?: string;
+  durationMinutes?: number;
+}
+
+export async function getAttendance(classId: string): Promise<AttendanceItem[]> {
   return apiClient(`/zoom/classes/${classId}/attendance`);
+}
+
+export async function syncAttendance(classId: string): Promise<{ synced: number }> {
+  return apiClient(`/zoom/classes/${classId}/sync-attendance`, { method: 'POST' });
 }
 
 export async function getRecordings(classId: string) {

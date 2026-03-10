@@ -45,6 +45,8 @@ class StudentBatch(SQLModel, table=True):
             unique=True,
             postgresql_where=Column("removed_at").is_(None),
         ),
+        Index("ix_student_batches_batch_id", "batch_id"),
+        Index("ix_student_batches_student_id", "student_id"),
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)

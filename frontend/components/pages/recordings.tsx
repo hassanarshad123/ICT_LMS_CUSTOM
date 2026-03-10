@@ -91,7 +91,7 @@ export default function RecordingsPage() {
                 )}
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
                   <div className="w-14 h-14 rounded-full bg-white/90 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <PlayCircle size={28} className="text-[#1A1A1A] ml-0.5" />
+                    <PlayCircle size={28} className="text-primary ml-0.5" />
                   </div>
                 </div>
                 {rec.duration && (
@@ -103,7 +103,7 @@ export default function RecordingsPage() {
 
               {/* Info */}
               <div className="p-4">
-                <h4 className="font-semibold text-sm text-[#1A1A1A] truncate">{rec.classTitle}</h4>
+                <h4 className="font-semibold text-sm text-primary truncate">{rec.classTitle}</h4>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-gray-500">
                   {rec.teacherName && (
                     <span className="flex items-center gap-1">
@@ -149,7 +149,7 @@ export default function RecordingsPage() {
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-gray-100">
               <div>
-                <h3 className="font-semibold text-[#1A1A1A]">{selectedRecording.classTitle}</h3>
+                <h3 className="font-semibold text-primary">{selectedRecording.classTitle}</h3>
                 <p className="text-xs text-gray-500 mt-0.5">
                   {selectedRecording.teacherName} &middot; {selectedRecording.scheduledDate}
                 </p>
@@ -166,7 +166,7 @@ export default function RecordingsPage() {
             <div className="aspect-video bg-black">
               {playerLoading && (
                 <div className="w-full h-full flex items-center justify-center">
-                  <Loader2 size={48} className="text-[#C5D86D] animate-spin" />
+                  <Loader2 size={48} className="text-accent animate-spin" />
                 </div>
               )}
               {playerError && (

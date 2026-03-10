@@ -65,14 +65,14 @@ export default function InsightsPage() {
   const studentStatusData = Object.entries(studentsByStatus).map(([name, value]) => ({
     name: name.charAt(0).toUpperCase() + name.slice(1),
     value,
-    fill: name === 'active' ? '#C5D86D' : '#D1D5DB',
+    fill: name === 'active' ? 'hsl(var(--accent))' : '#D1D5DB',
   }));
   const studentStatusConfig: ChartConfig = Object.fromEntries(
     studentStatusData.map((d) => [d.name, { label: d.name, color: d.fill }])
   );
 
   // Batch Status
-  const batchStatusColors: Record<string, string> = { completed: '#9CA3AF', active: '#C5D86D', upcoming: '#FCD34D' };
+  const batchStatusColors: Record<string, string> = { completed: '#9CA3AF', active: 'hsl(var(--accent))', upcoming: '#FCD34D' };
   const batchStatusData = Object.entries(batchesByStatus).map(([name, value]) => ({
     name: name.charAt(0).toUpperCase() + name.slice(1),
     value,
@@ -85,24 +85,27 @@ export default function InsightsPage() {
   // Enrollment per batch
   const enrollmentData = enrollmentPerBatch.map((b: any) => ({
     name: (b.name || b.batchName || '').replace(/Batch \d+ - /, ''),
-    students: b.students || b.studentCount || 0,
+    students: b.studentCount || b.students || 0,
   }));
-  const enrollmentConfig: ChartConfig = { students: { label: 'Students', color: '#1A1A1A' } };
+  const enrollmentConfig: ChartConfig = { students: { label: 'Students', color: 'hsl(var(--primary))' } };
 
   // Teacher workload
   const workloadData = teacherWorkload.map((t: any) => ({
     name: (t.name || t.teacherName || '').split(' ')[0],
-    batches: t.batches || t.batchCount || 0,
-    students: t.students || t.studentCount || 0,
+    batches: t.batchCount || t.batches || 0,
+    students: t.studentCount || t.students || 0,
   }));
-  const workloadConfig: ChartConfig = { batches: { label: 'Batches', color: '#1A1A1A' }, students: { label: 'Students', color: '#C5D86D' } };
+  const workloadConfig: ChartConfig = { batches: { label: 'Batches', color: 'hsl(var(--primary))' }, students: { label: 'Students', color: 'hsl(var(--accent))' } };
 
   // Lectures per course
-  const lecturesData = lecturesPerCourse.map((c: any) => ({
-    name: (c.name || c.courseTitle || '').length > 18 ? (c.name || c.courseTitle || '').slice(0, 18) + '...' : (c.name || c.courseTitle || ''),
-    lectures: c.lectures || c.lectureCount || 0,
-  }));
-  const lecturesConfig: ChartConfig = { lectures: { label: 'Lectures', color: '#1A1A1A' } };
+  const lecturesData = lecturesPerCourse.map((c: any) => {
+    const label = c.title || c.name || c.courseTitle || '';
+    return {
+      name: label.length > 18 ? label.slice(0, 18) + '...' : label,
+      lectures: c.lectureCount || c.lectures || 0,
+    };
+  });
+  const lecturesConfig: ChartConfig = { lectures: { label: 'Lectures', color: 'hsl(var(--primary))' } };
 
   // Materials by type
   const materialColors: Record<string, string> = { pdf: '#EF4444', excel: '#22C55E', word: '#3B82F6', pptx: '#F97316' };
@@ -116,7 +119,7 @@ export default function InsightsPage() {
   );
 
   // Device overview
-  const deviceColors: Record<string, string> = { active: '#C5D86D', atLimit: '#EF4444', noSessions: '#D1D5DB' };
+  const deviceColors: Record<string, string> = { active: 'hsl(var(--accent))', atLimit: '#EF4444', noSessions: '#D1D5DB' };
   const deviceData = Object.entries(deviceOverview).map(([key, value]) => ({
     name: key.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase()),
     value,
@@ -138,25 +141,25 @@ export default function InsightsPage() {
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
         {[
-          { label: 'Total Students', value: totalStudents, icon: <Users size={22} />, accent: '#C5D86D' },
-          { label: 'Active Batches', value: activeBatches, icon: <Layers size={22} />, accent: '#E8E8E8' },
-          { label: 'Total Courses', value: totalCourses, icon: <BookOpen size={22} />, accent: '#C5D86D' },
-          { label: 'Total Teachers', value: teacherWorkload.length, icon: <GraduationCap size={22} />, accent: '#E8E8E8' },
+          { label: 'Total Students', value: totalStudents, icon: <Users size={22} />, accent: 'hsl(var(--accent))' },
+          { label: 'Active Batches', value: activeBatches, icon: <Layers size={22} />, accent: 'hsl(var(--secondary))' },
+          { label: 'Total Courses', value: totalCourses, icon: <BookOpen size={22} />, accent: 'hsl(var(--accent))' },
+          { label: 'Total Teachers', value: teacherWorkload.length, icon: <GraduationCap size={22} />, accent: 'hsl(var(--secondary))' },
         ].map((kpi) => (
           <div key={kpi.label} className="bg-white rounded-2xl p-6 card-shadow overflow-hidden">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-4" style={{ backgroundColor: kpi.accent }}>{kpi.icon}</div>
-            <p className="text-2xl sm:text-3xl font-bold text-[#1A1A1A]">{kpi.value}</p>
+            <p className="text-2xl sm:text-3xl font-bold text-primary">{kpi.value}</p>
             <p className="text-sm text-gray-500 mt-1">{kpi.label}</p>
           </div>
         ))}
       </div>
 
       {/* Student & Enrollment */}
-      <h2 className="text-lg font-semibold text-[#1A1A1A] mb-4">Student &amp; Enrollment</h2>
+      <h2 className="text-lg font-semibold text-primary mb-4">Student &amp; Enrollment</h2>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
         {studentStatusData.length > 0 && (
           <div className="bg-white rounded-2xl p-6 card-shadow overflow-hidden">
-            <h3 className="text-sm font-semibold text-[#1A1A1A] mb-4">Student Status</h3>
+            <h3 className="text-sm font-semibold text-primary mb-4">Student Status</h3>
             <ChartContainer config={studentStatusConfig} className="h-[250px] aspect-auto w-full">
               <PieChart>
                 <Pie data={studentStatusData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={80}>
@@ -170,14 +173,14 @@ export default function InsightsPage() {
         )}
         {enrollmentData.length > 0 && (
           <div className="bg-white rounded-2xl p-6 card-shadow overflow-hidden">
-            <h3 className="text-sm font-semibold text-[#1A1A1A] mb-4">Enrollment per Batch</h3>
+            <h3 className="text-sm font-semibold text-primary mb-4">Enrollment per Batch</h3>
             <ChartContainer config={enrollmentConfig} className="h-[250px] aspect-auto w-full">
               <BarChart data={enrollmentData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="name" tick={{ fontSize: 11, angle: -35, textAnchor: 'end' } as Record<string, unknown>} height={50} />
                 <YAxis tick={{ fontSize: 11 }} />
                 <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="students" fill="#1A1A1A" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="students" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ChartContainer>
           </div>
@@ -185,11 +188,11 @@ export default function InsightsPage() {
       </div>
 
       {/* Batch Performance */}
-      <h2 className="text-lg font-semibold text-[#1A1A1A] mb-4">Batch Performance</h2>
+      <h2 className="text-lg font-semibold text-primary mb-4">Batch Performance</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
         {batchStatusData.length > 0 && (
           <div className="bg-white rounded-2xl p-6 card-shadow overflow-hidden">
-            <h3 className="text-sm font-semibold text-[#1A1A1A] mb-4">Batch Status</h3>
+            <h3 className="text-sm font-semibold text-primary mb-4">Batch Status</h3>
             <ChartContainer config={batchStatusConfig} className="h-[250px] aspect-auto w-full">
               <PieChart>
                 <Pie data={batchStatusData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={80}>
@@ -203,7 +206,7 @@ export default function InsightsPage() {
         )}
         {workloadData.length > 0 && (
           <div className="bg-white rounded-2xl p-6 card-shadow overflow-hidden lg:col-span-2">
-            <h3 className="text-sm font-semibold text-[#1A1A1A] mb-4">Teacher Workload</h3>
+            <h3 className="text-sm font-semibold text-primary mb-4">Teacher Workload</h3>
             <ChartContainer config={workloadConfig} className="h-[250px] aspect-auto w-full">
               <BarChart data={workloadData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -211,8 +214,8 @@ export default function InsightsPage() {
                 <YAxis tick={{ fontSize: 11 }} />
                 <ChartTooltip content={<ChartTooltipContent />} />
                 <ChartLegend content={<ChartLegendContent />} />
-                <Bar dataKey="batches" fill="#1A1A1A" radius={[6, 6, 0, 0]} />
-                <Bar dataKey="students" fill="#C5D86D" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="batches" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="students" fill="hsl(var(--accent))" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ChartContainer>
           </div>
@@ -222,25 +225,25 @@ export default function InsightsPage() {
       {/* Course & Content */}
       {(lecturesData.length > 0 || materialsData.length > 0) && (
         <>
-          <h2 className="text-lg font-semibold text-[#1A1A1A] mb-4">Course &amp; Content</h2>
+          <h2 className="text-lg font-semibold text-primary mb-4">Course &amp; Content</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
             {lecturesData.length > 0 && (
               <div className="bg-white rounded-2xl p-6 card-shadow overflow-hidden">
-                <h3 className="text-sm font-semibold text-[#1A1A1A] mb-4">Lectures per Course</h3>
+                <h3 className="text-sm font-semibold text-primary mb-4">Lectures per Course</h3>
                 <ChartContainer config={lecturesConfig} className="h-[250px] aspect-auto w-full">
                   <BarChart data={lecturesData} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                     <XAxis type="number" tick={{ fontSize: 11 }} />
                     <YAxis dataKey="name" type="category" tick={{ fontSize: 10 }} width={100} />
                     <ChartTooltip content={<ChartTooltipContent />} />
-                    <Bar dataKey="lectures" fill="#1A1A1A" radius={[0, 6, 6, 0]} />
+                    <Bar dataKey="lectures" fill="hsl(var(--primary))" radius={[0, 6, 6, 0]} />
                   </BarChart>
                 </ChartContainer>
               </div>
             )}
             {materialsData.length > 0 && (
               <div className="bg-white rounded-2xl p-6 card-shadow overflow-hidden">
-                <h3 className="text-sm font-semibold text-[#1A1A1A] mb-4">Materials by Type</h3>
+                <h3 className="text-sm font-semibold text-primary mb-4">Materials by Type</h3>
                 <ChartContainer config={materialsConfig} className="h-[250px] aspect-auto w-full">
                   <PieChart>
                     <Pie data={materialsData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80}>
@@ -259,10 +262,10 @@ export default function InsightsPage() {
       {/* Device & Security */}
       {deviceData.length > 0 && (
         <>
-          <h2 className="text-lg font-semibold text-[#1A1A1A] mb-4">Device &amp; Security</h2>
+          <h2 className="text-lg font-semibold text-primary mb-4">Device &amp; Security</h2>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
             <div className="bg-white rounded-2xl p-6 card-shadow overflow-hidden">
-              <h3 className="text-sm font-semibold text-[#1A1A1A] mb-4">Device Sessions Overview</h3>
+              <h3 className="text-sm font-semibold text-primary mb-4">Device Sessions Overview</h3>
               <ChartContainer config={deviceConfig} className="h-[250px] aspect-auto w-full">
                 <PieChart>
                   <Pie data={deviceData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={80}>

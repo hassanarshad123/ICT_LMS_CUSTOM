@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlmodel import SQLModel, Field, Column
-from sqlalchemy import Text, Integer, BigInteger, ARRAY
+from sqlalchemy import Text, Integer, BigInteger, ARRAY, Index
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 
@@ -40,6 +40,16 @@ class Course(SQLModel, table=True):
 
 class BatchCourse(SQLModel, table=True):
     __tablename__ = "batch_courses"
+    __table_args__ = (
+        Index("ix_batch_courses_batch_id", "batch_id"),
+        Index("ix_batch_courses_course_id", "course_id"),
+        Index(
+            "uq_batch_course_active",
+            "batch_id", "course_id",
+            unique=True,
+            postgresql_where=Column("deleted_at").is_(None),
+        ),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     batch_id: uuid.UUID = Field(nullable=False, foreign_key="batches.id")
@@ -60,6 +70,10 @@ class BatchCourse(SQLModel, table=True):
 
 class Lecture(SQLModel, table=True):
     __tablename__ = "lectures"
+    __table_args__ = (
+        Index("ix_lectures_batch_id", "batch_id"),
+        Index("ix_lectures_course_id", "course_id"),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     batch_id: uuid.UUID = Field(nullable=False, foreign_key="batches.id")

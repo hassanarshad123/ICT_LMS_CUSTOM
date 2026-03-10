@@ -1,3 +1,5 @@
+import hashlib
+import json
 import logging
 import uuid
 import math
@@ -5,6 +7,7 @@ from datetime import datetime, timezone
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -127,8 +130,8 @@ async def upload_init(
         bunny_library_id=library_id, video_status="pending",
     )
 
-    # 3. Generate TUS auth
-    tus = generate_tus_auth(video_id)
+    # 3. Generate TUS auth (6 hours — covers uploads up to ~5GB on slow connections)
+    tus = generate_tus_auth(video_id, expires_in=21600)
 
     return {
         "lecture": _lecture_out(lecture),
@@ -143,7 +146,20 @@ async def upload_init(
 @router.post("/bunny-webhook")
 async def bunny_webhook(request: Request):
     """Handle Bunny Stream encoding webhooks."""
-    body = await request.json()
+    # HMAC signature validation
+    raw_body = await request.body()
+    if settings.BUNNY_WEBHOOK_SECRET:
+        expected = hashlib.sha256(
+            (settings.BUNNY_WEBHOOK_SECRET + raw_body.decode()).encode()
+        ).hexdigest()
+        actual = request.headers.get("Webhook-Signature", "")
+        if expected != actual:
+            logger.warning("Bunny webhook signature mismatch")
+            return JSONResponse(status_code=403, content={"detail": "Invalid signature"})
+    else:
+        logger.warning("BUNNY_WEBHOOK_SECRET not set — skipping webhook signature validation")
+
+    body = json.loads(raw_body)
     video_guid = body.get("VideoGuid")
     if not video_guid:
         return {"status": "ignored"}
@@ -179,6 +195,35 @@ async def bunny_webhook(request: Request):
         await lecture_service.update_lecture_status(session, video_guid, new_status)
 
     return {"status": "ok"}
+
+
+@router.post("/{lecture_id}/reencode")
+async def reencode_lecture(
+    lecture_id: uuid.UUID,
+    current_user: CC,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """Re-encode a failed video without re-uploading."""
+    lecture = await lecture_service.get_lecture(session, lecture_id)
+    if not lecture:
+        raise HTTPException(status_code=404, detail="Lecture not found")
+    if not lecture.bunny_video_id:
+        raise HTTPException(status_code=400, detail="Lecture has no Bunny video")
+    if lecture.video_status != "failed":
+        raise HTTPException(status_code=409, detail="Only failed videos can be re-encoded")
+
+    from app.utils.bunny import reencode_video
+    import httpx as _httpx
+    try:
+        await reencode_video(lecture.bunny_video_id)
+    except (_httpx.HTTPStatusError, _httpx.ConnectError, _httpx.TimeoutException) as exc:
+        logger.error("Bunny reencode failed for video %s: %s", lecture.bunny_video_id, exc)
+        raise HTTPException(status_code=503, detail="Video service unavailable. Please try again later.")
+
+    lecture.video_status = "processing"
+    session.add(lecture)
+    await session.commit()
+    return {"status": "reencode_started", "lecture_id": str(lecture.id)}
 
 
 @router.get("/{lecture_id}", response_model=LectureOut)
