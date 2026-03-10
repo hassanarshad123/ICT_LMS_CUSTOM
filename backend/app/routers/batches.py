@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_session
 from app.schemas.batch import BatchCreate, BatchUpdate, BatchOut, BatchStudentEnroll, BatchCourseLink
 from app.schemas.common import PaginatedResponse
-from app.services import batch_service
+from app.services import batch_service, webhook_event_service
 from app.middleware.auth import require_roles, get_current_user
 from app.models.user import User
 
@@ -116,9 +116,17 @@ async def enroll_student(
             session, batch_id, body.student_id, current_user.id,
             institute_id=current_user.institute_id,
         )
-        return {"id": sb.id, "student_id": sb.student_id, "batch_id": sb.batch_id, "enrolled_at": sb.enrolled_at}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    if current_user.institute_id:
+        await webhook_event_service.queue_webhook_event(
+            session, current_user.institute_id, "enrollment.created",
+            {"student_id": str(body.student_id), "batch_id": str(batch_id)},
+        )
+        await session.commit()
+
+    return {"id": sb.id, "student_id": sb.student_id, "batch_id": sb.batch_id, "enrolled_at": sb.enrolled_at}
 
 
 @router.delete("/{batch_id}/students/{student_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -135,6 +143,13 @@ async def remove_student(
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+    if current_user.institute_id:
+        await webhook_event_service.queue_webhook_event(
+            session, current_user.institute_id, "enrollment.removed",
+            {"student_id": str(student_id), "batch_id": str(batch_id)},
+        )
+        await session.commit()
 
 
 @router.get("/{batch_id}/courses")

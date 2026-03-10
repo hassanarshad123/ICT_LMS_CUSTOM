@@ -110,6 +110,19 @@ async def auto_suspend_expired_institutes():
             logger.info("Auto-suspended %d expired institutes", len(expired))
 
 
+async def process_webhook_deliveries():
+    """Process pending webhook deliveries and retries (every 1 minute)."""
+    from app.services.webhook_event_service import process_pending_deliveries
+
+    async with async_session() as session:
+        try:
+            count = await process_pending_deliveries(session, batch_size=50)
+            if count:
+                logger.info("Processed %d webhook deliveries", count)
+        except Exception as e:
+            logger.error("Webhook delivery processing failed: %s", e)
+
+
 async def cleanup_stale_uploads():
     """Soft-delete lectures stuck in 'pending' for over 24 hours (daily).
 

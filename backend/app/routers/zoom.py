@@ -18,7 +18,7 @@ from app.schemas.zoom import (
     AttendanceOut, RecordingOut, RecordingListOut, RecordingSignedUrlOut,
 )
 from app.schemas.common import PaginatedResponse
-from app.services import zoom_service
+from app.services import zoom_service, webhook_event_service
 from app.middleware.auth import require_roles, get_current_user
 from app.models.user import User
 from app.models.enums import ZoomClassStatus
@@ -226,6 +226,15 @@ async def create_class(
         institute_id=current_user.institute_id,
     )
 
+    if current_user.institute_id:
+        await webhook_event_service.queue_webhook_event(
+            session, current_user.institute_id, "class.scheduled",
+            {"class_id": str(zc.id), "title": zc.title, "batch_id": str(zc.batch_id),
+             "teacher_id": str(zc.teacher_id), "scheduled_date": str(zc.scheduled_date),
+             "duration": zc.duration},
+        )
+        await session.commit()
+
     from app.utils.formatters import format_duration
 
     return ZoomClassOut(
@@ -380,6 +389,14 @@ async def sync_attendance(
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     count = await zoom_service.sync_attendance(session, class_id)
+
+    if current_user.institute_id and count:
+        await webhook_event_service.queue_webhook_event(
+            session, current_user.institute_id, "attendance.recorded",
+            {"class_id": str(class_id), "records_synced": count},
+        )
+        await session.commit()
+
     return {"synced": count}
 
 

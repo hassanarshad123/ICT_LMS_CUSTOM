@@ -18,7 +18,7 @@ from app.schemas.certificate import (
     CertificateVerifyOut,
 )
 from app.schemas.common import PaginatedResponse
-from app.services import certificate_service
+from app.services import certificate_service, webhook_event_service
 from app.middleware.auth import require_roles, get_current_user, get_institute_slug_from_header
 from app.models.user import User
 from app.models.institute import Institute
@@ -82,6 +82,14 @@ async def request_certificate(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
+    if current_user.institute_id:
+        await webhook_event_service.queue_webhook_event(
+            session, current_user.institute_id, "certificate.requested",
+            {"certificate_id": str(cert.id), "student_id": str(current_user.id),
+             "batch_id": str(body.batch_id), "course_id": str(body.course_id)},
+        )
+        await session.commit()
+
     data = await certificate_service.get_certificate(session, cert.id, institute_id=current_user.institute_id)
     return CertificateOut(**data)
 
@@ -135,6 +143,14 @@ async def approve_certificate(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
 
+    if current_user.institute_id:
+        await webhook_event_service.queue_webhook_event(
+            session, current_user.institute_id, "certificate.approved",
+            {"certificate_id": str(cert.id), "student_id": str(student_id),
+             "batch_id": str(batch_id), "course_id": str(course_id)},
+        )
+        await session.commit()
+
     data = await certificate_service.get_certificate(session, cert.id, institute_id=current_user.institute_id)
     return CertificateOut(**data)
 
@@ -168,6 +184,16 @@ async def approve_batch_certificates(
             logger.warning("Skipping student %s: %s", student_id, e)
 
     await session.commit()
+
+    if current_user.institute_id and results:
+        for c in results:
+            await webhook_event_service.queue_webhook_event(
+                session, current_user.institute_id, "certificate.approved",
+                {"certificate_id": str(c.id), "student_id": str(c.student_id),
+                 "batch_id": str(batch_id), "course_id": str(course_id)},
+            )
+        await session.commit()
+
     return results
 
 
@@ -186,6 +212,13 @@ async def approve_certificate_request(
         await session.commit()
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    if current_user.institute_id:
+        await webhook_event_service.queue_webhook_event(
+            session, current_user.institute_id, "certificate.approved",
+            {"certificate_id": str(cert.id), "student_id": str(cert.student_id)},
+        )
+        await session.commit()
 
     data = await certificate_service.get_certificate(session, cert.id, institute_id=current_user.institute_id)
     return CertificateOut(**data)
@@ -283,6 +316,13 @@ async def revoke_certificate(
         await session.commit()
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    if current_user.institute_id:
+        await webhook_event_service.queue_webhook_event(
+            session, current_user.institute_id, "certificate.revoked",
+            {"certificate_id": str(cert_uuid), "reason": body.reason},
+        )
+        await session.commit()
 
     data = await certificate_service.get_certificate(session, cert_uuid, institute_id=current_user.institute_id)
     return CertificateOut(**data)

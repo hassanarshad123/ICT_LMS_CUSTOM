@@ -45,7 +45,7 @@ async def lifespan(app: FastAPI):
     # Startup — start scheduler
     try:
         from apscheduler.schedulers.asyncio import AsyncIOScheduler
-        from app.scheduler.jobs import cleanup_expired_sessions, send_zoom_reminders, retry_failed_recordings, cleanup_stale_uploads, auto_suspend_expired_institutes
+        from app.scheduler.jobs import cleanup_expired_sessions, send_zoom_reminders, retry_failed_recordings, cleanup_stale_uploads, auto_suspend_expired_institutes, process_webhook_deliveries
 
         scheduler = AsyncIOScheduler()
         scheduler.add_job(cleanup_expired_sessions, "interval", hours=1, id="cleanup_sessions")
@@ -53,6 +53,7 @@ async def lifespan(app: FastAPI):
         scheduler.add_job(retry_failed_recordings, "interval", minutes=30, id="retry_recordings")
         scheduler.add_job(cleanup_stale_uploads, "interval", hours=24, id="cleanup_stale_uploads")
         scheduler.add_job(auto_suspend_expired_institutes, "interval", hours=24, id="auto_suspend_institutes")
+        scheduler.add_job(process_webhook_deliveries, "interval", minutes=1, id="webhook_deliveries")
         scheduler.start()
         app.state.scheduler = scheduler
     except Exception as e:

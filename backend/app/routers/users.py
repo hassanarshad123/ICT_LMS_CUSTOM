@@ -28,6 +28,7 @@ from app.models.batch import StudentBatch, Batch
 from app.models.enums import UserRole, UserStatus
 from app.utils.security import hash_password
 from app.utils.transformers import to_db
+from app.services import webhook_event_service
 
 router = APIRouter()
 
@@ -196,6 +197,13 @@ async def create_user_endpoint(
     # Auto-enroll in batch if batch_id provided and role is student
     batch_id = getattr(body, 'batch_id', None)
 
+    if current_user.institute_id:
+        await webhook_event_service.queue_webhook_event(
+            session, current_user.institute_id, "user.created",
+            {"user_id": str(user.id), "email": user.email, "name": user.name, "role": user.role.value},
+        )
+        await session.commit()
+
     return {
         "id": user.id,
         "name": user.name,
@@ -231,12 +239,19 @@ async def update_user_endpoint(
     target = await get_user(session, user_id)
     if not target or target.institute_id != current_user.institute_id:
         raise HTTPException(status_code=404, detail="User not found")
+    fields = body.model_dump(exclude_unset=True)
     try:
-        user = await update_user(
-            session, user_id, **body.model_dump(exclude_unset=True)
-        )
+        user = await update_user(session, user_id, **fields)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+    if current_user.institute_id:
+        await webhook_event_service.queue_webhook_event(
+            session, current_user.institute_id, "user.updated",
+            {"user_id": str(user.id), "email": user.email, "name": user.name, "fields_updated": list(fields.keys())},
+        )
+        await session.commit()
+
     data = await _enrich_user(session, user)
     return UserOut(**data)
 
@@ -264,6 +279,13 @@ async def change_user_status(
             user = await activate_user(session, user_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+    if current_user.institute_id and new_status == "inactive":
+        await webhook_event_service.queue_webhook_event(
+            session, current_user.institute_id, "user.deactivated",
+            {"user_id": str(user.id), "email": user.email, "name": user.name},
+        )
+        await session.commit()
 
     data = await _enrich_user(session, user)
     return UserOut(**data)
@@ -307,6 +329,13 @@ async def delete_user_endpoint(
         await soft_delete_user(session, user_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+    if current_user.institute_id:
+        await webhook_event_service.queue_webhook_event(
+            session, current_user.institute_id, "user.deleted",
+            {"user_id": str(target.id), "email": target.email, "name": target.name},
+        )
+        await session.commit()
 
 
 @router.post("/{user_id}/force-logout", status_code=status.HTTP_204_NO_CONTENT)
