@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { View, Text, ScrollView, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, KeyboardAvoidingView, Platform, Keyboard, TouchableWithoutFeedback } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/lib/contexts/auth-context';
@@ -49,47 +49,51 @@ export default function EditProfileScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.header}>
-        <IconButton name="arrow-back" onPress={() => router.back()} />
-        <Text style={styles.title}>Edit Profile</Text>
-      </View>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.flex}>
-        <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
-          <TextInput
-            label="Email"
-            icon="mail-outline"
-            value={user?.email ?? ''}
-            editable={false}
-            containerStyle={styles.readOnly}
-          />
-          <TextInput
-            label="Name"
-            icon="person-outline"
-            value={name}
-            onChangeText={setName}
-            error={errors.name}
-            autoCapitalize="words"
-          />
-          <TextInput
-            label="Phone"
-            icon="call-outline"
-            value={phone}
-            onChangeText={setPhone}
-            placeholder="Enter phone number"
-            keyboardType="phone-pad"
-          />
-          <Button
-            title="Save Changes"
-            onPress={handleSubmit}
-            variant="primary"
-            icon="checkmark-circle"
-            fullWidth
-            loading={updateMutation.loading}
-            accentColor={accent}
-            style={styles.submitBtn}
-          />
-        </ScrollView>
-      </KeyboardAvoidingView>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <View style={styles.flex}>
+          <View style={styles.header}>
+            <IconButton name="arrow-back" onPress={() => router.back()} />
+            <Text style={styles.title}>Edit Profile</Text>
+          </View>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.flex}>
+            <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
+              <TextInput
+                label="Email"
+                icon="mail-outline"
+                value={user?.email ?? ''}
+                editable={false}
+                containerStyle={styles.readOnly}
+              />
+              <TextInput
+                label="Name"
+                icon="person-outline"
+                value={name}
+                onChangeText={setName}
+                error={errors.name}
+                autoCapitalize="words"
+              />
+              <TextInput
+                label="Phone"
+                icon="call-outline"
+                value={phone}
+                onChangeText={setPhone}
+                placeholder="Enter phone number"
+                keyboardType="phone-pad"
+              />
+              <Button
+                title="Save Changes"
+                onPress={handleSubmit}
+                variant="primary"
+                icon="checkmark-circle"
+                fullWidth
+                loading={updateMutation.loading}
+                accentColor={accent}
+                style={styles.submitBtn}
+              />
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </View>
+      </TouchableWithoutFeedback>
     </SafeAreaView>
   );
 }

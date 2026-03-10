@@ -54,6 +54,17 @@ def create_impersonation_token(target_user_id: uuid.UUID, impersonator_id: uuid.
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
+def create_password_reset_token(user_id: uuid.UUID) -> str:
+    """Create a short-lived token for password reset (15 min)."""
+    expire = datetime.now(timezone.utc) + timedelta(minutes=15)
+    payload = {
+        "sub": str(user_id),
+        "type": "password_reset",
+        "exp": expire,
+    }
+    return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+
 def decode_token(token: str) -> dict | None:
     """Decode and validate a JWT. Returns payload dict or None if invalid."""
     try:

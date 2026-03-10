@@ -66,6 +66,20 @@ async def _resolve_institute_id(
     return institute_id
 
 
+@router.get("/institutes")
+async def list_public_institutes(
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """Public endpoint — returns name and slug of all active/trial institutes."""
+    result = await session.execute(
+        select(Institute.name, Institute.slug).where(
+            Institute.status.in_(["active", "trial"]),
+            Institute.deleted_at.is_(None),
+        ).order_by(Institute.name)
+    )
+    return [{"name": row.name, "slug": row.slug} for row in result.all()]
+
+
 @router.get("", response_model=BrandingResponse)
 async def get_branding(
     request: Request,

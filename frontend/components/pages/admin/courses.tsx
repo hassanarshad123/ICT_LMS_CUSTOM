@@ -10,7 +10,8 @@ import { useMutation } from '@/hooks/use-api';
 import { listCourses, createCourse, updateCourse, deleteCourse } from '@/lib/api/courses';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
-import { BookOpen, Plus, X, Trash2, Edit3, Loader2, Search } from 'lucide-react';
+import { BookOpen, Plus, X, Trash2, Edit3, Loader2, Search, Download } from 'lucide-react';
+import { exportData } from '@/lib/api/admin';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -116,13 +117,30 @@ export default function AdminCourses() {
             ))}
           </select>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors"
-        >
-          {showForm ? <X size={16} /> : <Plus size={16} />}
-          {showForm ? 'Cancel' : 'Create Course'}
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={async () => {
+              try {
+                const result = await exportData('courses');
+                window.open(result.downloadUrl, '_blank');
+                toast.success('Export started');
+              } catch (err: any) {
+                toast.error(err.message || 'Export failed');
+              }
+            }}
+            className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 text-gray-700 bg-white rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors"
+          >
+            <Download size={16} />
+            Export CSV
+          </button>
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors"
+          >
+            {showForm ? <X size={16} /> : <Plus size={16} />}
+            {showForm ? 'Cancel' : 'Create Course'}
+          </button>
+        </div>
       </div>
 
       {showForm && (

@@ -50,3 +50,12 @@ class ChangePasswordRequest(BaseModel):
 class LogoutAllResponse(BaseModel):
     detail: str
     sessions_terminated: int
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str

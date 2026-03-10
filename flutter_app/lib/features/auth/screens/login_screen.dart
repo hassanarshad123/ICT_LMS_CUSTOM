@@ -1,0 +1,329 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/constants/app_colors.dart';
+import '../../../providers/auth_provider.dart';
+import '../../../providers/branding_provider.dart';
+
+/// Login screen where the user enters their email and password.
+///
+/// UI Spec:
+/// - Dark background
+/// - Top section: institute logo (from brandingProvider.logoUrl, or fallback
+///   School icon) + institute name + tagline
+/// - Email TextFormField (keyboard: email, validator: non-empty)
+/// - Password TextFormField (obscure, with visibility toggle)
+/// - "Login" ElevatedButton (full width, accent color)
+/// - Loading state on button during login
+/// - Error: SnackBar with error message
+/// - On success: authProvider.login() -> router auto-redirects to /home
+///
+/// The screen uses ConsumerStatefulWidget for Riverpod integration and
+/// local form state management.
+class LoginScreen extends ConsumerStatefulWidget {
+  const LoginScreen({super.key});
+
+  @override
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends ConsumerState<LoginScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _emailFocusNode = FocusNode();
+  final _passwordFocusNode = FocusNode();
+  bool _obscurePassword = true;
+  bool _isLoggingIn = false;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    _emailFocusNode.dispose();
+    _passwordFocusNode.dispose();
+    super.dispose();
+  }
+
+  Future<void> _onLogin() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    // Dismiss keyboard
+    FocusScope.of(context).unfocus();
+
+    setState(() => _isLoggingIn = true);
+
+    try {
+      await ref.read(authProvider.notifier).login(
+            _emailController.text.trim(),
+            _passwordController.text,
+          );
+      // On success, the GoRouter redirect in app_router.dart will
+      // automatically navigate to /home because authState.isAuthenticated
+      // becomes true.
+    } catch (e) {
+      if (!mounted) return;
+
+      // Extract a user-friendly error message
+      final authState = ref.read(authProvider);
+      final errorMessage = authState.error ?? 'Login failed. Please try again.';
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoggingIn = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final branding = ref.watch(brandingProvider);
+    final accentColor = branding.accentColor;
+
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // Institute logo
+                  _buildLogo(branding, accentColor),
+                  const SizedBox(height: 20),
+
+                  // Institute name
+                  Text(
+                    branding.instituteName ?? 'LMS',
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 4),
+
+                  // Tagline
+                  if (branding.tagline != null &&
+                      branding.tagline!.isNotEmpty) ...[
+                    Text(
+                      branding.tagline!,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 40),
+                  ] else
+                    const SizedBox(height: 40),
+
+                  // Email field
+                  TextFormField(
+                    controller: _emailController,
+                    focusNode: _emailFocusNode,
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    autocorrect: false,
+                    enableSuggestions: true,
+                    decoration: InputDecoration(
+                      hintText: 'Email address',
+                      prefixIcon: Icon(
+                        Icons.email_outlined,
+                        color: AppColors.textTertiary,
+                      ),
+                    ),
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 16,
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter your email';
+                      }
+                      // Basic email format check
+                      if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+                          .hasMatch(value.trim())) {
+                        return 'Please enter a valid email';
+                      }
+                      return null;
+                    },
+                    onFieldSubmitted: (_) {
+                      _passwordFocusNode.requestFocus();
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Password field
+                  TextFormField(
+                    controller: _passwordController,
+                    focusNode: _passwordFocusNode,
+                    obscureText: _obscurePassword,
+                    textInputAction: TextInputAction.done,
+                    decoration: InputDecoration(
+                      hintText: 'Password',
+                      prefixIcon: Icon(
+                        Icons.lock_outline_rounded,
+                        color: AppColors.textTertiary,
+                      ),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                          color: AppColors.textTertiary,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
+                      ),
+                    ),
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 16,
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter your password';
+                      }
+                      return null;
+                    },
+                    onFieldSubmitted: (_) => _onLogin(),
+                  ),
+                  const SizedBox(height: 32),
+
+                  // Login button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: _isLoggingIn ? null : _onLogin,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: accentColor,
+                        foregroundColor: AppColors.scaffoldBg,
+                        disabledBackgroundColor: accentColor.withValues(alpha: 0.5),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: _isLoggingIn
+                          ? SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: AppColors.scaffoldBg,
+                              ),
+                            )
+                          : const Text(
+                              'Login',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 48),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Build the institute logo widget.
+  ///
+  /// If a logo URL is available in branding, display it as a network image.
+  /// If it's a base64 data URL, display it as a memory image.
+  /// Otherwise, show a fallback School icon.
+  Widget _buildLogo(BrandingState branding, Color accentColor) {
+    final logoUrl = branding.logoUrl;
+
+    if (logoUrl != null && logoUrl.isNotEmpty) {
+      // Check if it's a base64 data URL
+      if (logoUrl.startsWith('data:image/')) {
+        try {
+          // Extract base64 part from data URL
+          final base64Part = logoUrl.split(',').last;
+          final bytes =
+              Uri.parse('data:application/octet-stream;base64,$base64Part')
+                  .data
+                  ?.contentAsBytes();
+          if (bytes != null) {
+            return Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Image.memory(
+                bytes,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => _buildFallbackIcon(accentColor),
+              ),
+            );
+          }
+        } catch (_) {
+          // Fall through to fallback icon
+        }
+      }
+
+      // Regular URL
+      return Container(
+        width: 80,
+        height: 80,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Image.network(
+          logoUrl,
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => _buildFallbackIcon(accentColor),
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return _buildFallbackIcon(accentColor);
+          },
+        ),
+      );
+    }
+
+    return _buildFallbackIcon(accentColor);
+  }
+
+  /// Fallback icon when no logo URL is available.
+  Widget _buildFallbackIcon(Color accentColor) {
+    return Container(
+      width: 80,
+      height: 80,
+      decoration: BoxDecoration(
+        color: accentColor.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Icon(
+        Icons.school_rounded,
+        size: 40,
+        color: accentColor,
+      ),
+    );
+  }
+}

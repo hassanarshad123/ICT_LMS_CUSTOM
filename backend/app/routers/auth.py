@@ -9,14 +9,16 @@ from app.database import get_session
 from app.schemas.auth import (
     LoginRequest, LoginResponse, RefreshRequest, TokenResponse,
     UserBrief, ChangePasswordRequest, LogoutAllResponse,
+    ForgotPasswordRequest, ResetPasswordRequest,
 )
+from app.config import get_settings
 from app.services.auth_service import authenticate_user, refresh_access_token, logout, logout_all
 from app.middleware.auth import get_current_user
 from app.models.user import User
 from app.models.institute import Institute
 from app.models.batch import StudentBatch, Batch
 from app.models.enums import UserRole
-from app.utils.security import verify_password, hash_password
+from app.utils.security import verify_password, hash_password, create_password_reset_token, decode_token
 from app.utils.rate_limit import limiter
 
 router = APIRouter()
@@ -162,6 +164,85 @@ async def change_password(
     count = await logout_all(session, current_user.id)
 
     return {"detail": "Password changed successfully"}
+
+
+@router.post("/forgot-password")
+@limiter.limit("3/minute")
+async def forgot_password(
+    request: Request,
+    body: ForgotPasswordRequest,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    x_institute_slug: Optional[str] = Header(default=None, alias="X-Institute-Slug"),
+):
+    """Request a password reset link. Always returns 200 to prevent email enumeration."""
+    settings = get_settings()
+
+    # Resolve institute by slug (same pattern as login)
+    institute_id = None
+    if x_institute_slug:
+        result = await session.execute(
+            select(Institute).where(
+                Institute.slug == x_institute_slug,
+                Institute.deleted_at.is_(None),
+            )
+        )
+        institute = result.scalar_one_or_none()
+        if institute:
+            institute_id = institute.id
+
+    # Look up user
+    query = select(User).where(User.email == body.email, User.deleted_at.is_(None))
+    if institute_id is not None:
+        query = query.where(User.institute_id == institute_id)
+    else:
+        query = query.where(User.institute_id.is_(None))
+
+    result = await session.execute(query)
+    user = result.scalar_one_or_none()
+
+    if user:
+        token = create_password_reset_token(user.id)
+        reset_url = f"{settings.FRONTEND_URL}/reset-password?token={token}"
+        try:
+            from app.utils.email import send_password_reset
+            send_password_reset(user.email, user.name, reset_url)
+        except Exception:
+            pass  # Don't leak email sending errors
+
+    return {"detail": "If an account exists with that email, we've sent a password reset link."}
+
+
+@router.post("/reset-password")
+@limiter.limit("5/minute")
+async def reset_password(
+    request: Request,
+    body: ResetPasswordRequest,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """Reset password using a token from the forgot-password email."""
+    payload = decode_token(body.token)
+    if not payload or payload.get("type") != "password_reset":
+        raise HTTPException(status_code=400, detail="Reset link has expired or is invalid")
+
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Reset link has expired or is invalid")
+
+    if len(body.new_password) < 8:
+        raise HTTPException(status_code=422, detail="New password must be at least 8 characters")
+
+    result = await session.execute(
+        select(User).where(User.id == user_id, User.deleted_at.is_(None))
+    )
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=400, detail="Reset link has expired or is invalid")
+
+    user.hashed_password = hash_password(body.new_password)
+    session.add(user)
+    await logout_all(session, user.id)
+
+    return {"detail": "Password has been reset successfully"}
 
 
 @router.get("/me", response_model=UserBrief)

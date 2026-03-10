@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { GraduationCap, ChevronRight, Loader2, Eye, EyeOff } from 'lucide-react';
 import { login } from '@/lib/api/auth';
 import { useBranding } from '@/lib/branding-context';
@@ -132,6 +133,11 @@ export default function LoginPage() {
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
+            </div>
+            <div className="flex justify-end">
+              <Link href="/forgot-password" className="text-sm text-primary hover:underline">
+                Forgot password?
+              </Link>
             </div>
             <button
               type="submit"

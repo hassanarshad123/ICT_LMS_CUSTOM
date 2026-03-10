@@ -9,6 +9,8 @@ import { useApi, useMutation } from '@/hooks/use-api';
 import { getCourse } from '@/lib/api/courses';
 import { listModules, createModule, updateModule, deleteModule } from '@/lib/api/curriculum';
 import { listBatches, linkCourse, unlinkCourse } from '@/lib/api/batches';
+import { listQuizzes, createQuiz, deleteQuiz } from '@/lib/api/quizzes';
+import type { Quiz } from '@/lib/api/quizzes';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
 import {
@@ -24,6 +26,10 @@ import {
   FolderOpen,
   Edit3,
   Loader2,
+  HelpCircle,
+  Eye,
+  EyeOff,
+  BarChart3,
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -55,11 +61,18 @@ export default function CourseCreatorCourseDetail() {
     () => listBatches({ per_page: 100 }),
   );
 
+  const { data: quizzesData, loading: quizzesLoading, refetch: refetchQuizzes } = useApi(
+    () => listQuizzes({ course_id: courseId }),
+    [courseId],
+  );
+
   const { execute: doCreateModule, loading: creatingModule } = useMutation(createModule);
   const { execute: doUpdateModule } = useMutation(updateModule);
   const { execute: doDeleteModule } = useMutation(deleteModule);
   const { execute: doLinkCourse } = useMutation(linkCourse);
   const { execute: doUnlinkCourse } = useMutation(unlinkCourse);
+  const { execute: doCreateQuiz, loading: creatingQuiz } = useMutation(createQuiz);
+  const { execute: doDeleteQuiz } = useMutation(deleteQuiz);
 
   const [showBatchDropdown, setShowBatchDropdown] = useState(false);
   const [showModuleForm, setShowModuleForm] = useState(false);
@@ -68,6 +81,9 @@ export default function CourseCreatorCourseDetail() {
   const [editForm, setEditForm] = useState({ title: '', description: '', topics: '' });
   const [expandedModule, setExpandedModule] = useState<string | null>(null);
   const [deleteModuleId, setDeleteModuleId] = useState<string | null>(null);
+  const [showQuizForm, setShowQuizForm] = useState(false);
+  const [quizForm, setQuizForm] = useState({ title: '', description: '' });
+  const [deleteQuizId, setDeleteQuizId] = useState<string | null>(null);
 
   const loading = courseLoading || modulesLoading || batchesLoading;
 
@@ -170,6 +186,38 @@ export default function CourseCreatorCourseDetail() {
       toast.error(err.message);
     }
   };
+
+  const handleAddQuiz = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quizForm.title.trim()) return;
+    try {
+      await doCreateQuiz({
+        courseId,
+        title: quizForm.title.trim(),
+        description: quizForm.description.trim() || undefined,
+      });
+      toast.success('Quiz created');
+      setQuizForm({ title: '', description: '' });
+      setShowQuizForm(false);
+      refetchQuizzes();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const handleDeleteQuiz = async (qId: string) => {
+    try {
+      await doDeleteQuiz(qId);
+      toast.success('Quiz deleted');
+      setDeleteQuizId(null);
+      refetchQuizzes();
+    } catch (err: any) {
+      toast.error(err.message);
+      setDeleteQuizId(null);
+    }
+  };
+
+  const quizzes = quizzesData?.data || [];
 
   return (
     <DashboardLayout>
@@ -473,6 +521,128 @@ export default function CourseCreatorCourseDetail() {
           </div>
         )}
       </div>
+      {/* Quizzes Section */}
+      <div className="mt-8">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-primary">Quizzes</h3>
+          {!showQuizForm && (
+            <button
+              onClick={() => setShowQuizForm(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary/80 transition-colors"
+            >
+              <Plus size={14} />
+              Add Quiz
+            </button>
+          )}
+        </div>
+
+        {showQuizForm && (
+          <div className="bg-white rounded-2xl p-6 card-shadow mb-4">
+            <h4 className="text-sm font-semibold text-primary mb-4">New Quiz</h4>
+            <form onSubmit={handleAddQuiz} className="space-y-4 mb-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Title</label>
+                <input
+                  type="text"
+                  value={quizForm.title}
+                  onChange={(e) => setQuizForm({ ...quizForm, title: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
+                  placeholder="Quiz title"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
+                <input
+                  type="text"
+                  value={quizForm.description}
+                  onChange={(e) => setQuizForm({ ...quizForm, description: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
+                  placeholder="Quiz description (optional)"
+                />
+              </div>
+              <div className="flex gap-3">
+                <button
+                  type="submit"
+                  disabled={creatingQuiz}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary/80 transition-colors disabled:opacity-60"
+                >
+                  {creatingQuiz && <Loader2 size={16} className="animate-spin" />}
+                  Create Quiz
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowQuizForm(false); setQuizForm({ title: '', description: '' }); }}
+                  className="px-5 py-2.5 bg-gray-100 text-gray-600 text-sm font-medium rounded-xl hover:bg-gray-200 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {quizzesLoading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 2 }).map((_, i) => (
+              <div key={i} className="animate-pulse bg-gray-200 rounded-xl h-16" />
+            ))}
+          </div>
+        ) : quizzes.length === 0 ? (
+          <div className="bg-white rounded-2xl p-8 card-shadow text-center">
+            <HelpCircle size={24} className="text-gray-300 mx-auto mb-2" />
+            <p className="text-sm text-gray-500">No quizzes yet. Add your first quiz.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {quizzes.map((q) => (
+              <div key={q.id} className="bg-white rounded-xl card-shadow overflow-hidden">
+                <div className="flex items-center justify-between p-4">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="w-8 h-8 bg-accent bg-opacity-30 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <HelpCircle size={16} className="text-primary" />
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="font-medium text-sm text-primary truncate">{q.title}</h4>
+                      <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                        <span className="text-xs text-gray-400">{q.questionCount} question{q.questionCount !== 1 ? 's' : ''}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                          q.isPublished ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                        }`}>
+                          {q.isPublished ? 'Published' : 'Draft'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 ml-4 flex-shrink-0">
+                    <Link
+                      href={`${basePath}/courses/${courseId}/quizzes/${q.id}/results`}
+                      className="p-2 text-gray-400 hover:text-primary hover:bg-gray-50 rounded-lg transition-colors"
+                      title="View Results"
+                    >
+                      <BarChart3 size={14} />
+                    </Link>
+                    <Link
+                      href={`${basePath}/courses/${courseId}/quizzes/${q.id}`}
+                      className="p-2 text-gray-400 hover:text-primary hover:bg-gray-50 rounded-lg transition-colors"
+                      title="Edit Quiz"
+                    >
+                      <Edit3 size={14} />
+                    </Link>
+                    <button
+                      onClick={() => setDeleteQuizId(q.id)}
+                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <AlertDialog open={!!deleteModuleId} onOpenChange={(open) => !open && setDeleteModuleId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -482,6 +652,18 @@ export default function CourseCreatorCourseDetail() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={() => deleteModuleId && handleDeleteModule(deleteModuleId)} className="bg-red-600 hover:bg-red-700 text-white">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={!!deleteQuizId} onOpenChange={(open) => !open && setDeleteQuizId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Quiz</AlertDialogTitle>
+            <AlertDialogDescription>Are you sure you want to delete this quiz? All questions and student attempts will be lost. This action cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteQuizId && handleDeleteQuiz(deleteQuizId)} className="bg-red-600 hover:bg-red-700 text-white">Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

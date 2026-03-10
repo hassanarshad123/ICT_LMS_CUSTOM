@@ -1,17 +1,18 @@
 """Integration test for Public API + Webhook system.
 
 Usage:
-    python tests/test_integration_api.py
+    TEST_BASE_URL=http://localhost:8000 TEST_ADMIN_EMAIL=admin@test.com TEST_ADMIN_PASSWORD=changeme python tests/test_integration_api.py
 """
 import httpx
 import json
+import os
 import sys
 import time
 
-BASE = "https://apiict.zensbot.site/api/v1"
-SLUG = "test-prod-v2"
-ADMIN_EMAIL = "admin@test-prod.com"
-ADMIN_PASSWORD = "testadmin123"
+BASE = os.environ.get("TEST_BASE_URL", "http://localhost:8000") + "/api/v1"
+SLUG = os.environ.get("TEST_INSTITUTE_SLUG", "test-prod-v2")
+ADMIN_EMAIL = os.environ.get("TEST_ADMIN_EMAIL", "admin@test.com")
+ADMIN_PASSWORD = os.environ.get("TEST_ADMIN_PASSWORD", "changeme")
 
 passed = 0
 failed = 0
@@ -89,15 +90,15 @@ def main():
     print("\n=== Auth Rejection ===")
     r = client.get(f"{BASE}/public/students", headers={"Content-Type": "application/json"})
     if r.status_code == 401:
-        ok("No API key → 401")
+        ok("No API key -> 401")
     else:
-        fail("No API key → 401", f"got {r.status_code}")
+        fail("No API key -> 401", f"got {r.status_code}")
 
     r = client.get(f"{BASE}/public/students", headers=headers_api_key("ict_pk_invalidfakekey1234567890abcdef1234567890abcdef"))
     if r.status_code == 401:
-        ok("Invalid API key → 401")
+        ok("Invalid API key -> 401")
     else:
-        fail("Invalid API key → 401", f"got {r.status_code}")
+        fail("Invalid API key -> 401", f"got {r.status_code}")
 
     # ── 4. Public API - Students ────────────────────────────
     print("\n=== Public API: Students ===")
@@ -313,9 +314,9 @@ def main():
     # Verify revoked key is rejected
     r = client.get(f"{BASE}/public/students", headers=headers_api_key(api_key))
     if r.status_code == 401:
-        ok("Revoked key → 401")
+        ok("Revoked key -> 401")
     else:
-        fail("Revoked key → 401", f"got {r.status_code}")
+        fail("Revoked key -> 401", f"got {r.status_code}")
 
     # ── Summary ─────────────────────────────────────────────
     print(f"\n{'='*50}")

@@ -96,14 +96,14 @@ def send_zoom_reminder(
 def send_password_reset(
     to: str,
     name: str,
-    temp_password: str,
+    reset_link: str,
     from_name: Optional[str] = None,
 ) -> None:
     html = f"""
     <h2>Password Reset</h2>
     <p>Hi {name},</p>
-    <p>Your password has been reset. Your new temporary password is:</p>
-    <p style="font-size: 20px; font-weight: bold;">{temp_password}</p>
-    <p>Please change your password after logging in.</p>
+    <p>We received a request to reset your password. Click the link below to set a new password:</p>
+    <p><a href="{reset_link}" style="display: inline-block; padding: 12px 24px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">Reset Password</a></p>
+    <p style="margin-top: 16px; font-size: 14px; color: #666;">This link expires in 15 minutes. If you didn't request this, you can safely ignore this email.</p>
     """
     send_email(to, "Password Reset", html, from_name=from_name)

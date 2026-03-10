@@ -147,10 +147,11 @@ export default function InstituteDetailPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          {institute.status !== 'suspended' ? (
-            <button onClick={handleSuspend} className="px-3 py-1.5 text-sm bg-red-50 text-red-600 rounded-xl hover:bg-red-100">Suspend</button>
-          ) : (
+          {institute.status !== 'active' && (
             <button onClick={handleActivate} className="px-3 py-1.5 text-sm bg-green-50 text-green-600 rounded-xl hover:bg-green-100">Activate</button>
+          )}
+          {institute.status !== 'suspended' && (
+            <button onClick={handleSuspend} className="px-3 py-1.5 text-sm bg-red-50 text-red-600 rounded-xl hover:bg-red-100">Suspend</button>
           )}
         </div>
       </div>
@@ -198,6 +199,7 @@ export default function InstituteDetailPage() {
               {[
                 { label: 'Name', key: 'name', type: 'text' },
                 { label: 'Slug', key: 'slug', type: 'text' },
+                { label: 'Status', key: 'status', type: 'readonly' },
                 { label: 'Contact Email', key: 'contactEmail', type: 'email' },
                 { label: 'Plan', key: 'planTier', type: 'select', options: ['free', 'basic', 'pro', 'enterprise'] },
                 { label: 'Max Users', key: 'maxUsers', type: 'number' },
@@ -206,7 +208,7 @@ export default function InstituteDetailPage() {
               ].map(({ label, key, type, options }) => (
                 <div key={key} className="flex items-center justify-between">
                   <span className="text-gray-500">{label}</span>
-                  {editing ? (
+                  {editing && type !== 'readonly' ? (
                     type === 'select' ? (
                       <select
                         value={(editForm as any)[key] ?? ''}
@@ -224,7 +226,11 @@ export default function InstituteDetailPage() {
                       />
                     )
                   ) : (
-                    <span className="font-medium text-gray-900">{(institute as any)[key]}</span>
+                    key === 'status' ? (
+                      <StatusBadge status={(institute as any)[key]} />
+                    ) : (
+                      <span className="font-medium text-gray-900">{(institute as any)[key]}</span>
+                    )
                   )}
                 </div>
               ))}

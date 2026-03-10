@@ -12,7 +12,8 @@ import { listBatches } from '@/lib/api/batches';
 import { enrollStudent } from '@/lib/api/batches';
 import { PageLoading, PageError } from '@/components/shared/page-states';
 import { toast } from 'sonner';
-import { Plus, X, Search, Trash2, GraduationCap, BookOpen, PenTool, Loader2 } from 'lucide-react';
+import { Plus, X, Search, Trash2, GraduationCap, BookOpen, PenTool, Loader2, Download } from 'lucide-react';
+import { exportData } from '@/lib/api/admin';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -146,6 +147,23 @@ export default function UsersListView({ basePath: basePathProp }: UsersListViewP
                 <option key={b.id} value={b.id}>{b.name}</option>
               ))}
             </select>
+          )}
+          {auth.role === 'admin' && (
+            <button
+              onClick={async () => {
+                try {
+                  const result = await exportData('users');
+                  window.open(result.downloadUrl, '_blank');
+                  toast.success('Export started');
+                } catch (err: any) {
+                  toast.error(err.message || 'Export failed');
+                }
+              }}
+              className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 text-gray-700 bg-white rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors"
+            >
+              <Download size={16} />
+              Export CSV
+            </button>
           )}
           <button onClick={() => { setShowForm(!showForm); setFormStep(1); setSelectedRole(''); }} className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors">
             {showForm ? <X size={16} /> : <Plus size={16} />}

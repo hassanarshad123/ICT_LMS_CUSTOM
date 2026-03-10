@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { View, Text, ScrollView, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, KeyboardAvoidingView, Platform, Keyboard, TouchableWithoutFeedback } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useBranding } from '@/lib/contexts/branding-context';
@@ -48,51 +48,55 @@ export default function ChangePasswordScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.header}>
-        <IconButton name="arrow-back" onPress={() => router.back()} />
-        <Text style={styles.title}>Change Password</Text>
-      </View>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.flex}>
-        <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
-          <TextInput
-            label="Current Password"
-            icon="lock-closed-outline"
-            value={currentPassword}
-            onChangeText={setCurrentPassword}
-            secureTextEntry
-            error={errors.current}
-            autoCapitalize="none"
-          />
-          <TextInput
-            label="New Password"
-            icon="key-outline"
-            value={newPassword}
-            onChangeText={setNewPassword}
-            secureTextEntry
-            error={errors.new}
-            autoCapitalize="none"
-          />
-          <TextInput
-            label="Confirm New Password"
-            icon="key-outline"
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            secureTextEntry
-            error={errors.confirm}
-            autoCapitalize="none"
-          />
-          <Button
-            title="Change Password"
-            onPress={handleSubmit}
-            variant="primary"
-            icon="checkmark-circle"
-            fullWidth
-            loading={changePwMutation.loading}
-            accentColor={accent}
-            style={styles.submitBtn}
-          />
-        </ScrollView>
-      </KeyboardAvoidingView>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <View style={styles.flex}>
+          <View style={styles.header}>
+            <IconButton name="arrow-back" onPress={() => router.back()} />
+            <Text style={styles.title}>Change Password</Text>
+          </View>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.flex}>
+            <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
+              <TextInput
+                label="Current Password"
+                icon="lock-closed-outline"
+                value={currentPassword}
+                onChangeText={setCurrentPassword}
+                secureTextEntry
+                error={errors.current}
+                autoCapitalize="none"
+              />
+              <TextInput
+                label="New Password"
+                icon="key-outline"
+                value={newPassword}
+                onChangeText={setNewPassword}
+                secureTextEntry
+                error={errors.new}
+                autoCapitalize="none"
+              />
+              <TextInput
+                label="Confirm New Password"
+                icon="key-outline"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry
+                error={errors.confirm}
+                autoCapitalize="none"
+              />
+              <Button
+                title="Change Password"
+                onPress={handleSubmit}
+                variant="primary"
+                icon="checkmark-circle"
+                fullWidth
+                loading={changePwMutation.loading}
+                accentColor={accent}
+                style={styles.submitBtn}
+              />
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </View>
+      </TouchableWithoutFeedback>
     </SafeAreaView>
   );
 }

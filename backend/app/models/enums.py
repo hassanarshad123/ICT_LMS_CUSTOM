@@ -81,3 +81,15 @@ class CertificateStatus(str, enum.Enum):
     eligible = "eligible"
     approved = "approved"
     revoked = "revoked"
+
+
+class QuestionType(str, enum.Enum):
+    mcq = "mcq"
+    true_false = "true_false"
+    short_answer = "short_answer"
+
+
+class QuizAttemptStatus(str, enum.Enum):
+    in_progress = "in_progress"
+    submitted = "submitted"
+    graded = "graded"

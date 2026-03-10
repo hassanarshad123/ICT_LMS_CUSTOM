@@ -57,7 +57,10 @@ async def send_zoom_reminders():
     """Send reminders for upcoming Zoom classes (every 10 minutes)."""
     from sqlmodel import select
     from app.models.zoom import ZoomClass
+    from app.models.user import User
+    from app.models.batch import StudentBatch
     from app.models.enums import ZoomClassStatus
+    from app.utils.email import send_zoom_reminder
 
     now = datetime.now(timezone.utc)
     reminder_window = now + timedelta(minutes=15)
@@ -74,12 +77,45 @@ async def send_zoom_reminders():
         for zc in classes:
             scheduled_dt = datetime.combine(zc.scheduled_date, zc.scheduled_time)
             if scheduled_dt <= reminder_window.replace(tzinfo=None):
+                # Mark sent BEFORE sending to prevent spam on retries
                 zc.reminder_sent = True
                 session.add(zc)
-                logger.warning(
-                    "Email sending not implemented yet — reminder flagged but not sent for class %s",
-                    zc.title,
-                )
+
+                scheduled_str = scheduled_dt.strftime("%Y-%m-%d %H:%M")
+                meeting_url = zc.zoom_meeting_url or ""
+
+                # Send to teacher
+                try:
+                    teacher_result = await session.execute(
+                        select(User).where(User.id == zc.teacher_id)
+                    )
+                    teacher = teacher_result.scalar_one_or_none()
+                    if teacher and teacher.email:
+                        send_zoom_reminder(teacher.email, zc.title, meeting_url, scheduled_str)
+                except Exception as e:
+                    logger.error("Failed to send reminder to teacher for class %s: %s", zc.title, e)
+
+                # Send to enrolled students
+                try:
+                    student_result = await session.execute(
+                        select(User.email).join(
+                            StudentBatch, StudentBatch.student_id == User.id
+                        ).where(
+                            StudentBatch.batch_id == zc.batch_id,
+                            StudentBatch.removed_at.is_(None),
+                            User.deleted_at.is_(None),
+                        )
+                    )
+                    student_emails = [row[0] for row in student_result.all()]
+                    for student_email in student_emails:
+                        try:
+                            send_zoom_reminder(student_email, zc.title, meeting_url, scheduled_str)
+                        except Exception as e:
+                            logger.error("Failed to send reminder to %s for class %s: %s", student_email, zc.title, e)
+                except Exception as e:
+                    logger.error("Failed to query students for class %s: %s", zc.title, e)
+
+                logger.info("Sent reminders for class %s", zc.title)
 
         await session.commit()
 
