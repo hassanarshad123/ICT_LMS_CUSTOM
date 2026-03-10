@@ -21,7 +21,7 @@ export default function NewInstitutePage() {
     name: '',
     slug: '',
     contactEmail: '',
-    planTier: 'trial',
+    planTier: 'free',
     maxUsers: 50,
     maxStorageGb: 10,
     maxVideoGb: 50,
@@ -145,7 +145,6 @@ export default function NewInstitutePage() {
                 onChange={(e) => setForm((f) => ({ ...f, planTier: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-gray-400"
               >
-                <option value="trial">Trial</option>
                 <option value="free">Free</option>
                 <option value="basic">Basic</option>
                 <option value="pro">Pro</option>

@@ -199,7 +199,7 @@ export default function InstituteDetailPage() {
                 { label: 'Name', key: 'name', type: 'text' },
                 { label: 'Slug', key: 'slug', type: 'text' },
                 { label: 'Contact Email', key: 'contactEmail', type: 'email' },
-                { label: 'Plan', key: 'planTier', type: 'select', options: ['free', 'basic', 'pro', 'enterprise', 'trial'] },
+                { label: 'Plan', key: 'planTier', type: 'select', options: ['free', 'basic', 'pro', 'enterprise'] },
                 { label: 'Max Users', key: 'maxUsers', type: 'number' },
                 { label: 'Max Storage (GB)', key: 'maxStorageGb', type: 'number' },
                 { label: 'Max Video (GB)', key: 'maxVideoGb', type: 'number' },
