@@ -9,6 +9,7 @@ class MaterialUploadUrlRequest(BaseModel):
     content_type: str
     batch_id: uuid.UUID
     course_id: Optional[uuid.UUID] = None
+    file_size: Optional[int] = None
 
 
 class MaterialUploadUrlResponse(BaseModel):

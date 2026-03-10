@@ -53,6 +53,22 @@ async def _store_error(
         # Extract user info from request state (set by auth middleware if available)
         user_id = getattr(request.state, "user_id", None)
         user_email = getattr(request.state, "user_email", None)
+        institute_id = getattr(request.state, "institute_id", None)
+
+        # If institute_id not on request.state, try to resolve from the authenticated user
+        if institute_id is None and user_id is not None:
+            try:
+                from sqlmodel import select as sql_select
+                from app.models.user import User
+                async with async_session() as lookup_session:
+                    result = await lookup_session.execute(
+                        sql_select(User).where(User.id == user_id)
+                    )
+                    user_obj = result.scalar_one_or_none()
+                    if user_obj:
+                        institute_id = user_obj.institute_id
+            except Exception:
+                pass  # best-effort
 
         ip = request.client.host if request.client else None
         user_agent = request.headers.get("user-agent", "")[:500]
@@ -67,6 +83,7 @@ async def _store_error(
             status_code=status_code,
             user_id=user_id,
             user_email=user_email,
+            institute_id=institute_id,
             ip_address=ip,
             user_agent=user_agent[:500] if user_agent else None,
             source="backend",

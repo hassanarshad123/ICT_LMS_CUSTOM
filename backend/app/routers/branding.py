@@ -1,17 +1,19 @@
 """Public branding endpoints + admin branding management."""
 
 import base64
+import uuid
 from datetime import datetime, timezone
-from typing import Annotated
+from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.database import get_session
-from app.middleware.auth import require_roles
+from app.middleware.auth import require_roles, get_institute_slug_from_header
 from app.models.other import SystemSetting
 from app.models.user import User
+from app.models.institute import Institute
 from app.schemas.branding import (
     BrandingResponse, BrandingUpdate,
     CertificateDesignResponse, CertificateDesignUpdate,
@@ -50,16 +52,37 @@ def _field_to_key(field: str) -> str:
     return f"branding_{field}"
 
 
+async def _resolve_institute_id(
+    request: Request, session: AsyncSession,
+) -> Optional[uuid.UUID]:
+    """Resolve institute_id from X-Institute-Slug header for public endpoints."""
+    slug = get_institute_slug_from_header(request)
+    if not slug:
+        return None
+    result = await session.execute(
+        select(Institute.id).where(Institute.slug == slug, Institute.deleted_at.is_(None))
+    )
+    institute_id = result.scalar_one_or_none()
+    return institute_id
+
+
 @router.get("", response_model=BrandingResponse)
 async def get_branding(
+    request: Request,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Public endpoint — returns all branding settings with defaults."""
-    result = await session.execute(
-        select(SystemSetting).where(
-            SystemSetting.setting_key.in_(list(BRANDING_KEYS.keys()))
-        )
+    institute_id = await _resolve_institute_id(request, session)
+
+    query = select(SystemSetting).where(
+        SystemSetting.setting_key.in_(list(BRANDING_KEYS.keys()))
     )
+    if institute_id:
+        query = query.where(SystemSetting.institute_id == institute_id)
+    else:
+        query = query.where(SystemSetting.institute_id.is_(None))
+
+    result = await session.execute(query)
     settings = {s.setting_key: s.value for s in result.scalars().all()}
 
     data = {}
@@ -75,17 +98,22 @@ async def get_branding(
 
 @router.patch("", response_model=BrandingResponse)
 async def update_branding(
+    request: Request,
     body: BrandingUpdate,
     current_user: Admin,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Admin only — upsert branding keys into SystemSetting."""
+    institute_id = current_user.institute_id
     update_data = body.model_dump(exclude_none=True)
 
     for field_name, value in update_data.items():
         db_key = _field_to_key(field_name)
         result = await session.execute(
-            select(SystemSetting).where(SystemSetting.setting_key == db_key)
+            select(SystemSetting).where(
+                SystemSetting.setting_key == db_key,
+                SystemSetting.institute_id == institute_id,
+            )
         )
         setting = result.scalar_one_or_none()
         if setting:
@@ -93,11 +121,11 @@ async def update_branding(
             setting.updated_at = datetime.now(timezone.utc)
             session.add(setting)
         else:
-            session.add(SystemSetting(setting_key=db_key, value=str(value)))
+            session.add(SystemSetting(setting_key=db_key, value=str(value), institute_id=institute_id))
 
     await session.commit()
 
-    return await get_branding(session)
+    return await get_branding(request, session)
 
 
 @router.post("/logo-upload")
@@ -128,9 +156,13 @@ async def upload_logo(
     data_url = f"data:{file.content_type};base64,{b64}"
 
     # Upsert into SystemSetting
+    institute_id = current_user.institute_id
     db_key = "branding_logo_url"
     result = await session.execute(
-        select(SystemSetting).where(SystemSetting.setting_key == db_key)
+        select(SystemSetting).where(
+            SystemSetting.setting_key == db_key,
+            SystemSetting.institute_id == institute_id,
+        )
     )
     setting = result.scalar_one_or_none()
     if setting:
@@ -138,7 +170,7 @@ async def upload_logo(
         setting.updated_at = datetime.now(timezone.utc)
         session.add(setting)
     else:
-        session.add(SystemSetting(setting_key=db_key, value=data_url))
+        session.add(SystemSetting(setting_key=db_key, value=data_url, institute_id=institute_id))
 
     await session.commit()
 
@@ -176,13 +208,17 @@ CERT_DEFAULTS = CertificateDesignResponse()
 MAX_SIG_SIZE = 1 * 1024 * 1024  # 1MB
 
 
-async def get_certificate_design_dict(session: AsyncSession) -> dict:
+async def get_certificate_design_dict(session: AsyncSession, institute_id: Optional[uuid.UUID] = None) -> dict:
     """Load all cert_* settings and return as a plain dict with defaults."""
-    result = await session.execute(
-        select(SystemSetting).where(
-            SystemSetting.setting_key.in_(list(CERT_KEYS.keys()))
-        )
+    query = select(SystemSetting).where(
+        SystemSetting.setting_key.in_(list(CERT_KEYS.keys()))
     )
+    if institute_id:
+        query = query.where(SystemSetting.institute_id == institute_id)
+    else:
+        query = query.where(SystemSetting.institute_id.is_(None))
+
+    result = await session.execute(query)
     settings = {s.setting_key: s.value for s in result.scalars().all()}
 
     data = {}
@@ -197,26 +233,33 @@ async def get_certificate_design_dict(session: AsyncSession) -> dict:
 
 @router.get("/certificate-design", response_model=CertificateDesignResponse)
 async def get_certificate_design(
+    request: Request,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Public endpoint — returns all certificate design settings with defaults."""
-    data = await get_certificate_design_dict(session)
+    institute_id = await _resolve_institute_id(request, session)
+    data = await get_certificate_design_dict(session, institute_id)
     return CertificateDesignResponse(**data)
 
 
 @router.patch("/certificate-design", response_model=CertificateDesignResponse)
 async def update_certificate_design(
+    request: Request,
     body: CertificateDesignUpdate,
     current_user: Admin,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Admin only — upsert cert design keys into SystemSetting."""
+    institute_id = current_user.institute_id
     update_data = body.model_dump(exclude_none=True)
 
     for field_name, value in update_data.items():
         db_key = f"cert_{field_name}"
         result = await session.execute(
-            select(SystemSetting).where(SystemSetting.setting_key == db_key)
+            select(SystemSetting).where(
+                SystemSetting.setting_key == db_key,
+                SystemSetting.institute_id == institute_id,
+            )
         )
         setting = result.scalar_one_or_none()
         if setting:
@@ -224,11 +267,11 @@ async def update_certificate_design(
             setting.updated_at = datetime.now(timezone.utc)
             session.add(setting)
         else:
-            session.add(SystemSetting(setting_key=db_key, value=str(value)))
+            session.add(SystemSetting(setting_key=db_key, value=str(value), institute_id=institute_id))
 
     await session.commit()
 
-    return await get_certificate_design(session)
+    return await get_certificate_design(request, session)
 
 
 @router.post("/signature-upload")
@@ -256,9 +299,13 @@ async def upload_signature(
     b64 = base64.b64encode(contents).decode("utf-8")
     data_url = f"data:{file.content_type};base64,{b64}"
 
+    institute_id = current_user.institute_id
     db_key = f"cert_sig{position}_image"
     result = await session.execute(
-        select(SystemSetting).where(SystemSetting.setting_key == db_key)
+        select(SystemSetting).where(
+            SystemSetting.setting_key == db_key,
+            SystemSetting.institute_id == institute_id,
+        )
     )
     setting = result.scalar_one_or_none()
     if setting:
@@ -266,7 +313,7 @@ async def upload_signature(
         setting.updated_at = datetime.now(timezone.utc)
         session.add(setting)
     else:
-        session.add(SystemSetting(setting_key=db_key, value=data_url))
+        session.add(SystemSetting(setting_key=db_key, value=data_url, institute_id=institute_id))
 
     await session.commit()
 

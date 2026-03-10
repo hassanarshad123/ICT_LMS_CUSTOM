@@ -71,6 +71,7 @@ async def list_lectures(
 
     items, total = await lecture_service.list_lectures(
         session, batch_id, course_id=course_id, page=page, per_page=per_page,
+        institute_id=current_user.institute_id,
     )
     return PaginatedResponse(
         data=[LectureOut(**item) for item in items],
@@ -90,6 +91,7 @@ async def create_lecture(
         video_type=body.video_type, created_by=current_user.id,
         description=body.description, video_url=body.video_url,
         duration=body.duration, course_id=body.course_id,
+        institute_id=current_user.institute_id,
     )
     return _lecture_out(lecture)
 
@@ -112,6 +114,14 @@ async def upload_init(
             detail="Video upload service is not configured. Please contact the administrator to set up Bunny.net credentials.",
         )
 
+    # 0b. Quota check for video uploads
+    if current_user.institute_id:
+        from app.services.institute_service import check_video_quota
+        try:
+            await check_video_quota(session, current_user.institute_id, body.file_size or 0)
+        except ValueError as e:
+            raise HTTPException(status_code=402, detail=str(e))
+
     # 1. Create Bunny video entry
     try:
         result = await create_video_entry(body.title)
@@ -128,6 +138,7 @@ async def upload_init(
         description=body.description, course_id=body.course_id,
         duration=body.duration, bunny_video_id=video_id,
         bunny_library_id=library_id, video_status="pending",
+        institute_id=current_user.institute_id,
     )
 
     # 3. Generate TUS auth (6 hours — covers uploads up to ~5GB on slow connections)
@@ -205,7 +216,7 @@ async def reencode_lecture(
 ):
     """Re-encode a failed video without re-uploading."""
     lecture = await lecture_service.get_lecture(session, lecture_id)
-    if not lecture:
+    if not lecture or (current_user.institute_id and lecture.institute_id != current_user.institute_id):
         raise HTTPException(status_code=404, detail="Lecture not found")
     if not lecture.bunny_video_id:
         raise HTTPException(status_code=400, detail="Lecture has no Bunny video")
@@ -233,7 +244,7 @@ async def get_lecture(
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     lecture = await lecture_service.get_lecture(session, lecture_id)
-    if not lecture:
+    if not lecture or (current_user.institute_id and lecture.institute_id != current_user.institute_id):
         raise HTTPException(status_code=404, detail="Lecture not found")
     return _lecture_out(lecture)
 
@@ -246,7 +257,7 @@ async def get_lecture_status(
 ):
     """Get video processing status, polling Bunny if needed."""
     lecture = await lecture_service.get_lecture(session, lecture_id)
-    if not lecture:
+    if not lecture or (current_user.institute_id and lecture.institute_id != current_user.institute_id):
         raise HTTPException(status_code=404, detail="Lecture not found")
 
     current_status = lecture.video_status
@@ -278,6 +289,10 @@ async def update_lecture(
     current_user: CC,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
+    # Verify institute ownership before update
+    existing = await lecture_service.get_lecture(session, lecture_id)
+    if not existing or (current_user.institute_id and existing.institute_id != current_user.institute_id):
+        raise HTTPException(status_code=404, detail="Lecture not found")
     try:
         lecture = await lecture_service.update_lecture(
             session, lecture_id, **body.model_dump(exclude_unset=True)
@@ -293,6 +308,10 @@ async def delete_lecture(
     current_user: CC,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
+    # Verify institute ownership before delete
+    existing = await lecture_service.get_lecture(session, lecture_id)
+    if not existing or (current_user.institute_id and existing.institute_id != current_user.institute_id):
+        raise HTTPException(status_code=404, detail="Lecture not found")
     try:
         await lecture_service.soft_delete_lecture(session, lecture_id)
     except ValueError as e:
@@ -306,6 +325,10 @@ async def reorder_lecture(
     current_user: CC,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
+    # Verify institute ownership before reorder
+    existing = await lecture_service.get_lecture(session, lecture_id)
+    if not existing or (current_user.institute_id and existing.institute_id != current_user.institute_id):
+        raise HTTPException(status_code=404, detail="Lecture not found")
     try:
         lecture = await lecture_service.reorder_lecture(session, lecture_id, body.sequence_order)
     except ValueError as e:
@@ -323,7 +346,7 @@ async def get_signed_url(
 ):
     """Generate a signed embed URL. Checks enrollment for students."""
     lecture = await lecture_service.get_lecture(session, lecture_id)
-    if not lecture or lecture.deleted_at:
+    if not lecture or lecture.deleted_at or (current_user.institute_id and lecture.institute_id != current_user.institute_id):
         raise HTTPException(status_code=404, detail="Lecture not found")
 
     # Enrollment check — student must be in the lecture's batch

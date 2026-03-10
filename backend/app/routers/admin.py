@@ -31,7 +31,7 @@ async def dashboard(
     current_user: Admin,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    return await analytics_service.get_dashboard(session)
+    return await analytics_service.get_dashboard(session, current_user.institute_id)
 
 
 @router.get("/insights", response_model=InsightsResponse)
@@ -39,7 +39,7 @@ async def insights(
     current_user: Admin,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    return await analytics_service.get_insights(session)
+    return await analytics_service.get_insights(session, current_user.institute_id)
 
 
 @router.get("/devices", response_model=PaginatedResponse[UserDeviceSummary])
@@ -51,8 +51,8 @@ async def list_devices(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
 ):
-    query = select(User).where(User.deleted_at.is_(None))
-    count_query = select(func.count()).select_from(User).where(User.deleted_at.is_(None))
+    query = select(User).where(User.deleted_at.is_(None), User.institute_id == current_user.institute_id)
+    count_query = select(func.count()).select_from(User).where(User.deleted_at.is_(None), User.institute_id == current_user.institute_id)
 
     if role:
         from app.models.enums import UserRole
@@ -121,7 +121,7 @@ async def terminate_session(
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     result = await session.execute(
-        select(UserSession).where(UserSession.id == session_id)
+        select(UserSession).where(UserSession.id == session_id, UserSession.institute_id == current_user.institute_id)
     )
     user_session = result.scalar_one_or_none()
     if not user_session:
@@ -140,7 +140,7 @@ async def terminate_all_user_sessions(
 ):
     result = await session.execute(
         select(UserSession).where(
-            UserSession.user_id == user_id, UserSession.is_active.is_(True)
+            UserSession.user_id == user_id, UserSession.is_active.is_(True), UserSession.institute_id == current_user.institute_id
         )
     )
     for s in result.scalars().all():
@@ -154,7 +154,9 @@ async def get_settings(
     current_user: Admin,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    result = await session.execute(select(SystemSetting))
+    result = await session.execute(
+        select(SystemSetting).where(SystemSetting.institute_id == current_user.institute_id)
+    )
     settings_dict = {s.setting_key: s.value for s in result.scalars().all()}
     return SettingsResponse(settings=settings_dict)
 
@@ -167,7 +169,10 @@ async def update_settings(
 ):
     for key, value in body.settings.items():
         result = await session.execute(
-            select(SystemSetting).where(SystemSetting.setting_key == key)
+            select(SystemSetting).where(
+                SystemSetting.setting_key == key,
+                SystemSetting.institute_id == current_user.institute_id,
+            )
         )
         setting = result.scalar_one_or_none()
         if setting:
@@ -175,11 +180,13 @@ async def update_settings(
             setting.updated_at = datetime.now(timezone.utc)
             session.add(setting)
         else:
-            session.add(SystemSetting(setting_key=key, value=value))
+            session.add(SystemSetting(setting_key=key, value=value, institute_id=current_user.institute_id))
 
     await session.commit()
 
-    result = await session.execute(select(SystemSetting))
+    result = await session.execute(
+        select(SystemSetting).where(SystemSetting.institute_id == current_user.institute_id)
+    )
     settings_dict = {s.setting_key: s.value for s in result.scalars().all()}
     return SettingsResponse(settings=settings_dict)
 
@@ -196,8 +203,8 @@ async def get_activity_log(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
 ):
-    query = select(ActivityLog)
-    count_query = select(func.count()).select_from(ActivityLog)
+    query = select(ActivityLog).where(ActivityLog.institute_id == current_user.institute_id)
+    count_query = select(func.count()).select_from(ActivityLog).where(ActivityLog.institute_id == current_user.institute_id)
 
     if action:
         query = query.where(ActivityLog.action == action)
@@ -245,19 +252,19 @@ async def export_data(
 
     if entity_type == "users":
         writer.writerow(["ID", "Name", "Email", "Phone", "Role", "Status", "Created At"])
-        result = await session.execute(select(User).where(User.deleted_at.is_(None)))
+        result = await session.execute(select(User).where(User.deleted_at.is_(None), User.institute_id == current_user.institute_id))
         for u in result.scalars().all():
             writer.writerow([str(u.id), u.name, u.email, u.phone, u.role.value, u.status.value, str(u.created_at)])
     elif entity_type == "batches":
         from app.models.batch import Batch
         writer.writerow(["ID", "Name", "Start Date", "End Date", "Created At"])
-        result = await session.execute(select(Batch).where(Batch.deleted_at.is_(None)))
+        result = await session.execute(select(Batch).where(Batch.deleted_at.is_(None), Batch.institute_id == current_user.institute_id))
         for b in result.scalars().all():
             writer.writerow([str(b.id), b.name, str(b.start_date), str(b.end_date), str(b.created_at)])
     elif entity_type == "courses":
         from app.models.course import Course
         writer.writerow(["ID", "Title", "Status", "Created At"])
-        result = await session.execute(select(Course).where(Course.deleted_at.is_(None)))
+        result = await session.execute(select(Course).where(Course.deleted_at.is_(None), Course.institute_id == current_user.institute_id))
         for c in result.scalars().all():
             writer.writerow([str(c.id), c.title, c.status.value, str(c.created_at)])
     else:

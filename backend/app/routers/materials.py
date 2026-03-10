@@ -32,6 +32,7 @@ async def list_materials(
 ):
     items, total = await material_service.list_materials(
         session, batch_id, course_id=course_id, page=page, per_page=per_page,
+        institute_id=current_user.institute_id,
     )
     return PaginatedResponse(
         data=[MaterialOut(**item) for item in items],
@@ -49,11 +50,20 @@ async def get_upload_url(
     import logging as _logging
     from app.utils.s3 import generate_upload_url
 
+    # Quota check for storage uploads
+    if current_user.institute_id:
+        from app.services.institute_service import check_storage_quota
+        try:
+            await check_storage_quota(session, current_user.institute_id, body.file_size or 0)
+        except ValueError as e:
+            raise HTTPException(status_code=402, detail=str(e))
+
     try:
         url, object_key = generate_upload_url(
             file_name=body.file_name,
             content_type=body.content_type,
             batch_id=body.batch_id,
+            institute_id=current_user.institute_id,
         )
     except Exception as exc:
         _logging.getLogger(__name__).error("S3 upload URL generation failed: %s", exc)
@@ -73,6 +83,7 @@ async def create_material(
         batch_id=body.batch_id, uploaded_by=current_user.id,
         description=body.description, file_size_bytes=body.file_size_bytes,
         course_id=body.course_id,
+        institute_id=current_user.institute_id,
     )
     from app.utils.formatters import format_file_size
     from app.utils.transformers import to_api
@@ -97,7 +108,7 @@ async def get_download_url(
     from app.utils.s3 import generate_download_url
 
     material = await material_service.get_material(session, material_id)
-    if not material:
+    if not material or (current_user.institute_id and material.institute_id != current_user.institute_id):
         raise HTTPException(status_code=404, detail="Material not found")
 
     try:
@@ -116,7 +127,7 @@ async def delete_material(
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     material = await material_service.get_material(session, material_id)
-    if not material:
+    if not material or (current_user.institute_id and material.institute_id != current_user.institute_id):
         raise HTTPException(status_code=404, detail="Material not found")
 
     # Teachers can only delete own uploads
@@ -127,3 +138,8 @@ async def delete_material(
         await material_service.soft_delete_material(session, material_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+    # Decrement storage usage
+    if current_user.institute_id and material.file_size:
+        from app.services.institute_service import decrement_usage
+        await decrement_usage(session, current_user.institute_id, storage_bytes=material.file_size)

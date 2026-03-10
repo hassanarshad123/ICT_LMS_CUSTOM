@@ -6,6 +6,7 @@ import { GraduationCap, ChevronRight, Loader2, Eye, EyeOff } from 'lucide-react'
 import { login } from '@/lib/api/auth';
 import { useBranding } from '@/lib/branding-context';
 import ZensbotBadge from '@/components/shared/zensbot-badge';
+import { isSuperAdminDomain } from '@/lib/utils/subdomain';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -21,7 +22,16 @@ export default function LoginPage() {
     const stored = localStorage.getItem('user');
     const token = localStorage.getItem('access_token');
     if (stored && token) {
-      router.replace(`/${JSON.parse(stored).id}`);
+      try {
+        const user = JSON.parse(stored);
+        if (user.role === 'super_admin') {
+          router.replace('/sa');
+        } else {
+          router.replace(`/${user.id}`);
+        }
+      } catch {
+        // ignore parse errors
+      }
     }
   }, [router]);
 
@@ -39,11 +49,26 @@ export default function LoginPage() {
 
     try {
       const res = await login(email, password);
+
+      // If a non-SA user tries to log in on the bare (super admin) domain, reject
+      if (res.user.role !== 'super_admin' && isSuperAdminDomain()) {
+        setError(
+          `Please log in at your institute URL: ${
+            res.user.instituteSlug ? res.user.instituteSlug + '.ict.zensbot.site' : 'your institute URL'
+          }`
+        );
+        return;
+      }
+
       localStorage.setItem('access_token', res.accessToken);
       localStorage.setItem('refresh_token', res.refreshToken);
       localStorage.setItem('user', JSON.stringify(res.user));
 
-      router.push(`/${res.user.id}`);
+      if (res.user.role === 'super_admin') {
+        router.push('/sa');
+      } else {
+        router.push(`/${res.user.id}`);
+      }
     } catch (err: any) {
       setError(err.message || 'Login failed');
     } finally {

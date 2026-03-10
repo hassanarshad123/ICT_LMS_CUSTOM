@@ -18,6 +18,7 @@ async def list_materials(
     course_id: Optional[uuid.UUID] = None,
     page: int = 1,
     per_page: int = 50,
+    institute_id: Optional[uuid.UUID] = None,
 ) -> tuple[list[dict], int]:
     query = select(BatchMaterial).where(
         BatchMaterial.batch_id == batch_id, BatchMaterial.deleted_at.is_(None)
@@ -25,6 +26,10 @@ async def list_materials(
     count_query = select(func.count()).select_from(BatchMaterial).where(
         BatchMaterial.batch_id == batch_id, BatchMaterial.deleted_at.is_(None)
     )
+
+    if institute_id:
+        query = query.where(BatchMaterial.institute_id == institute_id)
+        count_query = count_query.where(BatchMaterial.institute_id == institute_id)
 
     if course_id:
         query = query.where(BatchMaterial.course_id == course_id)
@@ -80,6 +85,7 @@ async def create_material(
     file_size_bytes: Optional[int] = None,
     course_id: Optional[uuid.UUID] = None,
     mime_type: Optional[str] = None,
+    institute_id: Optional[uuid.UUID] = None,
 ) -> BatchMaterial:
     material = BatchMaterial(
         batch_id=batch_id,
@@ -92,6 +98,7 @@ async def create_material(
         file_size=file_size_bytes,
         mime_type=mime_type,
         uploaded_by=uploaded_by,
+        institute_id=institute_id,
     )
     session.add(material)
     await session.commit()

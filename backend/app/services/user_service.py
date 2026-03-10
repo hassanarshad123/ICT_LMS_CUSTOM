@@ -21,12 +21,14 @@ async def create_user(
     role: str,
     phone: Optional[str] = None,
     specialization: Optional[str] = None,
+    institute_id: Optional[uuid.UUID] = None,
 ) -> User:
     """Create a new user (admin only)."""
-    # Check duplicate email
-    result = await session.execute(
-        select(User).where(User.email == email, User.deleted_at.is_(None))
-    )
+    # Check duplicate email within same institute
+    dup_query = select(User).where(User.email == email, User.deleted_at.is_(None))
+    if institute_id is not None:
+        dup_query = dup_query.where(User.institute_id == institute_id)
+    result = await session.execute(dup_query)
     if result.scalar_one_or_none():
         raise ValueError(f"Email '{email}' is already in use")
 
@@ -41,6 +43,7 @@ async def create_user(
         role=UserRole(role),
         phone=phone,
         specialization=specialization,
+        institute_id=institute_id,
     )
     session.add(user)
     await session.commit()
@@ -63,10 +66,15 @@ async def list_users(
     status: Optional[str] = None,
     search: Optional[str] = None,
     batch_id: Optional[uuid.UUID] = None,
+    institute_id: Optional[uuid.UUID] = None,
 ) -> tuple[list[User], int]:
     """Return (users, total_count) with pagination and filters."""
     query = select(User).where(User.deleted_at.is_(None))
     count_query = select(func.count()).select_from(User).where(User.deleted_at.is_(None))
+
+    if institute_id is not None:
+        query = query.where(User.institute_id == institute_id)
+        count_query = count_query.where(User.institute_id == institute_id)
 
     if role:
         query = query.where(User.role == UserRole(role))

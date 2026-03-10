@@ -30,11 +30,16 @@ async def list_batches(
     status_filter: Optional[str] = None,
     teacher_id: Optional[uuid.UUID] = None,
     search: Optional[str] = None,
+    institute_id: Optional[uuid.UUID] = None,
 ) -> tuple[list[dict], int]:
     today = date.today()
 
     query = select(Batch).where(Batch.deleted_at.is_(None))
     count_query = select(func.count()).select_from(Batch).where(Batch.deleted_at.is_(None))
+
+    if institute_id is not None:
+        query = query.where(Batch.institute_id == institute_id)
+        count_query = count_query.where(Batch.institute_id == institute_id)
 
     # Role scoping
     if current_user.role == UserRole.teacher:
@@ -127,10 +132,13 @@ async def list_batches(
     return items, total
 
 
-async def get_batch(session: AsyncSession, batch_id: uuid.UUID) -> dict | None:
-    result = await session.execute(
-        select(Batch).where(Batch.id == batch_id, Batch.deleted_at.is_(None))
-    )
+async def get_batch(
+    session: AsyncSession, batch_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None
+) -> dict | None:
+    query = select(Batch).where(Batch.id == batch_id, Batch.deleted_at.is_(None))
+    if institute_id is not None:
+        query = query.where(Batch.institute_id == institute_id)
+    result = await session.execute(query)
     b = result.scalar_one_or_none()
     if not b:
         return None
@@ -173,6 +181,7 @@ async def create_batch(
     end_date: date,
     teacher_id: Optional[uuid.UUID],
     created_by: uuid.UUID,
+    institute_id: Optional[uuid.UUID] = None,
 ) -> Batch:
     batch = Batch(
         name=name,
@@ -180,6 +189,7 @@ async def create_batch(
         end_date=end_date,
         teacher_id=teacher_id,
         created_by=created_by,
+        institute_id=institute_id,
     )
     session.add(batch)
     await session.commit()
@@ -187,10 +197,13 @@ async def create_batch(
     return batch
 
 
-async def update_batch(session: AsyncSession, batch_id: uuid.UUID, **fields) -> Batch:
-    result = await session.execute(
-        select(Batch).where(Batch.id == batch_id, Batch.deleted_at.is_(None))
-    )
+async def update_batch(
+    session: AsyncSession, batch_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None, **fields
+) -> Batch:
+    query = select(Batch).where(Batch.id == batch_id, Batch.deleted_at.is_(None))
+    if institute_id is not None:
+        query = query.where(Batch.institute_id == institute_id)
+    result = await session.execute(query)
     batch = result.scalar_one_or_none()
     if not batch:
         raise ValueError("Batch not found")
@@ -206,10 +219,13 @@ async def update_batch(session: AsyncSession, batch_id: uuid.UUID, **fields) -> 
     return batch
 
 
-async def soft_delete_batch(session: AsyncSession, batch_id: uuid.UUID) -> None:
-    result = await session.execute(
-        select(Batch).where(Batch.id == batch_id, Batch.deleted_at.is_(None))
-    )
+async def soft_delete_batch(
+    session: AsyncSession, batch_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None
+) -> None:
+    query = select(Batch).where(Batch.id == batch_id, Batch.deleted_at.is_(None))
+    if institute_id is not None:
+        query = query.where(Batch.institute_id == institute_id)
+    result = await session.execute(query)
     batch = result.scalar_one_or_none()
     if not batch:
         raise ValueError("Batch not found")
@@ -281,8 +297,10 @@ async def soft_delete_batch(session: AsyncSession, batch_id: uuid.UUID) -> None:
     await session.commit()
 
 
-async def list_batch_students(session: AsyncSession, batch_id: uuid.UUID) -> list[dict]:
-    result = await session.execute(
+async def list_batch_students(
+    session: AsyncSession, batch_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None
+) -> list[dict]:
+    query = (
         select(StudentBatch, User)
         .join(User, StudentBatch.student_id == User.id)
         .where(
@@ -291,6 +309,9 @@ async def list_batch_students(session: AsyncSession, batch_id: uuid.UUID) -> lis
             User.deleted_at.is_(None),
         )
     )
+    if institute_id is not None:
+        query = query.where(StudentBatch.institute_id == institute_id)
+    result = await session.execute(query)
     rows = result.all()
     return [
         {
@@ -311,12 +332,23 @@ async def enroll_student(
     batch_id: uuid.UUID,
     student_id: uuid.UUID,
     enrolled_by: uuid.UUID,
+    institute_id: Optional[uuid.UUID] = None,
 ) -> StudentBatch:
-    # Check student exists and is a student
+    # Check student exists, is a student, and belongs to the same institute
     r = await session.execute(select(User).where(User.id == student_id, User.deleted_at.is_(None)))
     student = r.scalar_one_or_none()
     if not student or student.role != UserRole.student:
         raise ValueError("Student not found")
+    if institute_id is not None and student.institute_id != institute_id:
+        raise ValueError("Student not found")
+
+    # Check batch belongs to same institute
+    if institute_id is not None:
+        br = await session.execute(
+            select(Batch).where(Batch.id == batch_id, Batch.deleted_at.is_(None), Batch.institute_id == institute_id)
+        )
+        if not br.scalar_one_or_none():
+            raise ValueError("Batch not found")
 
     # Check not already enrolled
     r = await session.execute(
@@ -333,6 +365,7 @@ async def enroll_student(
         batch_id=batch_id,
         student_id=student_id,
         enrolled_by=enrolled_by,
+        institute_id=institute_id,
     )
     session.add(sb)
 
@@ -341,6 +374,7 @@ async def enroll_student(
         batch_id=batch_id,
         action=BatchHistoryAction.assigned,
         changed_by=enrolled_by,
+        institute_id=institute_id,
     )
     session.add(history)
 
@@ -354,14 +388,16 @@ async def remove_student(
     batch_id: uuid.UUID,
     student_id: uuid.UUID,
     removed_by: uuid.UUID,
+    institute_id: Optional[uuid.UUID] = None,
 ) -> None:
-    r = await session.execute(
-        select(StudentBatch).where(
-            StudentBatch.batch_id == batch_id,
-            StudentBatch.student_id == student_id,
-            StudentBatch.removed_at.is_(None),
-        )
+    query = select(StudentBatch).where(
+        StudentBatch.batch_id == batch_id,
+        StudentBatch.student_id == student_id,
+        StudentBatch.removed_at.is_(None),
     )
+    if institute_id is not None:
+        query = query.where(StudentBatch.institute_id == institute_id)
+    r = await session.execute(query)
     sb = r.scalar_one_or_none()
     if not sb:
         raise ValueError("Enrollment not found")
@@ -375,14 +411,17 @@ async def remove_student(
         batch_id=batch_id,
         action=BatchHistoryAction.removed,
         changed_by=removed_by,
+        institute_id=institute_id,
     )
     session.add(history)
 
     await session.commit()
 
 
-async def list_batch_courses(session: AsyncSession, batch_id: uuid.UUID) -> list[dict]:
-    result = await session.execute(
+async def list_batch_courses(
+    session: AsyncSession, batch_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None
+) -> list[dict]:
+    query = (
         select(BatchCourse, Course)
         .join(Course, BatchCourse.course_id == Course.id)
         .where(
@@ -391,6 +430,9 @@ async def list_batch_courses(session: AsyncSession, batch_id: uuid.UUID) -> list
             Course.deleted_at.is_(None),
         )
     )
+    if institute_id is not None:
+        query = query.where(BatchCourse.institute_id == institute_id)
+    result = await session.execute(query)
     rows = result.all()
     return [
         {
@@ -409,7 +451,21 @@ async def link_course(
     batch_id: uuid.UUID,
     course_id: uuid.UUID,
     assigned_by: uuid.UUID,
+    institute_id: Optional[uuid.UUID] = None,
 ) -> BatchCourse:
+    # Verify batch and course belong to same institute
+    if institute_id is not None:
+        br = await session.execute(
+            select(Batch).where(Batch.id == batch_id, Batch.deleted_at.is_(None), Batch.institute_id == institute_id)
+        )
+        if not br.scalar_one_or_none():
+            raise ValueError("Batch not found")
+        cr = await session.execute(
+            select(Course).where(Course.id == course_id, Course.deleted_at.is_(None), Course.institute_id == institute_id)
+        )
+        if not cr.scalar_one_or_none():
+            raise ValueError("Course not found")
+
     # Check not already linked
     r = await session.execute(
         select(BatchCourse).where(
@@ -425,6 +481,7 @@ async def link_course(
         batch_id=batch_id,
         course_id=course_id,
         assigned_by=assigned_by,
+        institute_id=institute_id,
     )
     session.add(bc)
     await session.commit()
@@ -436,14 +493,16 @@ async def unlink_course(
     session: AsyncSession,
     batch_id: uuid.UUID,
     course_id: uuid.UUID,
+    institute_id: Optional[uuid.UUID] = None,
 ) -> None:
-    r = await session.execute(
-        select(BatchCourse).where(
-            BatchCourse.batch_id == batch_id,
-            BatchCourse.course_id == course_id,
-            BatchCourse.deleted_at.is_(None),
-        )
+    query = select(BatchCourse).where(
+        BatchCourse.batch_id == batch_id,
+        BatchCourse.course_id == course_id,
+        BatchCourse.deleted_at.is_(None),
     )
+    if institute_id is not None:
+        query = query.where(BatchCourse.institute_id == institute_id)
+    r = await session.execute(query)
     bc = r.scalar_one_or_none()
     if not bc:
         raise ValueError("Course link not found")

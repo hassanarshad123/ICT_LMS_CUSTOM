@@ -3,9 +3,9 @@ from datetime import datetime
 from typing import Optional
 
 from sqlmodel import SQLModel, Field, Column
-from sqlalchemy import Text, Integer, BigInteger, ARRAY, Index
+from sqlalchemy import Text, Integer, BigInteger, ARRAY, Index, ForeignKey
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy.dialects.postgresql import TIMESTAMP
+from sqlalchemy.dialects.postgresql import TIMESTAMP, UUID as PG_UUID
 
 from app.models.enums import CourseStatus, VideoType, MaterialFileType
 
@@ -25,6 +25,10 @@ class Course(SQLModel, table=True):
     )
     cloned_from_id: Optional[uuid.UUID] = Field(default=None, foreign_key="courses.id")
     created_by: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id")
+    institute_id: Optional[uuid.UUID] = Field(
+        default=None,
+        sa_column=Column(PG_UUID(as_uuid=True), ForeignKey("institutes.id"), nullable=True),
+    )
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
@@ -66,6 +70,10 @@ class BatchCourse(SQLModel, table=True):
     deleted_at: Optional[datetime] = Field(
         default=None, sa_column=Column(TIMESTAMP(timezone=True), nullable=True),
     )
+    institute_id: Optional[uuid.UUID] = Field(
+        default=None,
+        sa_column=Column(PG_UUID(as_uuid=True), ForeignKey("institutes.id"), nullable=True),
+    )
 
 
 class Lecture(SQLModel, table=True):
@@ -92,6 +100,10 @@ class Lecture(SQLModel, table=True):
     thumbnail_url: Optional[str] = Field(default=None)
     sequence_order: int = Field(nullable=False)
     created_by: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id")
+    institute_id: Optional[uuid.UUID] = Field(
+        default=None,
+        sa_column=Column(PG_UUID(as_uuid=True), ForeignKey("institutes.id"), nullable=True),
+    )
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
@@ -115,6 +127,10 @@ class CurriculumModule(SQLModel, table=True):
     sequence_order: int = Field(nullable=False)
     topics: Optional[list[str]] = Field(default=None, sa_column=Column(ARRAY(Text)))
     created_by: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id")
+    institute_id: Optional[uuid.UUID] = Field(
+        default=None,
+        sa_column=Column(PG_UUID(as_uuid=True), ForeignKey("institutes.id"), nullable=True),
+    )
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
@@ -147,6 +163,10 @@ class BatchMaterial(SQLModel, table=True):
     file_size: Optional[int] = Field(default=None, sa_column=Column(BigInteger))
     mime_type: Optional[str] = Field(default=None)
     uploaded_by: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id")
+    institute_id: Optional[uuid.UUID] = Field(
+        default=None,
+        sa_column=Column(PG_UUID(as_uuid=True), ForeignKey("institutes.id"), nullable=True),
+    )
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(TIMESTAMP(timezone=True), nullable=False, server_default="now()"),

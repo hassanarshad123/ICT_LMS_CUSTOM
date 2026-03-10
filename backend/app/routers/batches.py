@@ -32,6 +32,7 @@ async def list_batches(
     items, total = await batch_service.list_batches(
         session, current_user, page=page, per_page=per_page,
         status_filter=status, teacher_id=teacher_id, search=search,
+        institute_id=current_user.institute_id,
     )
     return PaginatedResponse(
         data=[BatchOut(**item) for item in items],
@@ -49,9 +50,9 @@ async def create_batch(
     batch = await batch_service.create_batch(
         session, name=body.name, start_date=body.start_date,
         end_date=body.end_date, teacher_id=body.teacher_id,
-        created_by=current_user.id,
+        created_by=current_user.id, institute_id=current_user.institute_id,
     )
-    data = await batch_service.get_batch(session, batch.id)
+    data = await batch_service.get_batch(session, batch.id, institute_id=current_user.institute_id)
     return BatchOut(**data)
 
 
@@ -61,7 +62,7 @@ async def get_batch(
     current_user: AllRoles,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    data = await batch_service.get_batch(session, batch_id)
+    data = await batch_service.get_batch(session, batch_id, institute_id=current_user.institute_id)
     if not data:
         raise HTTPException(status_code=404, detail="Batch not found")
     return BatchOut(**data)
@@ -75,10 +76,10 @@ async def update_batch(
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
-        await batch_service.update_batch(session, batch_id, **body.model_dump(exclude_unset=True))
+        await batch_service.update_batch(session, batch_id, institute_id=current_user.institute_id, **body.model_dump(exclude_unset=True))
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    data = await batch_service.get_batch(session, batch_id)
+    data = await batch_service.get_batch(session, batch_id, institute_id=current_user.institute_id)
     return BatchOut(**data)
 
 
@@ -89,7 +90,7 @@ async def delete_batch(
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
-        await batch_service.soft_delete_batch(session, batch_id)
+        await batch_service.soft_delete_batch(session, batch_id, institute_id=current_user.institute_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -100,7 +101,7 @@ async def list_batch_students(
     current_user: AllRoles,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    return await batch_service.list_batch_students(session, batch_id)
+    return await batch_service.list_batch_students(session, batch_id, institute_id=current_user.institute_id)
 
 
 @router.post("/{batch_id}/students", status_code=status.HTTP_201_CREATED)
@@ -112,7 +113,8 @@ async def enroll_student(
 ):
     try:
         sb = await batch_service.enroll_student(
-            session, batch_id, body.student_id, current_user.id
+            session, batch_id, body.student_id, current_user.id,
+            institute_id=current_user.institute_id,
         )
         return {"id": sb.id, "student_id": sb.student_id, "batch_id": sb.batch_id, "enrolled_at": sb.enrolled_at}
     except ValueError as e:
@@ -127,7 +129,10 @@ async def remove_student(
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
-        await batch_service.remove_student(session, batch_id, student_id, current_user.id)
+        await batch_service.remove_student(
+            session, batch_id, student_id, current_user.id,
+            institute_id=current_user.institute_id,
+        )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -138,7 +143,7 @@ async def list_batch_courses(
     current_user: AllRoles,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    return await batch_service.list_batch_courses(session, batch_id)
+    return await batch_service.list_batch_courses(session, batch_id, institute_id=current_user.institute_id)
 
 
 @router.post("/{batch_id}/courses", status_code=status.HTTP_201_CREATED)
@@ -149,7 +154,10 @@ async def link_course(
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
-        bc = await batch_service.link_course(session, batch_id, body.course_id, current_user.id)
+        bc = await batch_service.link_course(
+            session, batch_id, body.course_id, current_user.id,
+            institute_id=current_user.institute_id,
+        )
         return {"id": bc.id, "batch_id": bc.batch_id, "course_id": bc.course_id}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -163,6 +171,6 @@ async def unlink_course(
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
-        await batch_service.unlink_course(session, batch_id, course_id)
+        await batch_service.unlink_course(session, batch_id, course_id, institute_id=current_user.institute_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))

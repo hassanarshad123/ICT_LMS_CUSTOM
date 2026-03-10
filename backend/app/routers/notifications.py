@@ -26,6 +26,7 @@ async def list_notifications(
 ):
     items, total = await notification_service.list_notifications(
         session, current_user.id, page=page, per_page=per_page,
+        institute_id=current_user.institute_id,
     )
     return PaginatedResponse(
         data=[NotificationOut.model_validate(n) for n in items],
@@ -39,7 +40,7 @@ async def get_unread_count(
     current_user: AllRoles,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    count = await notification_service.get_unread_count(session, current_user.id)
+    count = await notification_service.get_unread_count(session, current_user.id, institute_id=current_user.institute_id)
     return UnreadCountOut(count=count)
 
 
@@ -52,6 +53,7 @@ async def mark_notification_read(
     try:
         notif = await notification_service.mark_as_read(
             session, notification_id, current_user.id,
+            institute_id=current_user.institute_id,
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -63,5 +65,5 @@ async def mark_all_notifications_read(
     current_user: AllRoles,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    count = await notification_service.mark_all_read(session, current_user.id)
+    count = await notification_service.mark_all_read(session, current_user.id, institute_id=current_user.institute_id)
     return {"marked": count}

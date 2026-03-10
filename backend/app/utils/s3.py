@@ -1,5 +1,6 @@
 """S3 utility for pre-signed URLs and object operations."""
 import uuid
+from typing import Optional
 
 import boto3
 from botocore.config import Config
@@ -24,15 +25,23 @@ def _get_client():
     return _client
 
 
+def _prefix(institute_id: Optional[uuid.UUID], path: str) -> str:
+    """Prefix an S3 key with the institute_id for multi-tenant isolation."""
+    if institute_id:
+        return f"{institute_id}/{path}"
+    return path
+
+
 def generate_upload_url(
     file_name: str,
     content_type: str,
     batch_id: uuid.UUID,
+    institute_id: Optional[uuid.UUID] = None,
     expires_in: int = 3600,
 ) -> tuple[str, str]:
     """Returns (presigned_url, object_key)."""
     client = _get_client()
-    object_key = f"materials/{batch_id}/{uuid.uuid4()}_{file_name}"
+    object_key = _prefix(institute_id, f"materials/{batch_id}/{uuid.uuid4()}_{file_name}")
 
     url = client.generate_presigned_url(
         "put_object",
@@ -46,7 +55,20 @@ def generate_upload_url(
     return url, object_key
 
 
+def generate_certificate_key(
+    cert_id: str,
+    institute_id: Optional[uuid.UUID] = None,
+) -> str:
+    """Return the S3 object key for a certificate PDF."""
+    return _prefix(institute_id, f"certificates/{cert_id}.pdf")
+
+
 def generate_download_url(object_key: str, file_name: str, expires_in: int = 3600) -> str:
+    """Generate a presigned download URL.
+
+    The object_key is already fully qualified (includes institute prefix if applicable),
+    so no further prefixing is needed here.
+    """
     client = _get_client()
     return client.generate_presigned_url(
         "get_object",
@@ -60,5 +82,6 @@ def generate_download_url(object_key: str, file_name: str, expires_in: int = 360
 
 
 def delete_object(object_key: str) -> None:
+    """Delete an S3 object. The object_key is already fully qualified."""
     client = _get_client()
     client.delete_object(Bucket=settings.S3_BUCKET_NAME, Key=object_key)

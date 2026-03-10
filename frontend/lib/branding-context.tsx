@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import { getBranding, BrandingData } from '@/lib/api/branding';
 import { hexToHsl } from '@/lib/utils/color-convert';
+import { getInstituteSlug } from '@/lib/utils/subdomain';
 
 interface BrandingContextType extends BrandingData {
   loading: boolean;
@@ -60,7 +61,8 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
 
   const fetchBranding = useCallback(async () => {
     try {
-      const data = await getBranding();
+      const slug = getInstituteSlug();
+      const data = await getBranding(slug);
       setBranding(data);
       applyBrandingToDOM(data);
     } catch {

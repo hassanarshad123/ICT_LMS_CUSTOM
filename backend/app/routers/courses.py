@@ -31,6 +31,7 @@ async def list_courses(
     items, total = await course_service.list_courses(
         session, current_user, page=page, per_page=per_page,
         status_filter=status, batch_id=batch_id, search=search,
+        institute_id=current_user.institute_id,
     )
     return PaginatedResponse(
         data=[CourseOut(**item) for item in items],
@@ -47,9 +48,9 @@ async def create_course(
 ):
     course = await course_service.create_course(
         session, title=body.title, description=body.description,
-        created_by=current_user.id,
+        created_by=current_user.id, institute_id=current_user.institute_id,
     )
-    data = await course_service.get_course(session, course.id)
+    data = await course_service.get_course(session, course.id, institute_id=current_user.institute_id)
     return CourseOut(**data)
 
 
@@ -59,7 +60,7 @@ async def get_course(
     current_user: AllRoles,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    data = await course_service.get_course(session, course_id)
+    data = await course_service.get_course(session, course_id, institute_id=current_user.institute_id)
     if not data:
         raise HTTPException(status_code=404, detail="Course not found")
     return CourseOut(**data)
@@ -73,10 +74,10 @@ async def update_course(
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
-        await course_service.update_course(session, course_id, **body.model_dump(exclude_unset=True))
+        await course_service.update_course(session, course_id, institute_id=current_user.institute_id, **body.model_dump(exclude_unset=True))
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    data = await course_service.get_course(session, course_id)
+    data = await course_service.get_course(session, course_id, institute_id=current_user.institute_id)
     return CourseOut(**data)
 
 
@@ -87,7 +88,7 @@ async def delete_course(
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
-        await course_service.soft_delete_course(session, course_id)
+        await course_service.soft_delete_course(session, course_id, institute_id=current_user.institute_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -99,8 +100,10 @@ async def clone_course(
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
-        course = await course_service.clone_course(session, course_id, current_user.id)
+        course = await course_service.clone_course(
+            session, course_id, current_user.id, institute_id=current_user.institute_id,
+        )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    data = await course_service.get_course(session, course.id)
+    data = await course_service.get_course(session, course.id, institute_id=current_user.institute_id)
     return CourseOut(**data)

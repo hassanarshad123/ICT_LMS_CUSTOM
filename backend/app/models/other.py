@@ -3,9 +3,9 @@ from datetime import datetime
 from typing import Optional
 
 from sqlmodel import SQLModel, Field, Column
-from sqlalchemy import Text, Integer, BigInteger, Boolean, UniqueConstraint, Index, CheckConstraint
+from sqlalchemy import Text, Integer, BigInteger, Boolean, UniqueConstraint, Index, CheckConstraint, ForeignKey
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy.dialects.postgresql import TIMESTAMP, JSONB, ARRAY
+from sqlalchemy.dialects.postgresql import TIMESTAMP, JSONB, ARRAY, UUID as PG_UUID
 
 from app.models.enums import (
     AnnouncementScope,
@@ -35,6 +35,10 @@ class Announcement(SQLModel, table=True):
     posted_by: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id")
     expires_at: Optional[datetime] = Field(
         default=None, sa_column=Column(TIMESTAMP(timezone=True), nullable=True),
+    )
+    institute_id: Optional[uuid.UUID] = Field(
+        default=None,
+        sa_column=Column(PG_UUID(as_uuid=True), ForeignKey("institutes.id"), nullable=True),
     )
     created_at: Optional[datetime] = Field(
         default=None,
@@ -69,6 +73,10 @@ class LectureProgress(SQLModel, table=True):
             server_default="unwatched",
         )
     )
+    institute_id: Optional[uuid.UUID] = Field(
+        default=None,
+        sa_column=Column(PG_UUID(as_uuid=True), ForeignKey("institutes.id"), nullable=True),
+    )
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
@@ -96,6 +104,10 @@ class Job(SQLModel, table=True):
         default=None, sa_column=Column(TIMESTAMP(timezone=True), nullable=True),
     )
     posted_by: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id")
+    institute_id: Optional[uuid.UUID] = Field(
+        default=None,
+        sa_column=Column(PG_UUID(as_uuid=True), ForeignKey("institutes.id"), nullable=True),
+    )
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
@@ -131,6 +143,10 @@ class JobApplication(SQLModel, table=True):
         default=None, sa_column=Column(TIMESTAMP(timezone=True), nullable=True),
     )
     status_changed_by: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id")
+    institute_id: Optional[uuid.UUID] = Field(
+        default=None,
+        sa_column=Column(PG_UUID(as_uuid=True), ForeignKey("institutes.id"), nullable=True),
+    )
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
@@ -168,15 +184,26 @@ class UserSession(SQLModel, table=True):
     expires_at: Optional[datetime] = Field(
         default=None, sa_column=Column(TIMESTAMP(timezone=True), nullable=True),
     )
+    institute_id: Optional[uuid.UUID] = Field(
+        default=None,
+        sa_column=Column(PG_UUID(as_uuid=True), ForeignKey("institutes.id"), nullable=True),
+    )
 
 
 class SystemSetting(SQLModel, table=True):
     __tablename__ = "system_settings"
+    __table_args__ = (
+        UniqueConstraint("setting_key", "institute_id", name="uq_system_setting_key_institute"),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    setting_key: str = Field(nullable=False, unique=True)
+    setting_key: str = Field(nullable=False)  # uniqueness enforced by composite constraint above
     value: str = Field(nullable=False)
     description: Optional[str] = Field(default=None)
+    institute_id: Optional[uuid.UUID] = Field(
+        default=None,
+        sa_column=Column(PG_UUID(as_uuid=True), ForeignKey("institutes.id"), nullable=True),
+    )
     updated_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
@@ -197,6 +224,10 @@ class Notification(SQLModel, table=True):
     message: str = Field(nullable=False)
     link: Optional[str] = Field(default=None)  # relative URL like /announcements, /classes
     read: bool = Field(default=False, sa_column=Column(Boolean, nullable=False, server_default="false"))
+    institute_id: Optional[uuid.UUID] = Field(
+        default=None,
+        sa_column=Column(PG_UUID(as_uuid=True), ForeignKey("institutes.id"), nullable=True),
+    )
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
@@ -216,6 +247,10 @@ class ActivityLog(SQLModel, table=True):
     entity_id: Optional[uuid.UUID] = Field(default=None)
     details: Optional[dict] = Field(default=None, sa_column=Column(JSONB))
     ip_address: Optional[str] = Field(default=None)
+    institute_id: Optional[uuid.UUID] = Field(
+        default=None,
+        sa_column=Column(PG_UUID(as_uuid=True), ForeignKey("institutes.id"), nullable=True),
+    )
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(TIMESTAMP(timezone=True), nullable=False, server_default="now()"),

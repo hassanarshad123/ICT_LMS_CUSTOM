@@ -3,8 +3,9 @@ import math
 import uuid
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select
 
 from app.database import get_session
 from app.schemas.certificate import (
@@ -18,8 +19,9 @@ from app.schemas.certificate import (
 )
 from app.schemas.common import PaginatedResponse
 from app.services import certificate_service
-from app.middleware.auth import require_roles, get_current_user
+from app.middleware.auth import require_roles, get_current_user, get_institute_slug_from_header
 from app.models.user import User
+from app.models.institute import Institute
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +45,7 @@ async def list_eligible_students(
     """List students eligible for certification in a batch-course."""
     students, total = await certificate_service.list_eligible_students(
         session, batch_id, course_id, page, per_page,
+        institute_id=current_user.institute_id,
     )
     return PaginatedResponse(
         data=[EligibleStudentOut(**s) for s in students],
@@ -59,7 +62,7 @@ async def student_dashboard(
     session: AsyncSession = Depends(get_session),
 ):
     """Get all enrolled courses with progress and certificate status for the current student."""
-    items = await certificate_service.get_student_dashboard(session, current_user.id)
+    items = await certificate_service.get_student_dashboard(session, current_user.id, institute_id=current_user.institute_id)
     return [StudentDashboardCourseOut(**item) for item in items]
 
 
@@ -73,12 +76,13 @@ async def request_certificate(
     try:
         cert = await certificate_service.request_certificate(
             session, current_user.id, body.batch_id, body.course_id, body.certificate_name,
+            institute_id=current_user.institute_id,
         )
         await session.commit()
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    data = await certificate_service.get_certificate(session, cert.id)
+    data = await certificate_service.get_certificate(session, cert.id, institute_id=current_user.institute_id)
     return CertificateOut(**data)
 
 
@@ -125,12 +129,13 @@ async def approve_certificate(
     try:
         cert = await certificate_service.create_and_approve_certificate(
             session, student_id, batch_id, course_id, pct, current_user.id,
+            institute_id=current_user.institute_id,
         )
         await session.commit()
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
 
-    data = await certificate_service.get_certificate(session, cert.id)
+    data = await certificate_service.get_certificate(session, cert.id, institute_id=current_user.institute_id)
     return CertificateOut(**data)
 
 
@@ -155,8 +160,9 @@ async def approve_batch_certificates(
         try:
             cert = await certificate_service.create_and_approve_certificate(
                 session, student_id, batch_id, course_id, pct, current_user.id,
+                institute_id=current_user.institute_id,
             )
-            data = await certificate_service.get_certificate(session, cert.id)
+            data = await certificate_service.get_certificate(session, cert.id, institute_id=current_user.institute_id)
             results.append(CertificateOut(**data))
         except ValueError as e:
             logger.warning("Skipping student %s: %s", student_id, e)
@@ -175,22 +181,33 @@ async def approve_certificate_request(
     try:
         cert = await certificate_service.approve_existing_certificate(
             session, cert_uuid, current_user.id,
+            institute_id=current_user.institute_id,
         )
         await session.commit()
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    data = await certificate_service.get_certificate(session, cert.id)
+    data = await certificate_service.get_certificate(session, cert.id, institute_id=current_user.institute_id)
     return CertificateOut(**data)
 
 
 @router.get("/verify/{code}", response_model=CertificateVerifyOut)
 async def verify_certificate(
     code: str,
+    request: Request,
     session: AsyncSession = Depends(get_session),
 ):
     """Public endpoint: verify a certificate by its verification code."""
-    data = await certificate_service.get_certificate_by_verification_code(session, code)
+    # Resolve institute from header for tenant scoping
+    slug = get_institute_slug_from_header(request)
+    institute_id = None
+    if slug:
+        result = await session.execute(
+            select(Institute.id).where(Institute.slug == slug, Institute.deleted_at.is_(None))
+        )
+        institute_id = result.scalar_one_or_none()
+
+    data = await certificate_service.get_certificate_by_verification_code(session, code, institute_id=institute_id)
     if not data:
         return CertificateVerifyOut(valid=False)
     return CertificateVerifyOut(**data)
@@ -226,7 +243,7 @@ async def get_certificate(
     session: AsyncSession = Depends(get_session),
 ):
     """Get a single certificate's details."""
-    data = await certificate_service.get_certificate(session, cert_uuid)
+    data = await certificate_service.get_certificate(session, cert_uuid, institute_id=current_user.institute_id)
     if not data:
         raise HTTPException(status_code=404, detail="Certificate not found")
 
@@ -244,7 +261,7 @@ async def download_certificate(
     session: AsyncSession = Depends(get_session),
 ):
     """Get a presigned S3 download URL for the certificate PDF."""
-    url = await certificate_service.get_download_url(session, cert_uuid)
+    url = await certificate_service.get_download_url(session, cert_uuid, institute_id=current_user.institute_id)
     if not url:
         raise HTTPException(status_code=404, detail="Certificate PDF not found")
     return {"download_url": url}
@@ -261,10 +278,11 @@ async def revoke_certificate(
     try:
         await certificate_service.revoke_certificate(
             session, cert_uuid, current_user.id, body.reason,
+            institute_id=current_user.institute_id,
         )
         await session.commit()
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    data = await certificate_service.get_certificate(session, cert_uuid)
+    data = await certificate_service.get_certificate(session, cert_uuid, institute_id=current_user.institute_id)
     return CertificateOut(**data)

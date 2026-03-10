@@ -20,7 +20,7 @@ AllRoles = Annotated[User, Depends(get_current_user)]
 
 
 async def _send_announcement_notifications(
-    session: AsyncSession, ann, poster_id: uuid.UUID,
+    session: AsyncSession, ann, poster_id: uuid.UUID, institute_id: uuid.UUID = None,
 ) -> None:
     """Create notifications for all users who should see this announcement."""
     from sqlmodel import select
@@ -35,13 +35,14 @@ async def _send_announcement_notifications(
     try:
         if ann.scope == AnnouncementScope.institute:
             # All active users except the poster
-            result = await session.execute(
-                select(UserModel.id).where(
-                    UserModel.deleted_at.is_(None),
-                    UserModel.status == UserStatus.active,
-                    UserModel.id != poster_id,
-                )
+            q = select(UserModel.id).where(
+                UserModel.deleted_at.is_(None),
+                UserModel.status == UserStatus.active,
+                UserModel.id != poster_id,
             )
+            if institute_id:
+                q = q.where(UserModel.institute_id == institute_id)
+            result = await session.execute(q)
             user_ids = [row[0] for row in result.all()]
 
         elif ann.scope == AnnouncementScope.batch and ann.batch_id:
@@ -90,6 +91,7 @@ async def _send_announcement_notifications(
                 title=ann.title,
                 message=notif_message,
                 link="/announcements",
+                institute_id=institute_id,
             )
     except Exception:
         logger.exception("Failed to create announcement notifications for announcement %s", ann.id)
@@ -128,6 +130,7 @@ async def create_announcement(
             scope=body.scope, posted_by=current_user.id,
             batch_id=body.batch_id, course_id=body.course_id,
             expires_at=body.expires_at,
+            institute_id=current_user.institute_id,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -145,7 +148,7 @@ async def create_announcement(
     )
 
     # Send notifications to affected users (non-blocking — errors are logged, not raised)
-    await _send_announcement_notifications(session, ann, current_user.id)
+    await _send_announcement_notifications(session, ann, current_user.id, institute_id=current_user.institute_id)
 
     return response
 
@@ -159,7 +162,7 @@ async def update_announcement(
 ):
     try:
         ann = await announcement_service.update_announcement(
-            session, announcement_id, **body.model_dump(exclude_unset=True)
+            session, announcement_id, institute_id=current_user.institute_id, **body.model_dump(exclude_unset=True)
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -186,6 +189,6 @@ async def delete_announcement(
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
-        await announcement_service.soft_delete_announcement(session, announcement_id)
+        await announcement_service.soft_delete_announcement(session, announcement_id, institute_id=current_user.institute_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))

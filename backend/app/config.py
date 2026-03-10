@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
     APP_DEBUG: bool = False
     DEVICE_LIMIT: int = 2
+    SUPER_ADMIN_EMAIL: str = ""
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

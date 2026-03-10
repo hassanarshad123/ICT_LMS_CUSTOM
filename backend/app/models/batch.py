@@ -22,6 +22,10 @@ class Batch(SQLModel, table=True):
     created_by: Optional[uuid.UUID] = Field(
         default=None, foreign_key="users.id"
     )
+    institute_id: Optional[uuid.UUID] = Field(
+        default=None,
+        sa_column=Column(PG_UUID(as_uuid=True), ForeignKey("institutes.id"), nullable=True),
+    )
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
@@ -66,6 +70,10 @@ class StudentBatch(SQLModel, table=True):
         default=None,
         sa_column=Column(TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
     )
+    institute_id: Optional[uuid.UUID] = Field(
+        default=None,
+        sa_column=Column(PG_UUID(as_uuid=True), ForeignKey("institutes.id"), nullable=True),
+    )
 
 
 class StudentBatchHistory(SQLModel, table=True):
@@ -84,4 +92,8 @@ class StudentBatchHistory(SQLModel, table=True):
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
+    )
+    institute_id: Optional[uuid.UUID] = Field(
+        default=None,
+        sa_column=Column(PG_UUID(as_uuid=True), ForeignKey("institutes.id"), nullable=True),
     )

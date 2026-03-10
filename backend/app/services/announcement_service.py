@@ -21,8 +21,8 @@ async def list_announcements(
     page: int = 1,
     per_page: int = 20,
 ) -> tuple[list[dict], int]:
-    query = select(Announcement).where(Announcement.deleted_at.is_(None))
-    count_query = select(func.count()).select_from(Announcement).where(Announcement.deleted_at.is_(None))
+    query = select(Announcement).where(Announcement.deleted_at.is_(None), Announcement.institute_id == current_user.institute_id)
+    count_query = select(func.count()).select_from(Announcement).where(Announcement.deleted_at.is_(None), Announcement.institute_id == current_user.institute_id)
 
     if scope:
         query = query.where(Announcement.scope == AnnouncementScope(scope))
@@ -106,6 +106,7 @@ async def create_announcement(
     batch_id: Optional[uuid.UUID] = None,
     course_id: Optional[uuid.UUID] = None,
     expires_at: Optional[datetime] = None,
+    institute_id: Optional[uuid.UUID] = None,
 ) -> Announcement:
     ann_scope = AnnouncementScope(scope)
 
@@ -125,6 +126,7 @@ async def create_announcement(
         course_id=course_id,
         posted_by=posted_by,
         expires_at=expires_at,
+        institute_id=institute_id,
     )
     session.add(announcement)
     await session.commit()
@@ -133,13 +135,14 @@ async def create_announcement(
 
 
 async def update_announcement(
-    session: AsyncSession, announcement_id: uuid.UUID, **fields
+    session: AsyncSession, announcement_id: uuid.UUID, institute_id: uuid.UUID = None, **fields
 ) -> Announcement:
-    result = await session.execute(
-        select(Announcement).where(
-            Announcement.id == announcement_id, Announcement.deleted_at.is_(None)
-        )
+    query = select(Announcement).where(
+        Announcement.id == announcement_id, Announcement.deleted_at.is_(None)
     )
+    if institute_id:
+        query = query.where(Announcement.institute_id == institute_id)
+    result = await session.execute(query)
     ann = result.scalar_one_or_none()
     if not ann:
         raise ValueError("Announcement not found")
@@ -155,12 +158,13 @@ async def update_announcement(
     return ann
 
 
-async def soft_delete_announcement(session: AsyncSession, announcement_id: uuid.UUID) -> None:
-    result = await session.execute(
-        select(Announcement).where(
-            Announcement.id == announcement_id, Announcement.deleted_at.is_(None)
-        )
+async def soft_delete_announcement(session: AsyncSession, announcement_id: uuid.UUID, institute_id: uuid.UUID = None) -> None:
+    query = select(Announcement).where(
+        Announcement.id == announcement_id, Announcement.deleted_at.is_(None)
     )
+    if institute_id:
+        query = query.where(Announcement.institute_id == institute_id)
+    result = await session.execute(query)
     ann = result.scalar_one_or_none()
     if not ann:
         raise ValueError("Announcement not found")

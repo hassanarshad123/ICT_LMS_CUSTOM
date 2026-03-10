@@ -13,7 +13,11 @@ export default function RootPage() {
     if (stored && token) {
       try {
         const user = JSON.parse(stored);
-        router.replace(`/${user.id}`);
+        if (user.role === 'super_admin') {
+          router.replace('/sa');
+        } else {
+          router.replace(`/${user.id}`);
+        }
       } catch {
         router.replace('/login');
       }

@@ -20,9 +20,14 @@ async def list_courses(
     status_filter: Optional[str] = None,
     batch_id: Optional[uuid.UUID] = None,
     search: Optional[str] = None,
+    institute_id: Optional[uuid.UUID] = None,
 ) -> tuple[list[dict], int]:
     query = select(Course).where(Course.deleted_at.is_(None))
     count_query = select(func.count()).select_from(Course).where(Course.deleted_at.is_(None))
+
+    if institute_id is not None:
+        query = query.where(Course.institute_id == institute_id)
+        count_query = count_query.where(Course.institute_id == institute_id)
 
     # Role scoping
     if current_user.role == UserRole.teacher:
@@ -98,10 +103,13 @@ async def list_courses(
     return items, total
 
 
-async def get_course(session: AsyncSession, course_id: uuid.UUID) -> dict | None:
-    result = await session.execute(
-        select(Course).where(Course.id == course_id, Course.deleted_at.is_(None))
-    )
+async def get_course(
+    session: AsyncSession, course_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None
+) -> dict | None:
+    query = select(Course).where(Course.id == course_id, Course.deleted_at.is_(None))
+    if institute_id is not None:
+        query = query.where(Course.institute_id == institute_id)
+    result = await session.execute(query)
     c = result.scalar_one_or_none()
     if not c:
         return None
@@ -126,19 +134,23 @@ async def get_course(session: AsyncSession, course_id: uuid.UUID) -> dict | None
 
 
 async def create_course(
-    session: AsyncSession, title: str, description: Optional[str], created_by: uuid.UUID
+    session: AsyncSession, title: str, description: Optional[str], created_by: uuid.UUID,
+    institute_id: Optional[uuid.UUID] = None,
 ) -> Course:
-    course = Course(title=title, description=description, created_by=created_by)
+    course = Course(title=title, description=description, created_by=created_by, institute_id=institute_id)
     session.add(course)
     await session.commit()
     await session.refresh(course)
     return course
 
 
-async def update_course(session: AsyncSession, course_id: uuid.UUID, **fields) -> Course:
-    result = await session.execute(
-        select(Course).where(Course.id == course_id, Course.deleted_at.is_(None))
-    )
+async def update_course(
+    session: AsyncSession, course_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None, **fields
+) -> Course:
+    query = select(Course).where(Course.id == course_id, Course.deleted_at.is_(None))
+    if institute_id is not None:
+        query = query.where(Course.institute_id == institute_id)
+    result = await session.execute(query)
     course = result.scalar_one_or_none()
     if not course:
         raise ValueError("Course not found")
@@ -156,10 +168,13 @@ async def update_course(session: AsyncSession, course_id: uuid.UUID, **fields) -
     return course
 
 
-async def soft_delete_course(session: AsyncSession, course_id: uuid.UUID) -> None:
-    result = await session.execute(
-        select(Course).where(Course.id == course_id, Course.deleted_at.is_(None))
-    )
+async def soft_delete_course(
+    session: AsyncSession, course_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None
+) -> None:
+    query = select(Course).where(Course.id == course_id, Course.deleted_at.is_(None))
+    if institute_id is not None:
+        query = query.where(Course.institute_id == institute_id)
+    result = await session.execute(query)
     course = result.scalar_one_or_none()
     if not course:
         raise ValueError("Course not found")
@@ -203,10 +218,14 @@ async def soft_delete_course(session: AsyncSession, course_id: uuid.UUID) -> Non
     await session.commit()
 
 
-async def clone_course(session: AsyncSession, course_id: uuid.UUID, created_by: uuid.UUID) -> Course:
-    result = await session.execute(
-        select(Course).where(Course.id == course_id, Course.deleted_at.is_(None))
-    )
+async def clone_course(
+    session: AsyncSession, course_id: uuid.UUID, created_by: uuid.UUID,
+    institute_id: Optional[uuid.UUID] = None,
+) -> Course:
+    query = select(Course).where(Course.id == course_id, Course.deleted_at.is_(None))
+    if institute_id is not None:
+        query = query.where(Course.institute_id == institute_id)
+    result = await session.execute(query)
     original = result.scalar_one_or_none()
     if not original:
         raise ValueError("Course not found")
@@ -217,6 +236,7 @@ async def clone_course(session: AsyncSession, course_id: uuid.UUID, created_by: 
         status=CourseStatus.upcoming,
         cloned_from_id=original.id,
         created_by=created_by,
+        institute_id=institute_id,
     )
     session.add(new_course)
     await session.flush()
@@ -236,6 +256,7 @@ async def clone_course(session: AsyncSession, course_id: uuid.UUID, created_by: 
             sequence_order=mod.sequence_order,
             topics=mod.topics,
             created_by=created_by,
+            institute_id=institute_id,
         )
         session.add(new_mod)
 

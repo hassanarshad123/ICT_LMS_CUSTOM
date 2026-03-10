@@ -17,6 +17,8 @@ export interface AuthUser {
   avatarUrl?: string;
   batchIds: string[];
   batchNames: string[];
+  instituteId?: string;
+  instituteSlug?: string;
 }
 
 export async function login(email: string, password: string): Promise<LoginResponse> {

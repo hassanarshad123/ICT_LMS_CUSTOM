@@ -1,15 +1,55 @@
-"""WebSocket route handlers."""
+"""WebSocket route handlers with institute ownership verification."""
 import uuid
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from sqlmodel import select
 
+from app.database import async_session
+from app.models.batch import Batch
+from app.models.user import User
+from app.models.other import UserSession
+from app.utils.security import decode_token
 from app.websockets.manager import manager
 
 router = APIRouter()
 
 
+async def _get_user_from_token(websocket: WebSocket) -> User | None:
+    """Extract user from WebSocket JWT query param. Returns None if invalid."""
+    token = websocket.query_params.get("token")
+    if not token:
+        return None
+    payload = decode_token(token)
+    if not payload or payload.get("type") != "access":
+        return None
+    user_id = payload.get("sub")
+    if not user_id:
+        return None
+    async with async_session() as session:
+        result = await session.execute(
+            select(User).where(User.id == uuid.UUID(user_id), User.deleted_at.is_(None))
+        )
+        return result.scalar_one_or_none()
+
+
 @router.websocket("/ws/class-status/{batch_id}")
 async def class_status_ws(websocket: WebSocket, batch_id: uuid.UUID):
+    # Verify institute ownership before accepting connection
+    user = await _get_user_from_token(websocket)
+    if user is None:
+        await websocket.close(code=4001, reason="Authentication failed")
+        return
+
+    # Verify the batch belongs to the same institute as the user
+    async with async_session() as session:
+        result = await session.execute(
+            select(Batch).where(Batch.id == batch_id, Batch.deleted_at.is_(None))
+        )
+        batch = result.scalar_one_or_none()
+    if not batch or batch.institute_id != user.institute_id:
+        await websocket.close(code=4003, reason="Batch does not belong to your institute")
+        return
+
     channel = f"class-status:{batch_id}"
     connected = await manager.connect(websocket, channel)
     if not connected:
@@ -24,6 +64,7 @@ async def class_status_ws(websocket: WebSocket, batch_id: uuid.UUID):
 
 @router.websocket("/ws/announcements/{user_id}")
 async def announcements_ws(websocket: WebSocket, user_id: uuid.UUID):
+    # Already user-scoped — no institute check needed
     channel = f"announcements:{user_id}"
     connected = await manager.connect(websocket, channel)
     if not connected:
@@ -38,6 +79,21 @@ async def announcements_ws(websocket: WebSocket, user_id: uuid.UUID):
 
 @router.websocket("/ws/session/{session_id}")
 async def session_ws(websocket: WebSocket, session_id: uuid.UUID):
+    # Verify the session belongs to the same institute as the connecting user
+    user = await _get_user_from_token(websocket)
+    if user is None:
+        await websocket.close(code=4001, reason="Authentication failed")
+        return
+
+    async with async_session() as session:
+        result = await session.execute(
+            select(UserSession).where(UserSession.id == session_id)
+        )
+        user_session = result.scalar_one_or_none()
+    if not user_session or user_session.institute_id != user.institute_id:
+        await websocket.close(code=4003, reason="Session does not belong to your institute")
+        return
+
     channel = f"session:{session_id}"
     connected = await manager.connect(websocket, channel)
     if not connected:

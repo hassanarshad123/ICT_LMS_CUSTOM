@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, status, Request
@@ -8,7 +9,8 @@ from sqlmodel import select
 
 from app.database import get_session
 from app.models.user import User
-from app.models.enums import UserStatus
+from app.models.institute import Institute, InstituteStatus
+from app.models.enums import UserStatus, UserRole
 from app.utils.security import decode_token
 
 bearer_scheme = HTTPBearer()
@@ -40,6 +42,25 @@ async def get_current_user(
     if user.status != UserStatus.active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is deactivated")
 
+    # Check institute suspension/expiry (skip for super_admin who has no institute)
+    if user.role != UserRole.super_admin and user.institute_id is not None:
+        institute = await session.get(Institute, user.institute_id)
+        if institute:
+            if institute.status == InstituteStatus.suspended:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Institute account is suspended",
+                )
+            if institute.expires_at and institute.expires_at < datetime.now(timezone.utc):
+                # Auto-suspend the institute
+                institute.status = InstituteStatus.suspended
+                session.add(institute)
+                await session.commit()
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Institute subscription has expired",
+                )
+
     # Set Sentry user context for all subsequent error reports in this request
     try:
         import sentry_sdk
@@ -56,15 +77,7 @@ async def get_current_user(
 
 
 def require_roles(*roles: str):
-    """FastAPI dependency factory: restrict endpoint to specific roles.
-
-    Usage:
-        @router.get("/admin-only", dependencies=[Depends(require_roles("admin"))])
-        async def admin_endpoint(): ...
-
-    Or inject the user:
-        async def endpoint(user: User = Depends(require_roles("admin", "course_creator"))): ...
-    """
+    """FastAPI dependency factory: restrict endpoint to specific roles."""
 
     async def role_checker(
         current_user: Annotated[User, Depends(get_current_user)],
@@ -77,3 +90,14 @@ def require_roles(*roles: str):
         return current_user
 
     return role_checker
+
+
+def get_institute_slug_from_header(request: Request) -> str | None:
+    """Read X-Institute-Slug header for public endpoints."""
+    return request.headers.get("X-Institute-Slug")
+
+
+# Role type annotations for dependency injection
+SA = Annotated[User, Depends(require_roles("super_admin"))]
+Admin = Annotated[User, Depends(require_roles("admin"))]
+CC = Annotated[User, Depends(require_roles("course_creator"))]

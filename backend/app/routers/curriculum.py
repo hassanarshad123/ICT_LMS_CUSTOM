@@ -22,7 +22,7 @@ async def list_modules(
     current_user: AllRoles,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    modules = await curriculum_service.list_modules(session, course_id)
+    modules = await curriculum_service.list_modules(session, course_id, institute_id=current_user.institute_id)
     return [CurriculumModuleOut.model_validate(m) for m in modules]
 
 
@@ -35,7 +35,7 @@ async def create_module(
     module = await curriculum_service.create_module(
         session, course_id=body.course_id, title=body.title,
         description=body.description, topics=body.topics,
-        created_by=current_user.id,
+        created_by=current_user.id, institute_id=current_user.institute_id,
     )
     return CurriculumModuleOut.model_validate(module)
 
@@ -49,7 +49,7 @@ async def update_module(
 ):
     try:
         module = await curriculum_service.update_module(
-            session, module_id, **body.model_dump(exclude_unset=True)
+            session, module_id, institute_id=current_user.institute_id, **body.model_dump(exclude_unset=True)
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -63,7 +63,7 @@ async def delete_module(
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
-        await curriculum_service.soft_delete_module(session, module_id)
+        await curriculum_service.soft_delete_module(session, module_id, institute_id=current_user.institute_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -76,7 +76,9 @@ async def reorder_module(
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
-        module = await curriculum_service.reorder_module(session, module_id, body.sequence_order)
+        module = await curriculum_service.reorder_module(
+            session, module_id, body.sequence_order, institute_id=current_user.institute_id,
+        )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     return CurriculumModuleOut.model_validate(module)

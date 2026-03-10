@@ -32,13 +32,16 @@ const API_BASE = '/api/v1';
 /**
  * Public endpoint — fetches branding without auth.
  * Uses raw fetch (not apiClient) since this is called before auth is available.
+ * Accepts optional slug to send X-Institute-Slug header for tenant routing.
  */
-export async function getBranding(): Promise<BrandingData> {
+export async function getBranding(slug?: string | null): Promise<BrandingData> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 5000);
+  const headers: Record<string, string> = {};
+  if (slug) headers['X-Institute-Slug'] = slug;
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}/branding`, { signal: controller.signal });
+    res = await fetch(`${API_BASE}/branding`, { signal: controller.signal, headers });
   } finally {
     clearTimeout(timeout);
   }

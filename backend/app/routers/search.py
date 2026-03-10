@@ -35,6 +35,7 @@ async def global_search(
             select(User)
             .where(
                 User.deleted_at.is_(None),
+                User.institute_id == current_user.institute_id,
                 or_(User.name.ilike(term), User.email.ilike(term)),
             )
             .limit(limit)
@@ -56,6 +57,7 @@ async def global_search(
     # ── Batches (role-scoped) ───────────────────────────────────
     batch_stmt = select(Batch).where(
         Batch.deleted_at.is_(None),
+        Batch.institute_id == current_user.institute_id,
         Batch.name.ilike(term),
     )
 
@@ -81,6 +83,7 @@ async def global_search(
     # ── Courses (role-scoped via BatchCourse → Batch) ───────────
     course_stmt = select(Course).where(
         Course.deleted_at.is_(None),
+        Course.institute_id == current_user.institute_id,
         Course.title.ilike(term),
     )
 
@@ -132,6 +135,7 @@ async def global_search(
     # ── Announcements (role-scoped, matches announcement_service) ──
     ann_stmt = select(Announcement).where(
         Announcement.deleted_at.is_(None),
+        Announcement.institute_id == current_user.institute_id,
         Announcement.title.ilike(term),
     )
 

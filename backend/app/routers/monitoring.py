@@ -9,9 +9,10 @@ from sqlalchemy import text
 from sqlmodel import select, func
 
 from app.database import get_session
-from app.middleware.auth import require_roles
+from app.middleware.auth import require_roles, get_current_user
 from app.models.user import User
 from app.models.error_log import ErrorLog
+from app.models.enums import UserRole
 from app.schemas.monitoring import (
     ErrorLogOut,
     ErrorStatsResponse,
@@ -23,11 +24,12 @@ from app.schemas.common import PaginatedResponse
 router = APIRouter()
 
 Admin = Annotated[User, Depends(require_roles("admin"))]
+AdminOrSA = Annotated[User, Depends(require_roles("admin", "super_admin"))]
 
 
 @router.get("/errors", response_model=PaginatedResponse[ErrorLogOut])
 async def list_errors(
-    current_user: Admin,
+    current_user: AdminOrSA,
     session: Annotated[AsyncSession, Depends(get_session)],
     source: Optional[str] = None,
     level: Optional[str] = None,
@@ -39,6 +41,11 @@ async def list_errors(
     """List error logs with filtering and pagination."""
     query = select(ErrorLog)
     count_query = select(func.count()).select_from(ErrorLog)
+
+    # Super admin sees all errors; regular admin sees only their institute's
+    if current_user.role != UserRole.super_admin and current_user.institute_id:
+        query = query.where(ErrorLog.institute_id == current_user.institute_id)
+        count_query = count_query.where(ErrorLog.institute_id == current_user.institute_id)
 
     if source:
         query = query.where(ErrorLog.source == source)
@@ -80,68 +87,78 @@ async def list_errors(
 
 @router.get("/errors/stats", response_model=ErrorStatsResponse)
 async def error_stats(
-    current_user: Admin,
+    current_user: AdminOrSA,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Get error statistics for the monitoring dashboard."""
     now = datetime.now(timezone.utc)
     day_ago = now - timedelta(hours=24)
 
+    is_sa = current_user.role == UserRole.super_admin
+    inst_id = current_user.institute_id
+
     # Total errors in last 24h
-    result = await session.execute(
-        select(func.count()).select_from(ErrorLog).where(ErrorLog.created_at >= day_ago)
-    )
+    q = select(func.count()).select_from(ErrorLog).where(ErrorLog.created_at >= day_ago)
+    if not is_sa and inst_id:
+        q = q.where(ErrorLog.institute_id == inst_id)
+    result = await session.execute(q)
     total_24h = result.scalar() or 0
 
     # Unresolved count
-    result = await session.execute(
-        select(func.count()).select_from(ErrorLog).where(ErrorLog.resolved == False)
-    )
+    q = select(func.count()).select_from(ErrorLog).where(ErrorLog.resolved == False)
+    if not is_sa and inst_id:
+        q = q.where(ErrorLog.institute_id == inst_id)
+    result = await session.execute(q)
     unresolved = result.scalar() or 0
 
     # Errors by hour (last 24h)
-    result = await session.execute(text("""
+    inst_clause = "" if is_sa else " AND institute_id = :inst_id"
+    params: dict = {"since": day_ago}
+    if not is_sa and inst_id:
+        params["inst_id"] = str(inst_id)
+
+    result = await session.execute(text(f"""
         SELECT date_trunc('hour', created_at) as hour, count(*) as count
         FROM error_logs
-        WHERE created_at >= :since
+        WHERE created_at >= :since{inst_clause}
         GROUP BY hour
         ORDER BY hour
-    """), {"since": day_ago})
+    """), params)
     errors_by_hour = [
         {"hour": row[0].isoformat() if row[0] else None, "count": row[1]}
         for row in result.fetchall()
     ]
 
     # Top error paths
-    result = await session.execute(text("""
+    result = await session.execute(text(f"""
         SELECT request_path, count(*) as count
         FROM error_logs
-        WHERE created_at >= :since AND request_path IS NOT NULL
+        WHERE created_at >= :since AND request_path IS NOT NULL{inst_clause}
         GROUP BY request_path
         ORDER BY count DESC
         LIMIT 10
-    """), {"since": day_ago})
+    """), params)
     top_paths = [
         {"path": row[0], "count": row[1]}
         for row in result.fetchall()
     ]
 
     # Errors by source
-    result = await session.execute(text("""
+    result = await session.execute(text(f"""
         SELECT source, count(*) as count
         FROM error_logs
-        WHERE created_at >= :since
+        WHERE created_at >= :since{inst_clause}
         GROUP BY source
-    """), {"since": day_ago})
+    """), params)
     by_source = {row[0]: row[1] for row in result.fetchall()}
 
     # Errors by level
-    result = await session.execute(text("""
+    result = await session.execute(text(f"""
         SELECT level, count(*) as count
         FROM error_logs
-        WHERE created_at >= :since
+        WHERE created_at >= :since{inst_clause}
         GROUP BY level
-    """), {"since": day_ago})
+    """), params)
     by_level = {row[0]: row[1] for row in result.fetchall()}
 
     return ErrorStatsResponse(
@@ -157,11 +174,14 @@ async def error_stats(
 @router.get("/errors/{error_id}", response_model=ErrorLogOut)
 async def get_error(
     error_id: uuid.UUID,
-    current_user: Admin,
+    current_user: AdminOrSA,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Get full error details including traceback."""
-    result = await session.execute(select(ErrorLog).where(ErrorLog.id == error_id))
+    query = select(ErrorLog).where(ErrorLog.id == error_id)
+    if current_user.role != UserRole.super_admin and current_user.institute_id:
+        query = query.where(ErrorLog.institute_id == current_user.institute_id)
+    result = await session.execute(query)
     error = result.scalar_one_or_none()
     if not error:
         raise HTTPException(status_code=404, detail="Error log not found")
@@ -172,11 +192,14 @@ async def get_error(
 async def resolve_error(
     error_id: uuid.UUID,
     body: ResolveRequest,
-    current_user: Admin,
+    current_user: AdminOrSA,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Mark an error as resolved or unresolved."""
-    result = await session.execute(select(ErrorLog).where(ErrorLog.id == error_id))
+    query = select(ErrorLog).where(ErrorLog.id == error_id)
+    if current_user.role != UserRole.super_admin and current_user.institute_id:
+        query = query.where(ErrorLog.institute_id == current_user.institute_id)
+    result = await session.execute(query)
     error = result.scalar_one_or_none()
     if not error:
         raise HTTPException(status_code=404, detail="Error log not found")
@@ -197,13 +220,14 @@ async def resolve_error(
 
 @router.post("/errors/resolve-all", status_code=status.HTTP_200_OK)
 async def resolve_all_errors(
-    current_user: Admin,
+    current_user: AdminOrSA,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Resolve all unresolved errors."""
-    result = await session.execute(
-        select(ErrorLog).where(ErrorLog.resolved == False)
-    )
+    query = select(ErrorLog).where(ErrorLog.resolved == False)
+    if current_user.role != UserRole.super_admin and current_user.institute_id:
+        query = query.where(ErrorLog.institute_id == current_user.institute_id)
+    result = await session.execute(query)
     count = 0
     for error in result.scalars().all():
         error.resolved = True
@@ -218,18 +242,19 @@ async def resolve_all_errors(
 
 @router.delete("/errors/clear-resolved", status_code=status.HTTP_200_OK)
 async def clear_resolved_errors(
-    current_user: Admin,
+    current_user: AdminOrSA,
     session: Annotated[AsyncSession, Depends(get_session)],
     older_than_days: int = Query(7, ge=1, le=365),
 ):
     """Delete resolved errors older than N days."""
     cutoff = datetime.now(timezone.utc) - timedelta(days=older_than_days)
-    result = await session.execute(
-        select(ErrorLog).where(
-            ErrorLog.resolved == True,
-            ErrorLog.created_at < cutoff,
-        )
+    query = select(ErrorLog).where(
+        ErrorLog.resolved == True,
+        ErrorLog.created_at < cutoff,
     )
+    if current_user.role != UserRole.super_admin and current_user.institute_id:
+        query = query.where(ErrorLog.institute_id == current_user.institute_id)
+    result = await session.execute(query)
     count = 0
     for error in result.scalars().all():
         await session.delete(error)

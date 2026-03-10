@@ -84,6 +84,32 @@ async def send_zoom_reminders():
         await session.commit()
 
 
+async def auto_suspend_expired_institutes():
+    """Auto-suspend institutes whose subscription has expired (daily)."""
+    from sqlmodel import select
+    from app.models.institute import Institute, InstituteStatus
+
+    now = datetime.now(timezone.utc)
+
+    async with async_session() as session:
+        result = await session.execute(
+            select(Institute).where(
+                Institute.status == InstituteStatus.active,
+                Institute.expires_at < now,
+                Institute.deleted_at.is_(None),
+            )
+        )
+        expired = result.scalars().all()
+        for institute in expired:
+            institute.status = InstituteStatus.suspended
+            session.add(institute)
+            logger.info("Auto-suspended expired institute: %s (slug=%s)", institute.id, institute.slug)
+
+        if expired:
+            await session.commit()
+            logger.info("Auto-suspended %d expired institutes", len(expired))
+
+
 async def cleanup_stale_uploads():
     """Soft-delete lectures stuck in 'pending' for over 24 hours (daily).
 

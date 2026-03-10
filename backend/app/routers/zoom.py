@@ -40,7 +40,7 @@ async def list_accounts(
     current_user: AdminOrCourseCreator,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    accounts = await zoom_service.list_accounts(session)
+    accounts = await zoom_service.list_accounts(session, institute_id=current_user.institute_id)
     if current_user.role.value == "admin":
         return [
             ZoomAccountAdminOut(
@@ -68,7 +68,8 @@ async def create_account(
 ):
     from app.utils.encryption import encrypt
     account = await zoom_service.create_account(
-        session, account_name=body.account_name, account_id=body.account_id,
+        session, institute_id=current_user.institute_id,
+        account_name=body.account_name, account_id=body.account_id,
         client_id=body.client_id, client_secret=encrypt(body.client_secret),
         is_default=body.is_default,
     )
@@ -86,6 +87,11 @@ async def update_account(
     current_user: Admin,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
+    # Verify institute ownership
+    existing = await zoom_service.get_account(session, account_id)
+    if not existing or (current_user.institute_id and existing.institute_id != current_user.institute_id):
+        raise HTTPException(status_code=404, detail="Zoom account not found")
+
     fields = body.model_dump(exclude_unset=True)
     if "client_secret" in fields and fields["client_secret"]:
         from app.utils.encryption import encrypt
@@ -108,6 +114,10 @@ async def delete_account(
     current_user: Admin,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
+    # Verify institute ownership
+    existing = await zoom_service.get_account(session, account_id)
+    if not existing or (current_user.institute_id and existing.institute_id != current_user.institute_id):
+        raise HTTPException(status_code=404, detail="Zoom account not found")
     try:
         await zoom_service.soft_delete_account(session, account_id)
     except ValueError as e:
@@ -120,6 +130,10 @@ async def set_default_account(
     current_user: Admin,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
+    # Verify institute ownership
+    existing = await zoom_service.get_account(session, account_id)
+    if not existing or (current_user.institute_id and existing.institute_id != current_user.institute_id):
+        raise HTTPException(status_code=404, detail="Zoom account not found")
     try:
         account = await zoom_service.set_default_account(session, account_id)
     except ValueError as e:
@@ -146,6 +160,7 @@ async def list_classes(
     items, total = await zoom_service.list_classes(
         session, current_user, batch_id=batch_id, status_filter=status,
         teacher_id=teacher_id, page=page, per_page=per_page,
+        institute_id=current_user.institute_id,
     )
     return PaginatedResponse(
         data=[ZoomClassOut(**item) for item in items],
@@ -162,7 +177,7 @@ async def create_class(
 ):
     # Get zoom account for API call
     account = await zoom_service.get_account(session, body.zoom_account_id)
-    if not account:
+    if not account or (current_user.institute_id and account.institute_id != current_user.institute_id):
         raise HTTPException(status_code=404, detail="Zoom account not found")
 
     # Validate batch belongs to this course creator
@@ -208,6 +223,7 @@ async def create_class(
         zoom_meeting_id=zoom_meeting["meeting_id"] if zoom_meeting else None,
         zoom_meeting_url=zoom_meeting["join_url"] if zoom_meeting else None,
         zoom_start_url=zoom_meeting["start_url"] if zoom_meeting else None,
+        institute_id=current_user.institute_id,
     )
 
     from app.utils.formatters import format_duration
@@ -378,6 +394,7 @@ async def list_recordings(
 ):
     items, total = await zoom_service.list_all_recordings(
         session, current_user, page=page, per_page=per_page,
+        institute_id=current_user.institute_id,
     )
     return PaginatedResponse(
         data=[RecordingListOut(**item) for item in items],

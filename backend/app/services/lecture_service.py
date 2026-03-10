@@ -18,6 +18,7 @@ async def list_lectures(
     course_id: Optional[uuid.UUID] = None,
     page: int = 1,
     per_page: int = 50,
+    institute_id: Optional[uuid.UUID] = None,
 ) -> tuple[list[dict], int]:
     query = select(Lecture).where(
         Lecture.batch_id == batch_id, Lecture.deleted_at.is_(None)
@@ -25,6 +26,10 @@ async def list_lectures(
     count_query = select(func.count()).select_from(Lecture).where(
         Lecture.batch_id == batch_id, Lecture.deleted_at.is_(None)
     )
+
+    if institute_id:
+        query = query.where(Lecture.institute_id == institute_id)
+        count_query = count_query.where(Lecture.institute_id == institute_id)
 
     if course_id:
         query = query.where(Lecture.course_id == course_id)
@@ -83,6 +88,7 @@ async def create_lecture(
     file_size: Optional[int] = None,
     thumbnail_url: Optional[str] = None,
     video_status: Optional[str] = None,
+    institute_id: Optional[uuid.UUID] = None,
 ) -> Lecture:
     # Auto-assign sequence_order
     result = await session.execute(
@@ -109,6 +115,7 @@ async def create_lecture(
         thumbnail_url=thumbnail_url,
         video_status=video_status,
         created_by=created_by,
+        institute_id=institute_id,
     )
     session.add(lecture)
     await session.commit()

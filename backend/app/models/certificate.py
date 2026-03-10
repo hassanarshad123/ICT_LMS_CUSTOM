@@ -3,9 +3,9 @@ from datetime import datetime
 from typing import Optional
 
 from sqlmodel import SQLModel, Field, Column
-from sqlalchemy import Integer, String, Text, UniqueConstraint, Index, CheckConstraint
+from sqlalchemy import Integer, String, Text, UniqueConstraint, Index, CheckConstraint, ForeignKey
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy.dialects.postgresql import TIMESTAMP
+from sqlalchemy.dialects.postgresql import TIMESTAMP, UUID as PG_UUID
 
 from app.models.enums import CertificateStatus
 
@@ -59,6 +59,11 @@ class Certificate(SQLModel, table=True):
     # S3 path
     pdf_path: Optional[str] = Field(default=None)
 
+    institute_id: Optional[uuid.UUID] = Field(
+        default=None,
+        sa_column=Column(PG_UUID(as_uuid=True), ForeignKey("institutes.id"), nullable=True),
+    )
+
     # Standard timestamps
     created_at: Optional[datetime] = Field(
         default=None,
@@ -74,9 +79,15 @@ class Certificate(SQLModel, table=True):
 
 
 class CertificateCounter(SQLModel, table=True):
-    """Single-row table for atomic sequential certificate IDs."""
+    """Per-institute, per-year sequential certificate IDs."""
     __tablename__ = "certificate_counter"
+    __table_args__ = (
+        UniqueConstraint("institute_id", "current_year", name="uq_cert_counter_institute_year"),
+    )
 
-    id: int = Field(default=1, primary_key=True)
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    institute_id: uuid.UUID = Field(
+        sa_column=Column(PG_UUID(as_uuid=True), ForeignKey("institutes.id"), nullable=False)
+    )
     current_year: int = Field(nullable=False)
     last_sequence: int = Field(default=0, nullable=False)

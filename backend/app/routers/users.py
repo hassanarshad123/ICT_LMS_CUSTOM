@@ -117,7 +117,7 @@ async def list_users_endpoint(
 
     users, total = await list_users(
         session, page=page, per_page=per_page, role=db_role, status=status,
-        search=search, batch_id=batch_id,
+        search=search, batch_id=batch_id, institute_id=current_user.institute_id,
     )
 
     # Batch-load batch data for all students on this page (single query)
@@ -188,6 +188,7 @@ async def create_user_endpoint(
             role=db_role,
             phone=body.phone,
             specialization=body.specialization,
+            institute_id=current_user.institute_id,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -213,6 +214,8 @@ async def get_user_endpoint(
     user = await get_user(session, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    if user.institute_id != current_user.institute_id:
+        raise HTTPException(status_code=404, detail="User not found")
     data = await _enrich_user(session, user)
     return UserOut(**data)
 
@@ -224,6 +227,10 @@ async def update_user_endpoint(
     current_user: AdminOrCC,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
+    # Verify user belongs to same institute
+    target = await get_user(session, user_id)
+    if not target or target.institute_id != current_user.institute_id:
+        raise HTTPException(status_code=404, detail="User not found")
     try:
         user = await update_user(
             session, user_id, **body.model_dump(exclude_unset=True)
@@ -241,6 +248,11 @@ async def change_user_status(
     current_user: AdminOrCC,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
+    # Verify user belongs to same institute
+    target = await get_user(session, user_id)
+    if not target or target.institute_id != current_user.institute_id:
+        raise HTTPException(status_code=404, detail="User not found")
+
     new_status = body.status
     if new_status not in ("active", "inactive"):
         raise HTTPException(status_code=400, detail="Status must be 'active' or 'inactive'")
@@ -266,6 +278,8 @@ async def reset_password(
     user = await get_user(session, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    if user.institute_id != current_user.institute_id:
+        raise HTTPException(status_code=404, detail="User not found")
 
     temp_password = secrets.token_urlsafe(8)
     user.hashed_password = hash_password(temp_password)
@@ -284,6 +298,11 @@ async def delete_user_endpoint(
     if user_id == current_user.id:
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
 
+    # Verify user belongs to same institute
+    target = await get_user(session, user_id)
+    if not target or target.institute_id != current_user.institute_id:
+        raise HTTPException(status_code=404, detail="User not found")
+
     try:
         await soft_delete_user(session, user_id)
     except ValueError as e:
@@ -296,6 +315,10 @@ async def force_logout_endpoint(
     current_user: AdminUser,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
+    # Verify user belongs to same institute
+    target = await get_user(session, user_id)
+    if not target or target.institute_id != current_user.institute_id:
+        raise HTTPException(status_code=404, detail="User not found")
     await force_logout_user(session, user_id)
 
 
@@ -339,6 +362,7 @@ async def bulk_import(
             await create_user(
                 session, email=email, name=name, password=password,
                 role=db_role, phone=phone, specialization=specialization,
+                institute_id=current_user.institute_id,
             )
             imported += 1
         except ValueError as e:

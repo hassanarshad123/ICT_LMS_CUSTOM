@@ -49,6 +49,7 @@ class UploadInitRequest(BaseModel):
     course_id: Optional[uuid.UUID] = None
     description: Optional[str] = None
     duration: Optional[int] = None
+    file_size: Optional[int] = None
 
 
 class LectureReorderRequest(BaseModel):

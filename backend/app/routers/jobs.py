@@ -25,7 +25,9 @@ async def get_my_applications(
     current_user: Student,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    return await job_service.get_my_applications(session, current_user.id)
+    return await job_service.get_my_applications(
+        session, current_user.id, institute_id=current_user.institute_id
+    )
 
 
 @router.get("", response_model=PaginatedResponse[JobOut])
@@ -39,6 +41,7 @@ async def list_jobs(
 ):
     items, total = await job_service.list_jobs(
         session, page=page, per_page=per_page, job_type=type, search=search,
+        institute_id=current_user.institute_id,
     )
     return PaginatedResponse(
         data=[JobOut(**item) for item in items],
@@ -55,7 +58,8 @@ async def create_job(
 ):
     from app.utils.transformers import to_api
     job = await job_service.create_job(
-        session, posted_by=current_user.id, **body.model_dump()
+        session, posted_by=current_user.id,
+        institute_id=current_user.institute_id, **body.model_dump()
     )
     return JobOut(
         id=job.id, title=job.title, company=job.company, location=job.location,
@@ -71,7 +75,7 @@ async def get_job(
     current_user: CCOrStudent,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    data = await job_service.get_job(session, job_id)
+    data = await job_service.get_job(session, job_id, institute_id=current_user.institute_id)
     if not data:
         raise HTTPException(status_code=404, detail="Job not found")
     return JobOut(**data)
@@ -85,10 +89,13 @@ async def update_job(
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
-        await job_service.update_job(session, job_id, **body.model_dump(exclude_unset=True))
+        await job_service.update_job(
+            session, job_id, institute_id=current_user.institute_id,
+            **body.model_dump(exclude_unset=True)
+        )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    data = await job_service.get_job(session, job_id)
+    data = await job_service.get_job(session, job_id, institute_id=current_user.institute_id)
     return JobOut(**data)
 
 
@@ -99,7 +106,7 @@ async def delete_job(
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
-        await job_service.soft_delete_job(session, job_id)
+        await job_service.soft_delete_job(session, job_id, institute_id=current_user.institute_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -114,6 +121,7 @@ async def apply_to_job(
     app = await job_service.apply_to_job(
         session, job_id=job_id, student_id=current_user.id,
         resume_key=body.resume_key, cover_letter=body.cover_letter,
+        institute_id=current_user.institute_id,
     )
     return {"id": app.id, "job_id": app.job_id, "status": app.status.value}
 
@@ -124,7 +132,9 @@ async def list_applications(
     current_user: CC,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    items = await job_service.list_applications(session, job_id)
+    items = await job_service.list_applications(
+        session, job_id, institute_id=current_user.institute_id
+    )
     return [ApplicationOut(**item) for item in items]
 
 

@@ -25,13 +25,20 @@ async def authenticate_user(
     password: str,
     device_info: str | None = None,
     ip_address: str | None = None,
+    institute_id: uuid.UUID | None = None,
 ) -> tuple[User, str, str]:
     """Authenticate user, enforce device limit, return (user, access_token, refresh_token)."""
 
-    # Find user
-    result = await session.execute(
-        select(User).where(User.email == email, User.deleted_at.is_(None))
-    )
+    # Find user — scope by institute if provided, otherwise find by email only (for super_admin)
+    query = select(User).where(User.email == email, User.deleted_at.is_(None))
+    if institute_id is not None:
+        query = query.where(User.institute_id == institute_id)
+    else:
+        # For super_admin login (no institute slug), require institute_id to be NULL
+        # so institute admins can't login without a slug
+        query = query.where(User.institute_id.is_(None))
+
+    result = await session.execute(query)
     user = result.scalar_one_or_none()
     if not user or not verify_password(password, user.hashed_password):
         raise ValueError("Invalid email or password")

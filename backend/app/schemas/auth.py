@@ -36,6 +36,8 @@ class UserBrief(BaseModel):
     avatar_url: Optional[str] = None
     batch_ids: list[str] = []
     batch_names: list[str] = []
+    institute_id: Optional[uuid.UUID] = None
+    institute_slug: Optional[str] = None
 
     model_config = {"from_attributes": True}
 

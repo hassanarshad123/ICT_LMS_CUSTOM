@@ -46,6 +46,9 @@ class ErrorLog(SQLModel, table=True):
     # Extra context (JSONB)
     extra: Optional[dict] = Field(default=None, sa_column=Column(JSONB))
 
+    # Institute context (no FK needed, just store the value)
+    institute_id: Optional[uuid.UUID] = Field(default=None)
+
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(TIMESTAMP(timezone=True), nullable=False, server_default="now()"),

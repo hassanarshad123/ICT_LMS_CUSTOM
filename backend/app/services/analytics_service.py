@@ -13,12 +13,12 @@ from app.models.other import UserSession, SystemSetting, ActivityLog
 from app.models.enums import UserRole, UserStatus
 
 
-async def get_dashboard(session: AsyncSession) -> dict:
+async def get_dashboard(session: AsyncSession, institute_id: uuid.UUID) -> dict:
     today = date.today()
 
     # Total batches
     r = await session.execute(
-        select(func.count()).select_from(Batch).where(Batch.deleted_at.is_(None))
+        select(func.count()).select_from(Batch).where(Batch.deleted_at.is_(None), Batch.institute_id == institute_id)
     )
     total_batches = r.scalar() or 0
 
@@ -26,6 +26,7 @@ async def get_dashboard(session: AsyncSession) -> dict:
     r = await session.execute(
         select(func.count()).select_from(Batch).where(
             Batch.deleted_at.is_(None),
+            Batch.institute_id == institute_id,
             Batch.start_date <= today,
             Batch.end_date >= today,
         )
@@ -35,14 +36,14 @@ async def get_dashboard(session: AsyncSession) -> dict:
     # Students
     r = await session.execute(
         select(func.count()).select_from(User).where(
-            User.deleted_at.is_(None), User.role == UserRole.student
+            User.deleted_at.is_(None), User.role == UserRole.student, User.institute_id == institute_id
         )
     )
     total_students = r.scalar() or 0
 
     r = await session.execute(
         select(func.count()).select_from(User).where(
-            User.deleted_at.is_(None), User.role == UserRole.student, User.status == UserStatus.active
+            User.deleted_at.is_(None), User.role == UserRole.student, User.status == UserStatus.active, User.institute_id == institute_id
         )
     )
     active_students = r.scalar() or 0
@@ -50,7 +51,7 @@ async def get_dashboard(session: AsyncSession) -> dict:
     # Teachers
     r = await session.execute(
         select(func.count()).select_from(User).where(
-            User.deleted_at.is_(None), User.role == UserRole.teacher
+            User.deleted_at.is_(None), User.role == UserRole.teacher, User.institute_id == institute_id
         )
     )
     total_teachers = r.scalar() or 0
@@ -58,14 +59,14 @@ async def get_dashboard(session: AsyncSession) -> dict:
     # Course creators
     r = await session.execute(
         select(func.count()).select_from(User).where(
-            User.deleted_at.is_(None), User.role == UserRole.course_creator
+            User.deleted_at.is_(None), User.role == UserRole.course_creator, User.institute_id == institute_id
         )
     )
     total_course_creators = r.scalar() or 0
 
     # Courses
     r = await session.execute(
-        select(func.count()).select_from(Course).where(Course.deleted_at.is_(None))
+        select(func.count()).select_from(Course).where(Course.deleted_at.is_(None), Course.institute_id == institute_id)
     )
     total_courses = r.scalar() or 0
 
@@ -75,7 +76,7 @@ async def get_dashboard(session: AsyncSession) -> dict:
                func.count(StudentBatch.id).label("student_count"))
         .outerjoin(User, Batch.teacher_id == User.id)
         .outerjoin(StudentBatch, (StudentBatch.batch_id == Batch.id) & (StudentBatch.removed_at.is_(None)))
-        .where(Batch.deleted_at.is_(None))
+        .where(Batch.deleted_at.is_(None), Batch.institute_id == institute_id)
         .group_by(Batch.id, User.name)
         .order_by(Batch.created_at.desc()).limit(5)
     )
@@ -92,7 +93,7 @@ async def get_dashboard(session: AsyncSession) -> dict:
 
     # Recent students with status and batch names
     r = await session.execute(
-        select(User).where(User.deleted_at.is_(None), User.role == UserRole.student)
+        select(User).where(User.deleted_at.is_(None), User.role == UserRole.student, User.institute_id == institute_id)
         .order_by(User.created_at.desc()).limit(5)
     )
     students = r.scalars().all()
@@ -129,11 +130,11 @@ async def get_dashboard(session: AsyncSession) -> dict:
     }
 
 
-async def get_insights(session: AsyncSession) -> dict:
+async def get_insights(session: AsyncSession, institute_id: uuid.UUID) -> dict:
     # Students by status
     r = await session.execute(
         select(User.status, func.count()).where(
-            User.deleted_at.is_(None), User.role == UserRole.student
+            User.deleted_at.is_(None), User.role == UserRole.student, User.institute_id == institute_id
         ).group_by(User.status)
     )
     students_by_status = {row[0].value: row[1] for row in r.all()}
@@ -141,7 +142,7 @@ async def get_insights(session: AsyncSession) -> dict:
     # Batches by status (computed)
     today = date.today()
     r = await session.execute(
-        select(Batch).where(Batch.deleted_at.is_(None))
+        select(Batch).where(Batch.deleted_at.is_(None), Batch.institute_id == institute_id)
     )
     batches = r.scalars().all()
     batches_by_status = {"upcoming": 0, "active": 0, "completed": 0}
@@ -157,7 +158,7 @@ async def get_insights(session: AsyncSession) -> dict:
     r = await session.execute(
         select(Batch.id, Batch.name, func.count(StudentBatch.id))
         .outerjoin(StudentBatch, (StudentBatch.batch_id == Batch.id) & (StudentBatch.removed_at.is_(None)))
-        .where(Batch.deleted_at.is_(None))
+        .where(Batch.deleted_at.is_(None), Batch.institute_id == institute_id)
         .group_by(Batch.id, Batch.name)
     )
     enrollment_per_batch = [
@@ -169,7 +170,7 @@ async def get_insights(session: AsyncSession) -> dict:
     r = await session.execute(
         select(User.id, User.name, func.count(Batch.id))
         .outerjoin(Batch, (Batch.teacher_id == User.id) & (Batch.deleted_at.is_(None)))
-        .where(User.deleted_at.is_(None), User.role == UserRole.teacher)
+        .where(User.deleted_at.is_(None), User.role == UserRole.teacher, User.institute_id == institute_id)
         .group_by(User.id, User.name)
     )
     teachers = r.all()
@@ -198,7 +199,7 @@ async def get_insights(session: AsyncSession) -> dict:
     # Materials by type
     r = await session.execute(
         select(BatchMaterial.file_type, func.count()).where(
-            BatchMaterial.deleted_at.is_(None)
+            BatchMaterial.deleted_at.is_(None), BatchMaterial.institute_id == institute_id
         ).group_by(BatchMaterial.file_type)
     )
     materials_by_type = {row[0].value: row[1] for row in r.all()}
@@ -207,7 +208,7 @@ async def get_insights(session: AsyncSession) -> dict:
     r = await session.execute(
         select(Course.id, Course.title, func.count(Lecture.id))
         .outerjoin(Lecture, (Lecture.course_id == Course.id) & (Lecture.deleted_at.is_(None)))
-        .where(Course.deleted_at.is_(None))
+        .where(Course.deleted_at.is_(None), Course.institute_id == institute_id)
         .group_by(Course.id, Course.title)
     )
     lectures_per_course = [
@@ -218,21 +219,21 @@ async def get_insights(session: AsyncSession) -> dict:
     # Device overview
     r = await session.execute(
         select(func.count()).select_from(User).where(
-            User.deleted_at.is_(None), User.role == UserRole.student
+            User.deleted_at.is_(None), User.role == UserRole.student, User.institute_id == institute_id
         )
     )
     total_users = r.scalar() or 0
 
     r = await session.execute(
         select(UserSession.user_id, func.count()).where(
-            UserSession.is_active.is_(True)
+            UserSession.is_active.is_(True), UserSession.institute_id == institute_id
         ).group_by(UserSession.user_id)
     )
     session_counts = {row[0]: row[1] for row in r.all()}
 
     # Get system device limit
     sr = await session.execute(
-        select(SystemSetting).where(SystemSetting.setting_key == "max_device_limit")
+        select(SystemSetting).where(SystemSetting.setting_key == "max_device_limit", SystemSetting.institute_id == institute_id)
     )
     setting = sr.scalar_one_or_none()
     device_limit = int(setting.value) if setting else 2

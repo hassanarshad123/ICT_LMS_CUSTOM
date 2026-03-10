@@ -14,6 +14,7 @@ async def log_activity(
     user_id: Optional[uuid.UUID] = None,
     details: Optional[dict] = None,
     ip_address: Optional[str] = None,
+    institute_id: Optional[uuid.UUID] = None,
 ) -> None:
     entry = ActivityLog(
         user_id=user_id,
@@ -22,6 +23,7 @@ async def log_activity(
         entity_id=entity_id,
         details=details,
         ip_address=ip_address,
+        institute_id=institute_id,
     )
     session.add(entry)
     await session.flush()

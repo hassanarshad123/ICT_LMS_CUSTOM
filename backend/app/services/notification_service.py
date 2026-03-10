@@ -14,6 +14,7 @@ async def create_notification(
     title: str,
     message: str,
     link: Optional[str] = None,
+    institute_id: Optional[uuid.UUID] = None,
 ) -> Notification:
     notification = Notification(
         user_id=user_id,
@@ -21,6 +22,7 @@ async def create_notification(
         title=title,
         message=message,
         link=link,
+        institute_id=institute_id,
     )
     session.add(notification)
     await session.commit()
@@ -35,6 +37,7 @@ async def create_bulk_notifications(
     title: str,
     message: str,
     link: Optional[str] = None,
+    institute_id: Optional[uuid.UUID] = None,
 ) -> int:
     """Create notifications for multiple users at once. Returns count created."""
     if not user_ids:
@@ -47,6 +50,7 @@ async def create_bulk_notifications(
             title=title,
             message=message,
             link=link,
+            institute_id=institute_id,
         )
         for uid in user_ids
     ]
@@ -60,17 +64,20 @@ async def list_notifications(
     user_id: uuid.UUID,
     page: int = 1,
     per_page: int = 20,
+    institute_id: Optional[uuid.UUID] = None,
 ) -> tuple[list[Notification], int]:
-    count_query = select(func.count()).select_from(Notification).where(
-        Notification.user_id == user_id
-    )
+    base_filters = [Notification.user_id == user_id]
+    if institute_id:
+        base_filters.append(Notification.institute_id == institute_id)
+
+    count_query = select(func.count()).select_from(Notification).where(*base_filters)
     result = await session.execute(count_query)
     total = result.scalar() or 0
 
     offset = (page - 1) * per_page
     query = (
         select(Notification)
-        .where(Notification.user_id == user_id)
+        .where(*base_filters)
         .order_by(Notification.created_at.desc())
         .offset(offset)
         .limit(per_page)
@@ -80,23 +87,30 @@ async def list_notifications(
     return list(items), total
 
 
-async def get_unread_count(session: AsyncSession, user_id: uuid.UUID) -> int:
-    query = select(func.count()).select_from(Notification).where(
+async def get_unread_count(session: AsyncSession, user_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None) -> int:
+    filters = [
         Notification.user_id == user_id,
         Notification.read == False,  # noqa: E712
-    )
+    ]
+    if institute_id:
+        filters.append(Notification.institute_id == institute_id)
+    query = select(func.count()).select_from(Notification).where(*filters)
     result = await session.execute(query)
     return result.scalar() or 0
 
 
 async def mark_as_read(
-    session: AsyncSession, notification_id: uuid.UUID, user_id: uuid.UUID
+    session: AsyncSession, notification_id: uuid.UUID, user_id: uuid.UUID,
+    institute_id: Optional[uuid.UUID] = None,
 ) -> Notification:
+    filters = [
+        Notification.id == notification_id,
+        Notification.user_id == user_id,
+    ]
+    if institute_id:
+        filters.append(Notification.institute_id == institute_id)
     result = await session.execute(
-        select(Notification).where(
-            Notification.id == notification_id,
-            Notification.user_id == user_id,
-        )
+        select(Notification).where(*filters)
     )
     notif = result.scalar_one_or_none()
     if not notif:
@@ -109,16 +123,20 @@ async def mark_as_read(
     return notif
 
 
-async def mark_all_read(session: AsyncSession, user_id: uuid.UUID) -> int:
+async def mark_all_read(session: AsyncSession, user_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None) -> int:
     """Mark all unread notifications for a user as read. Returns count updated."""
     from sqlalchemy import update
 
+    filters = [
+        Notification.user_id == user_id,
+        Notification.read == False,  # noqa: E712
+    ]
+    if institute_id:
+        filters.append(Notification.institute_id == institute_id)
+
     stmt = (
         update(Notification)
-        .where(
-            Notification.user_id == user_id,
-            Notification.read == False,  # noqa: E712
-        )
+        .where(*filters)
         .values(read=True)
     )
     result = await session.execute(stmt)

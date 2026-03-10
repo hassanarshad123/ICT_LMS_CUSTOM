@@ -15,7 +15,7 @@ from app.models.other import LectureProgress, SystemSetting
 from app.models.user import User
 from app.models.enums import CertificateStatus
 from app.utils.certificate_pdf import generate_certificate_pdf, CertDesign
-from app.utils.s3 import _get_client as get_s3_client
+from app.utils.s3 import _get_client as get_s3_client, generate_certificate_key
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -24,11 +24,14 @@ settings = get_settings()
 
 # ── Certificate Design Loader ─────────────────────────────────────────
 
-async def _load_cert_design(session: AsyncSession) -> CertDesign:
+async def _load_cert_design(session: AsyncSession, institute_id: uuid.UUID = None) -> CertDesign:
     """Load cert design settings from SystemSetting table."""
-    result = await session.execute(
-        select(SystemSetting).where(SystemSetting.setting_key.like("cert_%"))
-    )
+    query = select(SystemSetting).where(SystemSetting.setting_key.like("cert_%"))
+    if institute_id:
+        query = query.where(SystemSetting.institute_id == institute_id)
+    else:
+        query = query.where(SystemSetting.institute_id.is_(None))
+    result = await session.execute(query)
     raw = {s.setting_key: s.value for s in result.scalars().all()}
     return CertDesign(
         primary_color=raw.get("cert_primary_color", "#1A1A1A"),
@@ -93,11 +96,14 @@ async def calculate_completion_percentage(
     return int(total_watched / total_lectures)
 
 
-async def get_completion_threshold(session: AsyncSession) -> int:
+async def get_completion_threshold(session: AsyncSession, institute_id: uuid.UUID = None) -> int:
     """Read threshold from system_settings, default 70."""
-    result = await session.execute(
-        select(SystemSetting).where(SystemSetting.setting_key == "certificate_completion_threshold")
-    )
+    query = select(SystemSetting).where(SystemSetting.setting_key == "certificate_completion_threshold")
+    if institute_id:
+        query = query.where(SystemSetting.institute_id == institute_id)
+    else:
+        query = query.where(SystemSetting.institute_id.is_(None))
+    result = await session.execute(query)
     setting = result.scalar_one_or_none()
     if setting:
         try:
@@ -118,30 +124,32 @@ async def check_eligibility(
 
 # ── Certificate ID Generation ────────────────────────────────────────
 
-async def generate_certificate_id(session: AsyncSession) -> str:
-    """Generate sequential human-readable ID like ICT-2026-00001, with year rollover."""
+async def generate_certificate_id(session: AsyncSession, institute_id: uuid.UUID) -> str:
+    """Generate sequential human-readable ID like ICT-2026-00001, with year rollover per institute."""
     current_year = datetime.now(timezone.utc).year
 
     # Load custom prefix from settings
     prefix_row = await session.execute(
-        select(SystemSetting).where(SystemSetting.setting_key == "cert_id_prefix")
+        select(SystemSetting).where(
+            SystemSetting.setting_key == "cert_id_prefix",
+            SystemSetting.institute_id == institute_id,
+        )
     )
     prefix_setting = prefix_row.scalar_one_or_none()
     prefix = prefix_setting.value if prefix_setting else "ICT"
 
-    # Lock the counter row for update
+    # Lock the counter row for update (per institute + year)
     result = await session.execute(
-        select(CertificateCounter).where(CertificateCounter.id == 1).with_for_update()
+        select(CertificateCounter).where(
+            CertificateCounter.institute_id == institute_id,
+            CertificateCounter.current_year == current_year,
+        ).with_for_update()
     )
     counter = result.scalar_one_or_none()
 
     if counter is None:
-        counter = CertificateCounter(id=1, current_year=current_year, last_sequence=0)
+        counter = CertificateCounter(institute_id=institute_id, current_year=current_year, last_sequence=0)
         session.add(counter)
-
-    if counter.current_year != current_year:
-        counter.current_year = current_year
-        counter.last_sequence = 0
 
     counter.last_sequence += 1
     seq = counter.last_sequence
@@ -157,13 +165,13 @@ async def generate_verification_code() -> str:
 # ── Student Dashboard ────────────────────────────────────────────────
 
 async def get_student_dashboard(
-    session: AsyncSession, student_id: uuid.UUID,
+    session: AsyncSession, student_id: uuid.UUID, institute_id: uuid.UUID = None,
 ) -> list[dict]:
     """Get all enrolled courses with progress and certificate status for a student.
 
     Optimized: 4 queries total instead of N+1 nested loops.
     """
-    threshold = await get_completion_threshold(session)
+    threshold = await get_completion_threshold(session, institute_id=institute_id)
 
     # Query 1: All active enrollments with batch info (1 query)
     enrolled_q = (
@@ -280,6 +288,7 @@ async def request_certificate(
     batch_id: uuid.UUID,
     course_id: uuid.UUID,
     certificate_name: str,
+    institute_id: uuid.UUID = None,
 ) -> Certificate:
     """Student requests a certificate with their chosen name."""
     # Verify enrollment
@@ -319,6 +328,7 @@ async def request_certificate(
         status=CertificateStatus.eligible,
         completion_percentage=pct,
         requested_at=now,
+        institute_id=institute_id,
     )
     session.add(cert)
     await session.flush()
@@ -329,11 +339,13 @@ async def request_certificate(
 
 async def approve_existing_certificate(
     session: AsyncSession, cert_uuid: uuid.UUID, approved_by: uuid.UUID,
+    institute_id: uuid.UUID = None,
 ) -> Certificate:
     """Approve a pending certificate request — generate cert_id, verification_code, PDF."""
-    result = await session.execute(
-        select(Certificate).where(Certificate.id == cert_uuid, Certificate.deleted_at.is_(None))
-    )
+    query = select(Certificate).where(Certificate.id == cert_uuid, Certificate.deleted_at.is_(None))
+    if institute_id:
+        query = query.where(Certificate.institute_id == institute_id)
+    result = await session.execute(query)
     cert = result.scalar_one_or_none()
     if not cert:
         raise ValueError("Certificate request not found")
@@ -345,7 +357,7 @@ async def approve_existing_certificate(
     batch = (await session.execute(select(Batch).where(Batch.id == cert.batch_id))).scalar_one()
     course = (await session.execute(select(Course).where(Course.id == cert.course_id))).scalar_one()
 
-    cert_id = await generate_certificate_id(session)
+    cert_id = await generate_certificate_id(session, institute_id=cert.institute_id)
     verification_code = await generate_verification_code()
 
     now = datetime.now(timezone.utc)
@@ -364,7 +376,7 @@ async def approve_existing_certificate(
 
     # Generate PDF
     try:
-        design = await _load_cert_design(session)
+        design = await _load_cert_design(session, institute_id=cert.institute_id)
         pdf_bytes = generate_certificate_pdf(
             student_name=student_name,
             course_title=course.title,
@@ -377,7 +389,7 @@ async def approve_existing_certificate(
         )
 
         s3 = get_s3_client()
-        object_key = f"certificates/{cert_id}.pdf"
+        object_key = generate_certificate_key(cert_id, institute_id=cert.institute_id)
         s3.put_object(
             Bucket=settings.S3_BUCKET_NAME,
             Key=object_key,
@@ -412,6 +424,7 @@ async def list_certificate_requests(
             Certificate.deleted_at.is_(None),
             Certificate.status == CertificateStatus.eligible,
             Certificate.requested_at.isnot(None),
+            Certificate.institute_id == current_user.institute_id,
         )
     )
 
@@ -459,6 +472,7 @@ async def create_and_approve_certificate(
     completion_percentage: int,
     approved_by: uuid.UUID,
     certificate_name: str | None = None,
+    institute_id: uuid.UUID = None,
 ) -> Certificate:
     """Create a certificate with status=approved, generate PDF, upload to S3."""
     # Check for existing certificate
@@ -478,7 +492,7 @@ async def create_and_approve_certificate(
     batch = (await session.execute(select(Batch).where(Batch.id == batch_id))).scalar_one()
     course = (await session.execute(select(Course).where(Course.id == course_id))).scalar_one()
 
-    cert_id = await generate_certificate_id(session)
+    cert_id = await generate_certificate_id(session, institute_id=institute_id)
     verification_code = await generate_verification_code()
 
     now = datetime.now(timezone.utc)
@@ -498,11 +512,12 @@ async def create_and_approve_certificate(
         approved_by=approved_by,
         approved_at=now,
         issued_at=now,
+        institute_id=institute_id,
     )
 
     # Generate PDF
     try:
-        design = await _load_cert_design(session)
+        design = await _load_cert_design(session, institute_id=institute_id)
         pdf_bytes = generate_certificate_pdf(
             student_name=student_name,
             course_title=course.title,
@@ -516,7 +531,7 @@ async def create_and_approve_certificate(
 
         # Upload to S3
         s3 = get_s3_client()
-        object_key = f"certificates/{cert_id}.pdf"
+        object_key = generate_certificate_key(cert_id, institute_id=institute_id)
         s3.put_object(
             Bucket=settings.S3_BUCKET_NAME,
             Key=object_key,
@@ -535,11 +550,13 @@ async def create_and_approve_certificate(
 
 async def revoke_certificate(
     session: AsyncSession, cert_uuid: uuid.UUID, revoked_by: uuid.UUID, reason: str,
+    institute_id: uuid.UUID = None,
 ) -> Certificate:
     """Revoke an issued certificate."""
-    result = await session.execute(
-        select(Certificate).where(Certificate.id == cert_uuid, Certificate.deleted_at.is_(None))
-    )
+    query = select(Certificate).where(Certificate.id == cert_uuid, Certificate.deleted_at.is_(None))
+    if institute_id:
+        query = query.where(Certificate.institute_id == institute_id)
+    result = await session.execute(query)
     cert = result.scalar_one_or_none()
     if not cert:
         raise ValueError("Certificate not found")
@@ -555,15 +572,18 @@ async def revoke_certificate(
     return cert
 
 
-async def get_certificate(session: AsyncSession, cert_uuid: uuid.UUID) -> dict | None:
+async def get_certificate(session: AsyncSession, cert_uuid: uuid.UUID, institute_id: uuid.UUID = None) -> dict | None:
     """Get certificate with joined names."""
-    result = await session.execute(
+    query = (
         select(Certificate, User.name, User.email, Batch.name, Course.title)
         .join(User, Certificate.student_id == User.id)
         .join(Batch, Certificate.batch_id == Batch.id)
         .join(Course, Certificate.course_id == Course.id)
         .where(Certificate.id == cert_uuid, Certificate.deleted_at.is_(None))
     )
+    if institute_id:
+        query = query.where(Certificate.institute_id == institute_id)
+    result = await session.execute(query)
     row = result.one_or_none()
     if not row:
         return None
@@ -593,15 +613,18 @@ async def get_certificate(session: AsyncSession, cert_uuid: uuid.UUID) -> dict |
     }
 
 
-async def get_certificate_by_verification_code(session: AsyncSession, code: str) -> dict | None:
+async def get_certificate_by_verification_code(session: AsyncSession, code: str, institute_id: uuid.UUID = None) -> dict | None:
     """Public lookup by verification code."""
-    result = await session.execute(
+    query = (
         select(Certificate, User.name, Batch.name, Course.title)
         .join(User, Certificate.student_id == User.id)
         .join(Batch, Certificate.batch_id == Batch.id)
         .join(Course, Certificate.course_id == Course.id)
         .where(Certificate.verification_code == code, Certificate.deleted_at.is_(None))
     )
+    if institute_id:
+        query = query.where(Certificate.institute_id == institute_id)
+    result = await session.execute(query)
     row = result.one_or_none()
     if not row:
         return None
@@ -621,12 +644,13 @@ async def get_certificate_by_verification_code(session: AsyncSession, code: str)
 
 async def list_eligible_students(
     session: AsyncSession, batch_id: uuid.UUID, course_id: uuid.UUID, page: int, per_page: int,
+    institute_id: uuid.UUID = None,
 ) -> tuple[list[dict], int]:
     """Students enrolled in batch who meet threshold and don't have a cert yet.
 
     Optimized: 4 queries total instead of 2+ per student.
     """
-    threshold = await get_completion_threshold(session)
+    threshold = await get_completion_threshold(session, institute_id=institute_id)
 
     # Query 1: Get enrolled students with user info (1 JOIN query)
     enrolled_q = (
@@ -730,7 +754,7 @@ async def list_certificates(
         .join(User, Certificate.student_id == User.id)
         .join(Batch, Certificate.batch_id == Batch.id)
         .join(Course, Certificate.course_id == Course.id)
-        .where(Certificate.deleted_at.is_(None))
+        .where(Certificate.deleted_at.is_(None), Certificate.institute_id == current_user.institute_id)
     )
 
     # Role scoping
@@ -785,11 +809,12 @@ async def list_certificates(
     return certs, total
 
 
-async def get_download_url(session: AsyncSession, cert_uuid: uuid.UUID) -> str | None:
+async def get_download_url(session: AsyncSession, cert_uuid: uuid.UUID, institute_id: uuid.UUID = None) -> str | None:
     """Get a presigned S3 download URL for the certificate PDF."""
-    result = await session.execute(
-        select(Certificate).where(Certificate.id == cert_uuid, Certificate.deleted_at.is_(None))
-    )
+    query = select(Certificate).where(Certificate.id == cert_uuid, Certificate.deleted_at.is_(None))
+    if institute_id:
+        query = query.where(Certificate.institute_id == institute_id)
+    result = await session.execute(query)
     cert = result.scalar_one_or_none()
     if not cert or not cert.pdf_path:
         return None

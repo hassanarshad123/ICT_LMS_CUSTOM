@@ -17,9 +17,14 @@ async def list_jobs(
     per_page: int = 20,
     job_type: Optional[str] = None,
     search: Optional[str] = None,
+    institute_id: Optional[uuid.UUID] = None,
 ) -> tuple[list[dict], int]:
     query = select(Job).where(Job.deleted_at.is_(None))
     count_query = select(func.count()).select_from(Job).where(Job.deleted_at.is_(None))
+
+    if institute_id:
+        query = query.where(Job.institute_id == institute_id)
+        count_query = count_query.where(Job.institute_id == institute_id)
 
     if job_type:
         db_type = to_db(job_type)
@@ -61,10 +66,13 @@ async def list_jobs(
     ], total
 
 
-async def get_job(session: AsyncSession, job_id: uuid.UUID) -> dict | None:
-    result = await session.execute(
-        select(Job).where(Job.id == job_id, Job.deleted_at.is_(None))
-    )
+async def get_job(
+    session: AsyncSession, job_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None
+) -> dict | None:
+    query = select(Job).where(Job.id == job_id, Job.deleted_at.is_(None))
+    if institute_id:
+        query = query.where(Job.institute_id == institute_id)
+    result = await session.execute(query)
     j = result.scalar_one_or_none()
     if not j:
         return None
@@ -84,11 +92,14 @@ async def get_job(session: AsyncSession, job_id: uuid.UUID) -> dict | None:
     }
 
 
-async def create_job(session: AsyncSession, posted_by: uuid.UUID, **fields) -> Job:
+async def create_job(
+    session: AsyncSession, posted_by: uuid.UUID, institute_id: Optional[uuid.UUID] = None, **fields
+) -> Job:
     job_type = fields.pop("job_type")
     job = Job(
         job_type=JobType(to_db(job_type)),
         posted_by=posted_by,
+        institute_id=institute_id,
         **fields,
     )
     session.add(job)
@@ -97,10 +108,13 @@ async def create_job(session: AsyncSession, posted_by: uuid.UUID, **fields) -> J
     return job
 
 
-async def update_job(session: AsyncSession, job_id: uuid.UUID, **fields) -> Job:
-    result = await session.execute(
-        select(Job).where(Job.id == job_id, Job.deleted_at.is_(None))
-    )
+async def update_job(
+    session: AsyncSession, job_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None, **fields
+) -> Job:
+    query = select(Job).where(Job.id == job_id, Job.deleted_at.is_(None))
+    if institute_id:
+        query = query.where(Job.institute_id == institute_id)
+    result = await session.execute(query)
     job = result.scalar_one_or_none()
     if not job:
         raise ValueError("Job not found")
@@ -118,10 +132,13 @@ async def update_job(session: AsyncSession, job_id: uuid.UUID, **fields) -> Job:
     return job
 
 
-async def soft_delete_job(session: AsyncSession, job_id: uuid.UUID) -> None:
-    result = await session.execute(
-        select(Job).where(Job.id == job_id, Job.deleted_at.is_(None))
-    )
+async def soft_delete_job(
+    session: AsyncSession, job_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None
+) -> None:
+    query = select(Job).where(Job.id == job_id, Job.deleted_at.is_(None))
+    if institute_id:
+        query = query.where(Job.institute_id == institute_id)
+    result = await session.execute(query)
     job = result.scalar_one_or_none()
     if not job:
         raise ValueError("Job not found")
@@ -149,6 +166,7 @@ async def apply_to_job(
     student_id: uuid.UUID,
     resume_key: Optional[str] = None,
     cover_letter: Optional[str] = None,
+    institute_id: Optional[uuid.UUID] = None,
 ) -> JobApplication:
     # Soft-delete previous application if exists
     result = await session.execute(
@@ -168,6 +186,7 @@ async def apply_to_job(
         student_id=student_id,
         resume_url=resume_key,
         cover_letter=cover_letter,
+        institute_id=institute_id,
     )
     session.add(app)
     await session.commit()
@@ -176,16 +195,20 @@ async def apply_to_job(
 
 
 async def list_applications(
-    session: AsyncSession, job_id: uuid.UUID
+    session: AsyncSession, job_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None
 ) -> list[dict]:
-    result = await session.execute(
+    query = (
         select(JobApplication, User)
         .join(User, JobApplication.student_id == User.id)
         .where(
             JobApplication.job_id == job_id,
             JobApplication.deleted_at.is_(None),
         )
-        .order_by(JobApplication.created_at.desc())
+    )
+    if institute_id:
+        query = query.where(JobApplication.institute_id == institute_id)
+    result = await session.execute(
+        query.order_by(JobApplication.created_at.desc())
     )
     rows = result.all()
     return [
@@ -229,16 +252,20 @@ async def update_application_status(
 
 
 async def get_my_applications(
-    session: AsyncSession, student_id: uuid.UUID
+    session: AsyncSession, student_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None
 ) -> list[dict]:
-    result = await session.execute(
+    query = (
         select(JobApplication, Job)
         .join(Job, JobApplication.job_id == Job.id)
         .where(
             JobApplication.student_id == student_id,
             JobApplication.deleted_at.is_(None),
         )
-        .order_by(JobApplication.created_at.desc())
+    )
+    if institute_id:
+        query = query.where(JobApplication.institute_id == institute_id)
+    result = await session.execute(
+        query.order_by(JobApplication.created_at.desc())
     )
     rows = result.all()
     return [

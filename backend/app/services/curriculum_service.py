@@ -9,9 +9,9 @@ from app.models.course import CurriculumModule
 
 
 async def list_modules(
-    session: AsyncSession, course_id: uuid.UUID
+    session: AsyncSession, course_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None
 ) -> list[CurriculumModule]:
-    result = await session.execute(
+    query = (
         select(CurriculumModule)
         .where(
             CurriculumModule.course_id == course_id,
@@ -19,6 +19,9 @@ async def list_modules(
         )
         .order_by(CurriculumModule.sequence_order)
     )
+    if institute_id is not None:
+        query = query.where(CurriculumModule.institute_id == institute_id)
+    result = await session.execute(query)
     return list(result.scalars().all())
 
 
@@ -29,6 +32,7 @@ async def create_module(
     description: Optional[str],
     topics: Optional[list[str]],
     created_by: uuid.UUID,
+    institute_id: Optional[uuid.UUID] = None,
 ) -> CurriculumModule:
     # Auto-assign sequence_order
     result = await session.execute(
@@ -46,6 +50,7 @@ async def create_module(
         topics=topics,
         sequence_order=max_order + 1,
         created_by=created_by,
+        institute_id=institute_id,
     )
     session.add(module)
     await session.commit()
@@ -53,12 +58,15 @@ async def create_module(
     return module
 
 
-async def update_module(session: AsyncSession, module_id: uuid.UUID, **fields) -> CurriculumModule:
-    result = await session.execute(
-        select(CurriculumModule).where(
-            CurriculumModule.id == module_id, CurriculumModule.deleted_at.is_(None)
-        )
+async def update_module(
+    session: AsyncSession, module_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None, **fields
+) -> CurriculumModule:
+    query = select(CurriculumModule).where(
+        CurriculumModule.id == module_id, CurriculumModule.deleted_at.is_(None)
     )
+    if institute_id is not None:
+        query = query.where(CurriculumModule.institute_id == institute_id)
+    result = await session.execute(query)
     module = result.scalar_one_or_none()
     if not module:
         raise ValueError("Module not found")
@@ -74,12 +82,15 @@ async def update_module(session: AsyncSession, module_id: uuid.UUID, **fields) -
     return module
 
 
-async def soft_delete_module(session: AsyncSession, module_id: uuid.UUID) -> None:
-    result = await session.execute(
-        select(CurriculumModule).where(
-            CurriculumModule.id == module_id, CurriculumModule.deleted_at.is_(None)
-        )
+async def soft_delete_module(
+    session: AsyncSession, module_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None
+) -> None:
+    query = select(CurriculumModule).where(
+        CurriculumModule.id == module_id, CurriculumModule.deleted_at.is_(None)
     )
+    if institute_id is not None:
+        query = query.where(CurriculumModule.institute_id == institute_id)
+    result = await session.execute(query)
     module = result.scalar_one_or_none()
     if not module:
         raise ValueError("Module not found")
@@ -89,12 +100,16 @@ async def soft_delete_module(session: AsyncSession, module_id: uuid.UUID) -> Non
     await session.commit()
 
 
-async def reorder_module(session: AsyncSession, module_id: uuid.UUID, new_order: int) -> CurriculumModule:
-    result = await session.execute(
-        select(CurriculumModule).where(
-            CurriculumModule.id == module_id, CurriculumModule.deleted_at.is_(None)
-        )
+async def reorder_module(
+    session: AsyncSession, module_id: uuid.UUID, new_order: int,
+    institute_id: Optional[uuid.UUID] = None,
+) -> CurriculumModule:
+    query = select(CurriculumModule).where(
+        CurriculumModule.id == module_id, CurriculumModule.deleted_at.is_(None)
     )
+    if institute_id is not None:
+        query = query.where(CurriculumModule.institute_id == institute_id)
+    result = await session.execute(query)
     module = result.scalar_one_or_none()
     if not module:
         raise ValueError("Module not found")

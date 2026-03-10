@@ -1,4 +1,5 @@
 import { snakeToCamel, camelToSnake } from '@/lib/utils/case-convert';
+import { getInstituteSlug } from '@/lib/utils/subdomain';
 
 const API_BASE = '/api/v1';
 
@@ -81,6 +82,10 @@ export async function apiClient<T = any>(
   const headers: Record<string, string> = {
     ...(customHeaders as Record<string, string>),
   };
+
+  // Add institute slug header for tenant routing
+  const slug = getInstituteSlug();
+  if (slug) headers['X-Institute-Slug'] = slug;
 
   // Convert request body from camelCase to snake_case (unless skipped or FormData)
   let processedBody = rest.body;

@@ -20,6 +20,10 @@ export default function UserLayout({ children }: { children: React.ReactNode }) 
     }
     try {
       const user = JSON.parse(stored);
+      if (user.role === 'super_admin') {
+        router.push('/sa');
+        return;
+      }
       if (user.id !== userId) {
         router.push('/login');
         return;

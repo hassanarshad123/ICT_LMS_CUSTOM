@@ -8,7 +8,7 @@ from slowapi.errors import RateLimitExceeded
 from app.utils.rate_limit import limiter
 
 from app.config import get_settings
-from app.routers import auth, users, batches, courses, curriculum, lectures, materials, jobs, announcements, zoom, admin, certificates, monitoring, branding, notifications, search
+from app.routers import auth, users, batches, courses, curriculum, lectures, materials, jobs, announcements, zoom, admin, certificates, monitoring, branding, notifications, search, super_admin
 from app.websockets.routes import router as ws_router
 from app.middleware.error_tracking import ErrorTrackingMiddleware
 
@@ -27,9 +27,9 @@ if settings.SENTRY_DSN:
         environment=settings.APP_ENV,
         release="ict-lms@1.0.0",
         send_default_pii=True,
-        traces_sample_rate=0.3,          # 30% of requests get performance tracing
+        traces_sample_rate=0.05,         # 5% of requests get performance tracing
         profiles_sample_rate=0.1,         # 10% of traced requests get profiled
-        enable_db_query_source=True,      # show which code triggered DB queries
+        enable_db_query_source=False,     # disabled in production for performance
         include_local_variables=True,     # capture local vars in stack traces
         max_request_body_size="medium",   # capture request bodies up to 10KB
         integrations=[
@@ -45,13 +45,14 @@ async def lifespan(app: FastAPI):
     # Startup — start scheduler
     try:
         from apscheduler.schedulers.asyncio import AsyncIOScheduler
-        from app.scheduler.jobs import cleanup_expired_sessions, send_zoom_reminders, retry_failed_recordings, cleanup_stale_uploads
+        from app.scheduler.jobs import cleanup_expired_sessions, send_zoom_reminders, retry_failed_recordings, cleanup_stale_uploads, auto_suspend_expired_institutes
 
         scheduler = AsyncIOScheduler()
         scheduler.add_job(cleanup_expired_sessions, "interval", hours=1, id="cleanup_sessions")
         scheduler.add_job(send_zoom_reminders, "interval", minutes=10, id="zoom_reminders")
         scheduler.add_job(retry_failed_recordings, "interval", minutes=30, id="retry_recordings")
         scheduler.add_job(cleanup_stale_uploads, "interval", hours=24, id="cleanup_stale_uploads")
+        scheduler.add_job(auto_suspend_expired_institutes, "interval", hours=24, id="auto_suspend_institutes")
         scheduler.start()
         app.state.scheduler = scheduler
     except Exception as e:
@@ -106,6 +107,7 @@ app.include_router(monitoring.router, prefix="/api/v1/monitoring", tags=["Monito
 app.include_router(branding.router, prefix="/api/v1/branding", tags=["Branding"])
 app.include_router(notifications.router, prefix="/api/v1/notifications", tags=["Notifications"])
 app.include_router(search.router, prefix="/api/v1/search", tags=["Search"])
+app.include_router(super_admin.router, prefix="/api/v1/super-admin", tags=["Super Admin"])
 
 # WebSocket routes
 app.include_router(ws_router)

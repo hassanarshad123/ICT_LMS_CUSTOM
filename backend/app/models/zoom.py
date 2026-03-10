@@ -3,9 +3,9 @@ from datetime import date, time, datetime
 from typing import Optional
 
 from sqlmodel import SQLModel, Field, Column
-from sqlalchemy import Integer, BigInteger, Boolean, UniqueConstraint, Index
+from sqlalchemy import Integer, BigInteger, Boolean, UniqueConstraint, Index, ForeignKey
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy.dialects.postgresql import TIMESTAMP
+from sqlalchemy.dialects.postgresql import TIMESTAMP, UUID as PG_UUID
 
 from app.models.enums import ZoomClassStatus, RecordingStatus
 
@@ -27,6 +27,10 @@ class ZoomAccount(SQLModel, table=True):
     client_id: str = Field(nullable=False)
     client_secret: str = Field(nullable=False)  # Fernet encrypted
     is_default: bool = Field(default=False)
+    institute_id: Optional[uuid.UUID] = Field(
+        default=None,
+        sa_column=Column(PG_UUID(as_uuid=True), ForeignKey("institutes.id"), nullable=True),
+    )
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
@@ -65,6 +69,10 @@ class ZoomClass(SQLModel, table=True):
         )
     )
     reminder_sent: bool = Field(default=False)
+    institute_id: Optional[uuid.UUID] = Field(
+        default=None,
+        sa_column=Column(PG_UUID(as_uuid=True), ForeignKey("institutes.id"), nullable=True),
+    )
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
@@ -95,6 +103,10 @@ class ClassRecording(SQLModel, table=True):
             server_default="processing",
         )
     )
+    institute_id: Optional[uuid.UUID] = Field(
+        default=None,
+        sa_column=Column(PG_UUID(as_uuid=True), ForeignKey("institutes.id"), nullable=True),
+    )
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
@@ -122,6 +134,10 @@ class ZoomAttendance(SQLModel, table=True):
         default=None, sa_column=Column(TIMESTAMP(timezone=True), nullable=True),
     )
     duration_minutes: Optional[int] = Field(default=None)
+    institute_id: Optional[uuid.UUID] = Field(
+        default=None,
+        sa_column=Column(PG_UUID(as_uuid=True), ForeignKey("institutes.id"), nullable=True),
+    )
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
