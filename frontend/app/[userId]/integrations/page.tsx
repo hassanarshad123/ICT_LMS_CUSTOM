@@ -19,8 +19,10 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import {
   Key, Webhook, Plus, Copy, Trash2, TestTube, ChevronDown, ChevronUp,
-  Check, X, Clock, Send, Eye,
+  Check, X, Clock, Send, Eye, BookOpen,
 } from 'lucide-react';
+import Link from 'next/link';
+import { useAuth } from '@/lib/auth-context';
 import {
   createApiKey, listApiKeys, revokeApiKey,
   type ApiKeyOut, type ApiKeyCreatedOut,
@@ -583,14 +585,25 @@ function WebhooksTab() {
 // ── Main Page ────────────────────────────────────────────────
 
 export default function IntegrationsPage() {
+  const { id } = useAuth();
+
   return (
     <RoleGuard allowed={['admin']}>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-primary">Integrations</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Manage API keys and webhooks for external system integrations.
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-primary">Integrations</h1>
+            <p className="text-sm text-gray-500 mt-1">
+              Manage API keys and webhooks for external system integrations.
+            </p>
+          </div>
+          <Link
+            href={`/${id}/integrations/api-docs`}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary bg-primary/10 rounded-xl hover:bg-primary/20 transition-colors"
+          >
+            <BookOpen size={16} />
+            View API Documentation
+          </Link>
         </div>
 
         <Tabs defaultValue="api-keys" className="space-y-4">
