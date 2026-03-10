@@ -135,7 +135,7 @@ async def set_default_account(
     if not existing or (current_user.institute_id and existing.institute_id != current_user.institute_id):
         raise HTTPException(status_code=404, detail="Zoom account not found")
     try:
-        account = await zoom_service.set_default_account(session, account_id)
+        account = await zoom_service.set_default_account(session, account_id, institute_id=current_user.institute_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     return ZoomAccountOut(
@@ -349,7 +349,7 @@ async def get_attendance(
     current_user: AllRoles,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    items = await zoom_service.get_attendance(session, class_id)
+    items = await zoom_service.get_attendance(session, class_id, institute_id=current_user.institute_id)
     return [AttendanceOut(**item) for item in items]
 
 
@@ -359,7 +359,7 @@ async def get_recordings(
     current_user: AllRoles,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    recordings = await zoom_service.get_recordings(session, class_id)
+    recordings = await zoom_service.get_recordings(session, class_id, institute_id=current_user.institute_id)
     return [
         RecordingOut(
             id=r.id, zoom_class_id=r.zoom_class_id,
@@ -410,7 +410,7 @@ async def get_recording_signed_url(
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
-        result = await zoom_service.get_recording_signed_url(session, recording_id)
+        result = await zoom_service.get_recording_signed_url(session, recording_id, institute_id=current_user.institute_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     return RecordingSignedUrlOut(**result)

@@ -66,10 +66,13 @@ async def list_lectures(
     ], total
 
 
-async def get_lecture(session: AsyncSession, lecture_id: uuid.UUID) -> Lecture | None:
-    result = await session.execute(
-        select(Lecture).where(Lecture.id == lecture_id, Lecture.deleted_at.is_(None))
-    )
+async def get_lecture(
+    session: AsyncSession, lecture_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None
+) -> Lecture | None:
+    filters = [Lecture.id == lecture_id, Lecture.deleted_at.is_(None)]
+    if institute_id:
+        filters.append(Lecture.institute_id == institute_id)
+    result = await session.execute(select(Lecture).where(*filters))
     return result.scalar_one_or_none()
 
 
@@ -176,7 +179,13 @@ async def upsert_progress(
     lecture_id: uuid.UUID,
     watch_percentage: int,
     resume_position_seconds: int = 0,
+    institute_id: Optional[uuid.UUID] = None,
 ) -> LectureProgress:
+    # Validate lecture belongs to the same institute
+    if institute_id:
+        lec = await get_lecture(session, lecture_id, institute_id=institute_id)
+        if not lec:
+            raise ValueError("Lecture not found")
     result = await session.execute(
         select(LectureProgress).where(
             LectureProgress.student_id == student_id,
@@ -244,8 +253,14 @@ async def update_lecture_status(
 
 
 async def get_progress(
-    session: AsyncSession, student_id: uuid.UUID, lecture_id: uuid.UUID
+    session: AsyncSession, student_id: uuid.UUID, lecture_id: uuid.UUID,
+    institute_id: Optional[uuid.UUID] = None,
 ) -> LectureProgress | None:
+    # Validate lecture belongs to the same institute
+    if institute_id:
+        lec = await get_lecture(session, lecture_id, institute_id=institute_id)
+        if not lec:
+            raise ValueError("Lecture not found")
     result = await session.execute(
         select(LectureProgress).where(
             LectureProgress.student_id == student_id,

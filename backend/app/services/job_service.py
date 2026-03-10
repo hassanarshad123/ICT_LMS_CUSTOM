@@ -263,7 +263,7 @@ async def get_my_applications(
         )
     )
     if institute_id:
-        query = query.where(JobApplication.institute_id == institute_id)
+        query = query.where(JobApplication.institute_id == institute_id, Job.institute_id == institute_id)
     result = await session.execute(
         query.order_by(JobApplication.created_at.desc())
     )

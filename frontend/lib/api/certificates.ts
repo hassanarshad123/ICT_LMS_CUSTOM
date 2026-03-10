@@ -162,7 +162,11 @@ export async function revokeCertificate(certUuid: string, reason: string): Promi
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
 
 export async function verifyCertificate(code: string): Promise<CertificateVerifyOut> {
-  const res = await fetch(`${API_BASE}/certificates/verify/${code}`);
+  const { getInstituteSlug } = await import('@/lib/utils/subdomain');
+  const slug = getInstituteSlug();
+  const headers: Record<string, string> = {};
+  if (slug) headers['X-Institute-Slug'] = slug;
+  const res = await fetch(`${API_BASE}/certificates/verify/${code}`, { headers });
   if (!res.ok) {
     throw new Error('Verification failed');
   }

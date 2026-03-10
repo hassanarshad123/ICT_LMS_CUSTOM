@@ -16,10 +16,13 @@ from app.utils.formatters import format_duration
 logger = logging.getLogger("ict_lms.zoom")
 
 
-async def list_accounts(session: AsyncSession) -> list[ZoomAccount]:
-    result = await session.execute(
-        select(ZoomAccount).where(ZoomAccount.deleted_at.is_(None))
-    )
+async def list_accounts(
+    session: AsyncSession, institute_id: Optional[uuid.UUID] = None
+) -> list[ZoomAccount]:
+    query = select(ZoomAccount).where(ZoomAccount.deleted_at.is_(None))
+    if institute_id:
+        query = query.where(ZoomAccount.institute_id == institute_id)
+    result = await session.execute(query)
     return list(result.scalars().all())
 
 
@@ -32,8 +35,10 @@ async def get_account(session: AsyncSession, account_id: uuid.UUID) -> ZoomAccou
     return result.scalar_one_or_none()
 
 
-async def create_account(session: AsyncSession, **fields) -> ZoomAccount:
-    account = ZoomAccount(**fields)
+async def create_account(
+    session: AsyncSession, institute_id: Optional[uuid.UUID] = None, **fields
+) -> ZoomAccount:
+    account = ZoomAccount(**fields, institute_id=institute_id)
     session.add(account)
     await session.commit()
     await session.refresh(account)
@@ -87,10 +92,15 @@ async def soft_delete_account(session: AsyncSession, account_id: uuid.UUID) -> N
     await session.commit()
 
 
-async def set_default_account(session: AsyncSession, account_id: uuid.UUID) -> ZoomAccount:
-    # Unset all defaults
+async def set_default_account(
+    session: AsyncSession, account_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None
+) -> ZoomAccount:
+    # Unset all defaults (scoped to institute)
+    filters = [ZoomAccount.deleted_at.is_(None), ZoomAccount.is_default.is_(True)]
+    if institute_id:
+        filters.append(ZoomAccount.institute_id == institute_id)
     result = await session.execute(
-        select(ZoomAccount).where(ZoomAccount.deleted_at.is_(None), ZoomAccount.is_default.is_(True))
+        select(ZoomAccount).where(*filters)
     )
     for acc in result.scalars().all():
         acc.is_default = False
@@ -117,12 +127,16 @@ async def list_classes(
     teacher_id: Optional[uuid.UUID] = None,
     page: int = 1,
     per_page: int = 20,
+    institute_id: Optional[uuid.UUID] = None,
 ) -> tuple[list[dict], int]:
     from app.models.enums import UserRole
 
     Teacher = aliased(User)
 
     base_filters = [ZoomClass.deleted_at.is_(None)]
+
+    if institute_id:
+        base_filters.append(ZoomClass.institute_id == institute_id)
 
     # Role scoping
     if current_user.role == UserRole.teacher:
@@ -199,6 +213,7 @@ async def create_class(
     zoom_meeting_id: Optional[str] = None,
     zoom_meeting_url: Optional[str] = None,
     zoom_start_url: Optional[str] = None,
+    institute_id: Optional[uuid.UUID] = None,
 ) -> ZoomClass:
     # Parse time
     parts = scheduled_time.split(":")
@@ -215,6 +230,7 @@ async def create_class(
         zoom_meeting_id=zoom_meeting_id,
         zoom_meeting_url=zoom_meeting_url,
         zoom_start_url=zoom_start_url,
+        institute_id=institute_id,
     )
     session.add(zc)
     await session.commit()
@@ -272,11 +288,16 @@ async def soft_delete_class(session: AsyncSession, class_id: uuid.UUID) -> None:
     await session.commit()
 
 
-async def get_attendance(session: AsyncSession, class_id: uuid.UUID) -> list[dict]:
+async def get_attendance(
+    session: AsyncSession, class_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None
+) -> list[dict]:
+    filters = [ZoomAttendance.zoom_class_id == class_id]
+    if institute_id:
+        filters.append(ZoomAttendance.institute_id == institute_id)
     result = await session.execute(
         select(ZoomAttendance, User)
         .join(User, ZoomAttendance.student_id == User.id)
-        .where(ZoomAttendance.zoom_class_id == class_id)
+        .where(*filters)
     )
     rows = result.all()
     return [
@@ -294,9 +315,14 @@ async def get_attendance(session: AsyncSession, class_id: uuid.UUID) -> list[dic
     ]
 
 
-async def get_recordings(session: AsyncSession, class_id: uuid.UUID) -> list[ClassRecording]:
+async def get_recordings(
+    session: AsyncSession, class_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None
+) -> list[ClassRecording]:
+    filters = [ClassRecording.zoom_class_id == class_id]
+    if institute_id:
+        filters.append(ClassRecording.institute_id == institute_id)
     result = await session.execute(
-        select(ClassRecording).where(ClassRecording.zoom_class_id == class_id)
+        select(ClassRecording).where(*filters)
     )
     return list(result.scalars().all())
 
@@ -348,12 +374,16 @@ async def list_all_recordings(
     current_user: User,
     page: int = 1,
     per_page: int = 20,
+    institute_id: Optional[uuid.UUID] = None,
 ) -> tuple[list[dict], int]:
     from app.models.enums import UserRole
 
     Teacher = aliased(User)
 
     base_filters = [ZoomClass.deleted_at.is_(None)]
+
+    if institute_id:
+        base_filters.append(ZoomClass.institute_id == institute_id)
 
     # Role scoping (same as list_classes)
     if current_user.role == UserRole.teacher:
@@ -428,10 +458,13 @@ async def list_all_recordings(
 
 
 async def get_recording_signed_url(
-    session: AsyncSession, recording_id: uuid.UUID
+    session: AsyncSession, recording_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None
 ) -> dict:
+    filters = [ClassRecording.id == recording_id]
+    if institute_id:
+        filters.append(ClassRecording.institute_id == institute_id)
     result = await session.execute(
-        select(ClassRecording).where(ClassRecording.id == recording_id)
+        select(ClassRecording).where(*filters)
     )
     rec = result.scalar_one_or_none()
     if not rec:

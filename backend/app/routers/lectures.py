@@ -387,11 +387,15 @@ async def update_progress(
     current_user: Student,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    progress = await lecture_service.upsert_progress(
-        session, student_id=current_user.id, lecture_id=lecture_id,
-        watch_percentage=body.watch_percentage,
-        resume_position_seconds=body.resume_position_seconds,
-    )
+    try:
+        progress = await lecture_service.upsert_progress(
+            session, student_id=current_user.id, lecture_id=lecture_id,
+            watch_percentage=body.watch_percentage,
+            resume_position_seconds=body.resume_position_seconds,
+            institute_id=current_user.institute_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     return ProgressOut(
         lecture_id=progress.lecture_id,
         watch_percentage=progress.watch_percentage,
@@ -406,7 +410,12 @@ async def get_progress(
     current_user: Student,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    progress = await lecture_service.get_progress(session, current_user.id, lecture_id)
+    try:
+        progress = await lecture_service.get_progress(
+            session, current_user.id, lecture_id, institute_id=current_user.institute_id
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     if not progress:
         return ProgressOut(
             lecture_id=lecture_id, watch_percentage=0,

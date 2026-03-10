@@ -64,7 +64,15 @@ async def class_status_ws(websocket: WebSocket, batch_id: uuid.UUID):
 
 @router.websocket("/ws/announcements/{user_id}")
 async def announcements_ws(websocket: WebSocket, user_id: uuid.UUID):
-    # Already user-scoped — no institute check needed
+    # Verify the connecting user matches the user_id parameter
+    user = await _get_user_from_token(websocket)
+    if user is None:
+        await websocket.close(code=4001, reason="Authentication failed")
+        return
+    if user.id != user_id:
+        await websocket.close(code=4003, reason="Cannot subscribe to another user's announcements")
+        return
+
     channel = f"announcements:{user_id}"
     connected = await manager.connect(websocket, channel)
     if not connected:
@@ -90,7 +98,7 @@ async def session_ws(websocket: WebSocket, session_id: uuid.UUID):
             select(UserSession).where(UserSession.id == session_id)
         )
         user_session = result.scalar_one_or_none()
-    if not user_session or user_session.institute_id != user.institute_id:
+    if not user_session or (user.institute_id is not None and user_session.institute_id != user.institute_id):
         await websocket.close(code=4003, reason="Session does not belong to your institute")
         return
 

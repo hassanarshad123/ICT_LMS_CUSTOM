@@ -106,12 +106,13 @@ async def create_material(
     return material
 
 
-async def get_material(session: AsyncSession, material_id: uuid.UUID) -> BatchMaterial | None:
-    result = await session.execute(
-        select(BatchMaterial).where(
-            BatchMaterial.id == material_id, BatchMaterial.deleted_at.is_(None)
-        )
-    )
+async def get_material(
+    session: AsyncSession, material_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None
+) -> BatchMaterial | None:
+    filters = [BatchMaterial.id == material_id, BatchMaterial.deleted_at.is_(None)]
+    if institute_id:
+        filters.append(BatchMaterial.institute_id == institute_id)
+    result = await session.execute(select(BatchMaterial).where(*filters))
     return result.scalar_one_or_none()
 
 

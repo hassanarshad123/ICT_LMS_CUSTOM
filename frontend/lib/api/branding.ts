@@ -77,7 +77,11 @@ export async function uploadLogo(file: File): Promise<{ logoUrl: string }> {
 }
 
 export async function getPresetThemes(): Promise<PresetThemes> {
-  const res = await fetch(`${API_BASE}/branding/preset-themes`);
+  const { getInstituteSlug } = await import('@/lib/utils/subdomain');
+  const slug = getInstituteSlug();
+  const headers: Record<string, string> = {};
+  if (slug) headers['X-Institute-Slug'] = slug;
+  const res = await fetch(`${API_BASE}/branding/preset-themes`, { headers });
   if (!res.ok) throw new Error('Failed to fetch preset themes');
   return res.json();
 }
@@ -108,7 +112,11 @@ export async function getCertificateDesign(): Promise<CertificateDesign> {
   const timeout = setTimeout(() => controller.abort(), 5000);
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}/branding/certificate-design`, { signal: controller.signal });
+    const { getInstituteSlug } = await import('@/lib/utils/subdomain');
+    const certSlug = getInstituteSlug();
+    const certHeaders: Record<string, string> = {};
+    if (certSlug) certHeaders['X-Institute-Slug'] = certSlug;
+    res = await fetch(`${API_BASE}/branding/certificate-design`, { signal: controller.signal, headers: certHeaders });
   } finally {
     clearTimeout(timeout);
   }

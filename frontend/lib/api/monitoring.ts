@@ -82,9 +82,13 @@ export async function reportClientError(data: {
 }): Promise<void> {
   // Use fetch directly to avoid triggering error reporting loops
   try {
+    const { getInstituteSlug } = await import('@/lib/utils/subdomain');
+    const slug = getInstituteSlug();
+    const hdrs: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (slug) hdrs['X-Institute-Slug'] = slug;
     await fetch('/api/v1/monitoring/client-errors', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: hdrs,
       body: JSON.stringify(data),
     });
   } catch {

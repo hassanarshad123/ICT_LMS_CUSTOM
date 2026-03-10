@@ -39,9 +39,12 @@ async function refreshAccessToken(): Promise<string | null> {
     if (!refreshToken) return null;
 
     try {
+      const refreshHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      const slug = getInstituteSlug();
+      if (slug) refreshHeaders['X-Institute-Slug'] = slug;
       const res = await fetch(`${API_BASE}/auth/refresh`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: refreshHeaders,
         body: JSON.stringify({ refresh_token: refreshToken }),
       });
       if (!res.ok) return null;

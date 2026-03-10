@@ -14,11 +14,14 @@ export function getInstituteSlug(): string | null {
     return parts[0];
   }
 
-  // Bare domain (e.g., "ict.zensbot.site") — 3 parts, no subdomain
-  if (parts.length <= 3) return null;
+  // Skip www prefix
+  const startIndex = parts[0] === 'www' ? 1 : 0;
+
+  // Bare domain (e.g., "ict.zensbot.site") — 3 parts after skipping www
+  if (parts.length - startIndex <= 3) return null;
 
   // Subdomain (e.g., "acme.ict.zensbot.site") — 4+ parts
-  return parts[0];
+  return parts[startIndex];
 }
 
 export function isSuperAdminDomain(): boolean {
