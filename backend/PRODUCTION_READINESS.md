@@ -1,7 +1,7 @@
 # ICT LMS — Production Readiness Report
 
 **Date:** 2026-03-08
-**Stack:** FastAPI + SQLModel + Neon PostgreSQL (async) · Next.js 13 App Router · 95+ endpoints · 20 DB tables · 33 frontend pages
+**Stack:** FastAPI + SQLModel + AWS RDS PostgreSQL (async) · Next.js 13 App Router · 95+ endpoints · 20 DB tables · 33 frontend pages
 
 ---
 
@@ -100,13 +100,13 @@ ZOOM_CLIENT_SECRET=your_secret
 ## 5. Remaining Risks / Pre-Production Checklist
 
 ### Infrastructure
-- [ ] Alembic migration generated (`alembic revision --autogenerate -m "initial"`) and applied to Neon DB
-- [ ] Neon DB connection string set in production `.env`
+- [ ] Alembic migration generated (`alembic revision --autogenerate -m "initial"`) and applied to RDS DB
+- [ ] RDS DB connection string set in production `.env`
 - [ ] EC2 instance sized appropriately (recommend t3.small minimum for FastAPI + async)
 
 ### Secrets + Credentials
 - [ ] `JWT_SECRET_KEY` — generate with `openssl rand -hex 32`
-- [ ] `DATABASE_URL` — Neon PostgreSQL async URL (`postgresql+asyncpg://...`)
+- [ ] `DATABASE_URL` — AWS RDS PostgreSQL async URL (`postgresql+asyncpg://...`)
 - [ ] `FRONTEND_URL` — set to production domain (used for CORS)
 - [ ] `ALLOWED_ORIGINS` — comma-separated if multiple origins needed
 - [ ] `BUNNY_API_KEY`, `BUNNY_LIBRARY_ID`, `BUNNY_CDN_HOSTNAME` — Bunny.net credentials
@@ -124,7 +124,7 @@ ZOOM_CLIENT_SECRET=your_secret
 ### Post-Launch
 - [ ] Set up Bunny.net video upload flow in `lecture_service.py` (endpoint skeleton exists at `POST /lectures/upload`)
 - [ ] Configure Zoom OAuth app with production webhook URL: `https://yourdomain.com/api/v1/zoom/webhook`
-- [ ] Enable Neon DB connection pooling (PgBouncer or Neon serverless driver)
+- [ ] Enable RDS connection pooling (RDS Proxy or PgBouncer)
 - [ ] Add health-check endpoint to load balancer config (`GET /api/health`)
 - [ ] Set up log aggregation (CloudWatch or similar)
 
