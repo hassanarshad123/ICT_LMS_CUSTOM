@@ -20,7 +20,7 @@ router = APIRouter()
 Admin = Annotated[User, Depends(require_roles("admin"))]
 
 
-@router.post("/", response_model=WebhookOut, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=WebhookOut, status_code=status.HTTP_201_CREATED)
 async def create_webhook(
     body: WebhookCreate,
     current_user: Admin,
@@ -42,7 +42,7 @@ async def create_webhook(
     return WebhookOut.model_validate(webhook)
 
 
-@router.get("/", response_model=list[WebhookOut])
+@router.get("", response_model=list[WebhookOut])
 async def list_webhooks(
     current_user: Admin,
     session: Annotated[AsyncSession, Depends(get_session)],

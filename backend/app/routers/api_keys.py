@@ -15,7 +15,7 @@ router = APIRouter()
 Admin = Annotated[User, Depends(require_roles("admin"))]
 
 
-@router.post("/", response_model=ApiKeyCreatedOut, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=ApiKeyCreatedOut, status_code=status.HTTP_201_CREATED)
 async def create_api_key(
     body: ApiKeyCreate,
     current_user: Admin,
@@ -38,7 +38,7 @@ async def create_api_key(
     return out
 
 
-@router.get("/", response_model=list[ApiKeyOut])
+@router.get("", response_model=list[ApiKeyOut])
 async def list_api_keys(
     current_user: Admin,
     session: Annotated[AsyncSession, Depends(get_session)],
