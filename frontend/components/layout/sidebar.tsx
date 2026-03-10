@@ -26,6 +26,7 @@ import {
   Settings,
   Palette,
   Megaphone,
+  Plug,
   LogOut,
   Menu,
   X,
@@ -53,6 +54,7 @@ const navConfig: Record<UserRole, NavItem[]> = {
     { label: 'Announcements', path: '/announcements', icon: 'megaphone' },
     { label: 'Monitoring', path: '/monitoring', icon: 'activity' },
     { label: 'Branding', path: '/branding', icon: 'palette' },
+    { label: 'Integrations', path: '/integrations', icon: 'plug' },
     { label: 'Settings', path: '/settings', icon: 'settings' },
   ],
   'course-creator': [
@@ -105,6 +107,7 @@ const iconMap: Record<string, React.ReactNode> = {
   award: <Award size={20} />,
   activity: <Activity size={20} />,
   palette: <Palette size={20} />,
+  plug: <Plug size={20} />,
   megaphone: <Megaphone size={20} />,
   settings: <Settings size={20} />,
 };
