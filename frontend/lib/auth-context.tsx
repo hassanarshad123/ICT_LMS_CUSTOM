@@ -9,6 +9,7 @@ import { initErrorReporter } from './utils/error-reporter';
 interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
+  isImpersonating: boolean;
   login: (email: string, password: string) => Promise<AuthUser>;
   logout: () => Promise<void>;
 }
@@ -25,9 +26,15 @@ function getInitialUser(): AuthUser | null {
   return null;
 }
 
+function getInitialImpersonating(): boolean {
+  if (typeof window === 'undefined') return false;
+  return localStorage.getItem('is_impersonating') === 'true';
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(getInitialUser);
   const [isLoading] = useState(false);
+  const [isImpersonating] = useState(getInitialImpersonating);
   const router = useRouter();
   const errorReporterInit = useRef(false);
 
@@ -49,6 +56,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    const impersonating = localStorage.getItem('is_impersonating') === 'true';
+
+    if (impersonating) {
+      // Impersonation logout: clear tokens, close tab
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('is_impersonating');
+      localStorage.removeItem('impersonator_id');
+      setUser(null);
+      window.close();
+      // Fallback if browser blocks window.close()
+      setTimeout(() => { window.location.href = '/sa/institutes'; }, 300);
+      return;
+    }
+
     const refreshToken = localStorage.getItem('refresh_token');
     if (refreshToken) {
       try {
@@ -63,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [router]);
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, isImpersonating, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
@@ -83,6 +106,7 @@ export function useAuth() {
       role: 'student' as UserRole,
       user: null as AuthUser | null,
       isLoading: true,
+      isImpersonating: false,
       login: async () => ({} as AuthUser),
       logout: async () => {},
     };
@@ -103,6 +127,7 @@ export function useAuth() {
     // New properties
     user: u,
     isLoading: ctx.isLoading,
+    isImpersonating: ctx.isImpersonating,
     login: ctx.login,
     logout: ctx.logout,
   };

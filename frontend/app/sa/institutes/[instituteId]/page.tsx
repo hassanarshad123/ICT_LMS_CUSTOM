@@ -3,11 +3,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Loader2, Edit2, Check, X } from 'lucide-react';
+import { ArrowLeft, Loader2, Edit2, Check, X, LogIn } from 'lucide-react';
 import {
   getInstitute, updateInstitute, suspendInstitute, activateInstitute,
   getInstituteUsers, getInstituteCourses, getInstituteBatches,
-  InstituteOut,
+  impersonateUser, InstituteOut,
 } from '@/lib/api/super-admin';
 import { toast } from 'sonner';
 
@@ -256,6 +256,7 @@ export default function InstituteDetailPage() {
                         <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500">Email</th>
                         <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500">Role</th>
                         <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500">Status</th>
+                        <th className="text-right py-2 px-3 text-xs font-semibold text-gray-500">Actions</th>
                       </>
                     )}
                     {tab === 'courses' && (
@@ -286,6 +287,26 @@ export default function InstituteDetailPage() {
                             <span className={`text-xs px-2 py-0.5 rounded-full ${item.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                               {item.status}
                             </span>
+                          </td>
+                          <td className="py-2 px-3 text-right">
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const res = await impersonateUser(item.id);
+                                  const host = `${res.instituteSlug}.ict.zensbot.site`;
+                                  const url = `https://${host}/impersonate-callback?token=${res.token}`;
+                                  window.open(url, '_blank');
+                                  toast.success(`Impersonating ${res.targetUserName}`);
+                                } catch (e: any) {
+                                  toast.error(e.message || 'Failed to impersonate');
+                                }
+                              }}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors"
+                              title="Impersonate this user"
+                            >
+                              <LogIn size={12} />
+                              Impersonate
+                            </button>
                           </td>
                         </>
                       )}

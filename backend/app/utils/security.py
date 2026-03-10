@@ -42,6 +42,18 @@ def create_refresh_token(user_id: uuid.UUID) -> tuple[str, str]:
     return token, token_id
 
 
+def create_impersonation_token(target_user_id: uuid.UUID, impersonator_id: uuid.UUID) -> str:
+    """Create a short-lived access token for SA impersonation. No refresh token."""
+    expire = datetime.now(timezone.utc) + timedelta(minutes=30)
+    payload = {
+        "sub": str(target_user_id),
+        "type": "access",
+        "imp": str(impersonator_id),
+        "exp": expire,
+    }
+    return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+
 def decode_token(token: str) -> dict | None:
     """Decode and validate a JWT. Returns payload dict or None if invalid."""
     try:

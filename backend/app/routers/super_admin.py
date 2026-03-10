@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Annotated
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, func
 
@@ -10,6 +10,7 @@ from app.database import get_session
 from app.middleware.auth import require_roles
 from app.models.user import User
 from app.models.institute import Institute, InstituteUsage, InstituteStatus, PlanTier
+from app.models.other import ActivityLog
 from app.models.enums import UserRole
 from app.schemas.super_admin import (
     InstituteCreate, InstituteUpdate, InstituteOut, AdminCreate, PlatformDashboard
@@ -19,6 +20,7 @@ from app.services.institute_service import (
     create_institute, create_admin_for_institute, get_platform_stats,
     recalculate_usage, get_or_create_usage,
 )
+from app.utils.security import create_impersonation_token
 
 router = APIRouter()
 
@@ -358,3 +360,44 @@ async def get_institute_batches(
         per_page=per_page,
         total_pages=(total + per_page - 1) // per_page,
     )
+
+
+@router.post("/impersonate/{user_id}")
+async def impersonate_user(
+    user_id: uuid.UUID,
+    request: Request,
+    sa: SA,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """Create a short-lived impersonation token for SA to act as a target user."""
+    target = await session.get(User, user_id)
+    if not target or target.deleted_at:
+        raise HTTPException(404, "User not found")
+    if target.role == UserRole.super_admin:
+        raise HTTPException(403, "Cannot impersonate another super admin")
+
+    institute = await session.get(Institute, target.institute_id)
+    if not institute:
+        raise HTTPException(404, "Institute not found")
+
+    token = create_impersonation_token(target.id, sa.id)
+
+    # Audit log
+    log = ActivityLog(
+        user_id=sa.id,
+        action="sa_impersonation_start",
+        entity_type="user",
+        entity_id=target.id,
+        details={"target_email": target.email, "institute_name": institute.name},
+        ip_address=request.client.host if request.client else None,
+    )
+    session.add(log)
+    await session.commit()
+
+    return {
+        "token": token,
+        "institute_slug": institute.slug,
+        "target_user_id": str(target.id),
+        "target_user_name": target.name,
+        "target_user_role": target.role.value,
+    }

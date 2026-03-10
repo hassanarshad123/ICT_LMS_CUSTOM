@@ -107,8 +107,19 @@ export async function apiClient<T = any>(
   }
 
   // Proactively refresh expired tokens before making the request
+  const isImpersonating = typeof window !== 'undefined' && localStorage.getItem('is_impersonating') === 'true';
   let token = getAccessToken();
   if (token && isTokenExpired(token)) {
+    if (isImpersonating) {
+      // Impersonation tokens cannot be refreshed — clear and close tab
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('is_impersonating');
+      localStorage.removeItem('impersonator_id');
+      window.close();
+      setTimeout(() => { window.location.href = '/sa/institutes'; }, 300);
+      throw new Error('Impersonation session expired');
+    }
     const newToken = await refreshAccessToken();
     if (newToken) {
       token = newToken;
@@ -139,6 +150,16 @@ export async function apiClient<T = any>(
 
   // Try refresh on 401
   if (res.status === 401) {
+    if (isImpersonating) {
+      // Impersonation tokens cannot be refreshed — clear and close tab
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('is_impersonating');
+      localStorage.removeItem('impersonator_id');
+      window.close();
+      setTimeout(() => { window.location.href = '/sa/institutes'; }, 300);
+      throw new Error('Impersonation session expired');
+    }
     if (token) {
       const newToken = await refreshAccessToken();
       if (newToken) {

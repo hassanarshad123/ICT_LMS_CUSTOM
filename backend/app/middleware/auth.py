@@ -42,6 +42,10 @@ async def get_current_user(
     if user.status != UserStatus.active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is deactivated")
 
+    # Attach impersonator info if this is an impersonation token
+    imp_id = payload.get("imp")
+    user._impersonator_id = uuid.UUID(imp_id) if imp_id else None
+
     # Check institute suspension/expiry (skip for super_admin who has no institute)
     if user.role != UserRole.super_admin and user.institute_id is not None:
         institute = await session.get(Institute, user.institute_id)

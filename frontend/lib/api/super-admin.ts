@@ -119,3 +119,15 @@ export async function getInstituteCourses(id: string, params?: { page?: number; 
 export async function getInstituteBatches(id: string, params?: { page?: number; per_page?: number }): Promise<any> {
   return apiClient(`/super-admin/institutes/${id}/batches`, { params });
 }
+
+export interface ImpersonateResponse {
+  token: string;
+  instituteSlug: string;
+  targetUserId: string;
+  targetUserName: string;
+  targetUserRole: string;
+}
+
+export async function impersonateUser(userId: string): Promise<ImpersonateResponse> {
+  return apiClient<ImpersonateResponse>(`/super-admin/impersonate/${userId}`, { method: 'POST' });
+}
