@@ -33,9 +33,9 @@ async def create_api_key(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    out = ApiKeyCreatedOut.model_validate(api_key)
-    out.api_key = full_key
-    return out
+    data = ApiKeyOut.model_validate(api_key).model_dump()
+    data["api_key"] = full_key
+    return ApiKeyCreatedOut(**data)
 
 
 @router.get("", response_model=list[ApiKeyOut])
