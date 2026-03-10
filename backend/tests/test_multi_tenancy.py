@@ -16,7 +16,7 @@ BASE = os.environ.get("TEST_BASE_URL", "http://localhost:8000")
 API = f"{BASE}/api/v1"
 
 SA_EMAIL = "sa@zensbot.com"
-SA_PASSWORD = "Zensbot@2026"
+SA_PASSWORD = os.environ.get("SA_PASSWORD", "hassan2005@")
 
 # Use timestamp-based unique slugs for idempotency
 import hashlib

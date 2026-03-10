@@ -1,6 +1,6 @@
 # ICT Institute LMS — Complete Feature Requirements
 
-This document describes every feature the LMS supports, written in plain English. It serves as the **master specification for backend development** — a dev team should be able to build the FastAPI backend, Neon PostgreSQL database, Bunny.net video integration, Zoom API integration, and Flutter mobile app from this document alone.
+This document describes every feature the LMS supports, written in plain English. It serves as the **master specification for backend development** — a dev team should be able to build the FastAPI backend, AWS RDS PostgreSQL database, Bunny.net video integration, Zoom API integration, and Flutter mobile app from this document alone.
 
 Each section describes: what it does, who can do it, what data is involved, and edge cases.
 
@@ -38,7 +38,7 @@ The ICT Institute LMS is a Learning Management System for a Pakistan-based ICT t
 
 **Technology stack:**
 - **Web frontend:** Next.js (App Router), TypeScript, Tailwind CSS, Radix UI / shadcn components
-- **Backend:** FastAPI (Python 3.11+) + Neon PostgreSQL + JWT Auth + RBAC + AWS S3
+- **Backend:** FastAPI (Python 3.11+) + AWS RDS PostgreSQL + JWT Auth + RBAC + AWS S3
 - **Video hosting:** Bunny.net Stream (with DRM and watermarking)
 - **Live classes:** Zoom API (OAuth, meeting creation, recordings, attendance)
 - **Mobile app:** Flutter (Students + Teachers only)

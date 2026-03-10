@@ -1,7 +1,7 @@
 # ICT Institute LMS — Tech Stack
 
 > **Single source of truth** for every technology in the stack, why it was chosen, how it connects, and what it costs.
-> This replaces the previous `TechStack.md` (which referenced Supabase). The backend is now **FastAPI + Neon + AWS**.
+> This replaces the previous `TechStack.md` (which referenced Supabase, then Neon). The database has been migrated from Neon (serverless) to **AWS RDS PostgreSQL** in ap-south-1. The backend is now **FastAPI + AWS RDS + AWS**.
 
 ---
 
@@ -47,15 +47,15 @@
                        │           │           │           │           │
                        ▼           ▼           ▼           ▼           ▼
               ┌─────────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐
-              │    Neon     │ │ AWS S3 │ │Bunny.net│ │  Zoom  │ │ Resend │
+              │  AWS RDS    │ │ AWS S3 │ │Bunny.net│ │  Zoom  │ │ Resend │
               │  PostgreSQL │ │        │ │ Stream  │ │  API   │ │ Email  │
-              │ (serverless)│ │ Files  │ │ Videos  │ │  OAuth │ │        │
+              │ (db.t4g.micro)│ │ Files │ │ Videos  │ │  OAuth │ │        │
               └─────────────┘ └────────┘ └────────┘ └────────┘ └────────┘
 ```
 
 **Data Flow — Zoom Webhook (separate path):**
 ```
-Zoom Cloud ──webhook──▶ EC2 public endpoint ──▶ FastAPI handler ──▶ Neon DB
+Zoom Cloud ──webhook──▶ EC2 public endpoint ──▶ FastAPI handler ──▶ RDS PostgreSQL
 ```
 
 ---
@@ -104,7 +104,7 @@ Zoom Cloud ──webhook──▶ EC2 public endpoint ──▶ FastAPI handler 
 
 **How it connects:**
 - Receives HTTPS requests from frontend via Nginx
-- Queries Neon PostgreSQL via SQLModel/asyncpg
+- Queries AWS RDS PostgreSQL via SQLModel/asyncpg
 - Calls Bunny.net API for video uploads and signed URLs
 - Calls Zoom API for meeting creation and attendance retrieval
 - Calls AWS S3 for file upload/download pre-signed URLs
@@ -130,36 +130,40 @@ Zoom Cloud ──webhook──▶ EC2 public endpoint ──▶ FastAPI handler 
 - Built on SQLAlchemy underneath, so all SQLAlchemy patterns work (joins, subqueries, Alembic)
 - Pydantic v2 integration means automatic JSON serialization/validation
 
-**How it connects:** Reads/writes to Neon PostgreSQL via the `asyncpg` driver. Alembic generates migration SQL and applies it to Neon.
+**How it connects:** Reads/writes to AWS RDS PostgreSQL via the `asyncpg` driver. Alembic generates migration SQL and applies it to RDS.
 
 ---
 
-### 2.4 Neon (Database)
+### 2.4 AWS RDS (Database)
 
 | Detail | Value |
 |--------|-------|
-| Engine | PostgreSQL 15+ (serverless) |
-| Connection | asyncpg via pooler endpoint (PgBouncer) |
-| CLI | `neonctl` (Neon CLI) |
-| Branching | Built-in (dev/staging/prod branches from same project) |
+| Engine | PostgreSQL 15+ (managed) |
+| Instance ID | `ict-lms-db` |
+| Instance class | db.t4g.micro (2 vCPU, 1 GB RAM, ARM/Graviton2) |
+| Storage | 20 GB gp3 |
+| Region | ap-south-1 (Mumbai) |
+| Endpoint | `ict-lms-db.c5i8iasqgtzx.ap-south-1.rds.amazonaws.com` |
+| Port | 5432 |
+| Connection | asyncpg (direct) |
+| CLI | AWS CLI (`aws rds`) |
+| Estimated cost | ~$12/month |
 
-**What it does:** Stores ALL LMS data — 20 tables, 12 enums, 2 views, 50+ indexes. Serverless means it scales to zero when idle (no cost when nobody's using it) and auto-scales under load.
+**What it does:** Stores ALL LMS data — 20 tables, 12 enums, 2 views, 50+ indexes. Managed RDS handles automated backups (7-day retention), patching, and failover. The instance runs in the same region as the EC2 backend (ap-south-1), eliminating the cross-region latency that existed with the previous Neon setup (which was in ap-southeast-1).
 
-**Why Neon over Supabase PostgreSQL:**
-- User's explicit choice — wants Neon CLI workflow
-- Scales to zero = lower cost for an institute with predictable usage hours
-- Built-in branching — create a `staging` branch that's a full copy of production in seconds
-- No vendor lock-in to Supabase's auth/storage/edge-functions ecosystem
+**Why RDS over Neon (previous):**
+- Same-region as EC2 — sub-millisecond network latency vs 30-50ms cross-region to Neon in Singapore
+- Predictable performance — dedicated compute, no cold starts from scale-to-zero
+- Automated backups, point-in-time recovery, and optional Multi-AZ failover
+- Standard AWS ecosystem — IAM, CloudWatch metrics, Security Groups
+- No vendor-specific connection pooler quirks
 
-**Critical: Two connection URLs:**
+**Connection URL:**
 ```
-# For FastAPI (production traffic) — use POOLER URL:
-postgresql+asyncpg://user:pass@ep-xxx.pooler.neon.tech/dbname?sslmode=require
-
-# For Alembic migrations — use DIRECT URL:
-postgresql+asyncpg://user:pass@ep-xxx.neon.tech/dbname?sslmode=require
+# Single connection URL for both FastAPI and Alembic:
+DATABASE_URL=postgresql+asyncpg://user:pass@ict-lms-db.c5i8iasqgtzx.ap-south-1.rds.amazonaws.com:5432/dbname?ssl=require
 ```
-The pooler URL routes through PgBouncer (connection pooling). Alembic must use the direct URL because PgBouncer in transaction mode does not support the `SET` statements Alembic uses.
+Since RDS uses a standard PostgreSQL connection (no PgBouncer transaction-mode restrictions), a single connection URL works for both application traffic and Alembic migrations.
 
 ---
 
@@ -351,17 +355,17 @@ The pooler URL routes through PgBouncer (connection pooling). Alembic must use t
 ```
 1. Student opens course page
    → Next.js calls GET /api/v1/lectures?batch_id=X&course_id=Y
-   → FastAPI queries Neon → returns lecture list
+   → FastAPI queries RDS → returns lecture list
 
 2. Student clicks a lecture
    → Next.js calls POST /api/v1/lectures/{id}/signed-url
-   → FastAPI checks student_batches in Neon (enrollment + grace period)
+   → FastAPI checks student_batches in RDS (enrollment + grace period)
    → FastAPI generates Bunny.net signed URL (10 min expiry + watermark)
    → Returns URL to frontend → video player loads
 
 3. Student watches 90%+
    → Next.js calls POST /api/v1/lectures/{id}/progress
-   → FastAPI UPSERTs lecture_progress in Neon (status = 'completed')
+   → FastAPI UPSERTs lecture_progress in RDS (status = 'completed')
 ```
 
 **Teacher schedules a Zoom class:**
@@ -370,7 +374,7 @@ The pooler URL routes through PgBouncer (connection pooling). Alembic must use t
    → Next.js calls POST /api/v1/zoom/classes
    → FastAPI decrypts Zoom credentials from zoom_accounts table
    → FastAPI calls Zoom API → creates meeting → gets join URL
-   → FastAPI stores in zoom_classes table in Neon
+   → FastAPI stores in zoom_classes table in RDS
    → Returns class with Zoom link to frontend
 
 2. Teacher starts meeting in Zoom
@@ -394,7 +398,7 @@ The pooler URL routes through PgBouncer (connection pooling). Alembic must use t
 
 2. After upload completes:
    → Next.js calls POST /api/v1/jobs/{id}/apply with {resume_key, cover_letter}
-   → FastAPI creates job_applications row in Neon (status = 'applied')
+   → FastAPI creates job_applications row in RDS (status = 'applied')
 
 3. Course Creator reviews applications:
    → CC opens job page → GET /api/v1/jobs/{id}/applications
@@ -411,14 +415,14 @@ The pooler URL routes through PgBouncer (connection pooling). Alembic must use t
 | Service | Year 1 (1,000 students) | Year 2-3 (5,000 students) | Notes |
 |---------|-------------------------|---------------------------|-------|
 | Vercel | $0 | $0 | Free tier: 100GB bandwidth |
-| Neon | $0 → $19 | $19 | Free tier covers dev; Pro at scale |
+| AWS RDS (db.t4g.micro) | $12 | $12 | 20GB gp3; may upgrade to db.t4g.small at scale |
 | AWS EC2 t3.small | $15 | $15 | May upgrade to t3.medium ($30) at 5k |
 | AWS S3 | $1-2 | $3-5 | ~50GB files @ $0.023/GB |
 | Bunny.net Stream | $10-20 | $30-60 | Dominant variable cost (CDN bandwidth) |
 | Resend | $0 | $0 | Free: 100 emails/day |
 | Route 53 / DNS | $0.50 | $0.50 | Or use Cloudflare (free) |
 | SSL (Let's Encrypt) | $0 | $0 | Auto-renews via Certbot |
-| **Total** | **$27-37/month** | **$67-100/month** | |
+| **Total** | **$39-49/month** | **$79-112/month** | |
 
 ### Bunny.net Cost Calculation
 
@@ -452,9 +456,8 @@ REFRESH_TOKEN_EXPIRE_DAYS=7                   # Refresh token lifetime
 ENCRYPTION_KEY=<Fernet-32-byte-base64-key>    # Zoom client_secret encryption
 ENVIRONMENT=production                        # production | development
 
-# ─── Database (Neon) ─────────────────────────────────
-DATABASE_URL=postgresql+asyncpg://user:pass@ep-xxx.pooler.neon.tech/dbname?sslmode=require
-DATABASE_URL_DIRECT=postgresql+asyncpg://user:pass@ep-xxx.neon.tech/dbname?sslmode=require  # For Alembic only
+# ─── Database (AWS RDS) ──────────────────────────────
+DATABASE_URL=postgresql+asyncpg://user:pass@ict-lms-db.c5i8iasqgtzx.ap-south-1.rds.amazonaws.com:5432/dbname?ssl=require
 
 # ─── AWS S3 ──────────────────────────────────────────
 AWS_ACCESS_KEY_ID=AKIA...
@@ -556,24 +559,21 @@ python3.11 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
-# 3. Create a Neon development branch
-neonctl branches create --name dev-yourname --parent main
-neonctl connection-string --branch dev-yourname
-
-# 4. Configure environment
+# 3. Configure environment
 cp .env.example .env
-# Edit .env with your Neon dev branch URL and other keys
+# Edit .env with your RDS connection URL and other keys
+# For local dev, you can use the shared RDS instance or a local PostgreSQL
 
-# 5. Run migrations
+# 4. Run migrations
 alembic upgrade head
 
-# 6. Seed initial data
+# 5. Seed initial data
 python -m app.scripts.seed
 
-# 7. Start FastAPI (with auto-reload)
+# 6. Start FastAPI (with auto-reload)
 uvicorn app.main:app --reload --port 8000
 
-# 8. In another terminal — start frontend
+# 7. In another terminal — start frontend
 cd ..
 npm install
 npm run dev
@@ -603,10 +603,9 @@ pytest tests/test_auth.py -v
 # Check API docs
 open http://localhost:8000/docs
 
-# Neon branch management
-neonctl branches list
-neonctl branches create --name feature-xyz
-neonctl branches delete feature-xyz
+# RDS management (via AWS CLI)
+aws rds describe-db-instances --db-instance-identifier ict-lms-db
+aws rds create-db-snapshot --db-instance-identifier ict-lms-db --db-snapshot-identifier manual-backup-$(date +%F)
 ```
 
 ### Deployment Flow
@@ -630,7 +629,7 @@ Everything runs on one `t3.small`. Simple, cheap, sufficient.
 
 - Upgrade to `t3.medium` (4 GB RAM) — $30/month
 - Increase Uvicorn workers from 2 to 4
-- Neon auto-scales (serverless)
+- Upgrade RDS to db.t4g.small if needed (~$24/month)
 - Bunny.net auto-scales (CDN)
 
 ### Scale (10,000+ students): Add redundancy
@@ -639,17 +638,17 @@ Everything runs on one `t3.small`. Simple, cheap, sufficient.
 - Add Redis for WebSocket cross-instance messaging and session caching
 - Move APScheduler jobs to Celery + Redis
 - Add CloudWatch alarms for monitoring
-- Consider Neon Pro for dedicated compute
+- Enable RDS Multi-AZ for automatic failover
 
 ### SaaS (50,000+ students): Platform architecture
 
 - Kubernetes (EKS) or ECS for container orchestration
-- RDS PostgreSQL for predictable performance (or Neon Scale)
+- Upgrade RDS to db.r6g class for high-memory workloads
 - ElastiCache (Redis) for caching
 - CloudFront CDN in front of the API
 - Multi-region deployment
 
-Each scaling step is additive — the core FastAPI + Neon + S3 architecture stays the same.
+Each scaling step is additive — the core FastAPI + RDS + S3 architecture stays the same.
 
 ---
 
@@ -659,7 +658,7 @@ Each scaling step is additive — the core FastAPI + Neon + S3 architecture stay
 |---------|----------|---------|
 | Authentication | JWT (access 15min + refresh 7 days) + bcrypt | FastAPI |
 | Authorization | Role-based access control (RBAC) per endpoint | FastAPI middleware |
-| Device limit | Configurable max sessions per user (default 2) | FastAPI + Neon |
+| Device limit | Configurable max sessions per user (default 2) | FastAPI + RDS |
 | Video protection | Signed URLs (10min expiry) + watermark + DRM | Bunny.net + FastAPI |
 | File access | Pre-signed URLs (15min expiry) | AWS S3 + FastAPI |
 | Zoom credentials | Fernet symmetric encryption at rest | FastAPI + `cryptography` |

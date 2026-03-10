@@ -7,7 +7,7 @@
 ## Table of Contents
 
 1. [Prerequisites](#1-prerequisites)
-2. [Neon Database Setup](#2-neon-database-setup)
+2. [AWS RDS PostgreSQL Setup](#2-aws-rds-postgresql-setup)
 3. [AWS EC2 Setup](#3-aws-ec2-setup)
 4. [AWS S3 Setup](#4-aws-s3-setup)
 5. [Bunny.net Setup](#5-bunnynet-setup)
@@ -25,8 +25,7 @@
 
 Before starting, ensure you have:
 
-- [ ] AWS account (for EC2 + S3)
-- [ ] Neon account (https://neon.tech — free tier)
+- [ ] AWS account (for EC2 + S3 + RDS)
 - [ ] Bunny.net account (https://bunny.net)
 - [ ] Zoom Developer account (https://marketplace.zoom.us)
 - [ ] Resend account (https://resend.com — free tier)
@@ -34,82 +33,148 @@ Before starting, ensure you have:
 - [ ] Domain name (optional but recommended, e.g., `ictlms.com`)
 - [ ] Python 3.11+ installed locally
 - [ ] Node.js 18+ installed locally
-- [ ] Neon CLI installed: `npm install -g neonctl`
+- [ ] AWS CLI installed and configured (`aws configure`)
 
 ---
 
-## 2. Neon Database Setup
+## 2. AWS RDS PostgreSQL Setup
 
-### 2.1 Create Project
+### 2.1 Create RDS Instance
 
-```bash
-# Authenticate with Neon
-neonctl auth
+You can create the instance via the AWS Console or AWS CLI.
 
-# Create the project
-neonctl projects create --name ict-lms
-
-# List projects to confirm
-neonctl projects list
-```
-
-### 2.2 Get Connection Strings
+**Via AWS CLI:**
 
 ```bash
-# Pooler URL (for FastAPI — production traffic)
-neonctl connection-string --project-id <project_id> --branch main
+aws rds create-db-instance \
+  --db-instance-identifier ict-lms-db \
+  --db-instance-class db.t4g.micro \
+  --engine postgres \
+  --engine-version 16 \
+  --master-username lms_admin \
+  --master-user-password '<strong-password>' \
+  --allocated-storage 20 \
+  --storage-type gp3 \
+  --region ap-south-1 \
+  --vpc-security-group-ids <sg-id> \
+  --db-name ict_lms \
+  --backup-retention-period 7 \
+  --no-publicly-accessible \
+  --storage-encrypted
 
-# Direct URL (for Alembic migrations)
-neonctl connection-string --project-id <project_id> --branch main --pooled false
+# Wait for the instance to become available
+aws rds wait db-instance-available --db-instance-identifier ict-lms-db --region ap-south-1
+
+# Verify the instance is running
+aws rds describe-db-instances --db-instance-identifier ict-lms-db --region ap-south-1 \
+  --query 'DBInstances[0].{Status:DBInstanceStatus,Endpoint:Endpoint.Address,Port:Endpoint.Port}'
 ```
 
-Save both URLs. The pooler URL contains `.pooler.` in the hostname.
+**Via AWS Console:**
 
-### 2.3 Create Branches
+1. Go to AWS Console --> RDS --> Create database
+2. **Engine:** PostgreSQL 16
+3. **Template:** Free tier (or Dev/Test)
+4. **DB instance identifier:** `ict-lms-db`
+5. **Instance class:** `db.t4g.micro`
+6. **Storage:** 20 GB gp3
+7. **Master username:** `lms_admin`
+8. **Master password:** Use a strong password
+9. **VPC:** Same VPC as EC2 instance
+10. **Public access:** No (EC2 connects via private network)
+11. **DB name:** `ict_lms`
+12. **Backup retention:** 7 days
+13. **Encryption:** Enable
+
+### 2.2 Configure Security Group
+
+The RDS security group must allow inbound PostgreSQL traffic from the EC2 instance:
+
+| Type | Port | Source | Description |
+|------|------|--------|-------------|
+| PostgreSQL | 5432 | EC2 security group ID | Backend access |
 
 ```bash
-# Staging branch (copy of production data)
-neonctl branches create --project-id <project_id> --name staging --parent main
-
-# Development branch
-neonctl branches create --project-id <project_id> --name dev --parent main
-
-# Test branch (for CI)
-neonctl branches create --project-id <project_id> --name test --parent main
+# Add inbound rule allowing EC2 to reach RDS on port 5432
+aws ec2 authorize-security-group-ingress \
+  --group-id <rds-sg-id> \
+  --protocol tcp \
+  --port 5432 \
+  --source-group <ec2-sg-id> \
+  --region ap-south-1
 ```
+
+### 2.3 Get Connection String
+
+The RDS endpoint for this instance is:
+
+```
+ict-lms-db.c5i8iasqgtzx.ap-south-1.rds.amazonaws.com:5432
+```
+
+Connection string format for the backend `.env`:
+
+```bash
+# For FastAPI (async)
+DATABASE_URL="postgresql+asyncpg://lms_admin:<password>@ict-lms-db.c5i8iasqgtzx.ap-south-1.rds.amazonaws.com:5432/ict_lms?ssl=require"
+
+# For Alembic migrations (sync driver)
+DATABASE_URL_DIRECT="postgresql+asyncpg://lms_admin:<password>@ict-lms-db.c5i8iasqgtzx.ap-south-1.rds.amazonaws.com:5432/ict_lms?ssl=require"
+```
+
+Since RDS does not use a connection pooler like pgBouncer by default, the same endpoint is used for both application traffic and migrations. If you add RDS Proxy later, the proxy endpoint replaces `DATABASE_URL` while the direct RDS endpoint stays in `DATABASE_URL_DIRECT`.
 
 ### 2.4 Run Initial Migration
 
 ```bash
 cd backend
 
-# Set the DIRECT URL (not pooler) for Alembic
-export DATABASE_URL_DIRECT="postgresql+asyncpg://user:pass@ep-xxx.neon.tech/dbname?sslmode=require"
-
-# Run migration
+# Set the DATABASE_URL in .env (see 2.3 above), then:
 alembic upgrade head
 
 # Seed initial data (admin user + system settings)
 python -m app.scripts.seed
 ```
 
-### 2.5 Day-to-Day Neon Commands
+### 2.5 Day-to-Day RDS Management
 
 ```bash
-# List all branches
-neonctl branches list --project-id <project_id>
+# Check instance status
+aws rds describe-db-instances --db-instance-identifier ict-lms-db --region ap-south-1 \
+  --query 'DBInstances[0].DBInstanceStatus'
 
-# Create a feature branch
-neonctl branches create --project-id <project_id> --name feature-xyz --parent main
+# Create a manual snapshot before risky operations
+aws rds create-db-snapshot \
+  --db-instance-identifier ict-lms-db \
+  --db-snapshot-identifier ict-lms-pre-migration-$(date +%Y%m%d) \
+  --region ap-south-1
 
-# Get connection string for a branch
-neonctl connection-string --project-id <project_id> --branch feature-xyz
+# List available snapshots
+aws rds describe-db-snapshots --db-instance-identifier ict-lms-db --region ap-south-1 \
+  --query 'DBSnapshots[*].{ID:DBSnapshotIdentifier,Status:Status,Created:SnapshotCreateTime}'
 
-# Delete a branch when done
-neonctl branches delete feature-xyz --project-id <project_id>
+# Restore from a snapshot (creates a new instance)
+aws rds restore-db-instance-from-db-snapshot \
+  --db-instance-identifier ict-lms-db-restored \
+  --db-snapshot-identifier <snapshot-id> \
+  --region ap-south-1
 
-# Reset staging to match production
-neonctl branches reset staging --project-id <project_id> --parent main
+# Point-in-time restore (to any second within the backup retention window)
+aws rds restore-db-instance-to-point-in-time \
+  --source-db-instance-identifier ict-lms-db \
+  --target-db-instance-identifier ict-lms-db-restored \
+  --restore-time 2026-03-10T12:00:00Z \
+  --region ap-south-1
+
+# Connect via psql from the EC2 instance
+psql -h ict-lms-db.c5i8iasqgtzx.ap-south-1.rds.amazonaws.com -U lms_admin -d ict_lms
+
+# Modify instance (e.g., scale up)
+aws rds modify-db-instance \
+  --db-instance-identifier ict-lms-db \
+  --db-instance-class db.t4g.small \
+  --apply-immediately \
+  --region ap-south-1
 ```
 
 ---
@@ -390,7 +455,7 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 ### 8.5 Run Migrations
 
 ```bash
-# Use the DIRECT Neon URL (not pooler) for migrations
+# Ensure DATABASE_URL in .env points to the RDS instance
 alembic upgrade head
 
 # Seed initial data
@@ -623,7 +688,7 @@ jobs:
 |--------|-------|
 | `EC2_HOST` | Elastic IP of the EC2 instance |
 | `EC2_SSH_KEY` | Private key (PEM) for SSH |
-| `TEST_DATABASE_URL` | Neon test branch connection string |
+| `TEST_DATABASE_URL` | RDS PostgreSQL connection string (test database) |
 
 ---
 
@@ -679,7 +744,7 @@ Optional: Set up AWS CloudWatch alarm for EC2 auto-recovery (restarts instance i
 
 ### Backup Strategy
 
-- **Database:** Neon has built-in point-in-time recovery (7 days on free, 30 days on Pro)
+- **Database:** RDS automated backups with point-in-time recovery (7-day retention, configurable up to 35 days). Manual snapshots available for pre-migration safety nets.
 - **S3 files:** Enable versioning on all S3 buckets for accidental deletion protection
 - **Code:** GitHub is the source of truth
 - **Env vars:** Back up `.env` file securely (do NOT commit to git)

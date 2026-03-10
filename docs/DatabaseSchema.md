@@ -1,7 +1,7 @@
 # ICT Institute LMS — Database Schema
 
 > **Single source of truth** for all database tables, relationships, and SQL.
-> Target: **Neon** (serverless PostgreSQL 15+). ORM: **SQLModel** with **Alembic** migrations.
+> Target: **AWS RDS PostgreSQL** (ap-south-1, db.t4g.micro). ORM: **SQLModel** with **Alembic** migrations.
 > Access control: enforced in **FastAPI application layer** (not RLS). See `docs/Security.md`.
 
 ---
@@ -17,7 +17,7 @@
 7. [Indexes](#7-indexes)
 8. [File Storage (S3)](#8-file-storage-s3)
 9. [FastAPI Service Endpoints](#9-fastapi-service-endpoints)
-10. [Neon Connection Notes](#10-neon-connection-notes)
+10. [AWS RDS Connection Notes](#10-aws-rds-connection-notes)
 11. [Alembic Migration Strategy](#11-alembic-migration-strategy)
 12. [SQLModel Stubs](#12-sqlmodel-stubs)
 13. [Full SQL](#13-full-sql)
@@ -694,22 +694,34 @@ These replace the 10 Supabase Edge Functions:
 
 ---
 
-## 10. Neon Connection Notes
+## 10. AWS RDS Connection Notes
 
-**Two URLs, two purposes:**
+**RDS Instance:**
 
-| URL Type | Contains | Used By | Why |
-|----------|----------|---------|-----|
-| Pooler URL | `.pooler.` in hostname | FastAPI (`DATABASE_URL`) | PgBouncer connection pooling for production traffic |
-| Direct URL | No `.pooler.` | Alembic (`DATABASE_URL_DIRECT`) | Alembic uses `SET` statements incompatible with PgBouncer |
+| Property | Value |
+|----------|-------|
+| Instance ID | `ict-lms-db` |
+| Instance Class | `db.t4g.micro` |
+| Storage | 20 GB (gp3) |
+| Region | `ap-south-1` (Mumbai) |
+| Endpoint | `ict-lms-db.c5i8iasqgtzx.ap-south-1.rds.amazonaws.com` |
+| Port | `5432` |
 
-Using the wrong URL for the wrong purpose causes cryptic errors. Always verify.
+**Connection string format:**
 
-**Neon branching:**
-- `main` branch = production
-- `staging` branch = testing (reset from production: `neonctl branches reset staging --parent main`)
-- `dev-*` branches = per-developer
-- `test` branch = CI/CD automated tests
+```
+postgresql+asyncpg://<user>:<password>@ict-lms-db.c5i8iasqgtzx.ap-south-1.rds.amazonaws.com:5432/<dbname>
+```
+
+- FastAPI (`DATABASE_URL`): uses the connection string above with asyncpg driver
+- Alembic (`DATABASE_URL_DIRECT`): can use the same endpoint (no pooler distinction needed unlike Neon)
+
+**Staging / dev environments:**
+
+RDS does not have Neon-style database branching. Use one of these approaches instead:
+- **Separate RDS instance** for staging (e.g., `ict-lms-db-staging`)
+- **RDS snapshots** to clone production data for testing (`aws rds restore-db-instance-from-db-snapshot`)
+- **pg_dump / pg_restore** for lightweight dev copies
 
 ---
 
@@ -725,7 +737,7 @@ Using the wrong URL for the wrong purpose causes cryptic errors. Always verify.
 2. Always create new migrations for schema changes
 3. Use `alembic revision --autogenerate -m "description"` to generate
 4. Review auto-generated migrations before applying — Alembic may miss some changes
-5. Test migrations on a Neon branch before applying to production
+5. Test migrations on a staging RDS instance or snapshot before applying to production
 
 ---
 

@@ -9,7 +9,7 @@ Quick reference for developers picking up this codebase.
 ```
 ICT_LMS_CUSTOM/
 ├── frontend/     Next.js 13 web app (TypeScript + Tailwind)
-├── backend/      FastAPI Python API (SQLModel + Neon PostgreSQL)
+├── backend/      FastAPI Python API (SQLModel + AWS RDS PostgreSQL)
 ├── docs/         All project documentation
 ├── .gitignore    Shared gitignore for both projects
 └── .gitattributes
@@ -139,7 +139,7 @@ frontend/lib/
 backend/
 ├── main.py               FastAPI app entry point (CORS, routers, health check)
 ├── requirements.txt      Python dependencies (pinned)
-├── .env / .env.example   Environment variables (Neon, JWT, AWS, etc.)
+├── .env / .env.example   Environment variables (RDS, JWT, AWS, etc.)
 ├── app/
 │   ├── config.py         Pydantic Settings (reads .env)
 │   ├── database.py       Async SQLAlchemy engine + session factory
@@ -164,12 +164,12 @@ See `docs/BackendStructure.md` for full details on patterns and conventions.
 | File | Contents |
 |------|----------|
 | `STRUCTURE.md` | This file |
-| `DatabaseSchema.md` | Complete Neon PostgreSQL schema (20 tables, indexes, triggers, SQL) |
+| `DatabaseSchema.md` | Complete PostgreSQL schema (20 tables, indexes, triggers, SQL) |
 | `Features.md` | Full feature requirements in plain English |
-| `stack-tech.md` | Complete tech stack: FastAPI + Neon + AWS architecture, costs, env vars |
+| `stack-tech.md` | Complete tech stack: FastAPI + RDS + AWS architecture, costs, env vars |
 | `API.md` | All 80+ API endpoints across 12 routers with request/response schemas |
 | `Security.md` | JWT auth, RBAC, video signing, device limits, encryption |
-| `Deployment.md` | Step-by-step deployment: Neon, EC2, S3, Bunny.net, Vercel, CI/CD |
+| `Deployment.md` | Step-by-step deployment: RDS, EC2, S3, Bunny.net, Vercel, CI/CD |
 | `BackendStructure.md` | FastAPI `/backend` folder layout, patterns, dependency injection |
 
 ---

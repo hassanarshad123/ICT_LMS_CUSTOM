@@ -347,7 +347,7 @@ graph LR
 |-----------|-----|------|
 | **API** | `https://apiict.zensbot.site` | AWS EC2 (ap-south-1) |
 | **Frontend** | `https://ict.zensbot.site` | Vercel |
-| **Database** | Neon PostgreSQL | ap-southeast-1 |
+| **Database** | AWS RDS PostgreSQL | ap-south-1 (Mumbai) |
 | **Video CDN** | Bunny.net Stream | Global Edge |
 
 <br/>

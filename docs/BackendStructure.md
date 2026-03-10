@@ -618,10 +618,10 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
 ### Test Database
 
-Use a Neon branch for testing:
+Use a separate PostgreSQL database on AWS RDS for testing:
 ```bash
-neonctl branches create --name test
-# Use this branch's connection URL in tests
+# Create a test database on your RDS instance (ict-lms-db.c5i8iasqgtzx.ap-south-1.rds.amazonaws.com)
+# Use this database's connection URL in tests
 ```
 
 ### Fixtures (`tests/conftest.py`)
