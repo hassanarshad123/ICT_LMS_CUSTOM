@@ -150,6 +150,11 @@ export async function apiClient<T = any>(
 
   // Try refresh on 401
   if (res.status === 401) {
+    // Login endpoint returns 401 for bad credentials — don't redirect
+    if (path === '/auth/login') {
+      const error = await res.json().catch(() => ({ detail: 'Invalid email or password' }));
+      throw new Error(error.detail || 'Invalid email or password');
+    }
     if (isImpersonating) {
       // Impersonation tokens cannot be refreshed — clear and close tab
       localStorage.removeItem('access_token');

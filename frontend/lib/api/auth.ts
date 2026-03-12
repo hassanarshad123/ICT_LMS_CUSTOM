@@ -24,7 +24,11 @@ export interface AuthUser {
 export async function login(email: string, password: string): Promise<LoginResponse> {
   return apiClient<LoginResponse>('/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({
+      email,
+      password,
+      device_info: typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 100) : undefined,
+    }),
   });
 }
 
