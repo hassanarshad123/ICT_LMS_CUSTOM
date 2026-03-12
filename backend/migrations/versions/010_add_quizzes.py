@@ -16,18 +16,29 @@ depends_on = None
 
 
 def upgrade():
-    # ── Enums ──────────────────────────────────────────────────
+    # ── Enums (use DO block to handle already-exists in async drivers) ──
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE question_type AS ENUM ('mcq', 'true_false', 'short_answer');
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END $$;
+    """)
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE quiz_attempt_status AS ENUM ('in_progress', 'submitted', 'graded');
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END $$;
+    """)
+
+    # Reference the enums for column definitions (create_type=False since we created them above)
     question_type = postgresql.ENUM(
         'mcq', 'true_false', 'short_answer',
-        name='question_type', create_type=True,
+        name='question_type', create_type=False,
     )
-    question_type.create(op.get_bind(), checkfirst=True)
-
     quiz_attempt_status = postgresql.ENUM(
         'in_progress', 'submitted', 'graded',
-        name='quiz_attempt_status', create_type=True,
+        name='quiz_attempt_status', create_type=False,
     )
-    quiz_attempt_status.create(op.get_bind(), checkfirst=True)
 
     # ── quizzes ────────────────────────────────────────────────
     op.create_table(
