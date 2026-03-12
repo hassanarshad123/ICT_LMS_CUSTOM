@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 from pydantic import BaseModel
 
 
@@ -47,10 +47,10 @@ class QuizOut(BaseModel):
 # ── Question ────────────────────────────────────────────────────
 
 class QuestionCreate(BaseModel):
-    quiz_id: uuid.UUID
+    quiz_id: Optional[uuid.UUID] = None  # Overridden by path parameter in router
     question_type: str
     question_text: str
-    options: Optional[dict] = None
+    options: Optional[Any] = None  # list for MCQ, dict for others
     correct_answer: str
     points: Optional[int] = 1
     explanation: Optional[str] = None
@@ -58,7 +58,7 @@ class QuestionCreate(BaseModel):
 
 class QuestionUpdate(BaseModel):
     question_text: Optional[str] = None
-    options: Optional[dict] = None
+    options: Optional[Any] = None
     correct_answer: Optional[str] = None
     points: Optional[int] = None
     explanation: Optional[str] = None
@@ -69,7 +69,7 @@ class QuestionOut(BaseModel):
     quiz_id: uuid.UUID
     question_type: str
     question_text: str
-    options: Optional[dict] = None
+    options: Optional[Any] = None
     correct_answer: str
     points: int
     sequence_order: int
@@ -85,7 +85,7 @@ class QuestionOutStudent(BaseModel):
     quiz_id: uuid.UUID
     question_type: str
     question_text: str
-    options: Optional[dict] = None
+    options: Optional[Any] = None
     points: int
     sequence_order: int
     created_at: Optional[datetime] = None

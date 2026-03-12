@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from sqlmodel import SQLModel, Field, Column
 from sqlalchemy import Text, Integer, Boolean, UniqueConstraint, Index, ForeignKey
@@ -60,7 +60,7 @@ class QuizQuestion(SQLModel, table=True):
         )
     )
     question_text: str = Field(sa_column=Column(Text, nullable=False))
-    options: Optional[dict] = Field(default=None, sa_column=Column(JSONB, nullable=True))
+    options: Optional[Any] = Field(default=None, sa_column=Column(JSONB, nullable=True))
     correct_answer: str = Field(nullable=False)
     points: int = Field(default=1)
     sequence_order: int = Field(nullable=False)
