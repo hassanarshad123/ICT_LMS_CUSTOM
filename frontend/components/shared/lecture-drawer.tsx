@@ -167,23 +167,8 @@ export default function LectureDrawer({
             </div>
           ) : lecture ? (
             <div className="space-y-5 mt-6">
-              {/* Thumbnail */}
-              <div className="w-full aspect-video bg-gray-100 rounded-xl overflow-hidden">
-                {lecture.thumbnailUrl ? (
-                  <img
-                    src={lecture.thumbnailUrl}
-                    alt={lecture.title}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Video size={32} className="text-gray-300" />
-                  </div>
-                )}
-              </div>
-
-              {/* Video Player */}
-              {embedUrl && (
+              {/* Video / Thumbnail / Placeholder */}
+              {embedUrl ? (
                 <div className="w-full aspect-video rounded-xl overflow-hidden bg-black">
                   <iframe
                     src={embedUrl}
@@ -191,6 +176,20 @@ export default function LectureDrawer({
                     allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
                     allowFullScreen
                   />
+                </div>
+              ) : (
+                <div className="w-full aspect-video bg-gray-100 rounded-xl overflow-hidden">
+                  {lecture.thumbnailUrl ? (
+                    <img
+                      src={lecture.thumbnailUrl}
+                      alt={lecture.title}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <Video size={32} className="text-gray-300" />
+                    </div>
+                  )}
                 </div>
               )}
 
