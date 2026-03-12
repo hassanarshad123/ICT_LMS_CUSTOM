@@ -27,11 +27,13 @@ import {
   Palette,
   Megaphone,
   Plug,
+  Upload,
   LogOut,
   Menu,
   X,
 } from 'lucide-react';
 import { ZensbotSidebarBadge } from '@/components/shared/zensbot-badge';
+import UploadIndicator from '@/components/shared/upload-indicator';
 
 interface NavItem {
   label: string;
@@ -62,6 +64,7 @@ const navConfig: Record<UserRole, NavItem[]> = {
     { label: 'Users', path: '/users', icon: 'user-cog' },
     { label: 'Courses', path: '/courses', icon: 'book-open' },
     { label: 'Batches', path: '/batches', icon: 'layers' },
+    { label: 'Upload Videos', path: '/upload', icon: 'upload' },
     { label: 'Schedule Class', path: '/schedule', icon: 'calendar' },
     { label: 'Recordings', path: '/recordings', icon: 'play-circle' },
     { label: 'Certificates', path: '/certificates', icon: 'award' },
@@ -108,6 +111,7 @@ const iconMap: Record<string, React.ReactNode> = {
   activity: <Activity size={20} />,
   palette: <Palette size={20} />,
   plug: <Plug size={20} />,
+  upload: <Upload size={20} />,
   megaphone: <Megaphone size={20} />,
   settings: <Settings size={20} />,
 };
@@ -214,7 +218,8 @@ export default function Sidebar({ role, userName, onLogout }: SidebarProps) {
           })}
         </nav>
 
-        <div className="p-4 border-t border-gray-100">
+        <div className="p-4 border-t border-gray-100 space-y-2">
+          {role === 'course-creator' && <UploadIndicator />}
           <div className="flex items-center gap-3 px-4 py-3 mb-2">
             <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-sm font-semibold text-primary">
               {userName.charAt(0)}

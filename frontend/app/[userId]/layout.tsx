@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { AuthProvider } from '@/lib/auth-context';
+import { UploadProvider } from '@/lib/upload-context';
 import { ErrorBoundary } from '@/components/shared/error-boundary';
 import { ImpersonationBanner } from '@/components/shared/impersonation-banner';
 
@@ -46,8 +47,10 @@ export default function UserLayout({ children }: { children: React.ReactNode }) 
 
   return (
     <AuthProvider>
-      <ImpersonationBanner />
-      <ErrorBoundary>{children}</ErrorBoundary>
+      <UploadProvider>
+        <ImpersonationBanner />
+        <ErrorBoundary>{children}</ErrorBoundary>
+      </UploadProvider>
     </AuthProvider>
   );
 }

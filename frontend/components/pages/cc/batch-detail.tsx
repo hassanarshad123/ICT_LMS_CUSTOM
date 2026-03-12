@@ -2,17 +2,34 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams } from 'next/navigation';
-import * as tus from 'tus-js-client';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { useAuth } from '@/lib/auth-context';
 import { useBasePath } from '@/hooks/use-base-path';
 import { useApi, useMutation } from '@/hooks/use-api';
 import { getBatch, listBatchCourses, listBatchStudents, enrollStudent, removeStudent } from '@/lib/api/batches';
 import { listUsers } from '@/lib/api/users';
-import { listLectures, createLecture, deleteLecture, initVideoUpload, getLectureStatus, reencodeVideo } from '@/lib/api/lectures';
+import { listLectures, createLecture, deleteLecture, bulkReorderLectures, LectureOut } from '@/lib/api/lectures';
 import { listMaterials, getUploadUrl, createMaterial, deleteMaterial } from '@/lib/api/materials';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
+import LectureDrawer from '@/components/shared/lecture-drawer';
+import SortableLectureCard from '@/components/shared/sortable-lecture-card';
+import { formatFileSize } from '@/lib/utils/format';
 import { toast } from 'sonner';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
 import {
   ArrowLeft,
   BookOpen,
@@ -27,11 +44,7 @@ import {
   Layers,
   Loader2,
   FileText,
-  CheckCircle2,
-  XCircle,
-  Film,
   Link as LinkIcon,
-  RotateCw,
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -44,15 +57,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-
-type UploadMode = 'upload' | 'external';
-
-interface UploadProgress {
-  lectureId: string;
-  progress: number;
-  status: 'uploading' | 'processing' | 'ready' | 'failed' | 'error';
-  error?: string;
-}
 
 export default function BatchContentPage() {
   const params = useParams();
@@ -70,24 +74,29 @@ export default function BatchContentPage() {
   );
 
   // Per-course lecture and material data
-  const [courseLectures, setCourseLectures] = useState<Record<string, any[]>>({});
+  const [courseLectures, setCourseLectures] = useState<Record<string, LectureOut[]>>({});
   const [courseMaterials, setCourseMaterials] = useState<Record<string, any[]>>({});
   const [loadingContent, setLoadingContent] = useState<Record<string, boolean>>({});
+  const loadingContentRef = useRef<Record<string, boolean>>({});
 
-  // Per-course lecture form state
+  // External URL form state (inline — video upload moved to Upload Videos page)
   const [showLectureForm, setShowLectureForm] = useState<string | null>(null);
   const [lectureForm, setLectureForm] = useState({ title: '', description: '', videoUrl: '', duration: '' });
-  const [uploadMode, setUploadMode] = useState<UploadMode>('upload');
-  const [videoFile, setVideoFile] = useState<File | null>(null);
-  const [uploadProgress, setUploadProgress] = useState<Record<string, UploadProgress>>({});
-  const pollingRefs = useRef<Record<string, ReturnType<typeof setInterval>>>({});
-  const activeUploadsRef = useRef<Record<string, tus.Upload>>({});
+
+  // Lecture drawer
+  const [drawerLectureId, setDrawerLectureId] = useState<string | null>(null);
 
   // Per-course material form state
   const [showMaterialForm, setShowMaterialForm] = useState<string | null>(null);
   const [materialFile, setMaterialFile] = useState<File | null>(null);
   const [materialTitle, setMaterialTitle] = useState('');
   const [materialDescription, setMaterialDescription] = useState('');
+
+  // DnD sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   // Student management
   const [selectedStudentId, setSelectedStudentId] = useState('');
@@ -147,23 +156,14 @@ export default function BatchContentPage() {
   };
 
   const { execute: doCreateLecture, loading: creatingLecture } = useMutation(createLecture);
-  const { execute: doDeleteLecture } = useMutation(deleteLecture);
   const { execute: doDeleteMaterial } = useMutation(deleteMaterial);
-  const [deleteLectureConfirm, setDeleteLectureConfirm] = useState<{ id: string; courseId: string } | null>(null);
   const [deleteMaterialConfirm, setDeleteMaterialConfirm] = useState<{ id: string; courseId: string } | null>(null);
-  const [submittingUpload, setSubmittingUpload] = useState(false);
 
   const courses: any[] = Array.isArray(batchCourses) ? batchCourses : [];
 
-  // Cleanup polling on unmount
-  useEffect(() => {
-    return () => {
-      Object.values(pollingRefs.current).forEach(clearTimeout);
-    };
-  }, []);
-
   const loadCourseContent = useCallback(async (courseId: string) => {
-    if (loadingContent[courseId]) return;
+    if (loadingContentRef.current[courseId]) return;
+    loadingContentRef.current = { ...loadingContentRef.current, [courseId]: true };
     setLoadingContent((prev) => ({ ...prev, [courseId]: true }));
     try {
       const [lecRes, matRes] = await Promise.all([
@@ -175,246 +175,60 @@ export default function BatchContentPage() {
     } catch {
       // Silently fail, show empty
     } finally {
+      loadingContentRef.current = { ...loadingContentRef.current, [courseId]: false };
       setLoadingContent((prev) => ({ ...prev, [courseId]: false }));
     }
   }, [batchId]);
 
   // Load content for all courses once they're available
   useEffect(() => {
-    if (courses.length > 0) {
-      courses.forEach((c) => {
-        if (!courseLectures[c.id] && !loadingContent[c.id]) {
-          loadCourseContent(c.id);
-        }
-      });
-    }
-  }, [courses.length]);
-
-  const pollingStartTimes = useRef<Record<string, number>>({});
-  const POLLING_TIMEOUT_MS = 60 * 60 * 1000; // 60 minutes — long videos take 15-45 min to encode
-
-  const startStatusPolling = useCallback((lectureId: string, courseId: string) => {
-    // Clear existing poll for this lecture
-    if (pollingRefs.current[lectureId]) {
-      clearTimeout(pollingRefs.current[lectureId]);
-    }
-    pollingStartTimes.current[lectureId] = Date.now();
-
-    const poll = async () => {
-      const elapsed = Date.now() - (pollingStartTimes.current[lectureId] || 0);
-      if (elapsed > POLLING_TIMEOUT_MS) {
-        delete pollingRefs.current[lectureId];
-        delete pollingStartTimes.current[lectureId];
-        setUploadProgress((prev) => ({
-          ...prev,
-          [lectureId]: {
-            ...prev[lectureId],
-            status: 'error',
-            error: 'Processing timed out after 1 hour. The video may still be encoding — refresh the page to check.',
-          },
-        }));
-        toast.error('Processing timed out after 1 hour. The video may still be encoding — refresh the page to check.');
-        return;
-      }
-
-      try {
-        const res = await getLectureStatus(lectureId);
-        if (res.videoStatus === 'ready') {
-          delete pollingRefs.current[lectureId];
-          delete pollingStartTimes.current[lectureId];
-          setUploadProgress((prev) => ({
-            ...prev,
-            [lectureId]: { ...prev[lectureId], status: 'ready', progress: 100 },
-          }));
-          toast.success('Video is ready!');
-          loadCourseContent(courseId);
-          return;
-        } else if (res.videoStatus === 'failed') {
-          delete pollingRefs.current[lectureId];
-          delete pollingStartTimes.current[lectureId];
-          setUploadProgress((prev) => ({
-            ...prev,
-            [lectureId]: { ...prev[lectureId], status: 'failed', error: 'Encoding failed' },
-          }));
-          toast.error('Video processing failed');
-          return;
-        } else {
-          setUploadProgress((prev) => ({
-            ...prev,
-            [lectureId]: { ...prev[lectureId], status: 'processing' },
-          }));
-        }
-      } catch {
-        // Keep polling on network errors
-      }
-
-      // Adaptive interval: 5s (0-2min), 15s (2-10min), 30s (10-60min)
-      const interval = elapsed < 2 * 60 * 1000 ? 5000 : elapsed < 10 * 60 * 1000 ? 15000 : 30000;
-      pollingRefs.current[lectureId] = setTimeout(poll, interval);
-    };
-
-    // Start first poll after 5s
-    pollingRefs.current[lectureId] = setTimeout(poll, 5000);
-  }, [loadCourseContent]);
+    courses.forEach((c) => {
+      loadCourseContent(c.id);
+    });
+  }, [courses.length, loadCourseContent]);
 
   const handleAddLecture = async (courseId: string) => {
     if (!lectureForm.title.trim()) return;
-
-    if (uploadMode === 'upload' && videoFile) {
-      // File size validation (10 GB max)
-      const MAX_FILE_SIZE = 10 * 1024 * 1024 * 1024;
-      if (videoFile.size > MAX_FILE_SIZE) {
-        toast.error('File is too large. Maximum file size is 10 GB.');
-        return;
-      }
-      // TUS direct upload flow
-      setSubmittingUpload(true);
-      try {
-        const res = await initVideoUpload({
-          title: lectureForm.title.trim(),
-          batch_id: batchId,
-          course_id: courseId,
-          description: lectureForm.description.trim() || undefined,
-          duration: lectureForm.duration ? parseInt(lectureForm.duration, 10) : undefined,
-        });
-
-        const lectureId = res.lecture.id;
-
-        // Add to lecture list immediately
-        setCourseLectures((prev) => ({
-          ...prev,
-          [courseId]: [...(prev[courseId] || []), res.lecture],
-        }));
-
-        // Track upload progress
-        setUploadProgress((prev) => ({
-          ...prev,
-          [lectureId]: { lectureId, progress: 0, status: 'uploading' },
-        }));
-
-        // Start TUS upload directly to Bunny
-        const upload = new tus.Upload(videoFile, {
-          endpoint: res.tusEndpoint,
-          chunkSize: 50 * 1024 * 1024, // 50 MB chunks (default was 5 MB)
-          parallelUploads: 5, // 5 concurrent chunks
-          retryDelays: [0, 3000, 5000, 10000, 15000],
-          storeFingerprintForResuming: true,
-          removeFingerprintOnSuccess: true,
-          headers: {
-            AuthorizationSignature: res.authSignature,
-            AuthorizationExpire: String(res.authExpire),
-            VideoId: res.videoId,
-            LibraryId: res.libraryId,
-          },
-          metadata: {
-            filetype: videoFile.type,
-            title: lectureForm.title.trim(),
-          },
-          onProgress: (bytesSent, bytesTotal) => {
-            const pct = Math.round((bytesSent / bytesTotal) * 100);
-            setUploadProgress((prev) => ({
-              ...prev,
-              [lectureId]: { ...prev[lectureId], progress: pct, status: 'uploading' },
-            }));
-          },
-          onSuccess: () => {
-            delete activeUploadsRef.current[lectureId];
-            setUploadProgress((prev) => ({
-              ...prev,
-              [lectureId]: { ...prev[lectureId], progress: 100, status: 'processing' },
-            }));
-            toast.success('Upload complete! Processing video...');
-            startStatusPolling(lectureId, courseId);
-          },
-          onError: (err) => {
-            setUploadProgress((prev) => ({
-              ...prev,
-              [lectureId]: { ...prev[lectureId], status: 'error', error: err.message },
-            }));
-            toast.error(`Upload failed: ${err.message}`);
-          },
-        });
-        activeUploadsRef.current[lectureId] = upload;
-        upload.start();
-
-        // Reset form
-        setLectureForm({ title: '', description: '', videoUrl: '', duration: '' });
-        setVideoFile(null);
-        setShowLectureForm(null);
-      } catch (err: any) {
-        toast.error(err.message || 'Failed to initialize upload');
-      } finally {
-        setSubmittingUpload(false);
-      }
-    } else {
-      // External URL flow (existing)
-      try {
-        await doCreateLecture({
-          title: lectureForm.title.trim(),
-          batch_id: batchId,
-          course_id: courseId,
-          video_type: lectureForm.videoUrl ? 'external' : 'none',
-          video_url: lectureForm.videoUrl.trim() || undefined,
-          duration: lectureForm.duration ? parseInt(lectureForm.duration, 10) : undefined,
-          description: lectureForm.description.trim() || undefined,
-        });
-        toast.success('Lecture added');
-        setLectureForm({ title: '', description: '', videoUrl: '', duration: '' });
-        setShowLectureForm(null);
-        loadCourseContent(courseId);
-      } catch (err: any) {
-        toast.error(err.message);
-      }
-    }
-  };
-
-  const handleDeleteLecture = async (lectureId: string, courseId: string) => {
     try {
-      await doDeleteLecture(lectureId);
-      toast.success('Lecture deleted');
-      setDeleteLectureConfirm(null);
-      // Stop polling if active
-      if (pollingRefs.current[lectureId]) {
-        clearTimeout(pollingRefs.current[lectureId]);
-        delete pollingRefs.current[lectureId];
-      }
-      setUploadProgress((prev) => {
-        const next = { ...prev };
-        delete next[lectureId];
-        return next;
+      await doCreateLecture({
+        title: lectureForm.title.trim(),
+        batch_id: batchId,
+        course_id: courseId,
+        video_type: lectureForm.videoUrl ? 'external' : 'none',
+        video_url: lectureForm.videoUrl.trim() || undefined,
+        duration: lectureForm.duration ? parseInt(lectureForm.duration, 10) : undefined,
+        description: lectureForm.description.trim() || undefined,
       });
+      toast.success('Lecture added');
+      setLectureForm({ title: '', description: '', videoUrl: '', duration: '' });
+      setShowLectureForm(null);
       loadCourseContent(courseId);
     } catch (err: any) {
       toast.error(err.message);
-      setDeleteLectureConfirm(null);
     }
   };
 
-  const handleRetryUpload = (lectureId: string) => {
-    const upload = activeUploadsRef.current[lectureId];
-    if (upload) {
-      setUploadProgress((prev) => ({
-        ...prev,
-        [lectureId]: { ...prev[lectureId], status: 'uploading', progress: prev[lectureId]?.progress || 0, error: undefined },
-      }));
-      upload.start();
-      toast.info('Resuming upload...');
-    } else {
-      toast.error('Cannot resume — please re-upload the file');
-    }
-  };
+  const handleDragEnd = async (event: DragEndEvent, courseId: string) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
 
-  const handleReencode = async (lectureId: string, courseId: string) => {
+    const lectures = courseLectures[courseId] || [];
+    const oldIndex = lectures.findIndex((l) => l.id === active.id);
+    const newIndex = lectures.findIndex((l) => l.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(lectures, oldIndex, newIndex);
+    // Optimistic update
+    setCourseLectures((prev) => ({ ...prev, [courseId]: reordered }));
+
+    // Persist to backend
+    const items = reordered.map((l, i) => ({ id: l.id, sequenceOrder: i + 1 }));
     try {
-      await reencodeVideo(lectureId);
-      setUploadProgress((prev) => ({
-        ...prev,
-        [lectureId]: { lectureId, progress: 100, status: 'processing' },
-      }));
-      toast.success('Re-encoding started');
-      startStatusPolling(lectureId, courseId);
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to start re-encoding');
+      await bulkReorderLectures(items);
+    } catch {
+      // Revert on failure
+      setCourseLectures((prev) => ({ ...prev, [courseId]: lectures }));
+      toast.error('Failed to save new order');
     }
   };
 
@@ -470,13 +284,6 @@ export default function BatchContentPage() {
       toast.error(err.message);
       setDeleteMaterialConfirm(null);
     }
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
   };
 
   const loading = batchLoading || coursesLoading;
@@ -658,25 +465,33 @@ export default function BatchContentPage() {
                     <div>
                       <div className="flex items-center justify-between mb-4">
                         <h3 className="text-sm font-semibold text-primary uppercase tracking-wide">Lectures</h3>
-                        {showLectureForm !== course.id && (
-                          <button
-                            onClick={() => {
-                              setShowLectureForm(course.id);
-                              setLectureForm({ title: '', description: '', videoUrl: '', duration: '' });
-                              setVideoFile(null);
-                              setUploadMode('upload');
-                            }}
+                        <div className="flex items-center gap-2">
+                          <Link
+                            href={`${basePath}/upload`}
                             className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary/80 transition-colors"
                           >
-                            <Plus size={14} />
-                            Add Lecture
-                          </button>
-                        )}
+                            <Upload size={14} />
+                            Upload Videos
+                          </Link>
+                          {showLectureForm !== course.id && (
+                            <button
+                              onClick={() => {
+                                setShowLectureForm(course.id);
+                                setLectureForm({ title: '', description: '', videoUrl: '', duration: '' });
+                              }}
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-200 transition-colors"
+                            >
+                              <LinkIcon size={14} />
+                              Add External URL
+                            </button>
+                          )}
+                        </div>
                       </div>
 
+                      {/* External URL form (inline) */}
                       {showLectureForm === course.id && (
                         <div className="bg-white rounded-2xl p-6 card-shadow mb-4">
-                          <h4 className="text-sm font-semibold text-primary mb-4">New Lecture</h4>
+                          <h4 className="text-sm font-semibold text-primary mb-4">Add External Video</h4>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                             <div>
                               <label className="block text-xs font-medium text-gray-600 mb-1">Title</label>
@@ -699,6 +514,16 @@ export default function BatchContentPage() {
                               />
                             </div>
                             <div className="sm:col-span-2">
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Video URL</label>
+                              <input
+                                type="text"
+                                value={lectureForm.videoUrl}
+                                onChange={(e) => setLectureForm({ ...lectureForm, videoUrl: e.target.value })}
+                                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
+                                placeholder="https://youtube.com/watch?v=..."
+                              />
+                            </div>
+                            <div className="sm:col-span-2">
                               <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
                               <input
                                 type="text"
@@ -709,87 +534,19 @@ export default function BatchContentPage() {
                               />
                             </div>
                           </div>
-
-                          {/* Upload Mode Tabs */}
-                          <div className="flex gap-1 p-1 bg-gray-100 rounded-xl mb-4">
-                            <button
-                              onClick={() => setUploadMode('upload')}
-                              className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-colors ${
-                                uploadMode === 'upload'
-                                  ? 'bg-primary text-white'
-                                  : 'text-gray-500 hover:text-gray-700'
-                              }`}
-                            >
-                              <Film size={14} />
-                              Upload Video
-                            </button>
-                            <button
-                              onClick={() => setUploadMode('external')}
-                              className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-colors ${
-                                uploadMode === 'external'
-                                  ? 'bg-primary text-white'
-                                  : 'text-gray-500 hover:text-gray-700'
-                              }`}
-                            >
-                              <LinkIcon size={14} />
-                              External URL
-                            </button>
-                          </div>
-
-                          {uploadMode === 'upload' ? (
-                            <div className="mb-4">
-                              <label className="block text-xs font-medium text-gray-600 mb-1">Video File</label>
-                              <label className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center cursor-pointer block hover:border-gray-300 transition-colors">
-                                <Upload size={24} className="text-gray-400 mx-auto mb-2" />
-                                {videoFile ? (
-                                  <div>
-                                    <p className="text-sm font-medium text-primary">{videoFile.name}</p>
-                                    <p className="text-xs text-gray-400 mt-1">{formatFileSize(videoFile.size)}</p>
-                                  </div>
-                                ) : (
-                                  <div>
-                                    <p className="text-sm text-gray-600">Click to select a video file</p>
-                                    <p className="text-xs text-gray-400 mt-1">MP4, WebM, MOV — up to 10 GB</p>
-                                  </div>
-                                )}
-                                <input
-                                  type="file"
-                                  accept="video/*"
-                                  className="hidden"
-                                  onChange={(e) => {
-                                    const f = e.target.files?.[0];
-                                    if (f) setVideoFile(f);
-                                  }}
-                                />
-                              </label>
-                            </div>
-                          ) : (
-                            <div className="mb-4">
-                              <label className="block text-xs font-medium text-gray-600 mb-1">Video URL</label>
-                              <input
-                                type="text"
-                                value={lectureForm.videoUrl}
-                                onChange={(e) => setLectureForm({ ...lectureForm, videoUrl: e.target.value })}
-                                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
-                                placeholder="https://youtube.com/watch?v=..."
-                              />
-                            </div>
-                          )}
-
                           <div className="flex gap-3">
                             <button
                               onClick={() => handleAddLecture(course.id)}
-                              disabled={creatingLecture || submittingUpload || (uploadMode === 'upload' && !videoFile)}
+                              disabled={creatingLecture}
                               className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary/80 transition-colors disabled:opacity-60"
                             >
-                              {(creatingLecture || submittingUpload) && <Loader2 size={16} className="animate-spin" />}
-                              {uploadMode === 'upload' ? 'Upload & Add' : 'Add Lecture'}
+                              {creatingLecture && <Loader2 size={16} className="animate-spin" />}
+                              Add Lecture
                             </button>
                             <button
                               onClick={() => {
                                 setShowLectureForm(null);
                                 setLectureForm({ title: '', description: '', videoUrl: '', duration: '' });
-                                setVideoFile(null);
                               }}
                               className="px-5 py-2.5 bg-gray-100 text-gray-600 text-sm font-medium rounded-xl hover:bg-gray-200 transition-colors"
                             >
@@ -802,105 +559,31 @@ export default function BatchContentPage() {
                       {lectures.length === 0 ? (
                         <div className="bg-white rounded-2xl p-8 card-shadow text-center">
                           <Video size={24} className="text-gray-300 mx-auto mb-2" />
-                          <p className="text-sm text-gray-500">No lectures yet. Add your first lecture.</p>
+                          <p className="text-sm text-gray-500">No lectures yet. Upload videos or add an external URL.</p>
                         </div>
                       ) : (
-                        <div className="space-y-3">
-                          {lectures.sort((a: any, b: any) => a.sequenceOrder - b.sequenceOrder).map((lecture: any) => {
-                            const up = uploadProgress[lecture.id];
-                            return (
-                              <div key={lecture.id} className="flex items-center justify-between p-4 bg-white rounded-xl card-shadow">
-                                <div className="flex items-center gap-4 flex-1 min-w-0">
-                                  <div className="w-10 h-10 bg-accent bg-opacity-30 rounded-xl flex items-center justify-center flex-shrink-0">
-                                    <span className="text-xs font-bold text-primary">{lecture.sequenceOrder}</span>
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="font-medium text-sm text-primary">{lecture.title}</p>
-                                    <p className="text-xs text-gray-500 mt-0.5 truncate">{lecture.description}</p>
-                                    {/* Upload/processing status */}
-                                    {up && up.status === 'uploading' && (
-                                      <div className="mt-2">
-                                        <div className="flex items-center gap-2 mb-1">
-                                          <Loader2 size={12} className="animate-spin text-blue-500" />
-                                          <span className="text-xs text-blue-600 font-medium">Uploading... {up.progress}%</span>
-                                        </div>
-                                        <div className="w-full bg-gray-200 rounded-full h-1.5">
-                                          <div
-                                            className="bg-blue-500 h-1.5 rounded-full transition-all duration-300"
-                                            style={{ width: `${up.progress}%` }}
-                                          />
-                                        </div>
-                                      </div>
-                                    )}
-                                    {((up && up.status === 'processing') || (!up && lecture.videoStatus === 'processing') || (!up && lecture.videoStatus === 'pending' && lecture.videoType === 'upload')) && (
-                                      <div className="flex items-center gap-2 mt-1.5">
-                                        <Loader2 size={12} className="animate-spin text-amber-500" />
-                                        <span className="text-xs text-amber-600 font-medium">Processing video...</span>
-                                      </div>
-                                    )}
-                                    {up && up.status === 'ready' && (
-                                      <div className="flex items-center gap-1.5 mt-1.5">
-                                        <CheckCircle2 size={12} className="text-green-500" />
-                                        <span className="text-xs text-green-600 font-medium">Ready</span>
-                                      </div>
-                                    )}
-                                    {((up && up.status === 'error') || (!up && false)) && (
-                                      <div className="flex items-center gap-1.5 mt-1.5">
-                                        <XCircle size={12} className="text-red-500" />
-                                        <span className="text-xs text-red-600 font-medium">
-                                          {up?.error || 'Upload failed'}
-                                        </span>
-                                        {activeUploadsRef.current[lecture.id] && (
-                                          <button
-                                            onClick={() => handleRetryUpload(lecture.id)}
-                                            className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors"
-                                          >
-                                            <RotateCw size={10} />
-                                            Retry Upload
-                                          </button>
-                                        )}
-                                      </div>
-                                    )}
-                                    {((up && up.status === 'failed') || (!up && lecture.videoStatus === 'failed')) && (
-                                      <div className="flex items-center gap-1.5 mt-1.5">
-                                        <XCircle size={12} className="text-red-500" />
-                                        <span className="text-xs text-red-600 font-medium">
-                                          {up?.error || 'Processing failed'}
-                                        </span>
-                                        <button
-                                          onClick={() => handleReencode(lecture.id, course.id)}
-                                          className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-amber-600 bg-amber-50 rounded-md hover:bg-amber-100 transition-colors"
-                                        >
-                                          <RotateCw size={10} />
-                                          Retry Encoding
-                                        </button>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-3 flex-shrink-0">
-                                  {lecture.videoType === 'upload' && lecture.videoStatus === 'ready' && (
-                                    <div className="flex items-center gap-1.5">
-                                      <div className="w-2 h-2 rounded-full bg-green-400" />
-                                    </div>
-                                  )}
-                                  {lecture.durationDisplay && (
-                                    <div className="flex items-center gap-1.5 text-xs text-gray-400">
-                                      <Clock size={12} />
-                                      {lecture.durationDisplay}
-                                    </div>
-                                  )}
-                                  <button
-                                    onClick={() => setDeleteLectureConfirm({ id: lecture.id, courseId: course.id })}
-                                    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                                  >
-                                    <Trash2 size={14} />
-                                  </button>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
+                        <DndContext
+                          sensors={sensors}
+                          collisionDetection={closestCenter}
+                          onDragEnd={(event) => handleDragEnd(event, course.id)}
+                        >
+                          <SortableContext
+                            items={lectures.map((l) => l.id)}
+                            strategy={verticalListSortingStrategy}
+                          >
+                            <div className="space-y-2">
+                              {[...lectures]
+                                .sort((a, b) => a.sequenceOrder - b.sequenceOrder)
+                                .map((lecture) => (
+                                  <SortableLectureCard
+                                    key={lecture.id}
+                                    lecture={lecture}
+                                    onClick={() => setDrawerLectureId(lecture.id)}
+                                  />
+                                ))}
+                            </div>
+                          </SortableContext>
+                        </DndContext>
                       )}
                     </div>
 
@@ -1034,18 +717,17 @@ export default function BatchContentPage() {
           })}
         </div>
       )}
-      <AlertDialog open={!!deleteLectureConfirm} onOpenChange={(open) => !open && setDeleteLectureConfirm(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Lecture</AlertDialogTitle>
-            <AlertDialogDescription>Are you sure you want to delete this lecture? This action cannot be undone.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => deleteLectureConfirm && handleDeleteLecture(deleteLectureConfirm.id, deleteLectureConfirm.courseId)} className="bg-red-600 hover:bg-red-700 text-white">Delete</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <LectureDrawer
+        lectureId={drawerLectureId}
+        onClose={() => setDrawerLectureId(null)}
+        onSaved={() => {
+          // Refresh lectures for all courses
+          courses.forEach((c: any) => loadCourseContent(c.id));
+        }}
+        onDeleted={() => {
+          courses.forEach((c: any) => loadCourseContent(c.id));
+        }}
+      />
 
       <AlertDialog open={!!deleteMaterialConfirm} onOpenChange={(open) => !open && setDeleteMaterialConfirm(null)}>
         <AlertDialogContent>

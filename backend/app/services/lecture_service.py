@@ -235,9 +235,12 @@ async def upsert_progress(
 
 
 async def update_lecture_status(
-    session: AsyncSession, bunny_video_id: str, status: str
+    session: AsyncSession,
+    bunny_video_id: str,
+    status: str,
+    thumbnail_url: Optional[str] = None,
 ) -> None:
-    """Find lecture by bunny_video_id and update its video_status."""
+    """Find lecture by bunny_video_id and update its video_status (and optionally thumbnail)."""
     result = await session.execute(
         select(Lecture).where(
             Lecture.bunny_video_id == bunny_video_id,
@@ -247,9 +250,43 @@ async def update_lecture_status(
     lecture = result.scalar_one_or_none()
     if lecture:
         lecture.video_status = status
+        if thumbnail_url:
+            lecture.thumbnail_url = thumbnail_url
         lecture.updated_at = datetime.now(timezone.utc)
         session.add(lecture)
         await session.commit()
+
+
+async def bulk_reorder_lectures(
+    session: AsyncSession,
+    items: list[tuple[uuid.UUID, int]],
+    institute_id: Optional[uuid.UUID] = None,
+) -> None:
+    """Reorder multiple lectures in a single transaction (batched SELECT)."""
+    lecture_ids = [item[0] for item in items]
+    order_map = {lid: order for lid, order in items}
+
+    # Single batched SELECT instead of N+1
+    filters = [
+        Lecture.id.in_(lecture_ids),
+        Lecture.deleted_at.is_(None),
+    ]
+    if institute_id:
+        filters.append(Lecture.institute_id == institute_id)
+
+    result = await session.execute(select(Lecture).where(*filters))
+    fetched = {lec.id: lec for lec in result.scalars().all()}
+
+    not_found = [str(lid) for lid in lecture_ids if lid not in fetched]
+    if not_found:
+        raise ValueError(f"Lectures not found or not accessible: {', '.join(not_found)}")
+
+    now = datetime.now(timezone.utc)
+    for lecture_id, lecture in fetched.items():
+        lecture.sequence_order = order_map[lecture_id]
+        lecture.updated_at = now
+        session.add(lecture)
+    await session.commit()
 
 
 async def get_progress(

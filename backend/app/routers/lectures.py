@@ -1,4 +1,5 @@
 import hashlib
+import hmac
 import json
 import logging
 import uuid
@@ -14,7 +15,7 @@ from sqlmodel import select
 from app.database import get_session
 from app.schemas.lecture import (
     LectureCreate, LectureUpdate, LectureOut, UploadInitRequest,
-    LectureReorderRequest, ProgressUpdate, ProgressOut,
+    LectureReorderRequest, ProgressUpdate, ProgressOut, BulkReorderRequest,
 )
 from app.schemas.common import PaginatedResponse
 from app.services import lecture_service
@@ -164,13 +165,20 @@ async def bunny_webhook(request: Request):
             (settings.BUNNY_WEBHOOK_SECRET + raw_body.decode()).encode()
         ).hexdigest()
         actual = request.headers.get("Webhook-Signature", "")
-        if expected != actual:
+        if not hmac.compare_digest(expected, actual):
             logger.warning("Bunny webhook signature mismatch")
             return JSONResponse(status_code=403, content={"detail": "Invalid signature"})
     else:
-        logger.warning("BUNNY_WEBHOOK_SECRET not set — skipping webhook signature validation")
+        if settings.APP_ENV != "development":
+            logger.error("BUNNY_WEBHOOK_SECRET not configured — rejecting webhook in production")
+            return JSONResponse(status_code=503, content={"detail": "Webhook not configured"})
+        logger.warning("BUNNY_WEBHOOK_SECRET not set — allowing in development only")
 
-    body = json.loads(raw_body)
+    try:
+        body = json.loads(raw_body)
+    except json.JSONDecodeError:
+        logger.warning("Bunny webhook: invalid JSON body")
+        return JSONResponse(status_code=400, content={"detail": "Invalid JSON"})
     video_guid = body.get("VideoGuid")
     if not video_guid:
         return {"status": "ignored"}
@@ -202,9 +210,35 @@ async def bunny_webhook(request: Request):
 
     from app.database import async_session
 
-    async with async_session() as session:
-        await lecture_service.update_lecture_status(session, video_guid, new_status)
+    # Compute thumbnail URL when video is ready
+    thumbnail_url = None
+    if new_status == "ready":
+        from app.utils.bunny import get_thumbnail_url
+        thumbnail_url = get_thumbnail_url(video_guid)
 
+    async with async_session() as session:
+        await lecture_service.update_lecture_status(
+            session, video_guid, new_status, thumbnail_url=thumbnail_url
+        )
+
+    return {"status": "ok"}
+
+
+@router.post("/bulk-reorder")
+async def bulk_reorder_lectures(
+    body: BulkReorderRequest,
+    current_user: CC,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """Reorder multiple lectures in a single transaction."""
+    try:
+        await lecture_service.bulk_reorder_lectures(
+            session,
+            items=[(item.id, item.sequence_order) for item in body.items],
+            institute_id=current_user.institute_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     return {"status": "ok"}
 
 
@@ -269,9 +303,14 @@ async def get_lecture_status(
         and current_status in ("pending", "processing")
     ):
         from app.utils.bunny import get_video_status
+        _STATUS_RANK = {"pending": 0, "processing": 1, "ready": 2, "failed": 2}
         try:
             new_status = await get_video_status(lecture.bunny_video_id)
-            if new_status != current_status:
+            # Only upgrade status (never downgrade ready→processing)
+            if (
+                new_status != current_status
+                and _STATUS_RANK.get(new_status, 0) > _STATUS_RANK.get(current_status, 0)
+            ):
                 lecture.video_status = new_status
                 session.add(lecture)
                 await session.commit()
@@ -341,7 +380,7 @@ async def reorder_lecture(
 async def get_signed_url(
     lecture_id: uuid.UUID,
     request: Request,
-    current_user: Student,
+    current_user: AllRoles,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Generate a signed embed URL. Checks enrollment for students."""
@@ -349,16 +388,17 @@ async def get_signed_url(
     if not lecture or lecture.deleted_at or (current_user.institute_id and lecture.institute_id != current_user.institute_id):
         raise HTTPException(status_code=404, detail="Lecture not found")
 
-    # Enrollment check — student must be in the lecture's batch
-    enrolled = await session.execute(
-        select(StudentBatch).where(
-            StudentBatch.student_id == current_user.id,
-            StudentBatch.batch_id == lecture.batch_id,
-            StudentBatch.removed_at.is_(None),
+    # Enrollment check — only enforce for students
+    if current_user.role.value == "student":
+        enrolled = await session.execute(
+            select(StudentBatch).where(
+                StudentBatch.student_id == current_user.id,
+                StudentBatch.batch_id == lecture.batch_id,
+                StudentBatch.removed_at.is_(None),
+            )
         )
-    )
-    if not enrolled.scalar_one_or_none():
-        raise HTTPException(status_code=403, detail="Not enrolled in this batch")
+        if not enrolled.scalar_one_or_none():
+            raise HTTPException(status_code=403, detail="Not enrolled in this batch")
 
     if lecture.video_type.value == "upload":
         if not lecture.bunny_video_id or lecture.video_status != "ready":

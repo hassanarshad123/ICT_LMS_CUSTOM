@@ -70,6 +70,7 @@ export async function initVideoUpload(data: {
   course_id?: string;
   description?: string;
   duration?: number;
+  file_size?: number;
 }): Promise<UploadInitResponse> {
   return apiClient('/lectures/upload-init', {
     method: 'POST',
@@ -107,6 +108,15 @@ export async function updateProgress(lectureId: string, data: {
   return apiClient(`/lectures/${lectureId}/progress`, {
     method: 'POST',
     body: JSON.stringify(data),
+  });
+}
+
+export async function bulkReorderLectures(
+  items: { id: string; sequenceOrder: number }[]
+): Promise<{ status: string }> {
+  return apiClient('/lectures/bulk-reorder', {
+    method: 'POST',
+    body: JSON.stringify({ items }),
   });
 }
 

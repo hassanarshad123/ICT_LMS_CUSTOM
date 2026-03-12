@@ -105,10 +105,18 @@ async def reencode_video(video_id: str) -> None:
         resp.raise_for_status()
 
 
+def get_thumbnail_url(video_id: str) -> str | None:
+    """Return a Bunny CDN thumbnail URL for a video, or None if CDN not configured."""
+    cdn = settings.BUNNY_CDN_HOSTNAME
+    if not cdn:
+        return None
+    return f"https://{cdn}/{video_id}/thumbnail.jpg"
+
+
 async def delete_video(video_id: str) -> None:
     """Delete a video from Bunny Stream."""
     library_id = settings.BUNNY_LIBRARY_ID
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.delete(
             f"https://video.bunnycdn.com/library/{library_id}/videos/{video_id}",
             headers={"AccessKey": settings.BUNNY_API_KEY},
