@@ -359,6 +359,10 @@ export default function UploadVideos() {
           <UploadQueue
             batchId={selectedBatchId || undefined}
             courseId={selectedCourseId || undefined}
+            onEditLecture={(lectureId) => {
+              setDrawerLectureId(lectureId);
+              refreshLectures();
+            }}
           />
         </div>
 

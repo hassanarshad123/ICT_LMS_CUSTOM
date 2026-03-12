@@ -14,6 +14,7 @@ import {
   AlertCircle,
   Clock,
   Ban,
+  Pencil,
 } from 'lucide-react';
 
 const statusConfig: Record<
@@ -57,7 +58,7 @@ const statusConfig: Record<
   },
 };
 
-function QueueItem({ item }: { item: UploadItem }) {
+function QueueItem({ item, onEdit }: { item: UploadItem; onEdit?: (lectureId: string) => void }) {
   const { cancelUpload, retryUpload, removeItem } = useUpload();
   const cfg = statusConfig[item.status];
 
@@ -123,6 +124,16 @@ function QueueItem({ item }: { item: UploadItem }) {
           </button>
         )}
 
+        {item.status === 'ready' && item.lectureId && onEdit && (
+          <button
+            onClick={() => onEdit(item.lectureId!)}
+            className="p-1 text-blue-500 hover:bg-blue-50 rounded transition-colors"
+            title="Edit title & description"
+          >
+            <Pencil size={14} />
+          </button>
+        )}
+
         {['ready', 'failed', 'cancelled', 'error'].includes(item.status) && (
           <button
             onClick={() => removeItem(item.id)}
@@ -140,9 +151,10 @@ function QueueItem({ item }: { item: UploadItem }) {
 interface UploadQueueProps {
   batchId?: string;
   courseId?: string;
+  onEditLecture?: (lectureId: string) => void;
 }
 
-export default function UploadQueue({ batchId, courseId }: UploadQueueProps) {
+export default function UploadQueue({ batchId, courseId, onEditLecture }: UploadQueueProps) {
   const { items, clearCompleted } = useUpload();
 
   const filtered = items.filter((i) => {
@@ -177,7 +189,7 @@ export default function UploadQueue({ batchId, courseId }: UploadQueueProps) {
       <ScrollArea className={filtered.length > 5 ? 'h-[360px]' : ''}>
         <div className="space-y-2">
           {filtered.map((item) => (
-            <QueueItem key={item.id} item={item} />
+            <QueueItem key={item.id} item={item} onEdit={onEditLecture} />
           ))}
         </div>
       </ScrollArea>
