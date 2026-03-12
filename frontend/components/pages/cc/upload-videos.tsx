@@ -4,19 +4,19 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { useAuth } from '@/lib/auth-context';
 import { useUpload } from '@/lib/upload-context';
+import type { FileMetadata } from '@/lib/upload-context';
 import { useApi } from '@/hooks/use-api';
 import { listBatches, listBatchCourses } from '@/lib/api/batches';
 import { listLectures, LectureOut } from '@/lib/api/lectures';
 import UploadQueue from '@/components/shared/upload-queue';
 import LectureDrawer from '@/components/shared/lecture-drawer';
-import { formatFileSize } from '@/lib/utils/format';
+import { formatFileSize, titleFromFilename } from '@/lib/utils/format';
 import { toast } from 'sonner';
 import {
   Upload,
   Video,
-  Image as ImageIcon,
   Clock,
-  ChevronDown,
+  X,
 } from 'lucide-react';
 import {
   Select,
@@ -25,6 +25,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+
+interface PendingFile {
+  file: File;
+  title: string;
+  description: string;
+}
 
 export default function UploadVideos() {
   const { name } = useAuth();
@@ -36,6 +49,8 @@ export default function UploadVideos() {
   const [selectedCourseName, setSelectedCourseName] = useState('');
   const [drawerLectureId, setDrawerLectureId] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
+  const [showMetadataDialog, setShowMetadataDialog] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: batchesData } = useApi(() => listBatches({ per_page: 100 }), []);
@@ -99,7 +114,7 @@ export default function UploadVideos() {
         return;
       }
 
-      const videoFiles: File[] = [];
+      const videoFiles: PendingFile[] = [];
       const rejected: string[] = [];
 
       for (const file of Array.from(files)) {
@@ -111,7 +126,11 @@ export default function UploadVideos() {
           rejected.push(`${file.name} (exceeds 10 GB)`);
           continue;
         }
-        videoFiles.push(file);
+        videoFiles.push({
+          file,
+          title: titleFromFilename(file.name),
+          description: '',
+        });
       }
 
       if (rejected.length > 0) {
@@ -119,18 +138,52 @@ export default function UploadVideos() {
       }
 
       if (videoFiles.length > 0) {
-        addFiles(
-          videoFiles,
-          selectedBatchId,
-          selectedBatchName,
-          selectedCourseId,
-          selectedCourseName,
-        );
-        toast.success(`${videoFiles.length} video(s) added to queue`);
+        setPendingFiles(videoFiles);
+        setShowMetadataDialog(true);
       }
     },
-    [selectedBatchId, selectedCourseId, selectedBatchName, selectedCourseName, addFiles],
+    [selectedBatchId, selectedCourseId],
   );
+
+  const handleConfirmUpload = useCallback(() => {
+    const valid = pendingFiles.filter((pf) => pf.title.trim().length > 0);
+    if (valid.length === 0) {
+      toast.error('Each video must have a title');
+      return;
+    }
+
+    const fileMetadata: FileMetadata[] = valid.map((pf) => ({
+      file: pf.file,
+      title: pf.title.trim(),
+      description: pf.description.trim() || undefined,
+    }));
+
+    addFiles(
+      fileMetadata,
+      selectedBatchId,
+      selectedBatchName,
+      selectedCourseId,
+      selectedCourseName,
+    );
+
+    toast.success(`${valid.length} video(s) added to queue`);
+    setShowMetadataDialog(false);
+    setPendingFiles([]);
+  }, [pendingFiles, addFiles, selectedBatchId, selectedBatchName, selectedCourseId, selectedCourseName]);
+
+  const updatePendingFile = useCallback((index: number, field: 'title' | 'description', value: string) => {
+    setPendingFiles((prev) =>
+      prev.map((pf, i) => (i === index ? { ...pf, [field]: value } : pf)),
+    );
+  }, []);
+
+  const removePendingFile = useCallback((index: number) => {
+    setPendingFiles((prev) => {
+      const next = prev.filter((_, i) => i !== index);
+      if (next.length === 0) setShowMetadataDialog(false);
+      return next;
+    });
+  }, []);
 
   const handleDragOver = useCallback(
     (e: React.DragEvent) => {
@@ -385,6 +438,101 @@ export default function UploadVideos() {
         onSaved={refreshLectures}
         onDeleted={refreshLectures}
       />
+
+      {/* Video Metadata Dialog */}
+      <Dialog
+        open={showMetadataDialog}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowMetadataDialog(false);
+            setPendingFiles([]);
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>
+              {pendingFiles.length === 1
+                ? 'Video Details'
+                : `Video Details (${pendingFiles.length} files)`}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto space-y-4 py-2">
+            {pendingFiles.map((pf, idx) => (
+              <div
+                key={idx}
+                className="rounded-xl border border-gray-200 p-4 space-y-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <Video size={16} className="text-gray-400 flex-shrink-0" />
+                    <span className="text-xs text-gray-500 truncate">
+                      {pf.file.name} &middot; {formatFileSize(pf.file.size)}
+                    </span>
+                  </div>
+                  {pendingFiles.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removePendingFile(idx)}
+                      className="text-gray-400 hover:text-red-500 transition-colors"
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Title <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={pf.title}
+                    onChange={(e) => updatePendingFile(idx, 'title', e.target.value)}
+                    placeholder="Enter video title"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Description <span className="text-gray-400">(optional)</span>
+                  </label>
+                  <textarea
+                    value={pf.description}
+                    onChange={(e) => updatePendingFile(idx, 'description', e.target.value)}
+                    placeholder="Brief description of this lecture"
+                    rows={2}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <button
+              type="button"
+              onClick={() => {
+                setShowMetadataDialog(false);
+                setPendingFiles([]);
+              }}
+              className="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmUpload}
+              disabled={pendingFiles.some((pf) => !pf.title.trim())}
+              className="px-4 py-2 text-sm rounded-lg bg-primary text-white hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {pendingFiles.length === 1 ? 'Upload' : `Upload ${pendingFiles.length} Videos`}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

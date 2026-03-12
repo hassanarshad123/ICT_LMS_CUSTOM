@@ -10,7 +10,6 @@ import {
 } from 'react';
 import * as tus from 'tus-js-client';
 import { initVideoUpload, getLectureStatus, deleteLecture } from '@/lib/api/lectures';
-import { titleFromFilename } from '@/lib/utils/format';
 
 export type UploadStatus =
   | 'queued'
@@ -25,6 +24,7 @@ export interface UploadItem {
   id: string;
   file: File;
   title: string;
+  description?: string;
   batchId: string;
   batchName: string;
   courseId: string;
@@ -35,13 +35,19 @@ export interface UploadItem {
   error?: string;
 }
 
+export interface FileMetadata {
+  file: File;
+  title: string;
+  description?: string;
+}
+
 interface UploadContextType {
   items: UploadItem[];
   isUploading: boolean;
   activeCount: number;
   overallProgress: number;
   addFiles: (
-    files: File[],
+    files: FileMetadata[],
     batchId: string,
     batchName: string,
     courseId: string,
@@ -172,6 +178,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
           batch_id: item.batchId,
           course_id: item.courseId,
           file_size: item.file.size,
+          ...(item.description ? { description: item.description } : {}),
         });
 
         const lectureId = res.lecture.id;
@@ -240,7 +247,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
 
   const addFiles = useCallback(
     (
-      files: File[],
+      files: FileMetadata[],
       batchId: string,
       batchName: string,
       courseId: string,
@@ -249,13 +256,14 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
       const MAX_SIZE = 10 * 1024 * 1024 * 1024;
       const newItems: UploadItem[] = [];
 
-      for (const file of files) {
+      for (const { file, title, description } of files) {
         if (!file.type.startsWith('video/')) continue;
         if (file.size > MAX_SIZE) continue;
         newItems.push({
           id: `uq-${nextIdRef.current++}`,
           file,
-          title: titleFromFilename(file.name),
+          title,
+          description,
           batchId,
           batchName,
           courseId,

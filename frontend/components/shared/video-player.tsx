@@ -66,6 +66,7 @@ export function VideoPlayer({ lectureId, videoType, videoUrl, videoStatus, water
   const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const expiresAtRef = useRef<number | null>(null);
+  const lastKnownTimeRef = useRef<number>(0);
 
   const fetchSignedUrl = useCallback(async () => {
     setLoading(true);
@@ -149,11 +150,14 @@ export function VideoPlayer({ lectureId, videoType, videoUrl, videoStatus, water
     let lastReportedTime = 0;
 
     const handleMessage = (event: MessageEvent) => {
+      // Only accept messages from Bunny's embed iframe
+      if (event.origin !== 'https://iframe.mediadelivery.net') return;
       if (!event.data || typeof event.data !== 'object') return;
       const { event: evtType, currentTime, duration } = event.data;
       if (evtType === 'timeupdate' && duration > 0) {
         const pct = Math.round((currentTime / duration) * 100);
         const now = currentTime;
+        lastKnownTimeRef.current = currentTime;
         // Report every 30 seconds or at end
         if (now - lastReportedTime >= 30 || pct >= 95) {
           lastReportedTime = now;
@@ -185,8 +189,10 @@ export function VideoPlayer({ lectureId, videoType, videoUrl, videoStatus, water
       try {
         const res = await getSignedUrl(lectureId);
         if (res.type === 'bunny_embed') {
-          // Preserve approximate playback position
-          setEmbedUrl(res.url);
+          // Preserve playback position across URL refresh
+          const resumeSec = Math.round(lastKnownTimeRef.current);
+          const url = resumeSec > 0 ? `${res.url}&t=${resumeSec}` : res.url;
+          setEmbedUrl(url);
           if (res.expiresAt) {
             expiresAtRef.current = new Date(res.expiresAt).getTime();
           }

@@ -234,13 +234,19 @@ async def upsert_progress(
     return progress
 
 
+_STATUS_RANK = {"pending": 0, "processing": 1, "ready": 2, "failed": 2}
+
+
 async def update_lecture_status(
     session: AsyncSession,
     bunny_video_id: str,
     status: str,
     thumbnail_url: Optional[str] = None,
 ) -> None:
-    """Find lecture by bunny_video_id and update its video_status (and optionally thumbnail)."""
+    """Find lecture by bunny_video_id and update its video_status (and optionally thumbnail).
+
+    Status rank protection: never downgrades a higher-rank status (e.g. ready → processing).
+    """
     result = await session.execute(
         select(Lecture).where(
             Lecture.bunny_video_id == bunny_video_id,
@@ -249,6 +255,10 @@ async def update_lecture_status(
     )
     lecture = result.scalar_one_or_none()
     if lecture:
+        current_rank = _STATUS_RANK.get(lecture.video_status, 0)
+        new_rank = _STATUS_RANK.get(status, 0)
+        if new_rank < current_rank:
+            return  # Never downgrade status
         lecture.video_status = status
         if thumbnail_url:
             lecture.thumbnail_url = thumbnail_url

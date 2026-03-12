@@ -34,7 +34,7 @@ async def create_video_entry(title: str) -> dict:
         return {"video_id": video_id, "library_id": library_id}
 
 
-def generate_tus_auth(video_id: str, expires_in: int = 21600) -> dict:
+def generate_tus_auth(video_id: str, expires_in: int = 7200) -> dict:
     """Generate TUS direct-upload authorization for frontend."""
     library_id = settings.BUNNY_LIBRARY_ID
     expiry = int(time.time()) + expires_in
