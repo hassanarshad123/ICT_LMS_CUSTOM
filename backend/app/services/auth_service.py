@@ -9,7 +9,7 @@ from app.config import get_settings
 from app.models.user import User
 from app.models.session import UserSession
 from app.models.settings import SystemSetting
-from app.models.enums import UserStatus
+from app.models.enums import UserStatus, UserRole
 from app.utils.security import verify_password, create_access_token, create_refresh_token, decode_token
 
 settings = get_settings()
@@ -35,9 +35,10 @@ async def authenticate_user(
     if institute_id is not None:
         query = query.where(User.institute_id == institute_id)
     else:
-        # For super_admin login (no institute slug), require institute_id to be NULL
-        # so institute admins can't login without a slug
+        # For bare-domain login (no institute slug), require institute_id NULL + super_admin role
+        # so institute admins can't login without a slug (Fix 3)
         query = query.where(User.institute_id.is_(None))
+        query = query.where(User.role == UserRole.super_admin)
 
     result = await session.execute(query)
     user = result.scalar_one_or_none()
@@ -50,11 +51,11 @@ async def authenticate_user(
     # Enforce device limit
     await _enforce_device_limit(session, user.id)
 
-    # Create tokens
-    access_token = create_access_token(user.id, user.role.value)
+    # Create tokens (embed token_version for revocation — Fix 1)
+    access_token = create_access_token(user.id, user.role.value, user.token_version)
     refresh_token, token_id = create_refresh_token(user.id)
 
-    # Store session
+    # Store session (set institute_id so device mgmt filters work — Fix 2)
     expires_at = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     user_session = UserSession(
         user_id=user.id,
@@ -62,6 +63,7 @@ async def authenticate_user(
         device_info=device_info,
         ip_address=ip_address,
         expires_at=expires_at,
+        institute_id=user.institute_id,
     )
     session.add(user_session)
     await session.commit()
@@ -106,16 +108,17 @@ async def refresh_access_token(session: AsyncSession, refresh_token: str) -> str
         raise ValueError("User not found or deactivated")
 
     await session.commit()
-    return create_access_token(user.id, user.role.value)
+    return create_access_token(user.id, user.role.value, user.token_version)
 
 
 async def logout(session: AsyncSession, refresh_token: str) -> None:
-    """Revoke the refresh token session."""
+    """Revoke the refresh token session and increment token_version (Fix 1)."""
     payload = decode_token(refresh_token)
     if not payload or payload.get("type") != "refresh":
         return  # silently ignore invalid tokens on logout
 
     token_id = payload.get("jti")
+    user_id = payload.get("sub")
     if not token_id:
         return
 
@@ -127,11 +130,22 @@ async def logout(session: AsyncSession, refresh_token: str) -> None:
     if user_session:
         user_session.is_active = False
         session.add(user_session)
-        await session.commit()
+
+    # Increment token_version to revoke all outstanding access tokens
+    if user_id:
+        result = await session.execute(
+            select(User).where(User.id == uuid.UUID(user_id), User.deleted_at.is_(None))
+        )
+        user = result.scalar_one_or_none()
+        if user:
+            user.token_version += 1
+            session.add(user)
+
+    await session.commit()
 
 
 async def logout_all(session: AsyncSession, user_id: uuid.UUID) -> int:
-    """Revoke all active sessions for a user. Returns count terminated."""
+    """Revoke all active sessions for a user and increment token_version. Returns count terminated."""
     result = await session.execute(
         select(UserSession).where(
             UserSession.user_id == user_id, UserSession.is_active.is_(True)
@@ -142,6 +156,16 @@ async def logout_all(session: AsyncSession, user_id: uuid.UUID) -> int:
     for s in sessions:
         s.is_active = False
         session.add(s)
+
+    # Increment token_version to revoke all outstanding access tokens (Fix 1)
+    result = await session.execute(
+        select(User).where(User.id == user_id, User.deleted_at.is_(None))
+    )
+    user = result.scalar_one_or_none()
+    if user:
+        user.token_version += 1
+        session.add(user)
+
     await session.commit()
     return count
 

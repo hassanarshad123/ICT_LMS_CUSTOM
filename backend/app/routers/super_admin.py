@@ -19,6 +19,7 @@ from app.schemas.common import PaginatedResponse
 from app.services.institute_service import (
     create_institute, create_admin_for_institute, get_platform_stats,
     recalculate_usage, get_or_create_usage,
+    check_user_quota, increment_usage,
 )
 from app.utils.security import create_impersonation_token
 
@@ -218,6 +219,12 @@ async def create_admin(
     if existing.scalar_one_or_none():
         raise HTTPException(400, "Email already in use in this institute")
 
+    # Enforce user quota before creation (Fix 5)
+    try:
+        await check_user_quota(session, institute_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
     user = await create_admin_for_institute(
         session=session,
         institute_id=institute_id,
@@ -226,6 +233,10 @@ async def create_admin(
         password=body.password,
         phone=body.phone,
     )
+
+    # Increment usage counter (Fix 5)
+    await increment_usage(session, institute_id, users=1)
+
     return {"id": str(user.id), "email": user.email, "name": user.name, "role": user.role.value}
 
 
@@ -380,7 +391,7 @@ async def impersonate_user(
     if not institute:
         raise HTTPException(404, "Institute not found")
 
-    token = create_impersonation_token(target.id, sa.id)
+    token = create_impersonation_token(target.id, sa.id, target.token_version)
 
     # Audit log
     log = ActivityLog(

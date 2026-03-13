@@ -15,36 +15,63 @@ export default function ImpersonateCallbackPage() {
       return;
     }
 
+    let payload: { sub?: string; imp?: string };
     try {
-      // Decode JWT payload to get sub (user_id) and imp (impersonator_id)
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      const userId = payload.sub;
-      const impersonatorId = payload.imp;
-
-      if (!userId || !impersonatorId) {
-        router.replace('/login');
-        return;
-      }
-
-      // Store impersonation token (no refresh token for impersonation)
-      localStorage.setItem('access_token', token);
-      localStorage.removeItem('refresh_token');
-      localStorage.setItem('is_impersonating', 'true');
-      localStorage.setItem('impersonator_id', impersonatorId);
-
-      // We need to fetch user data so the app works correctly
-      // Store a minimal user object — the app will hydrate from /auth/me
-      localStorage.setItem('user', JSON.stringify({
-        id: userId,
-        role: '',
-        name: '',
-        email: '',
-      }));
-
-      router.replace(`/${userId}`);
+      payload = JSON.parse(atob(token.split('.')[1]));
     } catch {
       router.replace('/login');
+      return;
     }
+
+    const userId = payload.sub;
+    const impersonatorId = payload.imp;
+
+    if (!userId || !impersonatorId) {
+      router.replace('/login');
+      return;
+    }
+
+    // Store impersonation token (no refresh token for impersonation)
+    localStorage.setItem('access_token', token);
+    localStorage.removeItem('refresh_token');
+    localStorage.setItem('is_impersonating', 'true');
+    localStorage.setItem('impersonator_id', impersonatorId);
+
+    // Fetch real user data so sidebar/nav shows correct info (Fix 6)
+    const hydrateAndRedirect = async () => {
+      try {
+        const meResp = await fetch('/api/v1/auth/me', {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (meResp.ok) {
+          const me = await meResp.json();
+          localStorage.setItem('user', JSON.stringify({
+            id: me.id,
+            email: me.email,
+            name: me.name,
+            phone: me.phone,
+            role: me.role,
+            status: me.status,
+            avatarUrl: me.avatar_url,
+            batchIds: me.batch_ids || [],
+            batchNames: me.batch_names || [],
+            instituteId: me.institute_id,
+            instituteSlug: me.institute_slug,
+          }));
+        } else {
+          localStorage.setItem('user', JSON.stringify({
+            id: userId, role: '', name: '', email: '',
+          }));
+        }
+      } catch {
+        localStorage.setItem('user', JSON.stringify({
+          id: userId, role: '', name: '', email: '',
+        }));
+      }
+      router.replace(`/${userId}`);
+    };
+
+    hydrateAndRedirect();
   }, [params, router]);
 
   return (

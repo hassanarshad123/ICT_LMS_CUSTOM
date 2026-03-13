@@ -53,3 +53,4 @@ class User(SQLModel, table=True):
         default=None,
         sa_column=Column(TIMESTAMP(timezone=True), nullable=True),
     )
+    token_version: int = Field(default=0, nullable=False)

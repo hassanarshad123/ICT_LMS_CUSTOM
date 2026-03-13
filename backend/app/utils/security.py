@@ -17,12 +17,13 @@ def verify_password(plain: str, hashed: str) -> bool:
     return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
 
 
-def create_access_token(user_id: uuid.UUID, role: str) -> str:
+def create_access_token(user_id: uuid.UUID, role: str, token_version: int = 0) -> str:
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     payload = {
         "sub": str(user_id),
         "role": role,
         "type": "access",
+        "tv": token_version,
         "exp": expire,
     }
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
@@ -42,13 +43,16 @@ def create_refresh_token(user_id: uuid.UUID) -> tuple[str, str]:
     return token, token_id
 
 
-def create_impersonation_token(target_user_id: uuid.UUID, impersonator_id: uuid.UUID) -> str:
+def create_impersonation_token(
+    target_user_id: uuid.UUID, impersonator_id: uuid.UUID, token_version: int = 0
+) -> str:
     """Create a short-lived access token for SA impersonation. No refresh token."""
     expire = datetime.now(timezone.utc) + timedelta(minutes=30)
     payload = {
         "sub": str(target_user_id),
         "type": "access",
         "imp": str(impersonator_id),
+        "tv": token_version,
         "exp": expire,
     }
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)

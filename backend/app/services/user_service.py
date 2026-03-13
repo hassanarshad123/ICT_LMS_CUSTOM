@@ -228,7 +228,7 @@ async def soft_delete_user(session: AsyncSession, user_id: uuid.UUID) -> None:
 
 
 async def force_logout_user(session: AsyncSession, user_id: uuid.UUID) -> None:
-    """Revoke all active sessions for a user."""
+    """Revoke all active sessions for a user and increment token_version (Fix 1)."""
     result = await session.execute(
         select(UserSession).where(
             UserSession.user_id == user_id, UserSession.is_active.is_(True)
@@ -237,4 +237,11 @@ async def force_logout_user(session: AsyncSession, user_id: uuid.UUID) -> None:
     for s in result.scalars().all():
         s.is_active = False
         session.add(s)
+
+    # Increment token_version to revoke outstanding access tokens
+    user = await get_user(session, user_id)
+    if user:
+        user.token_version += 1
+        session.add(user)
+
     await session.commit()

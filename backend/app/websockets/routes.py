@@ -29,7 +29,14 @@ async def _get_user_from_token(websocket: WebSocket) -> User | None:
         result = await session.execute(
             select(User).where(User.id == uuid.UUID(user_id), User.deleted_at.is_(None))
         )
-        return result.scalar_one_or_none()
+        user = result.scalar_one_or_none()
+        if not user:
+            return None
+        # Verify token_version — reject revoked tokens (Fix 1)
+        token_tv = payload.get("tv")
+        if token_tv is None or token_tv != user.token_version:
+            return None
+        return user
 
 
 @router.websocket("/ws/class-status/{batch_id}")

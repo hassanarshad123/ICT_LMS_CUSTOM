@@ -21,6 +21,7 @@ from app.schemas.public_api import (
     PublicJobOut,
 )
 from app.services import user_service, webhook_event_service, public_service
+from app.services.institute_service import check_user_quota, increment_usage
 
 router = APIRouter()
 
@@ -85,6 +86,13 @@ async def create_student(
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     password = body.password or secrets.token_urlsafe(12)
+
+    # Enforce user quota before creation (Fix 5)
+    try:
+        await check_user_quota(session, auth.institute_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
     try:
         user = await user_service.create_user(
             session,
@@ -97,6 +105,9 @@ async def create_student(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    # Increment usage counter (Fix 5)
+    await increment_usage(session, auth.institute_id, users=1)
 
     await webhook_event_service.queue_webhook_event(
         session, auth.institute_id, "user.created",

@@ -160,7 +160,7 @@ async def change_password(
     current_user.hashed_password = hash_password(body.new_password)
     session.add(current_user)
 
-    # Logout all devices after password change
+    # Logout all devices after password change (logout_all increments token_version — Fix 1)
     count = await logout_all(session, current_user.id)
 
     return {"detail": "Password changed successfully"}
@@ -202,7 +202,11 @@ async def forgot_password(
 
     if user:
         token = create_password_reset_token(user.id)
-        reset_url = f"{settings.FRONTEND_URL}/reset-password?token={token}"
+        # Use tenant-specific domain when slug is provided (Fix 4)
+        if x_institute_slug and settings.FRONTEND_BASE_DOMAIN:
+            reset_url = f"https://{x_institute_slug}.{settings.FRONTEND_BASE_DOMAIN}/reset-password?token={token}"
+        else:
+            reset_url = f"{settings.FRONTEND_URL}/reset-password?token={token}"
         try:
             from app.utils.email import send_password_reset
             send_password_reset(user.email, user.name, reset_url)
@@ -240,6 +244,7 @@ async def reset_password(
 
     user.hashed_password = hash_password(body.new_password)
     session.add(user)
+    # logout_all increments token_version to revoke outstanding access tokens (Fix 1)
     await logout_all(session, user.id)
 
     return {"detail": "Password has been reset successfully"}

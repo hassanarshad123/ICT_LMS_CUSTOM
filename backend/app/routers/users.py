@@ -29,6 +29,7 @@ from app.models.enums import UserRole, UserStatus
 from app.utils.security import hash_password
 from app.utils.transformers import to_db
 from app.services import webhook_event_service
+from app.services.institute_service import check_user_quota, increment_usage, decrement_usage
 
 router = APIRouter()
 
@@ -180,6 +181,13 @@ async def create_user_endpoint(
     # Generate temporary password if not provided
     password = body.password if body.password else secrets.token_urlsafe(8)
 
+    # Enforce user quota before creation (Fix 5)
+    if current_user.institute_id:
+        try:
+            await check_user_quota(session, current_user.institute_id)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
     try:
         user = await create_user(
             session,
@@ -193,6 +201,10 @@ async def create_user_endpoint(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    # Increment usage counter (Fix 5)
+    if current_user.institute_id:
+        await increment_usage(session, current_user.institute_id, users=1)
 
     # Auto-enroll in batch if batch_id provided and role is student
     batch_id = getattr(body, 'batch_id', None)
@@ -330,6 +342,10 @@ async def delete_user_endpoint(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
+    # Decrement usage counter (Fix 5)
+    if current_user.institute_id:
+        await decrement_usage(session, current_user.institute_id, users=1)
+
     if current_user.institute_id:
         await webhook_event_service.queue_webhook_event(
             session, current_user.institute_id, "user.deleted",
@@ -384,6 +400,14 @@ async def bulk_import(
             errors.append({"row": row_num, "error": f"Missing name or email"})
             continue
 
+        # Enforce user quota per row (Fix 5)
+        if current_user.institute_id:
+            try:
+                await check_user_quota(session, current_user.institute_id)
+            except ValueError as e:
+                errors.append({"row": row_num, "error": str(e)})
+                continue
+
         db_role = to_db(role)
         password = secrets.token_urlsafe(8)
 
@@ -394,6 +418,9 @@ async def bulk_import(
                 institute_id=current_user.institute_id,
             )
             imported += 1
+            # Increment usage counter (Fix 5)
+            if current_user.institute_id:
+                await increment_usage(session, current_user.institute_id, users=1)
         except ValueError as e:
             if "already in use" in str(e):
                 skipped += 1

@@ -42,6 +42,11 @@ async def get_current_user(
     if user.status != UserStatus.active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is deactivated")
 
+    # Verify token_version — reject tokens issued before logout/password change
+    token_tv = payload.get("tv")
+    if token_tv is None or token_tv != user.token_version:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked")
+
     # Attach impersonator info if this is an impersonation token
     imp_id = payload.get("imp")
     user._impersonator_id = uuid.UUID(imp_id) if imp_id else None
