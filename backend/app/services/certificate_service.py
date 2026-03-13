@@ -11,7 +11,8 @@ from sqlmodel import select
 from app.models.certificate import Certificate, CertificateCounter
 from app.models.course import Lecture, BatchCourse, Course
 from app.models.batch import Batch, StudentBatch
-from app.models.other import LectureProgress, SystemSetting
+from app.models.progress import LectureProgress
+from app.models.settings import SystemSetting
 from app.models.user import User
 from app.models.enums import CertificateStatus
 from app.utils.certificate_pdf import generate_certificate_pdf, CertDesign

@@ -18,7 +18,7 @@ async def _get_institute_name(institute_id: uuid.UUID) -> str | None:
     try:
         from sqlmodel import select
         from app.database import async_session
-        from app.models.other import SystemSetting
+        from app.models.settings import SystemSetting
 
         async with async_session() as session:
             result = await session.execute(

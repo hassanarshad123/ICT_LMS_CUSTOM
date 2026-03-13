@@ -5,7 +5,7 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, func
 
-from app.models.other import Announcement
+from app.models.announcement import Announcement
 from app.models.batch import Batch, StudentBatch
 from app.models.course import BatchCourse
 from app.models.user import User

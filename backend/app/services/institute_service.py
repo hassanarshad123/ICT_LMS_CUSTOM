@@ -89,7 +89,7 @@ async def check_video_quota(
 
 async def recalculate_usage(session: AsyncSession, institute_id: uuid.UUID) -> InstituteUsage:
     """Recalculate usage from actual DB rows (for daily scheduler job)."""
-    from app.models.other import BatchMaterial
+    from app.models.course import BatchMaterial
     from app.models.course import Lecture
 
     # Count active users

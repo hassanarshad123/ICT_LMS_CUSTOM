@@ -6,7 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, func, col
 
 from app.models.user import User
-from app.models.other import UserSession, Announcement
+from app.models.session import UserSession
+from app.models.announcement import Announcement
 from app.models.zoom import ZoomClass
 from app.models.batch import StudentBatch
 from app.models.enums import UserRole, UserStatus

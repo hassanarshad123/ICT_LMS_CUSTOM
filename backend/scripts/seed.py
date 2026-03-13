@@ -10,7 +10,7 @@ from sqlmodel import select
 
 from app.database import async_session
 from app.models.user import User
-from app.models.other import SystemSetting
+from app.models.settings import SystemSetting
 from app.models.enums import UserRole
 from app.utils.security import hash_password
 

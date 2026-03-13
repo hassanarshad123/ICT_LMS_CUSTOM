@@ -9,7 +9,9 @@ from sqlmodel import select, func, col
 from app.models.user import User
 from app.models.batch import Batch, StudentBatch
 from app.models.course import Course, Lecture, BatchMaterial, BatchCourse
-from app.models.other import UserSession, SystemSetting, ActivityLog
+from app.models.session import UserSession
+from app.models.settings import SystemSetting
+from app.models.activity import ActivityLog
 from app.models.enums import UserRole, UserStatus
 
 

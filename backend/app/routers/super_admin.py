@@ -10,7 +10,7 @@ from app.database import get_session
 from app.middleware.auth import require_roles
 from app.models.user import User
 from app.models.institute import Institute, InstituteUsage, InstituteStatus, PlanTier
-from app.models.other import ActivityLog
+from app.models.activity import ActivityLog
 from app.models.enums import UserRole
 from app.schemas.super_admin import (
     InstituteCreate, InstituteUpdate, InstituteOut, AdminCreate, PlatformDashboard

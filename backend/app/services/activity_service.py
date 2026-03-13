@@ -3,7 +3,7 @@ from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.other import ActivityLog
+from app.models.activity import ActivityLog
 
 
 async def log_activity(

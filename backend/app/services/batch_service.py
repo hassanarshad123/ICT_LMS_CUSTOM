@@ -8,7 +8,7 @@ from sqlmodel import select, func, col
 from app.models.batch import Batch, StudentBatch, StudentBatchHistory
 from app.models.course import BatchCourse, Course, Lecture, BatchMaterial, CurriculumModule
 from app.models.zoom import ZoomClass
-from app.models.other import Announcement
+from app.models.announcement import Announcement
 from app.models.user import User
 from app.models.enums import UserRole, BatchHistoryAction
 

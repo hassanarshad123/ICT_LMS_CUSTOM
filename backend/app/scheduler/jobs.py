@@ -10,7 +10,7 @@ logger = logging.getLogger("ict_lms.scheduler")
 async def cleanup_expired_sessions():
     """Deactivate expired sessions (hourly)."""
     from sqlmodel import select
-    from app.models.other import UserSession
+    from app.models.session import UserSession
 
     async with async_session() as session:
         result = await session.execute(

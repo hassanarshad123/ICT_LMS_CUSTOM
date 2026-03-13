@@ -4,7 +4,7 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, func
 
-from app.models.other import Notification
+from app.models.notification import Notification
 
 
 async def create_notification(

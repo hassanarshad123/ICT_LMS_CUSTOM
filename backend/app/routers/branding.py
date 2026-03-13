@@ -11,7 +11,7 @@ from sqlmodel import select
 
 from app.database import get_session
 from app.middleware.auth import require_roles, get_institute_slug_from_header
-from app.models.other import SystemSetting
+from app.models.settings import SystemSetting
 from app.models.user import User
 from app.models.institute import Institute
 from app.schemas.branding import (

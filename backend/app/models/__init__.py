@@ -15,16 +15,13 @@ from app.models.zoom import (  # noqa: F401
     ClassRecording,
     ZoomAttendance,
 )
-from app.models.other import (  # noqa: F401
-    Announcement,
-    LectureProgress,
-    Job,
-    JobApplication,
-    UserSession,
-    SystemSetting,
-    Notification,
-    ActivityLog,
-)
+from app.models.announcement import Announcement  # noqa: F401
+from app.models.progress import LectureProgress  # noqa: F401
+from app.models.job import Job, JobApplication  # noqa: F401
+from app.models.notification import Notification  # noqa: F401
+from app.models.session import UserSession  # noqa: F401
+from app.models.settings import SystemSetting  # noqa: F401
+from app.models.activity import ActivityLog  # noqa: F401
 from app.models.certificate import Certificate, CertificateCounter  # noqa: F401
 from app.models.error_log import ErrorLog  # noqa: F401
 from app.models.api_integration import ApiKey, WebhookEndpoint, WebhookDelivery  # noqa: F401

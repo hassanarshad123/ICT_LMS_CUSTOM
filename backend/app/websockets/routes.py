@@ -7,7 +7,7 @@ from sqlmodel import select
 from app.database import async_session
 from app.models.batch import Batch
 from app.models.user import User
-from app.models.other import UserSession
+from app.models.session import UserSession
 from app.utils.security import decode_token
 from app.websockets.manager import manager
 

@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, func
 
 from app.models.course import Lecture
-from app.models.other import LectureProgress
+from app.models.progress import LectureProgress
 from app.models.enums import VideoType, LectureWatchStatus
 from app.utils.formatters import format_duration
 from app.utils.transformers import to_db

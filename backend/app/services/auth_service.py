@@ -7,7 +7,8 @@ from sqlmodel import select, func
 
 from app.config import get_settings
 from app.models.user import User
-from app.models.other import UserSession, SystemSetting
+from app.models.session import UserSession
+from app.models.settings import SystemSetting
 from app.models.enums import UserStatus
 from app.utils.security import verify_password, create_access_token, create_refresh_token, decode_token
 

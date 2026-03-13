@@ -5,7 +5,7 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, func, col
 
-from app.models.other import Job, JobApplication
+from app.models.job import Job, JobApplication
 from app.models.user import User
 from app.models.enums import JobType, ApplicationStatus
 from app.utils.transformers import to_db, to_api

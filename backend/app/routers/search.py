@@ -11,7 +11,7 @@ from app.middleware.auth import get_current_user
 from app.models.user import User
 from app.models.batch import Batch, StudentBatch
 from app.models.course import Course, BatchCourse
-from app.models.other import Announcement
+from app.models.announcement import Announcement
 from app.models.enums import UserRole, AnnouncementScope
 
 router = APIRouter()
