@@ -10,38 +10,17 @@ import { getCourse } from '@/lib/api/courses';
 import { listModules, createModule, updateModule, deleteModule } from '@/lib/api/curriculum';
 import { listBatches, linkCourse, unlinkCourse } from '@/lib/api/batches';
 import { listQuizzes, createQuiz, deleteQuiz } from '@/lib/api/quizzes';
-import type { Quiz } from '@/lib/api/quizzes';
-import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
+import { PageLoading } from '@/components/shared/page-states';
 import { toast } from 'sonner';
 import {
   ArrowLeft,
   BookOpen,
   Layers,
-  Plus,
-  X,
-  ChevronDown,
-  ChevronUp,
-  Users,
-  Trash2,
-  FolderOpen,
-  Edit3,
-  Loader2,
-  HelpCircle,
-  Eye,
-  EyeOff,
-  BarChart3,
 } from 'lucide-react';
 import Link from 'next/link';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+import { CourseBatchesSection } from './course-batches-section';
+import { CourseCurriculumSection } from './course-curriculum-section';
+import { CourseQuizzesSection } from './course-quizzes-section';
 
 export default function CourseCreatorCourseDetail() {
   const params = useParams();
@@ -247,426 +226,51 @@ export default function CourseCreatorCourseDetail() {
         </div>
       </div>
 
-      {/* Linked Batches Section */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-primary">Linked Batches</h3>
-          <div className="relative">
-            <button
-              onClick={() => setShowBatchDropdown(!showBatchDropdown)}
-              disabled={unlinkedBatches.length === 0}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <Plus size={16} />
-              Add Batch
-            </button>
-            {showBatchDropdown && unlinkedBatches.length > 0 && (
-              <div className="absolute top-12 right-0 bg-white rounded-xl card-shadow border border-gray-100 py-2 z-10 min-w-[280px]">
-                {unlinkedBatches.map((batch) => (
-                  <button
-                    key={batch.id}
-                    onClick={() => handleLinkBatch(batch.id)}
-                    className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors flex items-center justify-between"
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-primary">{batch.name}</p>
-                      <p className="text-xs text-gray-400">{batch.studentCount} students</p>
-                    </div>
-                    <Plus size={14} className="text-gray-400" />
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+      <CourseBatchesSection
+        basePath={basePath}
+        linkedBatches={linkedBatches}
+        unlinkedBatches={unlinkedBatches}
+        showBatchDropdown={showBatchDropdown}
+        onToggleBatchDropdown={() => setShowBatchDropdown(!showBatchDropdown)}
+        onLinkBatch={handleLinkBatch}
+        onUnlinkBatch={handleUnlinkBatch}
+      />
 
-        {linkedBatches.length === 0 ? (
-          <EmptyState
-            icon={<Layers size={28} className="text-gray-400" />}
-            title="No batches linked"
-            description='Click "Add Batch" to link a batch to this course.'
-          />
-        ) : (
-          <div className="space-y-4">
-            {linkedBatches.map((batch) => (
-              <div key={batch.id} className="bg-white rounded-2xl card-shadow overflow-hidden">
-                <div className="flex items-center justify-between p-5">
-                  <div className="flex items-center gap-4 flex-1">
-                    <div className="w-10 h-10 bg-accent bg-opacity-30 rounded-xl flex items-center justify-center">
-                      <Layers size={18} className="text-primary" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-sm text-primary">{batch.name}</h4>
-                      <div className="flex flex-wrap items-center gap-2 mt-1">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                          batch.status === 'active' ? 'bg-green-100 text-green-700' :
-                          batch.status === 'upcoming' ? 'bg-yellow-100 text-yellow-700' :
-                          'bg-gray-100 text-gray-600'
-                        }`}>
-                          {batch.status}
-                        </span>
-                        <span className="text-xs text-gray-400 flex items-center gap-1">
-                          <Users size={12} />
-                          {batch.studentCount} students
-                        </span>
-                        <span className="text-xs text-gray-400">{batch.teacherName || 'Unassigned'}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 ml-4">
-                    <Link
-                      href={`${basePath}/batches/${batch.id}`}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-xs font-medium rounded-lg hover:bg-primary/80 transition-colors"
-                    >
-                      <FolderOpen size={12} />
-                      Manage Content
-                    </Link>
-                    <button
-                      onClick={() => handleUnlinkBatch(batch.id)}
-                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Unlink batch from course"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <CourseCurriculumSection
+        sortedModules={sortedModules}
+        showModuleForm={showModuleForm}
+        moduleForm={moduleForm}
+        editingModuleId={editingModuleId}
+        editForm={editForm}
+        expandedModule={expandedModule}
+        deleteModuleId={deleteModuleId}
+        creatingModule={creatingModule}
+        onSetShowModuleForm={setShowModuleForm}
+        onSetModuleForm={setModuleForm}
+        onSetEditingModuleId={setEditingModuleId}
+        onSetEditForm={setEditForm}
+        onSetExpandedModule={setExpandedModule}
+        onSetDeleteModuleId={setDeleteModuleId}
+        onAddModule={handleAddModule}
+        onUpdateModule={handleUpdateModule}
+        onDeleteModule={handleDeleteModule}
+      />
 
-      {/* Curriculum Section */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-primary">Curriculum</h3>
-          {!showModuleForm && (
-            <button
-              onClick={() => setShowModuleForm(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary/80 transition-colors"
-            >
-              <Plus size={14} />
-              Add Module
-            </button>
-          )}
-        </div>
-
-        {showModuleForm && (
-          <div className="bg-white rounded-2xl p-6 card-shadow mb-4">
-            <h4 className="text-sm font-semibold text-primary mb-4">New Module</h4>
-            <form onSubmit={handleAddModule} className="space-y-4 mb-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Title</label>
-                <input
-                  type="text"
-                  value={moduleForm.title}
-                  onChange={(e) => setModuleForm({ ...moduleForm, title: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
-                  placeholder="Module title"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
-                <input
-                  type="text"
-                  value={moduleForm.description}
-                  onChange={(e) => setModuleForm({ ...moduleForm, description: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
-                  placeholder="Module description"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Topics (comma separated)</label>
-                <input
-                  type="text"
-                  value={moduleForm.topics}
-                  onChange={(e) => setModuleForm({ ...moduleForm, topics: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
-                  placeholder="Topic 1, Topic 2, Topic 3"
-                />
-              </div>
-              <div className="flex gap-3">
-                <button
-                  type="submit"
-                  disabled={creatingModule}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary/80 transition-colors disabled:opacity-60"
-                >
-                  {creatingModule && <Loader2 size={16} className="animate-spin" />}
-                  Add Module
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setShowModuleForm(false); setModuleForm({ title: '', description: '', topics: '' }); }}
-                  className="px-5 py-2.5 bg-gray-100 text-gray-600 text-sm font-medium rounded-xl hover:bg-gray-200 transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-
-        {sortedModules.length === 0 ? (
-          <div className="bg-white rounded-2xl p-8 card-shadow text-center">
-            <BookOpen size={24} className="text-gray-300 mx-auto mb-2" />
-            <p className="text-sm text-gray-500">No curriculum modules yet. Add your first module.</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {sortedModules.map((mod) => {
-              const isEditing = editingModuleId === mod.id;
-              const isExpanded = expandedModule === mod.id;
-              return (
-                <div key={mod.id} className="bg-white rounded-xl card-shadow overflow-hidden">
-                  {isEditing ? (
-                    <div className="p-4">
-                      <div className="space-y-3 mb-3">
-                        <input
-                          type="text"
-                          value={editForm.title}
-                          onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
-                          className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary"
-                          placeholder="Module title"
-                        />
-                        <input
-                          type="text"
-                          value={editForm.description}
-                          onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                          className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary"
-                          placeholder="Description"
-                        />
-                        <input
-                          type="text"
-                          value={editForm.topics}
-                          onChange={(e) => setEditForm({ ...editForm, topics: e.target.value })}
-                          className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary"
-                          placeholder="Topic 1, Topic 2"
-                        />
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleUpdateModule(mod.id)}
-                          className="px-4 py-2 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary/80 transition-colors"
-                        >
-                          Save
-                        </button>
-                        <button
-                          onClick={() => setEditingModuleId(null)}
-                          className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex items-center justify-between p-4">
-                        <button
-                          onClick={() => setExpandedModule(isExpanded ? null : mod.id)}
-                          className="flex items-center gap-3 flex-1 text-left"
-                        >
-                          <div className="w-8 h-8 bg-accent bg-opacity-30 rounded-lg flex items-center justify-center flex-shrink-0">
-                            <span className="text-xs font-bold text-primary">{mod.sequenceOrder}</span>
-                          </div>
-                          <div>
-                            <h4 className="font-medium text-sm text-primary">{mod.title}</h4>
-                            <p className="text-xs text-gray-500 mt-0.5">{mod.description}</p>
-                          </div>
-                          {(mod.topics || []).length > 0 && (
-                            isExpanded ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />
-                          )}
-                        </button>
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => {
-                              setEditingModuleId(mod.id);
-                              setEditForm({
-                                title: mod.title,
-                                description: mod.description || '',
-                                topics: (mod.topics || []).join(', '),
-                              });
-                            }}
-                            className="p-2 text-gray-400 hover:text-primary hover:bg-gray-50 rounded-lg transition-colors"
-                          >
-                            <Edit3 size={14} />
-                          </button>
-                          <button
-                            onClick={() => setDeleteModuleId(mod.id)}
-                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </div>
-                      {isExpanded && (mod.topics || []).length > 0 && (
-                        <div className="px-4 pb-4">
-                          <div className="ml-11 border-t border-gray-100 pt-3">
-                            <ul className="space-y-1.5">
-                              {mod.topics!.map((topic, i) => (
-                                <li key={i} className="flex items-center gap-2 text-sm text-gray-600">
-                                  <div className="w-1.5 h-1.5 rounded-full bg-accent" />
-                                  {topic}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-      {/* Quizzes Section */}
-      <div className="mt-8">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-primary">Quizzes</h3>
-          {!showQuizForm && (
-            <button
-              onClick={() => setShowQuizForm(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary/80 transition-colors"
-            >
-              <Plus size={14} />
-              Add Quiz
-            </button>
-          )}
-        </div>
-
-        {showQuizForm && (
-          <div className="bg-white rounded-2xl p-6 card-shadow mb-4">
-            <h4 className="text-sm font-semibold text-primary mb-4">New Quiz</h4>
-            <form onSubmit={handleAddQuiz} className="space-y-4 mb-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Title</label>
-                <input
-                  type="text"
-                  value={quizForm.title}
-                  onChange={(e) => setQuizForm({ ...quizForm, title: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
-                  placeholder="Quiz title"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
-                <input
-                  type="text"
-                  value={quizForm.description}
-                  onChange={(e) => setQuizForm({ ...quizForm, description: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
-                  placeholder="Quiz description (optional)"
-                />
-              </div>
-              <div className="flex gap-3">
-                <button
-                  type="submit"
-                  disabled={creatingQuiz}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary/80 transition-colors disabled:opacity-60"
-                >
-                  {creatingQuiz && <Loader2 size={16} className="animate-spin" />}
-                  Create Quiz
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setShowQuizForm(false); setQuizForm({ title: '', description: '' }); }}
-                  className="px-5 py-2.5 bg-gray-100 text-gray-600 text-sm font-medium rounded-xl hover:bg-gray-200 transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-
-        {quizzesLoading ? (
-          <div className="space-y-3">
-            {Array.from({ length: 2 }).map((_, i) => (
-              <div key={i} className="animate-pulse bg-gray-200 rounded-xl h-16" />
-            ))}
-          </div>
-        ) : quizzes.length === 0 ? (
-          <div className="bg-white rounded-2xl p-8 card-shadow text-center">
-            <HelpCircle size={24} className="text-gray-300 mx-auto mb-2" />
-            <p className="text-sm text-gray-500">No quizzes yet. Add your first quiz.</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {quizzes.map((q) => (
-              <div key={q.id} className="bg-white rounded-xl card-shadow overflow-hidden">
-                <div className="flex items-center justify-between p-4">
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="w-8 h-8 bg-accent bg-opacity-30 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <HelpCircle size={16} className="text-primary" />
-                    </div>
-                    <div className="min-w-0">
-                      <h4 className="font-medium text-sm text-primary truncate">{q.title}</h4>
-                      <div className="flex flex-wrap items-center gap-2 mt-0.5">
-                        <span className="text-xs text-gray-400">{q.questionCount} question{q.questionCount !== 1 ? 's' : ''}</span>
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                          q.isPublished ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-                        }`}>
-                          {q.isPublished ? 'Published' : 'Draft'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 ml-4 flex-shrink-0">
-                    <Link
-                      href={`${basePath}/courses/${courseId}/quizzes/${q.id}/results`}
-                      className="p-2 text-gray-400 hover:text-primary hover:bg-gray-50 rounded-lg transition-colors"
-                      title="View Results"
-                    >
-                      <BarChart3 size={14} />
-                    </Link>
-                    <Link
-                      href={`${basePath}/courses/${courseId}/quizzes/${q.id}`}
-                      className="p-2 text-gray-400 hover:text-primary hover:bg-gray-50 rounded-lg transition-colors"
-                      title="Edit Quiz"
-                    >
-                      <Edit3 size={14} />
-                    </Link>
-                    <button
-                      onClick={() => setDeleteQuizId(q.id)}
-                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <AlertDialog open={!!deleteModuleId} onOpenChange={(open) => !open && setDeleteModuleId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Module</AlertDialogTitle>
-            <AlertDialogDescription>Are you sure you want to delete this curriculum module? This action cannot be undone.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => deleteModuleId && handleDeleteModule(deleteModuleId)} className="bg-red-600 hover:bg-red-700 text-white">Delete</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-      <AlertDialog open={!!deleteQuizId} onOpenChange={(open) => !open && setDeleteQuizId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Quiz</AlertDialogTitle>
-            <AlertDialogDescription>Are you sure you want to delete this quiz? All questions and student attempts will be lost. This action cannot be undone.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => deleteQuizId && handleDeleteQuiz(deleteQuizId)} className="bg-red-600 hover:bg-red-700 text-white">Delete</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <CourseQuizzesSection
+        basePath={basePath}
+        courseId={courseId}
+        quizzes={quizzes}
+        quizzesLoading={quizzesLoading}
+        showQuizForm={showQuizForm}
+        quizForm={quizForm}
+        deleteQuizId={deleteQuizId}
+        creatingQuiz={creatingQuiz}
+        onSetShowQuizForm={setShowQuizForm}
+        onSetQuizForm={setQuizForm}
+        onSetDeleteQuizId={setDeleteQuizId}
+        onAddQuiz={handleAddQuiz}
+        onDeleteQuiz={handleDeleteQuiz}
+      />
     </DashboardLayout>
   );
 }

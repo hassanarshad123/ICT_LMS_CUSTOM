@@ -12,32 +12,21 @@ import { listLectures } from '@/lib/api/lectures';
 import { listMaterials, getDownloadUrl } from '@/lib/api/materials';
 import { listClasses } from '@/lib/api/zoom';
 import { listQuizzes, listMyAttempts } from '@/lib/api/quizzes';
-import type { Quiz, QuizAttempt } from '@/lib/api/quizzes';
 import { PageLoading, PageError } from '@/components/shared/page-states';
-import { statusColors, fileTypeConfig } from '@/lib/constants';
+import { statusColors } from '@/lib/constants';
 import { toast } from 'sonner';
 import {
   ArrowLeft,
   BookOpen,
-  Clock,
   PlayCircle,
   ChevronDown,
   ChevronUp,
   Video,
-  FileText,
-  Download,
-  Paperclip,
-  Loader2,
-  HelpCircle,
-  Target,
-  RotateCcw,
-  CheckCircle,
-  XCircle,
-  ArrowRight,
 } from 'lucide-react';
 import Link from 'next/link';
-import type { MaterialFileType } from '@/lib/types';
-import { VideoPlayer } from '@/components/shared/video-player';
+import { CourseVideoPlayer } from './course-video-player';
+import { CourseMaterialsSection } from './course-materials-section';
+import { CourseQuizzesSection } from './course-quizzes-section';
 
 export default function CourseDetailPage() {
   const params = useParams();
@@ -216,177 +205,21 @@ export default function CourseDetailPage() {
         </div>
       </div>
 
-      {/* Video Player + Playlist Side by Side */}
-      <div className="flex flex-col lg:flex-row gap-6 mb-6 sm:mb-8">
-        {/* Left: Video Player */}
-        <div className="flex-1 min-w-0">
-          {playlistTab === 'lectures' && activeLecture ? (
-            <VideoPlayer
-              key={activeLecture.id}
-              lectureId={activeLecture.id}
-              videoType={activeLecture.videoType}
-              videoUrl={activeLecture.videoUrl}
-              videoStatus={activeLecture.videoStatus}
-              watermark={email || studentId}
-            />
-          ) : (
-            <div className="aspect-video bg-gray-800 rounded-2xl flex items-center justify-center">
-              <div className="text-center">
-                <PlayCircle size={64} className="text-accent mx-auto mb-3" />
-                <p className="text-white text-sm">
-                  {nowPlaying ? nowPlaying.title : 'Select a video'}
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Right: Playlist with toggle */}
-        <div className="w-full lg:w-80 lg:flex-shrink-0">
-          <div className="bg-white rounded-2xl card-shadow overflow-hidden h-full flex flex-col">
-            {/* Two big toggle buttons */}
-            <div className="grid grid-cols-2 gap-0">
-              <button
-                onClick={() => setPlaylistTab('lectures')}
-                className={`flex flex-col items-center justify-center py-4 transition-colors ${
-                  playlistTab === 'lectures'
-                    ? 'bg-primary text-white'
-                    : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
-                }`}
-              >
-                <BookOpen size={20} className={playlistTab === 'lectures' ? 'text-accent' : ''} />
-                <span className="text-xs font-bold mt-1.5">Lectures</span>
-                <span className={`text-[10px] mt-0.5 ${playlistTab === 'lectures' ? 'text-gray-300' : 'text-gray-400'}`}>
-                  {sortedLectures.length} videos
-                </span>
-              </button>
-              <button
-                onClick={() => setPlaylistTab('recordings')}
-                className={`flex flex-col items-center justify-center py-4 transition-colors ${
-                  playlistTab === 'recordings'
-                    ? 'bg-primary text-white'
-                    : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
-                }`}
-              >
-                <Video size={20} className={playlistTab === 'recordings' ? 'text-accent' : ''} />
-                <span className="text-xs font-bold mt-1.5">Class Recordings</span>
-                <span className={`text-[10px] mt-0.5 ${playlistTab === 'recordings' ? 'text-gray-300' : 'text-gray-400'}`}>
-                  {recordings.length} videos
-                </span>
-              </button>
-            </div>
-
-            {/* List */}
-            <div className="overflow-y-auto flex-1">
-              {playlistTab === 'lectures' ? (
-                sortedLectures.length === 0 ? (
-                  <div className="text-center py-8 px-4">
-                    <BookOpen size={24} className="text-gray-300 mx-auto mb-2" />
-                    <p className="text-xs text-gray-500">No lectures uploaded yet.</p>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-gray-50">
-                    {sortedLectures.map((lecture, index) => {
-                      const isActive = (selectedLecture || sortedLectures[0]?.id) === lecture.id;
-                      return (
-                        <button
-                          key={lecture.id}
-                          onClick={() => setSelectedLecture(lecture.id)}
-                          className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
-                            isActive
-                              ? 'bg-primary text-white'
-                              : 'hover:bg-gray-50 text-primary'
-                          }`}
-                        >
-                          <div
-                            className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold ${
-                              isActive
-                                ? 'bg-accent text-primary'
-                                : 'bg-gray-100 text-gray-500'
-                            }`}
-                          >
-                            {index + 1}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-medium truncate ${isActive ? 'text-white' : 'text-primary'}`}>
-                              {lecture.title}
-                            </p>
-                            <div className={`flex items-center gap-1 text-xs mt-0.5 ${isActive ? 'text-gray-300' : 'text-gray-400'}`}>
-                              <Clock size={10} />
-                              {lecture.durationDisplay || `${lecture.duration || 0}s`}
-                            </div>
-                          </div>
-                          {isActive && <PlayCircle size={16} className="text-accent flex-shrink-0" />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )
-              ) : (
-                recordings.length === 0 ? (
-                  <div className="text-center py-8 px-4">
-                    <Video size={24} className="text-gray-300 mx-auto mb-2" />
-                    <p className="text-xs text-gray-500">No class recordings yet.</p>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-gray-50">
-                    {recordings.map((recording, index) => {
-                      const isActive = (selectedRecording || recordings[0]?.id) === recording.id;
-                      return (
-                        <button
-                          key={recording.id}
-                          onClick={() => setSelectedRecording(recording.id)}
-                          className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
-                            isActive
-                              ? 'bg-primary text-white'
-                              : 'hover:bg-gray-50 text-primary'
-                          }`}
-                        >
-                          <div
-                            className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold ${
-                              isActive
-                                ? 'bg-accent text-primary'
-                                : 'bg-gray-100 text-gray-500'
-                            }`}
-                          >
-                            {index + 1}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-medium truncate ${isActive ? 'text-white' : 'text-primary'}`}>
-                              {recording.title}
-                            </p>
-                            <div className={`flex items-center gap-1 text-xs mt-0.5 ${isActive ? 'text-gray-300' : 'text-gray-400'}`}>
-                              <Clock size={10} />
-                              {recording.durationDisplay || `${recording.duration}min`} &middot; {recording.scheduledDate}
-                            </div>
-                          </div>
-                          {isActive && <PlayCircle size={16} className="text-accent flex-shrink-0" />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Info Card below video */}
-      {nowPlaying && (
-        <div className="bg-white rounded-2xl card-shadow p-6 mb-8">
-          <h3 className="text-lg font-semibold text-primary mb-2">{nowPlaying.title}</h3>
-          <p className="text-sm text-gray-600 mb-3">{nowPlaying.subtitle}</p>
-          <div className="flex items-center gap-4 text-xs text-gray-400">
-            <div className="flex items-center gap-1.5">
-              <Clock size={12} />
-              {nowPlaying.duration}
-            </div>
-            <span className="text-gray-300">|</span>
-            <span>{nowPlaying.date}</span>
-          </div>
-        </div>
-      )}
+      {/* Video Player + Playlist + Now Playing Info */}
+      <CourseVideoPlayer
+        playlistTab={playlistTab}
+        onPlaylistTabChange={setPlaylistTab}
+        sortedLectures={sortedLectures}
+        recordings={recordings}
+        selectedLecture={selectedLecture}
+        selectedRecording={selectedRecording}
+        onSelectLecture={setSelectedLecture}
+        onSelectRecording={setSelectedRecording}
+        activeLecture={activeLecture}
+        activeRecording={activeRecording}
+        nowPlaying={nowPlaying}
+        watermark={email || studentId}
+      />
 
       {/* Curriculum Modules */}
       <div className="bg-white rounded-2xl card-shadow p-6">
@@ -442,172 +275,22 @@ export default function CourseDetailPage() {
       </div>
 
       {/* Course Materials */}
-      <div className="bg-white rounded-2xl card-shadow p-6 mt-8">
-        <div className="flex items-center gap-3 mb-4">
-          <Paperclip size={20} className="text-primary" />
-          <h3 className="text-lg font-semibold text-primary">Course Materials</h3>
-          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-            {materials.length}
-          </span>
-        </div>
-        {materialsLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {Array.from({ length: 2 }).map((_, i) => (
-              <div key={i} className="animate-pulse bg-gray-200 rounded-xl h-24" />
-            ))}
-          </div>
-        ) : materials.length === 0 ? (
-          <div className="text-center py-8">
-            <FileText size={28} className="text-gray-300 mx-auto mb-2" />
-            <p className="text-sm text-gray-500">No materials uploaded for this course yet.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {materials.map((material) => {
-              const config = fileTypeConfig[material.fileType as MaterialFileType] || fileTypeConfig.other;
-              return (
-                <div key={material.id} className="border border-gray-100 rounded-xl p-4 flex items-start gap-4">
-                  <div className={`w-12 h-12 ${config.bgColor} rounded-xl flex items-center justify-center flex-shrink-0`}>
-                    <span className={`text-xs font-bold ${config.textColor}`}>{config.label}</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-medium text-sm text-primary truncate">{material.title}</h4>
-                    {material.description && (
-                      <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{material.description}</p>
-                    )}
-                    <div className="flex items-center gap-2 mt-2 text-xs text-gray-400">
-                      {material.fileSize && <span>{material.fileSize}</span>}
-                      {material.uploadDate && (
-                        <>
-                          <span className="text-gray-300">|</span>
-                          <span>{material.uploadDate}</span>
-                        </>
-                      )}
-                      {material.uploadedByName && (
-                        <>
-                          <span className="text-gray-300">|</span>
-                          <span>by {material.uploadedByName}</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleDownload(material.id)}
-                    disabled={downloadingId === material.id}
-                    className="flex-shrink-0 p-2 bg-primary text-white rounded-lg hover:bg-primary/80 transition-colors disabled:opacity-60"
-                  >
-                    {downloadingId === material.id ? (
-                      <Loader2 size={14} className="animate-spin" />
-                    ) : (
-                      <Download size={14} />
-                    )}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      <CourseMaterialsSection
+        materials={materials}
+        materialsLoading={materialsLoading}
+        downloadingId={downloadingId}
+        onDownload={handleDownload}
+      />
 
-      {/* Quizzes Section */}
-      <div className="bg-white rounded-2xl card-shadow p-6 mt-8">
-        <div className="flex items-center gap-3 mb-4">
-          <HelpCircle size={20} className="text-primary" />
-          <h3 className="text-lg font-semibold text-primary">Quizzes</h3>
-          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-            {publishedQuizzes.length}
-          </span>
-        </div>
-        {quizzesLoading || myAttemptsLoading ? (
-          <div className="space-y-3">
-            {Array.from({ length: 2 }).map((_, i) => (
-              <div key={i} className="animate-pulse bg-gray-200 rounded-xl h-20" />
-            ))}
-          </div>
-        ) : publishedQuizzes.length === 0 ? (
-          <div className="text-center py-8">
-            <HelpCircle size={28} className="text-gray-300 mx-auto mb-2" />
-            <p className="text-sm text-gray-500">No quizzes available for this course yet.</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {publishedQuizzes.map((quiz) => {
-              const quizAttempts = myAttempts.filter((a) => a.quizId === quiz.id && a.status !== 'in_progress');
-              const lastAttempt = quizAttempts.length > 0 ? quizAttempts[0] : null;
-              const attemptsRemaining = quiz.maxAttempts - quizAttempts.length;
-              const canAttempt = attemptsRemaining > 0;
-
-              return (
-                <div key={quiz.id} className="border border-gray-100 rounded-xl p-4 flex items-center gap-4">
-                  <div className="w-12 h-12 bg-accent bg-opacity-30 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <HelpCircle size={20} className="text-primary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-medium text-sm text-primary truncate">{quiz.title}</h4>
-                    <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-gray-400">
-                      <span>{quiz.questionCount} question{quiz.questionCount !== 1 ? 's' : ''}</span>
-                      {quiz.timeLimitMinutes && (
-                        <>
-                          <span className="text-gray-300">|</span>
-                          <span className="flex items-center gap-1"><Clock size={10} />{quiz.timeLimitMinutes} min</span>
-                        </>
-                      )}
-                      <span className="text-gray-300">|</span>
-                      <span>Pass: {quiz.passPercentage}%</span>
-                    </div>
-                    {/* Attempt status */}
-                    <div className="mt-1.5">
-                      {lastAttempt ? (
-                        <div className="flex items-center gap-2">
-                          {lastAttempt.passed ? (
-                            <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
-                              <CheckCircle size={12} />
-                              Passed ({lastAttempt.percentage != null ? Math.round(lastAttempt.percentage) : 0}%)
-                            </span>
-                          ) : (
-                            <span className="flex items-center gap-1 text-xs text-red-600 font-medium">
-                              <XCircle size={12} />
-                              {lastAttempt.percentage != null ? `${Math.round(lastAttempt.percentage)}%` : 'Not passed'}
-                            </span>
-                          )}
-                          {lastAttempt.status === 'submitted' && (
-                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">
-                              Pending Review
-                            </span>
-                          )}
-                          <span className="text-xs text-gray-400">
-                            ({quizAttempts.length}/{quiz.maxAttempts} attempts)
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-gray-400">Not attempted</span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex-shrink-0">
-                    {canAttempt ? (
-                      <Link
-                        href={`${basePath}/courses/${courseId}/quizzes/${quiz.id}/take`}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-xs font-medium rounded-lg hover:bg-primary/80 transition-colors"
-                      >
-                        {lastAttempt ? 'Retry' : 'Take Quiz'}
-                        <ArrowRight size={12} />
-                      </Link>
-                    ) : lastAttempt ? (
-                      <Link
-                        href={`${basePath}/courses/${courseId}/quizzes/${quiz.id}/take`}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-100 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-200 transition-colors"
-                      >
-                        View Results
-                      </Link>
-                    ) : null}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      {/* Quizzes */}
+      <CourseQuizzesSection
+        publishedQuizzes={publishedQuizzes}
+        myAttempts={myAttempts}
+        quizzesLoading={quizzesLoading}
+        myAttemptsLoading={myAttemptsLoading}
+        courseId={courseId}
+        basePath={basePath}
+      />
     </DashboardLayout>
   );
 }
