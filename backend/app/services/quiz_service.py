@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, func
 
 from app.models.quiz import Quiz, QuizQuestion, QuizAttempt, QuizAnswer
-from app.models.course import BatchCourse
+from app.models.course import Course, BatchCourse
 from app.models.batch import StudentBatch
 from app.models.enums import QuestionType, QuizAttemptStatus
 
@@ -118,6 +118,16 @@ async def create_quiz(
     user_id: uuid.UUID,
     institute_id: Optional[uuid.UUID] = None,
 ) -> Quiz:
+    # Validate course exists
+    course_query = select(Course).where(
+        Course.id == data["course_id"], Course.deleted_at.is_(None)
+    )
+    if institute_id is not None:
+        course_query = course_query.where(Course.institute_id == institute_id)
+    course_result = await session.execute(course_query)
+    if not course_result.scalar_one_or_none():
+        raise ValueError("Course not found")
+
     # Auto-assign sequence_order
     max_q = await session.execute(
         select(func.max(Quiz.sequence_order)).where(
@@ -197,6 +207,16 @@ async def create_question(
     data: dict,
     institute_id: Optional[uuid.UUID] = None,
 ) -> QuizQuestion:
+    # Validate quiz exists
+    await get_quiz(session, data["quiz_id"], institute_id)
+
+    # Normalize question_type to lowercase for enum matching
+    raw_type = data["question_type"].lower()
+    try:
+        question_type = QuestionType(raw_type)
+    except ValueError:
+        raise ValueError(f"Invalid question type: {data['question_type']}. Must be one of: mcq, true_false, short_answer")
+
     # Auto-assign sequence_order
     max_q = await session.execute(
         select(func.max(QuizQuestion.sequence_order)).where(
@@ -207,7 +227,7 @@ async def create_question(
 
     question = QuizQuestion(
         quiz_id=data["quiz_id"],
-        question_type=QuestionType(data["question_type"]),
+        question_type=question_type,
         question_text=data["question_text"],
         options=data.get("options"),
         correct_answer=data["correct_answer"],

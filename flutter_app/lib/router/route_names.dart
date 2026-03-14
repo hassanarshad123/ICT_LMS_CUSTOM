@@ -18,4 +18,7 @@ class RouteNames {
   static const String jobDetail = 'jobDetail';
   static const String announcements = 'announcements';
   static const String pdfViewer = 'pdfViewer';
+  static const String quizStart = 'quizStart';
+  static const String quizTaking = 'quizTaking';
+  static const String quizResults = 'quizResults';
 }

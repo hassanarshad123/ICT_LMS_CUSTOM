@@ -6,6 +6,7 @@ import 'package:ict_lms_student/features/courses/providers/course_detail_provide
 import 'package:ict_lms_student/features/courses/widgets/lecture_item.dart';
 import 'package:ict_lms_student/features/courses/widgets/curriculum_module_item.dart';
 import 'package:ict_lms_student/features/courses/widgets/material_item.dart';
+import 'package:ict_lms_student/features/quizzes/screens/quiz_list_tab.dart';
 
 class CourseDetailScreen extends ConsumerWidget {
   final String courseId;
@@ -45,7 +46,7 @@ class CourseDetailScreen extends ConsumerWidget {
         ),
       ),
       data: (data) => DefaultTabController(
-        length: 3,
+        length: 4,
         child: Scaffold(
           appBar: AppBar(
             title: Text(
@@ -53,6 +54,7 @@ class CourseDetailScreen extends ConsumerWidget {
               overflow: TextOverflow.ellipsis,
             ),
             bottom: TabBar(
+              isScrollable: true,
               indicatorColor: Theme.of(context).colorScheme.primary,
               labelColor: Theme.of(context).colorScheme.primary,
               unselectedLabelColor: AppColors.textSecondary,
@@ -65,6 +67,9 @@ class CourseDetailScreen extends ConsumerWidget {
                 ),
                 Tab(
                   text: 'Materials (${data.materials.length})',
+                ),
+                Tab(
+                  text: 'Quizzes (${data.quizzes.length})',
                 ),
               ],
             ),
@@ -135,6 +140,8 @@ class CourseDetailScreen extends ConsumerWidget {
                         );
                       },
                     ),
+              // Quizzes tab.
+              QuizListTab(courseId: data.course.id),
             ],
           ),
         ),

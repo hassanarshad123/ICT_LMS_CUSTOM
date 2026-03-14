@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useBasePath } from '@/hooks/use-base-path';
 import { usePaginatedApi } from '@/hooks/use-paginated-api';
 import { useMutation } from '@/hooks/use-api';
-import { listCourses, createCourse, deleteCourse } from '@/lib/api/courses';
+import { listCourses, createCourse, updateCourse, deleteCourse } from '@/lib/api/courses';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
 import { BookOpen, Plus, X, Layers, Trash2, Loader2 } from 'lucide-react';
@@ -36,6 +36,7 @@ export default function CourseCreatorCourses() {
   );
 
   const { execute: doCreate, loading: creating } = useMutation(createCourse);
+  const { execute: doUpdate } = useMutation(updateCourse);
   const { execute: doDelete } = useMutation(deleteCourse);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
@@ -138,13 +139,30 @@ export default function CourseCreatorCourses() {
                   </div>
                   <div className="p-6">
                     <div className="flex items-center justify-between mb-3">
-                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        course.status === 'active' ? 'bg-green-100 text-green-700' :
-                        course.status === 'upcoming' ? 'bg-yellow-100 text-yellow-700' :
-                        'bg-gray-100 text-gray-600'
-                      }`}>
-                        {course.status?.charAt(0).toUpperCase() + course.status?.slice(1)}
-                      </span>
+                      <select
+                        value={course.status || 'active'}
+                        onChange={async (e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          try {
+                            await doUpdate(course.id, { status: e.target.value });
+                            toast.success('Status updated');
+                            refetch();
+                          } catch (err: any) {
+                            toast.error(err.message);
+                          }
+                        }}
+                        onClick={(e) => e.preventDefault()}
+                        className={`px-2.5 py-0.5 rounded-full text-xs font-medium border-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary ${
+                          course.status === 'active' ? 'bg-green-100 text-green-700' :
+                          course.status === 'upcoming' ? 'bg-yellow-100 text-yellow-700' :
+                          'bg-gray-100 text-gray-600'
+                        }`}
+                      >
+                        <option value="active">Active</option>
+                        <option value="upcoming">Upcoming</option>
+                        <option value="completed">Completed</option>
+                      </select>
                     </div>
                     <h3 className="text-lg font-bold text-primary mb-2">{course.title}</h3>
                     <p className="text-sm text-gray-500 line-clamp-2 mb-4">{course.description}</p>

@@ -34,23 +34,30 @@ final homeProvider = FutureProvider.autoDispose<HomeDashboardData>((ref) async {
   final announcementRepo = ref.watch(announcementRepositoryProvider);
   final zoomRepo = ref.watch(zoomRepositoryProvider);
 
-  // Fetch all three in parallel
-  final results = await Future.wait([
-    batchRepo.listBatches(page: 1, perPage: 10),
-    announcementRepo.listAnnouncements(page: 1, perPage: 5),
-    zoomRepo.listClasses(page: 1, perPage: 5, status: 'upcoming'),
+  // Fetch all three in parallel — each wrapped in try-catch so a single
+  // failure (e.g. zoom not configured) doesn't break the entire home screen.
+  final futures = await Future.wait([
+    batchRepo.listBatches(page: 1, perPage: 10).catchError((_) => <String, dynamic>{
+      'data': <BatchOut>[], 'total': 0,
+    }),
+    announcementRepo.listAnnouncements(page: 1, perPage: 5).catchError((_) => <String, dynamic>{
+      'data': <AnnouncementOut>[], 'total': 0,
+    }),
+    zoomRepo.listClasses(page: 1, perPage: 5, status: 'upcoming').catchError((_) => <String, dynamic>{
+      'data': <ZoomClassOut>[], 'total': 0,
+    }),
   ]);
 
-  final batchResult = results[0];
-  final announcementResult = results[1];
-  final classResult = results[2];
+  final batchResult = futures[0];
+  final announcementResult = futures[1];
+  final classResult = futures[2];
 
-  final batches = (batchResult['data'] as List).cast<BatchOut>();
+  final batches = (batchResult['data'] as List?)?.cast<BatchOut>() ?? [];
   final announcements =
-      (announcementResult['data'] as List).cast<AnnouncementOut>();
-  final upcomingClasses = (classResult['data'] as List).cast<ZoomClassOut>();
+      (announcementResult['data'] as List?)?.cast<AnnouncementOut>() ?? [];
+  final upcomingClasses =
+      (classResult['data'] as List?)?.cast<ZoomClassOut>() ?? [];
 
-  // Calculate total courses across all batches
   final totalCourses =
       batches.fold<int>(0, (sum, batch) => sum + batch.courseCount);
 

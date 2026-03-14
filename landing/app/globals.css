@@ -1,0 +1,122 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --dark: #181229;
+  --dark-80: #181229cc;
+  --deep-blue: #2f2f91;
+  --gold: #f5c543;
+  --light-gold: #ffda75;
+  --soft-green: #c5e2ca;
+  --purple: #8a6aa4;
+  --soft-pink: #f8dfdd;
+  --bg: #fcfaf9;
+  --border: #e9e3dd;
+  --darkest: #25172a;
+  --orange: #fe6621;
+  --light-purple: #d4c4ee;
+  --lightest-pink: #f7f1f0;
+  --warm-light: #fffbf4;
+  --page-bg: #f3f0ed;
+}
+
+body {
+  background: var(--page-bg);
+  color: var(--dark);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 5rem;
+}
+
+/* Global focus-visible styles */
+*:focus-visible {
+  outline: 2px solid var(--purple);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Accordion animation */
+@keyframes accordion-down {
+  from {
+    height: 0;
+    opacity: 0;
+  }
+  to {
+    height: var(--radix-accordion-content-height);
+    opacity: 1;
+  }
+}
+
+@keyframes accordion-up {
+  from {
+    height: var(--radix-accordion-content-height);
+    opacity: 1;
+  }
+  to {
+    height: 0;
+    opacity: 0;
+  }
+}
+
+.accordion-content[data-state="open"] {
+  animation: accordion-down 300ms ease-out;
+}
+
+.accordion-content[data-state="closed"] {
+  animation: accordion-up 200ms ease-out;
+}
+
+/* Scroll reveal animations */
+.scroll-hidden {
+  opacity: 0;
+  transform: translateY(32px);
+}
+
+.scroll-visible {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.7s ease-out, transform 0.7s ease-out;
+}
+
+.scroll-hidden.slide-left {
+  opacity: 0;
+  transform: translateY(32px) translateX(-48px);
+}
+
+.scroll-visible.slide-left {
+  transform: translateY(0) translateX(0);
+}
+
+.scroll-hidden.slide-right {
+  opacity: 0;
+  transform: translateY(32px) translateX(48px);
+}
+
+.scroll-visible.slide-right {
+  transform: translateY(0) translateX(0);
+}
+
+.scroll-hidden.scale-up {
+  opacity: 0;
+  transform: translateY(32px) scale(0.95);
+}
+
+.scroll-visible.scale-up {
+  transform: translateY(0) scale(1);
+}
+
+.scroll-hidden.fade-in {
+  opacity: 0;
+  transform: none;
+}
+
+.scroll-visible.fade-in {
+  transform: none;
+}

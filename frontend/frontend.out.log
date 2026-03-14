@@ -1,0 +1,20 @@
+
+> nextjs@0.1.0 dev
+> next dev
+
+  ▲ Next.js 13.5.11
+  - Local:        http://localhost:3000
+  - Environments: .env
+
+ ✓ Ready in 3s
+ ○ Compiling /page ...
+ ✓ Compiled /page in 3.6s (500 modules)
+ ✓ Compiled in 291ms (257 modules)
+ ✓ Compiled /login/page in 303ms (499 modules)
+ ✓ Compiled /_error in 804ms (663 modules)
+ ✓ Compiled /[userId]/page in 1082ms (915 modules)
+ ✓ Compiled in 690ms (505 modules)
+ ✓ Compiled in 212ms (505 modules)
+ ✓ Compiled in 275ms (505 modules)
+ ✓ Compiled /page in 356ms (281 modules)
+ ✓ Compiled /[userId]/page in 410ms (933 modules)

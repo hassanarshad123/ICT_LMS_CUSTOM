@@ -32,7 +32,7 @@ export default function AdminCourses() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [editingCourse, setEditingCourse] = useState<{ id: string; title: string; description: string } | null>(null);
+  const [editingCourse, setEditingCourse] = useState<{ id: string; title: string; description: string; status: string } | null>(null);
 
   const { data: courseList, total, page, totalPages, loading, error, setPage, refetch } = usePaginatedApi(
     (params) => listCourses({ ...params, status: statusFilter || undefined, search: search || undefined }),
@@ -63,7 +63,7 @@ export default function AdminCourses() {
     e.preventDefault();
     if (!editingCourse) return;
     try {
-      await doUpdate(editingCourse.id, { title: editingCourse.title, description: editingCourse.description });
+      await doUpdate(editingCourse.id, { title: editingCourse.title, description: editingCourse.description, status: editingCourse.status });
       toast.success('Course updated');
       setEditingCourse(null);
       refetch();
@@ -203,6 +203,18 @@ export default function AdminCourses() {
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50 resize-none"
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Status</label>
+              <select
+                value={editingCourse.status}
+                onChange={(e) => setEditingCourse({ ...editingCourse, status: e.target.value })}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
+              >
+                <option value="active">Active</option>
+                <option value="upcoming">Upcoming</option>
+                <option value="completed">Completed</option>
+              </select>
+            </div>
             <div className="flex gap-3">
               <button
                 type="submit"
@@ -266,7 +278,7 @@ export default function AdminCourses() {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-1">
                           <button
-                            onClick={() => setEditingCourse({ id: course.id, title: course.title, description: course.description || '' })}
+                            onClick={() => setEditingCourse({ id: course.id, title: course.title, description: course.description || '', status: course.status || 'active' })}
                             className="p-2 text-gray-400 hover:text-primary hover:bg-gray-100 rounded-lg transition-colors"
                             title="Edit course"
                           >

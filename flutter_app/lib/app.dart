@@ -13,7 +13,7 @@ class App extends ConsumerWidget {
     final router = ref.watch(routerProvider);
 
     return MaterialApp.router(
-      title: branding.instituteName ?? 'LMS',
+      title: branding.instituteName ?? 'Zensbot LMS',
       debugShowCheckedModeBanner: false,
       theme: buildDarkTheme(branding.accentColor),
       routerConfig: router,

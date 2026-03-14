@@ -137,7 +137,7 @@ async def create_course(
     session: AsyncSession, title: str, description: Optional[str], created_by: uuid.UUID,
     institute_id: Optional[uuid.UUID] = None,
 ) -> Course:
-    course = Course(title=title, description=description, created_by=created_by, institute_id=institute_id)
+    course = Course(title=title, description=description, status=CourseStatus.active, created_by=created_by, institute_id=institute_id)
     session.add(course)
     await session.commit()
     await session.refresh(course)

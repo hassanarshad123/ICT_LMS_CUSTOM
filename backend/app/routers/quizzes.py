@@ -51,10 +51,13 @@ async def create_quiz(
     current_user: CC,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    quiz = await quiz_service.create_quiz(
-        session, data=body.model_dump(), user_id=current_user.id,
-        institute_id=current_user.institute_id,
-    )
+    try:
+        quiz = await quiz_service.create_quiz(
+            session, data=body.model_dump(), user_id=current_user.id,
+            institute_id=current_user.institute_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     data = await quiz_service.get_quiz_with_count(
         session, quiz.id, institute_id=current_user.institute_id,
     )
@@ -261,9 +264,14 @@ async def create_question(
     # Override quiz_id from path parameter
     data = body.model_dump()
     data["quiz_id"] = quiz_id
-    question = await quiz_service.create_question(
-        session, data=data, institute_id=current_user.institute_id,
-    )
+    try:
+        question = await quiz_service.create_question(
+            session, data=data, institute_id=current_user.institute_id,
+        )
+    except ValueError as e:
+        detail = str(e)
+        code = 400 if "Invalid question type" in detail else 404
+        raise HTTPException(status_code=code, detail=detail)
     return QuestionOut.model_validate(question)
 
 

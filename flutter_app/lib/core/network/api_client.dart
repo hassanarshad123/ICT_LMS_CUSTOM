@@ -10,10 +10,23 @@ import 'auth_interceptor.dart';
 import 'case_converter.dart';
 import 'slug_interceptor.dart';
 
-/// Provider for the main Dio client (with all interceptors).
-/// Must be overridden after auth is initialized.
+/// Provider for the main authenticated Dio client (with all interceptors).
+///
+/// Used by all authenticated repositories (batches, courses, zoom, etc.).
+/// Creates a Dio with slug, auth, case-convert, and error-mapping interceptors.
 final dioProvider = Provider<Dio>((ref) {
-  throw UnimplementedError('Must be overridden after auth is initialized');
+  final prefs = ref.watch(sharedPreferencesProvider);
+  const secureStorage = FlutterSecureStorage();
+
+  return createAuthenticatedDio(
+    prefs: prefs,
+    secureStorage: secureStorage,
+    onForceLogout: () {
+      // Clear tokens directly — the auth provider's restoreSession()
+      // will detect the missing token on next check and reset state.
+      secureStorage.deleteAll();
+    },
+  );
 });
 
 /// Provider for a public Dio client (no auth, only slug + case conversion).

@@ -58,4 +58,8 @@ class ApiConstants {
 
   // Search
   static const String search = '/search';
+
+  // Quizzes
+  static const String quizzes = '/quizzes';
+  static const String myAttempts = '/quizzes/my-attempts';
 }

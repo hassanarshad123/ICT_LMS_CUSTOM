@@ -1,0 +1,130 @@
+INFO:     Started server process [9260]
+INFO:     Waiting for application startup.
+2026-03-14 01:22:10,398 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-14 01:22:10,458 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-14 01:22:10,461 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-14 01:22:10,464 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-14 01:22:10,464 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-14 01:22:10,464 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-03-14 01:22:10,465 INFO apscheduler.scheduler Added job "cleanup_expired_sessions" to job store "default"
+2026-03-14 01:22:10,466 INFO apscheduler.scheduler Added job "send_zoom_reminders" to job store "default"
+2026-03-14 01:22:10,466 INFO apscheduler.scheduler Added job "retry_failed_recordings" to job store "default"
+2026-03-14 01:22:10,466 INFO apscheduler.scheduler Added job "cleanup_stale_uploads" to job store "default"
+2026-03-14 01:22:10,466 INFO apscheduler.scheduler Added job "auto_suspend_expired_institutes" to job store "default"
+2026-03-14 01:22:10,467 INFO apscheduler.scheduler Added job "process_webhook_deliveries" to job store "default"
+2026-03-14 01:22:10,467 INFO apscheduler.scheduler Scheduler started
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+2026-03-14 01:23:09,056 INFO ict_lms [587d35a95387] POST /api/v1/auth/login 404 2155.1ms
+2026-03-14 01:23:09,705 INFO ict_lms [3b7d3eefaf1a] POST /api/v1/auth/login 404 560.6ms
+2026-03-14 01:23:10,205 INFO ict_lms [38339b3f734d] POST /api/v1/auth/login 404 486.7ms
+2026-03-14 01:23:10,474 INFO apscheduler.executors.default Running job "process_webhook_deliveries (trigger: interval[0:01:00], next run at: 2026-03-14 01:24:10 PKT)" (scheduled at 2026-03-14 01:23:10.464553+05:00)
+2026-03-14 01:23:10,695 INFO ict_lms [b41ee2b05ca9] POST /api/v1/auth/login 404 480.2ms
+2026-03-14 01:23:11,178 INFO ict_lms [e5fb77f92253] POST /api/v1/auth/login 404 478.7ms
+2026-03-14 01:23:11,189 WARNING slowapi ratelimit 5 per 1 minute (127.0.0.1) exceeded at endpoint: /api/v1/auth/login
+2026-03-14 01:23:11,190 INFO ict_lms [25fb3d95a41b] POST /api/v1/auth/login 429 2.0ms
+2026-03-14 01:23:11,201 INFO ict_lms [98dc2e7ace4a] POST /api/v1/auth/refresh 401 1.1ms
+2026-03-14 01:23:11,205 INFO ict_lms [a638544053ac] GET /api/v1/auth/me 401 0.5ms
+2026-03-14 01:23:11,208 INFO ict_lms [10411b849704] GET /api/v1/auth/me 401 0.4ms
+2026-03-14 01:23:11,210 WARNING slowapi ratelimit 5 per 1 minute (127.0.0.1) exceeded at endpoint: /api/v1/auth/login
+2026-03-14 01:23:11,211 INFO ict_lms [53e8f3ab6d11] POST /api/v1/auth/login 429 1.3ms
+2026-03-14 01:23:11,239 ERROR ict_lms.scheduler Webhook delivery processing failed: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.UndefinedTableError'>: relation "webhook_deliveries" does not exist
+[SQL: SELECT webhook_deliveries.id, webhook_deliveries.webhook_endpoint_id, webhook_deliveries.event_type, webhook_deliveries.payload, webhook_deliveries.status, webhook_deliveries.status_code, webhook_deliveries.response_body, webhook_deliveries.attempt_count, webhook_deliveries.next_retry_at, webhook_deliveries.last_attempted_at, webhook_deliveries.created_at, webhook_deliveries.completed_at, webhook_deliveries.institute_id 
+FROM webhook_deliveries 
+WHERE webhook_deliveries.status IN ($3::VARCHAR, $4::VARCHAR) AND webhook_deliveries.next_retry_at <= $1::TIMESTAMP WITH TIME ZONE ORDER BY webhook_deliveries.next_retry_at 
+ LIMIT $2::INTEGER]
+[parameters: (datetime.datetime(2026, 3, 13, 20, 23, 10, 475345, tzinfo=datetime.timezone.utc), 50, 'pending', 'retrying')]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+2026-03-14 01:23:11,262 WARNING slowapi ratelimit 5 per 1 minute (127.0.0.1) exceeded at endpoint: /api/v1/auth/login
+2026-03-14 01:23:11,263 INFO ict_lms [0e86780e0a33] POST /api/v1/auth/login 429 1.6ms
+2026-03-14 01:23:11,272 WARNING slowapi ratelimit 5 per 1 minute (127.0.0.1) exceeded at endpoint: /api/v1/auth/login
+2026-03-14 01:23:11,273 INFO ict_lms [68a572a93b48] POST /api/v1/auth/login 429 1.3ms
+2026-03-14 01:23:11,281 WARNING slowapi ratelimit 5 per 1 minute (127.0.0.1) exceeded at endpoint: /api/v1/auth/login
+2026-03-14 01:23:11,281 INFO ict_lms [3b85001b2f4a] POST /api/v1/auth/login 429 1.4ms
+2026-03-14 01:23:11,320 INFO apscheduler.executors.default Job "process_webhook_deliveries (trigger: interval[0:01:00], next run at: 2026-03-14 01:24:10 PKT)" executed successfully
+2026-03-14 01:23:11,410 WARNING slowapi ratelimit 5 per 1 minute (127.0.0.1) exceeded at endpoint: /api/v1/auth/login
+2026-03-14 01:23:11,410 INFO ict_lms [b045f097de22] POST /api/v1/auth/login 429 1.6ms
+2026-03-14 01:23:11,549 WARNING slowapi ratelimit 5 per 1 minute (127.0.0.1) exceeded at endpoint: /api/v1/auth/login
+2026-03-14 01:23:11,550 INFO ict_lms [bd8e6460fb94] POST /api/v1/auth/login 429 1.7ms
+2026-03-14 01:23:13,162 INFO ict_lms [8c65c2e2e3ab] GET /api/v1/branding 200 1159.8ms
+2026-03-14 01:23:13,181 INFO ict_lms [d65f257e8d3d] GET /api/v1/branding/preset-themes 200 0.6ms
+2026-03-14 01:23:14,422 INFO ict_lms [20eff3d31228] GET /api/v1/branding/certificate-design 200 1238.5ms
+2026-03-14 01:23:15,008 INFO ict_lms [51a4f6f4a38d] GET /api/health 200 560.9ms
+2026-03-14 01:23:16,553 INFO ict_lms [54c070740cbf] GET /api/v1/certificates/verify/INVALID-CODE-000 200 993.9ms
+2026-03-14 01:23:24,097 INFO ict_lms [331731e29dcf] POST /api/v1/auth/login 422 19.5ms
+2026-03-14 01:23:32,916 INFO ict_lms [fd7e1df8eca5] POST /api/v1/auth/login 422 1.7ms
+2026-03-14 01:23:45,277 WARNING slowapi ratelimit 5 per 1 minute (127.0.0.1) exceeded at endpoint: /api/v1/auth/login
+2026-03-14 01:23:45,277 INFO ict_lms [d71beebc9a24] POST /api/v1/auth/login 429 2.4ms
+2026-03-14 01:24:10,475 INFO apscheduler.executors.default Running job "process_webhook_deliveries (trigger: interval[0:01:00], next run at: 2026-03-14 01:25:10 PKT)" (scheduled at 2026-03-14 01:24:10.464553+05:00)
+2026-03-14 01:24:10,954 ERROR ict_lms.scheduler Webhook delivery processing failed: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.UndefinedTableError'>: relation "webhook_deliveries" does not exist
+[SQL: SELECT webhook_deliveries.id, webhook_deliveries.webhook_endpoint_id, webhook_deliveries.event_type, webhook_deliveries.payload, webhook_deliveries.status, webhook_deliveries.status_code, webhook_deliveries.response_body, webhook_deliveries.attempt_count, webhook_deliveries.next_retry_at, webhook_deliveries.last_attempted_at, webhook_deliveries.created_at, webhook_deliveries.completed_at, webhook_deliveries.institute_id 
+FROM webhook_deliveries 
+WHERE webhook_deliveries.status IN ($3::VARCHAR, $4::VARCHAR) AND webhook_deliveries.next_retry_at <= $1::TIMESTAMP WITH TIME ZONE ORDER BY webhook_deliveries.next_retry_at 
+ LIMIT $2::INTEGER]
+[parameters: (datetime.datetime(2026, 3, 13, 20, 24, 10, 475635, tzinfo=datetime.timezone.utc), 50, 'pending', 'retrying')]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+2026-03-14 01:24:11,034 INFO apscheduler.executors.default Job "process_webhook_deliveries (trigger: interval[0:01:00], next run at: 2026-03-14 01:25:10 PKT)" executed successfully
+2026-03-14 01:24:59,890 INFO ict_lms [f5aab9e922cc] POST /api/v1/auth/login 401 829.3ms
+2026-03-14 01:25:10,474 INFO apscheduler.executors.default Running job "process_webhook_deliveries (trigger: interval[0:01:00], next run at: 2026-03-14 01:26:10 PKT)" (scheduled at 2026-03-14 01:25:10.464553+05:00)
+2026-03-14 01:25:10,953 ERROR ict_lms.scheduler Webhook delivery processing failed: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.UndefinedTableError'>: relation "webhook_deliveries" does not exist
+[SQL: SELECT webhook_deliveries.id, webhook_deliveries.webhook_endpoint_id, webhook_deliveries.event_type, webhook_deliveries.payload, webhook_deliveries.status, webhook_deliveries.status_code, webhook_deliveries.response_body, webhook_deliveries.attempt_count, webhook_deliveries.next_retry_at, webhook_deliveries.last_attempted_at, webhook_deliveries.created_at, webhook_deliveries.completed_at, webhook_deliveries.institute_id 
+FROM webhook_deliveries 
+WHERE webhook_deliveries.status IN ($3::VARCHAR, $4::VARCHAR) AND webhook_deliveries.next_retry_at <= $1::TIMESTAMP WITH TIME ZONE ORDER BY webhook_deliveries.next_retry_at 
+ LIMIT $2::INTEGER]
+[parameters: (datetime.datetime(2026, 3, 13, 20, 25, 10, 475160, tzinfo=datetime.timezone.utc), 50, 'pending', 'retrying')]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+2026-03-14 01:25:11,033 INFO apscheduler.executors.default Job "process_webhook_deliveries (trigger: interval[0:01:00], next run at: 2026-03-14 01:26:10 PKT)" executed successfully
+2026-03-14 01:26:10,474 INFO apscheduler.executors.default Running job "process_webhook_deliveries (trigger: interval[0:01:00], next run at: 2026-03-14 01:27:10 PKT)" (scheduled at 2026-03-14 01:26:10.464553+05:00)
+2026-03-14 01:26:10,955 ERROR ict_lms.scheduler Webhook delivery processing failed: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.UndefinedTableError'>: relation "webhook_deliveries" does not exist
+[SQL: SELECT webhook_deliveries.id, webhook_deliveries.webhook_endpoint_id, webhook_deliveries.event_type, webhook_deliveries.payload, webhook_deliveries.status, webhook_deliveries.status_code, webhook_deliveries.response_body, webhook_deliveries.attempt_count, webhook_deliveries.next_retry_at, webhook_deliveries.last_attempted_at, webhook_deliveries.created_at, webhook_deliveries.completed_at, webhook_deliveries.institute_id 
+FROM webhook_deliveries 
+WHERE webhook_deliveries.status IN ($3::VARCHAR, $4::VARCHAR) AND webhook_deliveries.next_retry_at <= $1::TIMESTAMP WITH TIME ZONE ORDER BY webhook_deliveries.next_retry_at 
+ LIMIT $2::INTEGER]
+[parameters: (datetime.datetime(2026, 3, 13, 20, 26, 10, 474836, tzinfo=datetime.timezone.utc), 50, 'pending', 'retrying')]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+2026-03-14 01:26:11,036 INFO apscheduler.executors.default Job "process_webhook_deliveries (trigger: interval[0:01:00], next run at: 2026-03-14 01:27:10 PKT)" executed successfully
+2026-03-14 01:26:17,706 INFO ict_lms [019aaebb569b] POST /api/v1/auth/login 404 480.9ms
+2026-03-14 01:26:18,596 INFO ict_lms [9f71faee5beb] POST /api/v1/auth/login 404 803.3ms
+2026-03-14 01:26:19,099 INFO ict_lms [9dfc86d88a76] POST /api/v1/auth/login 404 482.9ms
+2026-03-14 01:26:19,110 INFO ict_lms [37ed61335a45] POST /api/v1/auth/refresh 401 1.4ms
+2026-03-14 01:26:19,113 INFO ict_lms [747bdf2ca3c3] GET /api/v1/auth/me 401 0.3ms
+2026-03-14 01:26:19,116 INFO ict_lms [e018d221119f] GET /api/v1/auth/me 401 0.7ms
+2026-03-14 01:26:19,601 INFO ict_lms [a5a0719238e9] POST /api/v1/auth/login 404 481.9ms
+2026-03-14 01:26:20,130 INFO ict_lms [6411a82418d4] POST /api/v1/auth/login 404 481.2ms
+2026-03-14 01:26:20,134 WARNING slowapi ratelimit 5 per 1 minute (127.0.0.1) exceeded at endpoint: /api/v1/auth/login
+2026-03-14 01:26:20,135 INFO ict_lms [24cb01e4b158] POST /api/v1/auth/login 429 1.8ms
+2026-03-14 01:26:20,137 WARNING slowapi ratelimit 5 per 1 minute (127.0.0.1) exceeded at endpoint: /api/v1/auth/login
+2026-03-14 01:26:20,137 INFO ict_lms [fc68edac7617] POST /api/v1/auth/login 429 1.2ms
+2026-03-14 01:26:20,139 WARNING slowapi ratelimit 5 per 1 minute (127.0.0.1) exceeded at endpoint: /api/v1/auth/login
+2026-03-14 01:26:20,140 INFO ict_lms [528659753deb] POST /api/v1/auth/login 429 1.3ms
+2026-03-14 01:26:20,142 WARNING slowapi ratelimit 5 per 1 minute (127.0.0.1) exceeded at endpoint: /api/v1/auth/login
+2026-03-14 01:26:20,143 INFO ict_lms [5efcd0243595] POST /api/v1/auth/login 429 1.2ms
+2026-03-14 01:26:20,144 WARNING slowapi ratelimit 5 per 1 minute (127.0.0.1) exceeded at endpoint: /api/v1/auth/login
+2026-03-14 01:26:20,145 INFO ict_lms [ecd29519d008] POST /api/v1/auth/login 429 1.4ms
+2026-03-14 01:26:20,148 WARNING slowapi ratelimit 5 per 1 minute (127.0.0.1) exceeded at endpoint: /api/v1/auth/login
+2026-03-14 01:26:20,149 INFO ict_lms [f2581ed70d7d] POST /api/v1/auth/login 429 1.9ms
+2026-03-14 01:26:20,151 WARNING slowapi ratelimit 5 per 1 minute (127.0.0.1) exceeded at endpoint: /api/v1/auth/login
+2026-03-14 01:26:20,151 INFO ict_lms [00da1ab6a11f] POST /api/v1/auth/login 429 1.1ms
+2026-03-14 01:26:22,001 INFO ict_lms [8c3659f53ac9] GET /api/v1/branding 200 1041.4ms
+2026-03-14 01:26:22,007 INFO ict_lms [82cd2bb1eec5] GET /api/v1/branding/preset-themes 200 0.7ms
+2026-03-14 01:26:23,048 INFO ict_lms [294da7b43ec7] GET /api/v1/branding/certificate-design 200 1038.7ms
+2026-03-14 01:26:23,612 INFO ict_lms [66499e07ffac] GET /api/health 200 559.3ms
+2026-03-14 01:26:25,040 INFO ict_lms [0ed349cef72e] GET /api/v1/certificates/verify/INVALID-CODE-000 200 724.2ms
+2026-03-14 01:27:10,478 INFO apscheduler.executors.default Running job "process_webhook_deliveries (trigger: interval[0:01:00], next run at: 2026-03-14 01:28:10 PKT)" (scheduled at 2026-03-14 01:27:10.464553+05:00)
+2026-03-14 01:27:10,958 ERROR ict_lms.scheduler Webhook delivery processing failed: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.UndefinedTableError'>: relation "webhook_deliveries" does not exist
+[SQL: SELECT webhook_deliveries.id, webhook_deliveries.webhook_endpoint_id, webhook_deliveries.event_type, webhook_deliveries.payload, webhook_deliveries.status, webhook_deliveries.status_code, webhook_deliveries.response_body, webhook_deliveries.attempt_count, webhook_deliveries.next_retry_at, webhook_deliveries.last_attempted_at, webhook_deliveries.created_at, webhook_deliveries.completed_at, webhook_deliveries.institute_id 
+FROM webhook_deliveries 
+WHERE webhook_deliveries.status IN ($3::VARCHAR, $4::VARCHAR) AND webhook_deliveries.next_retry_at <= $1::TIMESTAMP WITH TIME ZONE ORDER BY webhook_deliveries.next_retry_at 
+ LIMIT $2::INTEGER]
+[parameters: (datetime.datetime(2026, 3, 13, 20, 27, 10, 478859, tzinfo=datetime.timezone.utc), 50, 'pending', 'retrying')]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+2026-03-14 01:27:11,038 INFO apscheduler.executors.default Job "process_webhook_deliveries (trigger: interval[0:01:00], next run at: 2026-03-14 01:28:10 PKT)" executed successfully
+2026-03-14 01:28:10,475 INFO apscheduler.executors.default Running job "process_webhook_deliveries (trigger: interval[0:01:00], next run at: 2026-03-14 01:29:10 PKT)" (scheduled at 2026-03-14 01:28:10.464553+05:00)
+2026-03-14 01:28:11,354 ERROR ict_lms.scheduler Webhook delivery processing failed: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.UndefinedTableError'>: relation "webhook_deliveries" does not exist
+[SQL: SELECT webhook_deliveries.id, webhook_deliveries.webhook_endpoint_id, webhook_deliveries.event_type, webhook_deliveries.payload, webhook_deliveries.status, webhook_deliveries.status_code, webhook_deliveries.response_body, webhook_deliveries.attempt_count, webhook_deliveries.next_retry_at, webhook_deliveries.last_attempted_at, webhook_deliveries.created_at, webhook_deliveries.completed_at, webhook_deliveries.institute_id 
+FROM webhook_deliveries 
+WHERE webhook_deliveries.status IN ($3::VARCHAR, $4::VARCHAR) AND webhook_deliveries.next_retry_at <= $1::TIMESTAMP WITH TIME ZONE ORDER BY webhook_deliveries.next_retry_at 
+ LIMIT $2::INTEGER]
+[parameters: (datetime.datetime(2026, 3, 13, 20, 28, 10, 475516, tzinfo=datetime.timezone.utc), 50, 'pending', 'retrying')]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+2026-03-14 01:28:11,434 INFO apscheduler.executors.default Job "process_webhook_deliveries (trigger: interval[0:01:00], next run at: 2026-03-14 01:29:10 PKT)" executed successfully

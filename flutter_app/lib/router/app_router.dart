@@ -21,6 +21,9 @@ import '../features/profile/screens/jobs_screen.dart';
 import '../features/profile/screens/job_detail_screen.dart';
 import '../features/profile/screens/announcements_screen.dart';
 import '../shared/widgets/pdf_viewer_screen.dart';
+import '../features/quizzes/screens/quiz_start_screen.dart';
+import '../features/quizzes/screens/quiz_taking_screen.dart';
+import '../features/quizzes/screens/quiz_results_screen.dart';
 import 'route_names.dart';
 
 /// Notifier that triggers GoRouter.refresh() when auth or slug state changes.
@@ -126,6 +129,35 @@ final routerProvider = Provider<GoRouter>((ref) {
                       final lectureId = state.pathParameters['lectureId']!;
                       return LecturePlayerScreen(lectureId: lectureId);
                     },
+                  ),
+                  GoRoute(
+                    path: 'quiz/:quizId',
+                    name: RouteNames.quizStart,
+                    builder: (context, state) {
+                      final courseId = state.pathParameters['courseId']!;
+                      final quizId = state.pathParameters['quizId']!;
+                      return QuizStartScreen(courseId: courseId, quizId: quizId);
+                    },
+                    routes: [
+                      GoRoute(
+                        path: 'take',
+                        name: RouteNames.quizTaking,
+                        builder: (context, state) {
+                          final courseId = state.pathParameters['courseId']!;
+                          final quizId = state.pathParameters['quizId']!;
+                          return QuizTakingScreen(courseId: courseId, quizId: quizId);
+                        },
+                      ),
+                      GoRoute(
+                        path: 'results/:attemptId',
+                        name: RouteNames.quizResults,
+                        builder: (context, state) {
+                          final quizId = state.pathParameters['quizId']!;
+                          final attemptId = state.pathParameters['attemptId']!;
+                          return QuizResultsScreen(quizId: quizId, attemptId: attemptId);
+                        },
+                      ),
+                    ],
                   ),
                 ],
               ),

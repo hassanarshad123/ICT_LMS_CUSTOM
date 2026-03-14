@@ -3,10 +3,12 @@ import 'package:ict_lms_student/data/repositories/course_repository.dart';
 import 'package:ict_lms_student/data/repositories/lecture_repository.dart';
 import 'package:ict_lms_student/data/repositories/curriculum_repository.dart';
 import 'package:ict_lms_student/data/repositories/material_repository.dart';
+import 'package:ict_lms_student/data/repositories/quiz_repository.dart';
 import 'package:ict_lms_student/models/course_out.dart';
 import 'package:ict_lms_student/models/lecture_out.dart';
 import 'package:ict_lms_student/models/curriculum_module_out.dart';
 import 'package:ict_lms_student/models/material_out.dart';
+import 'package:ict_lms_student/models/quiz_out.dart';
 import 'package:ict_lms_student/providers/auth_provider.dart';
 
 class CourseDetailData {
@@ -14,6 +16,7 @@ class CourseDetailData {
   final List<LectureOut> lectures;
   final List<CurriculumModuleOut> modules;
   final List<MaterialOut> materials;
+  final List<QuizOut> quizzes;
   final String resolvedBatchId;
 
   const CourseDetailData({
@@ -21,6 +24,7 @@ class CourseDetailData {
     required this.lectures,
     required this.modules,
     required this.materials,
+    this.quizzes = const [],
     required this.resolvedBatchId,
   });
 }
@@ -31,6 +35,7 @@ final courseDetailProvider = FutureProvider.autoDispose
   final lectureRepo = ref.watch(lectureRepositoryProvider);
   final curriculumRepo = ref.watch(curriculumRepositoryProvider);
   final materialRepo = ref.watch(materialRepositoryProvider);
+  final quizRepo = ref.watch(quizRepositoryProvider);
 
   // Fetch the course first to get its batchIds.
   final course = await courseRepo.getCourse(courseId);
@@ -51,43 +56,38 @@ final courseDetailProvider = FutureProvider.autoDispose
   }
 
   // Fetch lectures, curriculum, and materials in parallel.
+  // Each wrapped so a single failure doesn't break the whole page.
+  late final Map<String, dynamic> lectureResult;
+  late final List<CurriculumModuleOut> modules;
+  late final Map<String, dynamic> materialResult;
+
+  final emptyLectures = <String, dynamic>{'data': <LectureOut>[], 'total': 0};
+  final emptyMaterials = <String, dynamic>{'data': <MaterialOut>[], 'total': 0};
+
   final results = await Future.wait([
-    resolvedBatchId.isNotEmpty
-        ? lectureRepo.listLectures(
-            batchId: resolvedBatchId,
-            courseId: courseId,
-          )
-        : Future.value(<String, dynamic>{
-            'data': <LectureOut>[],
-            'total': 0,
-            'page': 1,
-            'perPage': 50,
-            'totalPages': 0,
-          }),
-    curriculumRepo.listModules(courseId),
-    resolvedBatchId.isNotEmpty
-        ? materialRepo.listMaterials(
-            batchId: resolvedBatchId,
-            courseId: courseId,
-          )
-        : Future.value(<String, dynamic>{
-            'data': <MaterialOut>[],
-            'total': 0,
-            'page': 1,
-            'perPage': 50,
-            'totalPages': 0,
-          }),
+    (resolvedBatchId.isNotEmpty
+            ? lectureRepo.listLectures(batchId: resolvedBatchId, courseId: courseId)
+            : Future.value(emptyLectures))
+        .catchError((_) => emptyLectures),
+    curriculumRepo.listModules(courseId).catchError((_) => <CurriculumModuleOut>[]),
+    (resolvedBatchId.isNotEmpty
+            ? materialRepo.listMaterials(batchId: resolvedBatchId, courseId: courseId)
+            : Future.value(emptyMaterials))
+        .catchError((_) => emptyMaterials),
+    quizRepo.listQuizzes(courseId: courseId).catchError((_) => <QuizOut>[]),
   ]);
 
-  final lectureResult = results[0] as Map<String, dynamic>;
-  final modules = results[1] as List<CurriculumModuleOut>;
-  final materialResult = results[2] as Map<String, dynamic>;
+  lectureResult = results[0] as Map<String, dynamic>;
+  modules = results[1] as List<CurriculumModuleOut>;
+  materialResult = results[2] as Map<String, dynamic>;
+  final quizzes = results[3] as List<QuizOut>;
 
   return CourseDetailData(
     course: course,
-    lectures: lectureResult['data'] as List<LectureOut>,
+    lectures: (lectureResult['data'] as List?)?.cast<LectureOut>() ?? [],
     modules: modules,
-    materials: materialResult['data'] as List<MaterialOut>,
+    materials: (materialResult['data'] as List?)?.cast<MaterialOut>() ?? [],
+    quizzes: quizzes,
     resolvedBatchId: resolvedBatchId,
   );
 });
