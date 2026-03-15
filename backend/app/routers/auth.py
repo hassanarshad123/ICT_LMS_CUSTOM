@@ -5,6 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request, Header
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
+import time
+
 from app.database import get_session
 from app.schemas.auth import (
     LoginRequest, LoginResponse, RefreshRequest, TokenResponse,
@@ -22,6 +24,10 @@ from app.utils.security import verify_password, hash_password, create_password_r
 from app.utils.rate_limit import limiter
 
 router = APIRouter()
+
+# In-memory store for used handoff JTIs to prevent replay attacks.
+# Maps jti -> expiry timestamp. Entries are cleaned on each exchange.
+_used_handoff_jtis: dict[str, float] = {}
 
 
 async def _build_user_brief(session: AsyncSession, user: User) -> UserBrief:
@@ -201,7 +207,7 @@ async def forgot_password(
     user = result.scalar_one_or_none()
 
     if user:
-        token = create_password_reset_token(user.id)
+        token = create_password_reset_token(user.id, user.token_version)
         # Use tenant-specific domain when slug is provided (Fix 4)
         if x_institute_slug and settings.FRONTEND_BASE_DOMAIN:
             reset_url = f"https://{x_institute_slug}.{settings.FRONTEND_BASE_DOMAIN}/reset-password?token={token}"
@@ -240,6 +246,10 @@ async def reset_password(
     )
     user = result.scalar_one_or_none()
     if not user:
+        raise HTTPException(status_code=400, detail="Reset link has expired or is invalid")
+
+    # Reject replayed tokens: token_version must match current value
+    if payload.get("tv") is not None and payload.get("tv") != user.token_version:
         raise HTTPException(status_code=400, detail="Reset link has expired or is invalid")
 
     user.hashed_password = hash_password(body.new_password)
@@ -291,7 +301,7 @@ async def exchange_handoff(
     body: dict,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    """Exchange a handoff token for real auth tokens."""
+    """Exchange a handoff token for real auth tokens (single-use)."""
     token = body.get("token")
     if not token:
         raise HTTPException(status_code=400, detail="Token is required")
@@ -303,6 +313,18 @@ async def exchange_handoff(
     user_id = payload.get("sub")
     if not user_id:
         raise HTTPException(status_code=400, detail="Invalid handoff token")
+
+    # Enforce single-use via JTI tracking
+    jti = payload.get("jti")
+    now = time.time()
+    # Clean expired entries
+    expired_jtis = [k for k, exp in _used_handoff_jtis.items() if exp < now]
+    for k in expired_jtis:
+        del _used_handoff_jtis[k]
+    if jti:
+        if jti in _used_handoff_jtis:
+            raise HTTPException(status_code=400, detail="Invalid or expired handoff token")
+        _used_handoff_jtis[jti] = payload.get("exp", now + 60)
 
     result = await session.execute(
         select(User).where(User.id == user_id, User.deleted_at.is_(None))

@@ -61,10 +61,11 @@ async def get_current_user(
                     detail="Institute account is suspended",
                 )
             if institute.expires_at and institute.expires_at < datetime.now(timezone.utc):
-                # Auto-suspend the institute
-                institute.status = InstituteStatus.suspended
-                session.add(institute)
-                await session.commit()
+                # Auto-suspend the institute (guard against concurrent requests)
+                if institute.status != InstituteStatus.suspended:
+                    institute.status = InstituteStatus.suspended
+                    session.add(institute)
+                    await session.commit()
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Institute subscription has expired",
@@ -94,7 +95,7 @@ def require_roles(*roles: str):
         if current_user.role.value not in roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Role '{current_user.role.value}' not authorized. Required: {', '.join(roles)}",
+                detail="You do not have permission to perform this action",
             )
         return current_user
 

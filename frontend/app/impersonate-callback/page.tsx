@@ -10,6 +10,8 @@ function ImpersonateCallbackContent() {
 
   useEffect(() => {
     const token = params.get('token');
+    // Strip token from URL immediately to prevent leakage via browser history/Referer
+    window.history.replaceState({}, '', '/impersonate-callback');
     if (!token) {
       router.replace('/login');
       return;
@@ -19,6 +21,11 @@ function ImpersonateCallbackContent() {
     try {
       payload = JSON.parse(atob(token.split('.')[1]));
     } catch {
+      router.replace('/login');
+      return;
+    }
+
+    if (!payload || typeof payload !== 'object' || typeof payload.sub !== 'string') {
       router.replace('/login');
       return;
     }

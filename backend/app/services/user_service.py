@@ -141,6 +141,7 @@ async def deactivate_user(session: AsyncSession, user_id: uuid.UUID) -> User:
         raise ValueError("User not found")
 
     user.status = UserStatus.inactive
+    user.token_version += 1
     session.add(user)
 
     # Revoke all active sessions
@@ -179,6 +180,7 @@ async def soft_delete_user(session: AsyncSession, user_id: uuid.UUID) -> None:
     now = datetime.now(timezone.utc)
     user.deleted_at = now
     user.status = UserStatus.inactive
+    user.token_version += 1
     session.add(user)
 
     # Revoke sessions

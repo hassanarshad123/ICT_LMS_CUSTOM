@@ -54,3 +54,8 @@ class User(SQLModel, table=True):
         sa_column=Column(TIMESTAMP(timezone=True), nullable=True),
     )
     token_version: int = Field(default=0, nullable=False)
+    failed_login_attempts: int = Field(default=0, nullable=False)
+    locked_until: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(TIMESTAMP(timezone=True), nullable=True),
+    )

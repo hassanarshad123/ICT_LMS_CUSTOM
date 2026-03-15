@@ -42,11 +42,29 @@ async def authenticate_user(
 
     result = await session.execute(query)
     user = result.scalar_one_or_none()
+
+    # Check account lockout before password verification
+    if user and user.locked_until and user.locked_until > datetime.now(timezone.utc):
+        raise ValueError("Account temporarily locked due to too many failed attempts. Try again later.")
+
     if not user or not verify_password(password, user.hashed_password):
+        # Increment failed attempts if user exists
+        if user:
+            user.failed_login_attempts += 1
+            if user.failed_login_attempts >= 10:
+                user.locked_until = datetime.now(timezone.utc) + timedelta(minutes=15)
+            session.add(user)
+            await session.commit()
         raise ValueError("Invalid email or password")
 
     if user.status != UserStatus.active:
         raise ValueError("Account is deactivated")
+
+    # Reset failed login attempts on successful auth
+    if user.failed_login_attempts > 0 or user.locked_until is not None:
+        user.failed_login_attempts = 0
+        user.locked_until = None
+        session.add(user)
 
     # Enforce device limit
     await _enforce_device_limit(session, user.id)

@@ -3,9 +3,13 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import hashlib
+from datetime import datetime, timedelta, timezone
+
 from app.database import get_session
 from app.schemas.signup import SignupRequest, SignupResponse, SlugCheckResponse
 from app.services.signup_service import check_slug_availability, create_institute_with_admin
+from app.models.session import UserSession
 from app.utils.security import create_access_token, create_refresh_token
 from app.utils.rate_limit import limiter
 from app.config import get_settings
@@ -49,8 +53,24 @@ async def register(
         raise HTTPException(status_code=409, detail=str(e))
 
     # Generate tokens
+    settings_obj = get_settings()
     access_token = create_access_token(user.id, user.role.value, user.token_version)
-    refresh_token, _ = create_refresh_token(user.id)
+    refresh_token, token_id = create_refresh_token(user.id)
+
+    # Create session record so refresh works
+    hashed_token_id = hashlib.sha256(token_id.encode()).hexdigest()
+    user_session = UserSession(
+        user_id=user.id,
+        session_token=hashed_token_id,
+        device_info="Signup",
+        ip_address=request.client.host if request.client else None,
+        is_active=True,
+        logged_in_at=datetime.now(timezone.utc),
+        expires_at=datetime.now(timezone.utc) + timedelta(days=settings_obj.REFRESH_TOKEN_EXPIRE_DAYS),
+        institute_id=user.institute_id,
+    )
+    session.add(user_session)
+    await session.commit()
 
     return SignupResponse(
         access_token=access_token,

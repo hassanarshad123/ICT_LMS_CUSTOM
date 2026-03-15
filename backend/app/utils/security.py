@@ -58,12 +58,17 @@ def create_impersonation_token(
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
-def create_password_reset_token(user_id: uuid.UUID) -> str:
-    """Create a short-lived token for password reset (15 min)."""
+def create_password_reset_token(user_id: uuid.UUID, token_version: int = 0) -> str:
+    """Create a short-lived token for password reset (15 min).
+
+    Embeds token_version so the token is invalidated after use (password change
+    increments token_version).
+    """
     expire = datetime.now(timezone.utc) + timedelta(minutes=15)
     payload = {
         "sub": str(user_id),
         "type": "password_reset",
+        "tv": token_version,
         "exp": expire,
     }
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)

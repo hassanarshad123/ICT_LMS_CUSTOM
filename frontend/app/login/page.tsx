@@ -53,11 +53,7 @@ export default function LoginPage() {
 
       // If a non-SA user tries to log in on the bare (super admin) domain, reject
       if (res.user.role !== 'super_admin' && isSuperAdminDomain()) {
-        setError(
-          `Please log in at your institute URL: ${
-            res.user.instituteSlug ? res.user.instituteSlug + '.ict.zensbot.site' : 'your institute URL'
-          }`
-        );
+        setError('Please log in at your institute URL.');
         return;
       }
 
