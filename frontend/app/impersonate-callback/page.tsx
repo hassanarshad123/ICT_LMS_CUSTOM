@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 
-export default function ImpersonateCallbackPage() {
+function ImpersonateCallbackContent() {
   const params = useSearchParams();
   const router = useRouter();
 
@@ -81,5 +81,20 @@ export default function ImpersonateCallbackPage() {
         <span>Setting up impersonation...</span>
       </div>
     </div>
+  );
+}
+
+export default function ImpersonateCallbackPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center h-screen">
+        <div className="flex items-center gap-3 text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          <span>Setting up impersonation...</span>
+        </div>
+      </div>
+    }>
+      <ImpersonateCallbackContent />
+    </Suspense>
   );
 }

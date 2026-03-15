@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { exchangeHandoffToken } from '@/lib/api/public';
 
-export default function AuthCallbackPage() {
+function AuthCallbackContent() {
   const params = useSearchParams();
   const router = useRouter();
   const [error, setError] = useState('');
@@ -71,5 +71,20 @@ export default function AuthCallbackPage() {
         <span>Setting up your LMS...</span>
       </div>
     </div>
+  );
+}
+
+export default function AuthCallbackPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center h-screen">
+        <div className="flex flex-col items-center gap-3 text-gray-500">
+          <Loader2 className="h-6 w-6 animate-spin" />
+          <span>Setting up your LMS...</span>
+        </div>
+      </div>
+    }>
+      <AuthCallbackContent />
+    </Suspense>
   );
 }
