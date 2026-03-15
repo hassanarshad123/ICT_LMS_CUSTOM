@@ -1,4 +1,4 @@
-import { FOOTER_LINKS, CONTACT_EMAIL, SITE_URL } from "@/lib/constants";
+import { FOOTER_LINKS, CONTACT_EMAIL, SITE_URL } from "@/lib/landing-constants";
 
 export function Footer() {
   const columns = Object.entries(FOOTER_LINKS);

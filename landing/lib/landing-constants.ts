@@ -1,7 +1,7 @@
 // URL constants
-export const SITE_URL = "https://ict.zensbot.site";
-export const REGISTER_URL = `${SITE_URL}/register`;
-export const LOGIN_URL = SITE_URL;
+export const SITE_URL = "https://zensbot.site";
+export const REGISTER_URL = "/register";
+export const LOGIN_URL = "https://ict.zensbot.site/login";
 export const CONTACT_EMAIL = "hello@zensbot.com";
 
 export const STATS = [

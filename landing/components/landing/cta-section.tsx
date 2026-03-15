@@ -1,5 +1,5 @@
 import { Check } from "lucide-react";
-import { REGISTER_URL } from "@/lib/constants";
+import { REGISTER_URL } from "@/lib/landing-constants";
 import { ScrollReveal } from "./scroll-reveal";
 
 export function CtaSection() {

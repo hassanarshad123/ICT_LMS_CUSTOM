@@ -130,7 +130,8 @@ async def auto_suspend_expired_institutes():
     async with async_session() as session:
         result = await session.execute(
             select(Institute).where(
-                Institute.status == InstituteStatus.active,
+                Institute.status.in_([InstituteStatus.active, InstituteStatus.trial]),
+                Institute.expires_at.isnot(None),
                 Institute.expires_at < now,
                 Institute.deleted_at.is_(None),
             )

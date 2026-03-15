@@ -1,5 +1,5 @@
 import { Building2, Users, Award } from "lucide-react";
-import { STATS } from "@/lib/constants";
+import { STATS } from "@/lib/landing-constants";
 import { ScrollReveal } from "./scroll-reveal";
 
 const ICONS = [Building2, Users, Award];

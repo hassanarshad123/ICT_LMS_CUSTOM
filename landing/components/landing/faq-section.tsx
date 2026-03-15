@@ -2,7 +2,7 @@
 
 import * as Accordion from "@radix-ui/react-accordion";
 import { ChevronDown } from "lucide-react";
-import { FAQS } from "@/lib/constants";
+import { FAQS } from "@/lib/landing-constants";
 import { ScrollReveal } from "./scroll-reveal";
 
 export function FaqSection() {

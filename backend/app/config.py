@@ -52,6 +52,13 @@ class Settings(BaseSettings):
     DEVICE_LIMIT: int = 2
     SUPER_ADMIN_EMAIL: str = ""
 
+    # Signup / Trial
+    TRIAL_DURATION_DAYS: int = 30
+    FREE_PLAN_MAX_USERS: int = 50
+    FREE_PLAN_MAX_STORAGE_GB: float = 5.0
+    FREE_PLAN_MAX_VIDEO_GB: float = 5.0
+    SIGNUP_ENABLED: bool = True
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 

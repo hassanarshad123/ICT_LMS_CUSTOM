@@ -8,7 +8,7 @@ const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'ICT Institute - Learning Management System',
-  description: 'Simple LMS for ICT Institute - Manage courses, batches, and students',
+  description: 'Simple LMS for ICT Institute',
 };
 
 export default function RootLayout({

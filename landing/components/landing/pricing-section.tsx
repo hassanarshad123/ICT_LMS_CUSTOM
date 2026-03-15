@@ -1,5 +1,5 @@
 import { Check } from "lucide-react";
-import { PRICING_TIERS } from "@/lib/constants";
+import { PRICING_TIERS } from "@/lib/landing-constants";
 import { ScrollReveal } from "./scroll-reveal";
 
 export function PricingSection() {

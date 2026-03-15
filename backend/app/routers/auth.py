@@ -18,7 +18,7 @@ from app.models.user import User
 from app.models.institute import Institute
 from app.models.batch import StudentBatch, Batch
 from app.models.enums import UserRole
-from app.utils.security import verify_password, hash_password, create_password_reset_token, decode_token
+from app.utils.security import verify_password, hash_password, create_password_reset_token, create_access_token, create_refresh_token, decode_token
 from app.utils.rate_limit import limiter
 
 router = APIRouter()
@@ -256,3 +256,89 @@ async def get_me(
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     return await _build_user_brief(session, current_user)
+
+
+@router.post("/handoff-token")
+async def create_handoff(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """Create a one-time handoff token for cross-domain redirect."""
+    from app.utils.security import create_handoff_token
+
+    # Resolve institute slug
+    institute_slug = None
+    if current_user.institute_id:
+        institute = await session.get(Institute, current_user.institute_id)
+        if institute:
+            institute_slug = institute.slug
+
+    if not institute_slug:
+        raise HTTPException(status_code=400, detail="User has no associated institute")
+
+    token = create_handoff_token(current_user.id, institute_slug)
+    return {
+        "handoff_token": token,
+        "expires_in": 60,
+        "institute_slug": institute_slug,
+    }
+
+
+@router.post("/exchange-handoff")
+@limiter.limit("10/minute")
+async def exchange_handoff(
+    request: Request,
+    body: dict,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """Exchange a handoff token for real auth tokens."""
+    token = body.get("token")
+    if not token:
+        raise HTTPException(status_code=400, detail="Token is required")
+
+    payload = decode_token(token)
+    if not payload or payload.get("type") != "handoff":
+        raise HTTPException(status_code=400, detail="Invalid or expired handoff token")
+
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Invalid handoff token")
+
+    result = await session.execute(
+        select(User).where(User.id == user_id, User.deleted_at.is_(None))
+    )
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid handoff token")
+
+    # Create fresh tokens
+    access_token = create_access_token(user.id, user.role.value, user.token_version)
+    refresh_token, token_id = create_refresh_token(user.id)
+
+    # Create session record
+    from app.models.session import UserSession
+    import hashlib
+    from datetime import datetime, timedelta, timezone
+
+    hashed_token_id = hashlib.sha256(token_id.encode()).hexdigest()
+    user_session = UserSession(
+        user_id=user.id,
+        session_token=hashed_token_id,
+        device_info="Signup handoff",
+        ip_address=request.client.host if request.client else None,
+        is_active=True,
+        logged_in_at=datetime.now(timezone.utc),
+        expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+        institute_id=user.institute_id,
+    )
+    session.add(user_session)
+    await session.commit()
+
+    user_brief = await _build_user_brief(session, user)
+
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "user": user_brief.model_dump(),
+    }

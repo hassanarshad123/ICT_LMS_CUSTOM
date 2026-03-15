@@ -1,19 +1,62 @@
 "use client";
 
-import { useState } from "react";
-import { Menu, X } from "lucide-react";
+import { useState, useCallback } from "react";
+import { Menu, X, Layers, CreditCard, HelpCircle } from "lucide-react";
 import { useActiveSection } from "@/hooks/use-active-section";
-import { LOGIN_URL, REGISTER_URL } from "@/lib/constants";
+import { useLenis } from "@/components/landing/smooth-scroll-provider";
+import { LimelightNav, type NavItem } from "@/components/landing/ui/limelight-nav";
+import { LOGIN_URL, REGISTER_URL } from "@/lib/landing-constants";
+
+const SECTION_IDS = ["features", "pricing", "faq"] as const;
 
 const NAV_LINKS = [
-  { label: "Features", href: "#features" },
-  { label: "Pricing", href: "#pricing" },
-  { label: "FAQ", href: "#faq" },
+  { label: "Features", href: "#features", id: "features" },
+  { label: "Pricing", href: "#pricing", id: "pricing" },
+  { label: "FAQ", href: "#faq", id: "faq" },
 ];
 
 export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const activeSection = useActiveSection();
+  const lenis = useLenis();
+
+  const scrollToSection = useCallback(
+    (id: string) => {
+      if (lenis) {
+        lenis.scrollTo(`#${id}`, { offset: -80 });
+      } else {
+        const el = document.getElementById(id);
+        if (el) el.scrollIntoView({ behavior: "smooth" });
+      }
+    },
+    [lenis]
+  );
+
+  const navItems: NavItem[] = [
+    {
+      id: "features",
+      icon: <Layers />,
+      label: "Features",
+      onClick: () => scrollToSection("features"),
+    },
+    {
+      id: "pricing",
+      icon: <CreditCard />,
+      label: "Pricing",
+      onClick: () => scrollToSection("pricing"),
+    },
+    {
+      id: "faq",
+      icon: <HelpCircle />,
+      label: "FAQ",
+      onClick: () => scrollToSection("faq"),
+    },
+  ];
+
+  // Map active section to index for the spotlight
+  const activeIndex = SECTION_IDS.indexOf(
+    activeSection as (typeof SECTION_IDS)[number]
+  );
 
   return (
     <nav
@@ -27,24 +70,15 @@ export function Navbar() {
           Zensbot
         </a>
 
-        {/* Center links - desktop */}
-        <div className="hidden md:flex items-center gap-8">
-          {NAV_LINKS.map((link) => (
-            <a
-              key={link.href}
-              href={link.href}
-              className={`text-sm transition-all ${
-                `#${activeSection}` === link.href
-                  ? "text-zen-dark font-medium underline decoration-zen-purple decoration-2 underline-offset-4"
-                  : "text-zen-dark-80 hover:text-zen-dark"
-              }`}
-            >
-              {link.label}
-            </a>
-          ))}
+        {/* Center — LimelightNav (desktop only) */}
+        <div className="hidden md:inline-flex">
+          <LimelightNav
+            items={navItems}
+            activeIndex={activeIndex >= 0 ? activeIndex : undefined}
+          />
         </div>
 
-        {/* Right actions - desktop */}
+        {/* Right actions — desktop */}
         <div className="hidden md:flex items-center gap-4">
           <a
             href={LOGIN_URL}
@@ -67,7 +101,11 @@ export function Navbar() {
           aria-label="Toggle menu"
           aria-expanded={mobileOpen}
         >
-          {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          {mobileOpen ? (
+            <X className="w-5 h-5" />
+          ) : (
+            <Menu className="w-5 h-5" />
+          )}
         </button>
       </div>
 
@@ -80,18 +118,21 @@ export function Navbar() {
         <div className="bg-zen-page-bg/95 backdrop-blur-xl border-b border-zen-border/50 px-6 pb-6">
           <div className="flex flex-col gap-4 pt-2">
             {NAV_LINKS.map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                onClick={() => setMobileOpen(false)}
-                className={`text-sm transition-colors ${
-                  `#${activeSection}` === link.href
+              <button
+                key={link.id}
+                type="button"
+                onClick={() => {
+                  setMobileOpen(false);
+                  scrollToSection(link.id);
+                }}
+                className={`text-sm text-left transition-colors ${
+                  activeSection === link.id
                     ? "text-zen-dark font-medium"
                     : "text-zen-dark-80 hover:text-zen-dark"
                 }`}
               >
                 {link.label}
-              </a>
+              </button>
             ))}
             <hr className="border-zen-border/50" />
             <a

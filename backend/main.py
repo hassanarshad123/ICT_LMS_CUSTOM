@@ -8,7 +8,7 @@ from slowapi.errors import RateLimitExceeded
 from app.utils.rate_limit import limiter
 
 from app.config import get_settings
-from app.routers import auth, users, batches, courses, curriculum, lectures, materials, jobs, announcements, zoom, admin, certificates, monitoring, branding, notifications, search, super_admin, api_keys, webhooks, public_api, quizzes
+from app.routers import auth, users, batches, courses, curriculum, lectures, materials, jobs, announcements, zoom, admin, certificates, monitoring, branding, notifications, search, super_admin, api_keys, webhooks, public_api, quizzes, signup
 from app.websockets.routes import router as ws_router
 from app.middleware.error_tracking import ErrorTrackingMiddleware
 
@@ -113,6 +113,7 @@ app.include_router(api_keys.router, prefix="/api/v1/admin/api-keys", tags=["API 
 app.include_router(webhooks.router, prefix="/api/v1/admin/webhooks", tags=["Webhooks"])
 app.include_router(public_api.router, prefix="/api/v1/public", tags=["Public API"])
 app.include_router(quizzes.router, prefix="/api/v1/quizzes", tags=["Quizzes"])
+app.include_router(signup.router, prefix="/api/v1/signup", tags=["Signup"])
 
 # WebSocket routes
 app.include_router(ws_router)

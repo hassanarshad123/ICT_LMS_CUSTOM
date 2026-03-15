@@ -69,6 +69,19 @@ def create_password_reset_token(user_id: uuid.UUID) -> str:
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
+def create_handoff_token(user_id: uuid.UUID, institute_slug: str) -> str:
+    """Create a short-lived token for cross-domain handoff (60 seconds)."""
+    expire = datetime.now(timezone.utc) + timedelta(seconds=60)
+    payload = {
+        "sub": str(user_id),
+        "type": "handoff",
+        "slug": institute_slug,
+        "jti": str(uuid.uuid4()),
+        "exp": expire,
+    }
+    return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+
 def decode_token(token: str) -> dict | None:
     """Decode and validate a JWT. Returns payload dict or None if invalid."""
     try:
