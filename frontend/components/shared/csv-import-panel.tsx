@@ -14,6 +14,7 @@ interface CsvRow {
   phone?: string;
   role?: string;
   specialization?: string;
+  password?: string;
   [key: string]: string | undefined;
 }
 
@@ -31,12 +32,18 @@ interface CsvImportPanelProps {
   preSelectedBatchIds?: string[];
 }
 
+function isNonStudentRole(role?: string): boolean {
+  const r = role?.trim().toLowerCase();
+  return r === 'teacher' || r === 'course-creator' || r === 'course_creator' || r === 'admin';
+}
+
 function getRowValidation(row: CsvRow, duplicateEmailSet: ReadonlySet<string>) {
   const missingName = !row.name?.trim();
   const missingEmail = !row.email?.trim();
   const invalidEmail = !missingEmail && !EMAIL_REGEX.test(row.email!.trim());
   const isDuplicate = !missingEmail && duplicateEmailSet.has(row.email!.trim().toLowerCase());
-  return { missingName, missingEmail, invalidEmail, isDuplicate };
+  const missingPassword = isNonStudentRole(row.role) && !row.password?.trim();
+  return { missingName, missingEmail, invalidEmail, isDuplicate, missingPassword };
 }
 
 function downloadCredentialsCsv(
@@ -88,6 +95,7 @@ export default function CsvImportPanel({ onSuccess, onClose, batches = [], preSe
   const validationStats = useMemo(() => {
     let missingCount = 0;
     let invalidEmailCount = 0;
+    let missingPasswordCount = 0;
     let validCount = 0;
     for (const row of allRows) {
       const v = getRowValidation(row, duplicateEmailSet);
@@ -95,11 +103,13 @@ export default function CsvImportPanel({ onSuccess, onClose, batches = [], preSe
         missingCount++;
       } else if (v.invalidEmail) {
         invalidEmailCount++;
+      } else if (v.missingPassword) {
+        missingPasswordCount++;
       } else {
         validCount++;
       }
     }
-    return { missingCount, invalidEmailCount, duplicateCount: duplicateEmailSet.size, validCount };
+    return { missingCount, invalidEmailCount, duplicateCount: duplicateEmailSet.size, missingPasswordCount, validCount };
   }, [allRows, duplicateEmailSet]);
 
   const parseFile = useCallback((f: File) => {
@@ -225,7 +235,7 @@ export default function CsvImportPanel({ onSuccess, onClose, batches = [], preSe
             Drop your CSV file here, or click to browse
           </p>
           <p className="text-xs text-gray-500">
-            CSV with columns: name, email, phone, role, specialization (max 500 rows)
+            CSV with columns: name, email, phone, role, specialization, password (max 500 rows)
           </p>
           <input
             ref={fileInputRef}
@@ -269,6 +279,12 @@ export default function CsvImportPanel({ onSuccess, onClose, batches = [], preSe
                 <span className="text-amber-700">{validationStats.invalidEmailCount} invalid emails</span>
               </div>
             )}
+            {validationStats.missingPasswordCount > 0 && (
+              <div className="flex items-center gap-1.5 text-sm">
+                <AlertCircle size={14} className="text-amber-500" />
+                <span className="text-amber-700">{validationStats.missingPasswordCount} missing password (non-student)</span>
+              </div>
+            )}
             {validationStats.duplicateCount > 0 && (
               <div className="flex items-center gap-1.5 text-sm">
                 <AlertTriangle size={14} className="text-yellow-500" />
@@ -287,6 +303,7 @@ export default function CsvImportPanel({ onSuccess, onClose, batches = [], preSe
                     <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500">Name</th>
                     <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500">Email</th>
                     <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500">Phone</th>
+                    <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500">Password</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -299,7 +316,9 @@ export default function CsvImportPanel({ onSuccess, onClose, batches = [], preSe
                         ? 'bg-amber-50'
                         : v.isDuplicate
                           ? 'bg-yellow-50'
-                          : 'hover:bg-gray-50';
+                          : v.missingPassword
+                            ? 'bg-amber-50'
+                            : 'hover:bg-gray-50';
                     const emailCellClass = v.missingEmail
                       ? 'text-red-500 italic'
                       : v.invalidEmail
@@ -307,6 +326,7 @@ export default function CsvImportPanel({ onSuccess, onClose, batches = [], preSe
                         : v.isDuplicate
                           ? 'text-yellow-700'
                           : 'text-gray-700';
+                    const isStudent = !isNonStudentRole(row.role);
                     return (
                       <tr key={i} className={rowBg}>
                         <td className="px-3 py-2 text-gray-400">{i + 1}</td>
@@ -318,6 +338,14 @@ export default function CsvImportPanel({ onSuccess, onClose, batches = [], preSe
                           {v.isDuplicate && <span className="ml-1 text-xs text-yellow-600">(dup)</span>}
                         </td>
                         <td className="px-3 py-2 text-gray-600">{row.phone || '\u2014'}</td>
+                        <td className={`px-3 py-2 ${v.missingPassword ? 'text-amber-600 italic' : 'text-gray-600'}`}>
+                          {isStudent
+                            ? <span className="text-gray-400 italic">(default)</span>
+                            : row.password?.trim()
+                              ? <span className="text-gray-700">{row.password}</span>
+                              : <span className="text-amber-600 italic">Password required</span>
+                          }
+                        </td>
                       </tr>
                     );
                   })}

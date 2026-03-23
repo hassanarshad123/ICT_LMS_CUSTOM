@@ -10,7 +10,7 @@ import { useMutation } from '@/hooks/use-api';
 import { listUsers, createUser, changeUserStatus, deleteUser } from '@/lib/api/users';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
-import { Plus, X, Trash2, PenTool, Loader2 } from 'lucide-react';
+import { Plus, X, Trash2, PenTool, Loader2, Eye, EyeOff } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,7 +26,8 @@ export default function AdminCourseCreators() {
   const { name } = useAuth();
   const basePath = useBasePath();
   const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({ name: '', email: '', phone: '' });
+  const [formData, setFormData] = useState({ name: '', email: '', phone: '', password: '' });
+  const [showPassword, setShowPassword] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const { data: creatorList, total, page, totalPages, loading, error, setPage, refetch } = usePaginatedApi(
@@ -40,15 +41,21 @@ export default function AdminCourseCreators() {
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (formData.password.length < 4) {
+      toast.error('Password must be at least 4 characters');
+      return;
+    }
     try {
-      const result = await doCreate({
+      await doCreate({
         name: formData.name,
         email: formData.email,
         phone: formData.phone,
         role: 'course-creator',
+        password: formData.password,
       });
-      toast.success(`Course creator added. Temporary password: ${result.temporaryPassword}`, { duration: 10000 });
-      setFormData({ name: '', email: '', phone: '' });
+      toast.success('Course creator created successfully');
+      setFormData({ name: '', email: '', phone: '', password: '' });
+      setShowPassword(false);
       setShowForm(false);
       refetch();
     } catch (err: any) {
@@ -106,6 +113,15 @@ export default function AdminCourseCreators() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone</label>
               <input type="text" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} placeholder="0300-1234567" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50" required />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
+              <div className="relative">
+                <input type={showPassword ? 'text' : 'password'} value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} placeholder="Min 4 characters" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50 pr-10" required minLength={4} />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
             </div>
             <div className="sm:col-span-2 lg:col-span-3">
               <button type="submit" disabled={creating} className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors disabled:opacity-60">

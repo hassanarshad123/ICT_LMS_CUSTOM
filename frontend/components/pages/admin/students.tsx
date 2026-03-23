@@ -56,7 +56,7 @@ export default function AdminStudents() {
       if (formData.batchId && result.id) {
         try { await doEnroll(formData.batchId, result.id); } catch {}
       }
-      toast.success(`Student created. Temporary password: ${result.temporaryPassword}`, { duration: 10000 });
+      toast.success('Student created with default password');
       setFormData({ name: '', email: '', phone: '', batchId: '' });
       setShowForm(false);
       refetch();

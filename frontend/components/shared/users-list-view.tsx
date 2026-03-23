@@ -12,7 +12,7 @@ import { listBatches } from '@/lib/api/batches';
 import { enrollStudent } from '@/lib/api/batches';
 import { PageLoading, PageError } from '@/components/shared/page-states';
 import { toast } from 'sonner';
-import { Plus, X, Search, Trash2, GraduationCap, BookOpen, PenTool, Loader2 } from 'lucide-react';
+import { Plus, X, Search, Trash2, GraduationCap, BookOpen, PenTool, Loader2, Eye, EyeOff } from 'lucide-react';
 import { StyledSelect } from '@/components/ui/styled-select';
 import {
   AlertDialog,
@@ -45,7 +45,8 @@ export default function UsersListView({ basePath: basePathProp }: UsersListViewP
   const [showForm, setShowForm] = useState(false);
   const [formStep, setFormStep] = useState<1 | 2>(1);
   const [selectedRole, setSelectedRole] = useState<'student' | 'teacher' | 'course-creator' | ''>('');
-  const [formData, setFormData] = useState({ name: '', email: '', phone: '', batchId: '', specialization: '' });
+  const [formData, setFormData] = useState({ name: '', email: '', phone: '', batchId: '', specialization: '', password: '' });
+  const [showPassword, setShowPassword] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -75,6 +76,10 @@ export default function UsersListView({ basePath: basePathProp }: UsersListViewP
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedRole) return;
+    if (selectedRole !== 'student' && formData.password.length < 4) {
+      toast.error('Password must be at least 4 characters');
+      return;
+    }
     try {
       const result = await doCreate({
         name: formData.name,
@@ -82,12 +87,18 @@ export default function UsersListView({ basePath: basePathProp }: UsersListViewP
         phone: formData.phone,
         role: selectedRole,
         ...(selectedRole === 'teacher' ? { specialization: formData.specialization } : {}),
+        ...(selectedRole !== 'student' ? { password: formData.password } : {}),
       });
       if (selectedRole === 'student' && formData.batchId && result.id) {
         try { await doEnroll(formData.batchId, result.id); } catch {}
       }
-      toast.success(`${roleLabels[selectedRole]} created. Temporary password: ${result.temporaryPassword}`, { duration: 10000 });
-      setFormData({ name: '', email: '', phone: '', batchId: '', specialization: '' });
+      if (selectedRole === 'student') {
+        toast.success('Student created with default password');
+      } else {
+        toast.success(`${roleLabels[selectedRole]} created successfully`);
+      }
+      setFormData({ name: '', email: '', phone: '', batchId: '', specialization: '', password: '' });
+      setShowPassword(false);
       setSelectedRole('');
       setFormStep(1);
       setShowForm(false);
@@ -219,6 +230,17 @@ export default function UsersListView({ basePath: basePathProp }: UsersListViewP
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">Specialization</label>
                     <input type="text" value={formData.specialization} onChange={(e) => setFormData({ ...formData, specialization: e.target.value })} placeholder="e.g. Web Development" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50" required />
+                  </div>
+                )}
+                {selectedRole !== 'student' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
+                    <div className="relative">
+                      <input type={showPassword ? 'text' : 'password'} value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} placeholder="Min 4 characters" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50 pr-10" required minLength={4} />
+                      <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
                   </div>
                 )}
                 <div className="sm:col-span-2">

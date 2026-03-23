@@ -10,7 +10,7 @@ import { getUser, updateUser, changeUserStatus, resetPassword, deleteUser } from
 import { listBatches, enrollStudent, removeStudent } from '@/lib/api/batches';
 import { PageLoading, PageError } from '@/components/shared/page-states';
 import { toast } from 'sonner';
-import { ArrowLeft, Edit3, Save, BookOpen, Video, Briefcase, Users, Calendar, Shield, Loader2, KeyRound, Trash2 } from 'lucide-react';
+import { ArrowLeft, Edit3, Save, BookOpen, Video, Briefcase, Users, Calendar, Shield, Loader2, KeyRound, Trash2, Eye, EyeOff } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -46,6 +46,10 @@ export default function UserDetailView({ backHref: backHrefProp }: UserDetailVie
   const { execute: doResetPassword } = useMutation(resetPassword);
   const { execute: doDelete } = useMutation(deleteUser);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showResetPasswordDialog, setShowResetPasswordDialog] = useState(false);
+  const [resetNewPassword, setResetNewPassword] = useState('');
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [resettingPassword, setResettingPassword] = useState(false);
   const [enrollBatchId, setEnrollBatchId] = useState('');
   const { data: batchesData } = useApi(() => listBatches({ per_page: 100 }));
   const allBatches = batchesData?.data || [];
@@ -120,11 +124,21 @@ export default function UserDetailView({ backHref: backHrefProp }: UserDetailVie
   };
 
   const handleResetPassword = async () => {
+    if (resetNewPassword.length < 4) {
+      toast.error('Password must be at least 4 characters');
+      return;
+    }
+    setResettingPassword(true);
     try {
-      const result = await doResetPassword(userId);
-      toast.success(`Password reset. Temporary password: ${result.temporaryPassword}`, { duration: 10000 });
+      await doResetPassword(userId, resetNewPassword);
+      toast.success('Password reset successfully');
+      setShowResetPasswordDialog(false);
+      setResetNewPassword('');
+      setShowResetPassword(false);
     } catch (err: any) {
       toast.error(err.message);
+    } finally {
+      setResettingPassword(false);
     }
   };
 
@@ -304,7 +318,7 @@ export default function UserDetailView({ backHref: backHrefProp }: UserDetailVie
           {/* Reset Password */}
           <div className="bg-white rounded-2xl p-6 card-shadow">
             <h3 className="text-sm font-semibold text-gray-500 uppercase mb-3">Password</h3>
-            <button onClick={handleResetPassword} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-gray-100 text-primary hover:bg-gray-200 transition-colors">
+            <button onClick={() => { setResetNewPassword(''); setShowResetPassword(false); setShowResetPasswordDialog(true); }} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-gray-100 text-primary hover:bg-gray-200 transition-colors">
               <KeyRound size={16} />
               Reset Password
             </button>
@@ -364,6 +378,49 @@ export default function UserDetailView({ backHref: backHrefProp }: UserDetailVie
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700 text-white">
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showResetPasswordDialog} onOpenChange={(open) => { if (!open) { setShowResetPasswordDialog(false); setResetNewPassword(''); setShowResetPassword(false); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset Password</AlertDialogTitle>
+            <AlertDialogDescription>
+              Enter a new password for {user.name}.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">New Password</label>
+            <div className="relative">
+              <input
+                type={showResetPassword ? 'text' : 'password'}
+                value={resetNewPassword}
+                onChange={(e) => setResetNewPassword(e.target.value)}
+                placeholder="Min 4 characters"
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50 pr-10"
+                minLength={4}
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={() => setShowResetPassword(!showResetPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                {showResetPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleResetPassword}
+              disabled={resettingPassword || resetNewPassword.length < 4}
+              className="bg-primary hover:bg-primary/80 text-white disabled:opacity-60"
+            >
+              {resettingPassword ? <Loader2 size={16} className="animate-spin mr-1" /> : null}
+              Reset Password
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
