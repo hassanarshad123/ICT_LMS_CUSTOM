@@ -24,6 +24,9 @@ export function usePaginatedApi<T>(
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
 
+  // Don't fire queries until auth token is available
+  const hasToken = typeof window !== 'undefined' && !!localStorage.getItem('access_token');
+
   // Reset to page 1 when deps change
   const depsKey = JSON.stringify(deps);
   useEffect(() => {
@@ -32,9 +35,10 @@ export function usePaginatedApi<T>(
 
   const queryKey = ['api-paginated', ...deps, page, perPage];
 
-  const { data: result, isLoading, error, refetch: rqRefetch } = useQuery({
+  const { data: result, error, refetch: rqRefetch } = useQuery({
     queryKey,
     queryFn: () => fetcherRef.current({ page, per_page: perPage }),
+    enabled: hasToken,
   });
 
   const setPage = useCallback((newPage: number) => {
@@ -46,7 +50,8 @@ export function usePaginatedApi<T>(
     total: result?.total ?? 0,
     page: result?.page ?? page,
     totalPages: result?.totalPages ?? Math.max(1, Math.ceil((result?.total ?? 0) / perPage)),
-    loading: isLoading,
+    // loading = true when data hasn't arrived yet (preserves old behavior)
+    loading: result === undefined,
     error: error ? (error as Error).message : null,
     setPage,
     refetch: () => { rqRefetch(); },
