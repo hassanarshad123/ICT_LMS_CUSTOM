@@ -13,8 +13,7 @@ import { listBatches, createBatch, deleteBatch } from '@/lib/api/batches';
 import { listUsers } from '@/lib/api/users';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
-import { Plus, X, Layers, Loader2, Trash2, Download } from 'lucide-react';
-import { exportData } from '@/lib/api/admin';
+import { Plus, X, Layers, Loader2, Trash2 } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -82,21 +81,6 @@ export default function AdminBatches() {
       <DashboardHeader greeting="Batches" subtitle="Manage all course batches" />
 
       <div className="flex justify-end gap-3 mb-6">
-        <button
-          onClick={async () => {
-            try {
-              const result = await exportData('batches');
-              window.open(result.downloadUrl, '_blank');
-              toast.success('Export started');
-            } catch (err: any) {
-              toast.error(err.message || 'Export failed');
-            }
-          }}
-          className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 text-gray-700 bg-white rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors"
-        >
-          <Download size={16} />
-          Export CSV
-        </button>
         <button
           onClick={() => setShowForm(!showForm)}
           className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors"
