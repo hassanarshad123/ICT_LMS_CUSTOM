@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import SettingsView from '@/components/shared/settings-view';
-import { Minus, Plus, Save, Monitor, Video, Award, Edit3, Trash2, Star, Eye, EyeOff, X, Loader2 } from 'lucide-react';
+import { Minus, Plus, Save, Monitor, Video, Award, Edit3, Trash2, Star, Eye, EyeOff, X, Loader2, KeyRound } from 'lucide-react';
 import { useBasePath } from '@/hooks/use-base-path';
 import { useApi, useMutation } from '@/hooks/use-api';
 import { getSettings, updateSettings } from '@/lib/api/admin';
@@ -27,6 +27,8 @@ export default function AdminSettings() {
 
   const [deviceLimit, setDeviceLimit] = useState(2);
   const [certThreshold, setCertThreshold] = useState(70);
+  const [defaultStudentPassword, setDefaultStudentPassword] = useState('changeme123');
+  const [showDefaultPassword, setShowDefaultPassword] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
@@ -46,6 +48,9 @@ export default function AdminSettings() {
     }
     if (settingsData?.settings?.certificate_completion_threshold) {
       setCertThreshold(parseInt(settingsData.settings.certificate_completion_threshold, 10) || 70);
+    }
+    if (settingsData?.settings?.default_student_password) {
+      setDefaultStudentPassword(settingsData.settings.default_student_password);
     }
   }, [settingsData]);
 
@@ -70,6 +75,19 @@ export default function AdminSettings() {
     try {
       await saveSettings({ certificate_completion_threshold: String(certThreshold) });
       toast.success('Certificate threshold saved');
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const handleSaveDefaultPassword = async () => {
+    if (!defaultStudentPassword.trim()) {
+      toast.error('Password cannot be empty');
+      return;
+    }
+    try {
+      await saveSettings({ default_student_password: defaultStudentPassword.trim() });
+      toast.success('Default student password saved');
     } catch (err: any) {
       toast.error(err.message);
     }
@@ -269,6 +287,59 @@ export default function AdminSettings() {
 
                 <button
                   onClick={handleSaveCertThreshold}
+                  disabled={savingSettings}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors disabled:opacity-60"
+                >
+                  {savingSettings ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                  Save Changes
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Default Student Password Card */}
+          <div className="bg-white rounded-2xl p-4 sm:p-6 card-shadow">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center">
+                <KeyRound size={20} className="text-primary" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-primary">Default Student Password</h3>
+                <p className="text-xs text-gray-500">All new students will be created with this password</p>
+              </div>
+            </div>
+
+            {settingsLoading ? (
+              <div className="animate-pulse bg-gray-200 rounded-xl h-32" />
+            ) : (
+              <>
+                <div className="bg-gray-50 rounded-xl p-4 sm:p-5 mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                    Default Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showDefaultPassword ? 'text' : 'password'}
+                      value={defaultStudentPassword}
+                      onChange={(e) => setDefaultStudentPassword(e.target.value)}
+                      placeholder="Enter default password"
+                      className={inputClass + ' pr-10'}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowDefaultPassword(!showDefaultPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showDefaultPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-3">
+                    Students created via the add form or CSV import will use this password. They can change it after logging in.
+                  </p>
+                </div>
+
+                <button
+                  onClick={handleSaveDefaultPassword}
                   disabled={savingSettings}
                   className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors disabled:opacity-60"
                 >

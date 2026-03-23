@@ -67,8 +67,11 @@ export async function changeUserStatus(userId: string, status: string): Promise<
   });
 }
 
-export async function resetPassword(userId: string): Promise<{ temporaryPassword: string }> {
-  return apiClient(`/users/${userId}/reset-password`, { method: 'POST' });
+export async function resetPassword(userId: string, newPassword: string): Promise<void> {
+  return apiClient(`/users/${userId}/reset-password`, {
+    method: 'POST',
+    body: JSON.stringify({ new_password: newPassword }),
+  });
 }
 
 export async function deleteUser(userId: string): Promise<void> {

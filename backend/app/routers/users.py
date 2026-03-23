@@ -31,8 +31,24 @@ from app.utils.transformers import to_db
 from app.services import webhook_event_service
 from app.services.institute_service import check_user_quota, increment_usage, decrement_usage
 from app.services.batch_service import enroll_student, get_batch
+from app.models.settings import SystemSetting
+from pydantic import BaseModel as PydanticBaseModel
 
 router = APIRouter()
+
+
+async def _get_default_student_password(session: AsyncSession, institute_id: uuid.UUID | None) -> str:
+    """Get the default student password from institute settings. Falls back to 'changeme123'."""
+    if institute_id is None:
+        return "changeme123"
+    result = await session.execute(
+        select(SystemSetting).where(
+            SystemSetting.setting_key == "default_student_password",
+            SystemSetting.institute_id == institute_id,
+        )
+    )
+    setting = result.scalar_one_or_none()
+    return setting.value if setting else "changeme123"
 
 AdminUser = Annotated[User, Depends(require_roles("admin"))]
 AdminOrCC = Annotated[User, Depends(require_roles("admin", "course_creator"))]
@@ -179,8 +195,13 @@ async def create_user_endpoint(
     if current_user.role == UserRole.course_creator and db_role == "admin":
         raise HTTPException(status_code=403, detail="Course creators cannot create admin users")
 
-    # Generate temporary password if not provided
-    password = body.password if body.password else secrets.token_urlsafe(8)
+    # Password logic: students use default password, other roles require explicit password
+    if db_role == "student":
+        password = await _get_default_student_password(session, current_user.institute_id)
+    else:
+        if not body.password:
+            raise HTTPException(status_code=400, detail="Password is required for non-student roles")
+        password = body.password
 
     # Enforce user quota before creation (Fix 5)
     if current_user.institute_id:
@@ -304,9 +325,14 @@ async def change_user_status(
     return UserOut(**data)
 
 
+class PasswordResetBody(PydanticBaseModel):
+    new_password: str
+
+
 @router.post("/{user_id}/reset-password")
 async def reset_password(
     user_id: uuid.UUID,
+    body: PasswordResetBody,
     current_user: AdminUser,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
@@ -316,12 +342,14 @@ async def reset_password(
     if user.institute_id != current_user.institute_id:
         raise HTTPException(status_code=404, detail="User not found")
 
-    temp_password = secrets.token_urlsafe(8)
-    user.hashed_password = hash_password(temp_password)
+    if len(body.new_password) < 4:
+        raise HTTPException(status_code=400, detail="Password must be at least 4 characters")
+
+    user.hashed_password = hash_password(body.new_password)
     session.add(user)
     await session.commit()
 
-    return {"temporary_password": temp_password}
+    return {"detail": "Password reset successfully"}
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -413,6 +441,9 @@ async def bulk_import(
     email_re = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
     valid_roles = {r.value for r in UserRole}
 
+    # Fetch default student password once (not per-row)
+    default_student_password = await _get_default_student_password(session, current_user.institute_id)
+
     for row_num, row in enumerate(rows_to_process, start=1):
         name = row.get("name", "").strip()
         email = row.get("email", "").strip()
@@ -443,7 +474,14 @@ async def bulk_import(
                 errors.append({"row": row_num, "error": str(e)})
                 continue
 
-        password = secrets.token_urlsafe(8)
+        # Password logic: students use default, other roles require password column
+        if db_role == "student":
+            password = default_student_password
+        else:
+            password = row.get("password", "").strip()
+            if not password:
+                errors.append({"row": row_num, "error": f"Password required for {role} role (add a 'password' column)"})
+                continue
 
         try:
             user = await create_user(
@@ -456,7 +494,7 @@ async def bulk_import(
                 "row": row_num,
                 "name": name,
                 "email": email,
-                "temporary_password": password,
+                "temporary_password": "(default password)" if db_role == "student" else password,
             })
             if current_user.institute_id:
                 await increment_usage(session, current_user.institute_id, users=1)
