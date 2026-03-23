@@ -89,8 +89,8 @@ async def authenticate_user(
     return user, access_token, refresh_token
 
 
-async def refresh_access_token(session: AsyncSession, refresh_token: str) -> str:
-    """Validate refresh token and return new access token."""
+async def refresh_access_token(session: AsyncSession, refresh_token: str) -> tuple[str, str]:
+    """Validate refresh token, rotate it, and return (new_access_token, new_refresh_token)."""
     payload = decode_token(refresh_token)
     if not payload or payload.get("type") != "refresh":
         raise ValueError("Invalid refresh token")
@@ -100,22 +100,19 @@ async def refresh_access_token(session: AsyncSession, refresh_token: str) -> str
     if not user_id or not token_id:
         raise ValueError("Invalid refresh token payload")
 
-    # Check session exists and is active
+    # Check session exists, is active, and not expired
     hashed = _hash_token(token_id)
     result = await session.execute(
         select(UserSession).where(
             UserSession.session_token == hashed,
             UserSession.user_id == uuid.UUID(user_id),
             UserSession.is_active.is_(True),
+            UserSession.expires_at > datetime.now(timezone.utc),
         )
     )
     user_session = result.scalar_one_or_none()
     if not user_session:
         raise ValueError("Session expired or revoked")
-
-    # Update last active
-    user_session.last_active_at = datetime.now(timezone.utc)
-    session.add(user_session)
 
     # Get user for role
     result = await session.execute(
@@ -125,8 +122,15 @@ async def refresh_access_token(session: AsyncSession, refresh_token: str) -> str
     if not user or user.status != UserStatus.active:
         raise ValueError("User not found or deactivated")
 
+    # Rotate refresh token: issue new one, update session hash
+    new_refresh_token, new_token_id = create_refresh_token(user.id)
+    user_session.session_token = _hash_token(new_token_id)
+    user_session.last_active_at = datetime.now(timezone.utc)
+    session.add(user_session)
+
     await session.commit()
-    return create_access_token(user.id, user.role.value, user.token_version)
+    new_access_token = create_access_token(user.id, user.role.value, user.token_version)
+    return new_access_token, new_refresh_token
 
 
 async def logout(session: AsyncSession, refresh_token: str) -> None:

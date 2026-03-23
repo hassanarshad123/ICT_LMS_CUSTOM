@@ -1,12 +1,12 @@
 import uuid
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 
 class LoginRequest(BaseModel):
-    email: str
-    password: str
+    email: EmailStr
+    password: str = Field(..., min_length=1)
     device_info: Optional[str] = None
 
 
@@ -23,6 +23,12 @@ class RefreshRequest(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
+    token_type: str = "bearer"
+
+
+class RefreshResponse(BaseModel):
+    access_token: str
+    refresh_token: str
     token_type: str = "bearer"
 
 
@@ -43,8 +49,8 @@ class UserBrief(BaseModel):
 
 
 class ChangePasswordRequest(BaseModel):
-    current_password: str
-    new_password: str
+    current_password: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=8)
 
 
 class LogoutAllResponse(BaseModel):
@@ -53,9 +59,9 @@ class LogoutAllResponse(BaseModel):
 
 
 class ForgotPasswordRequest(BaseModel):
-    email: str
+    email: EmailStr
 
 
 class ResetPasswordRequest(BaseModel):
     token: str
-    new_password: str
+    new_password: str = Field(..., min_length=8)

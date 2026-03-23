@@ -18,6 +18,9 @@ function AuthCallbackContent() {
       return;
     }
 
+    // Strip token from URL immediately to prevent leaking in browser history
+    window.history.replaceState({}, '', '/auth-callback');
+
     const exchange = async () => {
       try {
         const result = await exchangeHandoffToken(token);
