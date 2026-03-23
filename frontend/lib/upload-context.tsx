@@ -34,7 +34,6 @@ export interface UploadItem {
   status: UploadStatus;
   progress: number;
   error?: string;
-  statusMessage?: string;
 }
 
 export interface FileMetadata {
@@ -144,15 +143,13 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
           updateItem(queueId, {
             status: 'error',
             error: 'Processing timed out after 1 hour.',
-            statusMessage: undefined,
           });
           return;
         }
 
         if (elapsed > 30 * 60 * 1000) {
-          updateItem(queueId, {
-            statusMessage: 'Processing is taking longer than usual',
-          });
+          // Show warning once at the 30-minute mark (toast id deduplicates)
+          toast.warning('Video processing is taking longer than usual. This may take up to 1 hour.', { id: `processing-warning-${queueId}` });
         }
 
         try {

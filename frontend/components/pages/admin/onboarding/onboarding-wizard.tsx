@@ -46,14 +46,7 @@ export default function OnboardingWizard() {
     }
   }, [step, completeOnboarding]);
 
-  const handleSkipStep = useCallback(() => {
-    if (step < STEPS.length - 1) {
-      setStep((s) => s + 1);
-    } else {
-      completeOnboarding();
-    }
-  }, [step, completeOnboarding]);
-
+  // handleNext serves as both "next" and "skip" — same progression logic
   const handleSkipAll = useCallback(() => {
     completeOnboarding();
   }, [completeOnboarding]);
@@ -116,10 +109,10 @@ export default function OnboardingWizard() {
 
         {/* Step content */}
         <div className="bg-white rounded-2xl p-6 sm:p-8 card-shadow">
-          {step === 0 && <StepBranding onNext={handleNext} onSkip={handleSkipStep} />}
-          {step === 1 && <StepBatch onNext={handleNext} onSkip={handleSkipStep} />}
-          {step === 2 && <StepImport onNext={handleNext} onSkip={handleSkipStep} />}
-          {step === 3 && <StepCourse onNext={handleNext} onSkip={handleSkipStep} />}
+          {step === 0 && <StepBranding onNext={handleNext} onSkip={handleNext} />}
+          {step === 1 && <StepBatch onNext={handleNext} onSkip={handleNext} />}
+          {step === 2 && <StepImport onNext={handleNext} onSkip={handleNext} />}
+          {step === 3 && <StepCourse onNext={handleNext} onSkip={handleNext} />}
         </div>
 
         {/* Skip setup link */}
