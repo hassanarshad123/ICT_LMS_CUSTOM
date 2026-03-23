@@ -20,24 +20,33 @@ interface CsvRow {
 interface ImportResult {
   imported: number;
   skipped: number;
+  enrolled: number;
   errors: { row: number; error: string }[];
+}
+
+interface BatchOption {
+  id: string;
+  name: string;
 }
 
 interface CsvImportPanelProps {
   onSuccess?: () => void;
   onClose?: () => void;
+  batches?: BatchOption[];
+  preSelectedBatchIds?: string[];
 }
 
-export default function CsvImportPanel({ onSuccess, onClose }: CsvImportPanelProps) {
+export default function CsvImportPanel({ onSuccess, onClose, batches = [], preSelectedBatchIds = [] }: CsvImportPanelProps) {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<CsvRow[]>([]);
   const [allRows, setAllRows] = useState<CsvRow[]>([]);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [selectedBatchIds, setSelectedBatchIds] = useState<string[]>(preSelectedBatchIds);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { execute: doImport, loading: importing } = useMutation(
-    (f: File) => bulkImportUsers(f)
+    (f: File) => bulkImportUsers(f, selectedBatchIds.length > 0 ? selectedBatchIds : undefined)
   );
 
   const parseFile = useCallback((f: File) => {
@@ -128,6 +137,29 @@ export default function CsvImportPanel({ onSuccess, onClose }: CsvImportPanelPro
           )}
         </div>
       </div>
+
+      {/* Batch selection */}
+      {batches.length > 0 && !result && (
+        <div className="mb-4">
+          <label className="text-sm font-medium text-gray-700 mb-2 block">Auto-enroll in batches (optional)</label>
+          <div className="space-y-1 max-h-32 overflow-y-auto border border-gray-200 rounded-xl p-2">
+            {batches.map(batch => (
+              <label key={batch.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selectedBatchIds.includes(batch.id)}
+                  onChange={() => setSelectedBatchIds(prev => prev.includes(batch.id) ? prev.filter(b => b !== batch.id) : [...prev, batch.id])}
+                  className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <span className="text-sm text-gray-700">{batch.name}</span>
+              </label>
+            ))}
+          </div>
+          {selectedBatchIds.length > 0 && (
+            <p className="text-xs text-gray-400 mt-1">{selectedBatchIds.length} batch{selectedBatchIds.length > 1 ? 'es' : ''} selected — imported students will be enrolled</p>
+          )}
+        </div>
+      )}
 
       {/* Drop zone */}
       {!file && (
@@ -248,7 +280,10 @@ export default function CsvImportPanel({ onSuccess, onClose }: CsvImportPanelPro
             {result.imported > 0 && (
               <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-4 py-2 rounded-lg">
                 <CheckCircle2 size={16} />
-                {result.imported} students imported successfully
+                <span>
+                  {result.imported} students imported successfully
+                  {result.enrolled > 0 && ` · ${result.enrolled} batch enrollment${result.enrolled > 1 ? 's' : ''} created`}
+                </span>
               </div>
             )}
             {result.skipped > 0 && (

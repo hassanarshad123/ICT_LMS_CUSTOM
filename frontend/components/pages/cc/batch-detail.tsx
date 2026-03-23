@@ -417,6 +417,9 @@ export default function BatchContentPage() {
         students={students}
         studentsLoading={studentsLoading}
         onRemoveStudentConfirm={setRemoveStudentConfirm}
+        batchId={batchId}
+        batchName={batch?.name}
+        onImportComplete={() => { refetchStudents(); refetchBatch(); }}
       />
 
       {/* Content grouped by course */}
