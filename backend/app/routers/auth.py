@@ -9,7 +9,7 @@ import time
 
 from app.database import get_session
 from app.schemas.auth import (
-    LoginRequest, LoginResponse, RefreshRequest, TokenResponse,
+    LoginRequest, LoginResponse, RefreshRequest, TokenResponse, RefreshResponse,
     UserBrief, ChangePasswordRequest, LogoutAllResponse,
     ForgotPasswordRequest, ResetPasswordRequest,
 )
@@ -115,7 +115,7 @@ async def login(
     )
 
 
-@router.post("/refresh", response_model=TokenResponse)
+@router.post("/refresh", response_model=RefreshResponse)
 @limiter.limit("10/minute")
 async def refresh(
     request: Request,
@@ -123,11 +123,11 @@ async def refresh(
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
-        access_token = await refresh_access_token(session, body.refresh_token)
+        access_token, refresh_token = await refresh_access_token(session, body.refresh_token)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
 
-    return TokenResponse(access_token=access_token)
+    return RefreshResponse(access_token=access_token, refresh_token=refresh_token)
 
 
 @router.post("/logout")
@@ -159,9 +159,6 @@ async def change_password(
 ):
     if not verify_password(body.current_password, current_user.hashed_password):
         raise HTTPException(status_code=400, detail="Current password is incorrect")
-
-    if len(body.new_password) < 8:
-        raise HTTPException(status_code=422, detail="New password must be at least 8 characters")
 
     current_user.hashed_password = hash_password(body.new_password)
     session.add(current_user)
@@ -237,9 +234,6 @@ async def reset_password(
     user_id = payload.get("sub")
     if not user_id:
         raise HTTPException(status_code=400, detail="Reset link has expired or is invalid")
-
-    if len(body.new_password) < 8:
-        raise HTTPException(status_code=422, detail="New password must be at least 8 characters")
 
     result = await session.execute(
         select(User).where(User.id == user_id, User.deleted_at.is_(None))

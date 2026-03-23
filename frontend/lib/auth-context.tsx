@@ -76,7 +76,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (refreshToken) {
       try {
         await apiLogout(refreshToken);
-      } catch {}
+      } catch (err) {
+        console.warn('Backend logout failed (session may remain active server-side):', err);
+      }
     }
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
