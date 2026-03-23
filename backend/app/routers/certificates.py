@@ -20,6 +20,7 @@ from app.schemas.certificate import (
 from app.schemas.common import PaginatedResponse
 from app.services import certificate_service, webhook_event_service
 from app.middleware.auth import require_roles, get_current_user, get_institute_slug_from_header
+from app.utils.rate_limit import limiter
 from app.models.user import User
 from app.models.institute import Institute
 
@@ -127,6 +128,7 @@ async def approve_certificate(
     """Approve and generate a certificate for a single student."""
     is_eligible, pct = await certificate_service.check_eligibility(
         session, student_id, batch_id, course_id,
+        institute_id=current_user.institute_id,
     )
     if not is_eligible:
         raise HTTPException(
@@ -168,6 +170,7 @@ async def approve_batch_certificates(
     for student_id in body.student_ids:
         is_eligible, pct = await certificate_service.check_eligibility(
             session, student_id, batch_id, course_id,
+            institute_id=current_user.institute_id,
         )
         if not is_eligible:
             logger.warning("Student %s not eligible (%d%%), skipping", student_id, pct)
@@ -225,6 +228,7 @@ async def approve_certificate_request(
 
 
 @router.get("/verify/{code}", response_model=CertificateVerifyOut)
+@limiter.limit("20/minute")
 async def verify_certificate(
     code: str,
     request: Request,

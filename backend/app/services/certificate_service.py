@@ -57,6 +57,7 @@ async def _load_cert_design(session: AsyncSession, institute_id: uuid.UUID = Non
 
 async def calculate_completion_percentage(
     session: AsyncSession, student_id: uuid.UUID, batch_id: uuid.UUID, course_id: uuid.UUID,
+    institute_id: uuid.UUID = None,
 ) -> int:
     """Average watch_percentage across all lectures in a batch-course for a student."""
     # Count total lectures
@@ -116,10 +117,11 @@ async def get_completion_threshold(session: AsyncSession, institute_id: uuid.UUI
 
 async def check_eligibility(
     session: AsyncSession, student_id: uuid.UUID, batch_id: uuid.UUID, course_id: uuid.UUID,
+    institute_id: uuid.UUID = None,
 ) -> tuple[bool, int]:
     """Returns (is_eligible, completion_percentage)."""
-    pct = await calculate_completion_percentage(session, student_id, batch_id, course_id)
-    threshold = await get_completion_threshold(session)
+    pct = await calculate_completion_percentage(session, student_id, batch_id, course_id, institute_id=institute_id)
+    threshold = await get_completion_threshold(session, institute_id=institute_id)
     return pct >= threshold, pct
 
 
@@ -303,8 +305,8 @@ async def request_certificate(
     if not enrollment:
         raise ValueError("Student is not enrolled in this batch")
 
-    # Check eligibility
-    is_eligible, pct = await check_eligibility(session, student_id, batch_id, course_id)
+    # Check eligibility (tenant-scoped)
+    is_eligible, pct = await check_eligibility(session, student_id, batch_id, course_id, institute_id=institute_id)
     if not is_eligible:
         raise ValueError(f"Completion percentage ({pct}%) does not meet the threshold")
 

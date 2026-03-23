@@ -100,7 +100,9 @@ async def create_lecture(
 
 
 @router.post("/upload-init", status_code=status.HTTP_201_CREATED)
+@limiter.limit("30/minute")
 async def upload_init(
+    request: Request,
     body: UploadInitRequest,
     current_user: CC,
     session: Annotated[AsyncSession, Depends(get_session)],

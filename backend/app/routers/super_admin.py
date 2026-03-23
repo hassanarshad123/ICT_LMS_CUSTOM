@@ -22,6 +22,7 @@ from app.services.institute_service import (
     check_user_quota, increment_usage,
 )
 from app.utils.security import create_impersonation_token
+from app.utils.rate_limit import limiter
 
 router = APIRouter()
 
@@ -374,6 +375,7 @@ async def get_institute_batches(
 
 
 @router.post("/impersonate/{user_id}")
+@limiter.limit("10/minute")
 async def impersonate_user(
     user_id: uuid.UUID,
     request: Request,

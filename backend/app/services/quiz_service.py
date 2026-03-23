@@ -348,11 +348,13 @@ async def submit_attempt(
     attempt_id: uuid.UUID,
     answers: list[dict],
     student_id: uuid.UUID,
+    institute_id: Optional[uuid.UUID] = None,
 ) -> QuizAttempt:
-    # Load attempt
-    result = await session.execute(
-        select(QuizAttempt).where(QuizAttempt.id == attempt_id)
-    )
+    # Load attempt (tenant-scoped)
+    query = select(QuizAttempt).where(QuizAttempt.id == attempt_id)
+    if institute_id is not None:
+        query = query.where(QuizAttempt.institute_id == institute_id)
+    result = await session.execute(query)
     attempt = result.scalar_one_or_none()
     if not attempt:
         raise ValueError("Attempt not found")
@@ -361,10 +363,11 @@ async def submit_attempt(
     if attempt.status != QuizAttemptStatus.in_progress:
         raise ValueError("Attempt is not in progress")
 
-    # Load quiz for pass_percentage
-    quiz_result = await session.execute(
-        select(Quiz).where(Quiz.id == attempt.quiz_id)
-    )
+    # Load quiz for pass_percentage (tenant-scoped)
+    quiz_query = select(Quiz).where(Quiz.id == attempt.quiz_id)
+    if institute_id is not None:
+        quiz_query = quiz_query.where(Quiz.institute_id == institute_id)
+    quiz_result = await session.execute(quiz_query)
     quiz = quiz_result.scalar_one_or_none()
 
     # Load all questions for this quiz
@@ -533,10 +536,12 @@ async def grade_answer(
     points_awarded: int,
     feedback: Optional[str],
     grader_id: uuid.UUID,
+    institute_id: Optional[uuid.UUID] = None,
 ) -> QuizAnswer:
-    result = await session.execute(
-        select(QuizAnswer).where(QuizAnswer.id == answer_id)
-    )
+    query = select(QuizAnswer).where(QuizAnswer.id == answer_id)
+    if institute_id is not None:
+        query = query.where(QuizAnswer.institute_id == institute_id)
+    result = await session.execute(query)
     answer = result.scalar_one_or_none()
     if not answer:
         raise ValueError("Answer not found")
@@ -546,10 +551,11 @@ async def grade_answer(
     answer.feedback = feedback
     session.add(answer)
 
-    # Recalculate attempt score
-    attempt_result = await session.execute(
-        select(QuizAttempt).where(QuizAttempt.id == answer.attempt_id)
-    )
+    # Recalculate attempt score (tenant-scoped)
+    attempt_query = select(QuizAttempt).where(QuizAttempt.id == answer.attempt_id)
+    if institute_id is not None:
+        attempt_query = attempt_query.where(QuizAttempt.institute_id == institute_id)
+    attempt_result = await session.execute(attempt_query)
     attempt = attempt_result.scalar_one_or_none()
 
     # Reload all answers for this attempt
