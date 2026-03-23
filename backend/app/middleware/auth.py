@@ -51,6 +51,14 @@ async def get_current_user(
     imp_id = payload.get("imp")
     user._impersonator_id = uuid.UUID(imp_id) if imp_id else None
 
+    # Defensive guard: non-SA users MUST have an institute assignment.
+    # This prevents all downstream institute_id checks from being bypassed.
+    if user.role != UserRole.super_admin and user.institute_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account configuration error: missing institute assignment",
+        )
+
     # Check institute suspension/expiry (skip for super_admin who has no institute)
     if user.role != UserRole.super_admin and user.institute_id is not None:
         institute = await session.get(Institute, user.institute_id)

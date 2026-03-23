@@ -148,7 +148,8 @@ async def update_application_status(
 ):
     try:
         app = await job_service.update_application_status(
-            session, app_id, body.status, current_user.id
+            session, app_id, body.status, current_user.id,
+            institute_id=current_user.institute_id,
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
