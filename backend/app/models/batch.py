@@ -22,6 +22,8 @@ class Batch(SQLModel, table=True):
     created_by: Optional[uuid.UUID] = Field(
         default=None, foreign_key="users.id"
     )
+    enable_lecture_gating: bool = Field(default=False)
+    lecture_gating_threshold: int = Field(default=65)
     institute_id: Optional[uuid.UUID] = Field(
         default=None,
         sa_column=Column(PG_UUID(as_uuid=True), ForeignKey("institutes.id"), nullable=True),

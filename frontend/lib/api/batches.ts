@@ -12,6 +12,8 @@ export interface BatchOut {
   status: string;
   createdBy?: string;
   createdAt?: string;
+  enableLectureGating: boolean;
+  lectureGatingThreshold: number;
 }
 
 export interface PaginatedBatches {

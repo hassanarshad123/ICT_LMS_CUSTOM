@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class BatchCreate(BaseModel):
@@ -9,6 +9,8 @@ class BatchCreate(BaseModel):
     start_date: date
     end_date: date
     teacher_id: Optional[uuid.UUID] = None
+    enable_lecture_gating: bool = False
+    lecture_gating_threshold: int = Field(default=65, ge=0, le=100)
 
 
 class BatchUpdate(BaseModel):
@@ -16,6 +18,8 @@ class BatchUpdate(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     teacher_id: Optional[uuid.UUID] = None
+    enable_lecture_gating: Optional[bool] = None
+    lecture_gating_threshold: Optional[int] = Field(default=None, ge=0, le=100)
 
 
 class BatchOut(BaseModel):
@@ -30,6 +34,8 @@ class BatchOut(BaseModel):
     status: str
     created_by: Optional[uuid.UUID] = None
     created_at: Optional[datetime] = None
+    enable_lecture_gating: bool = False
+    lecture_gating_threshold: int = 65
 
     model_config = {"from_attributes": True}
 

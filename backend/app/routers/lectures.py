@@ -71,9 +71,10 @@ async def list_lectures(
         if not enrolled.scalar_one_or_none():
             raise HTTPException(status_code=403, detail="Not enrolled in this batch")
 
+    student_id = current_user.id if current_user.role.value == "student" else None
     items, total = await lecture_service.list_lectures(
         session, batch_id, course_id=course_id, page=page, per_page=per_page,
-        institute_id=current_user.institute_id,
+        institute_id=current_user.institute_id, student_id=student_id,
     )
     return PaginatedResponse(
         data=[LectureOut(**item) for item in items],
@@ -400,6 +401,35 @@ async def get_signed_url(
         )
         if not enrolled.scalar_one_or_none():
             raise HTTPException(status_code=403, detail="Not enrolled in this batch")
+
+        # Progress gating check — enforce sequential video access
+        from app.models.batch import Batch
+        from app.models.progress import LectureProgress
+        from app.models.course import Lecture as LectureModel
+        batch = await session.get(Batch, lecture.batch_id)
+        if batch and batch.enable_lecture_gating:
+            prev_result = await session.execute(
+                select(LectureModel).where(
+                    LectureModel.batch_id == lecture.batch_id,
+                    LectureModel.course_id == lecture.course_id,
+                    LectureModel.sequence_order < lecture.sequence_order,
+                    LectureModel.deleted_at.is_(None),
+                ).order_by(LectureModel.sequence_order.desc()).limit(1)
+            )
+            prev = prev_result.scalar_one_or_none()
+            if prev:
+                prog_result = await session.execute(
+                    select(LectureProgress).where(
+                        LectureProgress.lecture_id == prev.id,
+                        LectureProgress.student_id == current_user.id,
+                    )
+                )
+                prog = prog_result.scalar_one_or_none()
+                if not prog or prog.watch_percentage < batch.lecture_gating_threshold:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Complete the previous lecture first",
+                    )
 
     if lecture.video_type.value == "upload":
         if not lecture.bunny_video_id or lecture.video_status != "ready":

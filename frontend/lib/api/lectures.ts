@@ -17,6 +17,9 @@ export interface LectureOut {
   thumbnailUrl?: string;
   uploadDate?: string;
   createdAt?: string;
+  watchPercentage?: number;
+  progressStatus?: string;
+  isLocked?: boolean;
 }
 
 export interface PaginatedLectures {

@@ -8,7 +8,7 @@ import DashboardHeader from '@/components/layout/dashboard-header';
 import { useAuth } from '@/lib/auth-context';
 import { useBasePath } from '@/hooks/use-base-path';
 import { useApi, useMutation } from '@/hooks/use-api';
-import { getBatch, listBatchStudents, enrollStudent, removeStudent } from '@/lib/api/batches';
+import { getBatch, listBatchStudents, enrollStudent, removeStudent, updateBatch } from '@/lib/api/batches';
 import { listUsers } from '@/lib/api/users';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
@@ -158,6 +158,50 @@ export default function AdminBatchDetail() {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Progress Gating Settings */}
+          <div className="bg-white rounded-2xl p-4 sm:p-6 card-shadow mb-6">
+            <h3 className="text-sm font-semibold text-primary mb-3">Progress Gating</h3>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-700">Require sequential video completion</p>
+                <p className="text-xs text-gray-400 mt-0.5">Students must complete each lecture before accessing the next</p>
+              </div>
+              <button
+                onClick={async () => {
+                  const newValue = !batch.enableLectureGating;
+                  try {
+                    await updateBatch(batchId, { enable_lecture_gating: newValue });
+                    refetchBatch();
+                    toast.success(newValue ? 'Progress gating enabled' : 'Progress gating disabled');
+                  } catch { toast.error('Failed to update setting'); }
+                }}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${batch.enableLectureGating ? 'bg-green-500' : 'bg-gray-300'}`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${batch.enableLectureGating ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
+            </div>
+            {batch.enableLectureGating && (
+              <div className="mt-4 flex items-center gap-3">
+                <label className="text-xs text-gray-500">Completion threshold:</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={batch.lectureGatingThreshold}
+                  onChange={async (e) => {
+                    const val = Math.max(0, Math.min(100, parseInt(e.target.value) || 0));
+                    try {
+                      await updateBatch(batchId, { lecture_gating_threshold: val });
+                      refetchBatch();
+                    } catch { toast.error('Failed to update threshold'); }
+                  }}
+                  className="w-16 px-2 py-1 text-sm border border-gray-200 rounded-lg text-center focus:outline-none focus:border-gray-400"
+                />
+                <span className="text-xs text-gray-400">%</span>
+              </div>
+            )}
           </div>
 
           {/* Add Student Section */}

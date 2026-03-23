@@ -2,7 +2,9 @@
 
 import {
   BookOpen,
+  CheckCircle2,
   Clock,
+  Lock,
   PlayCircle,
   Video,
 } from 'lucide-react';
@@ -57,14 +59,40 @@ export function CourseVideoPlayer({
         {/* Left: Video Player */}
         <div className="flex-1 min-w-0">
           {playlistTab === 'lectures' && activeLecture ? (
-            <VideoPlayer
-              key={activeLecture.id}
-              lectureId={activeLecture.id}
-              videoType={activeLecture.videoType}
-              videoUrl={activeLecture.videoUrl}
-              videoStatus={activeLecture.videoStatus}
-              watermark={watermark}
-            />
+            activeLecture.isLocked ? (
+              <div className="aspect-video bg-gray-800 rounded-2xl flex items-center justify-center">
+                <div className="text-center px-6">
+                  <Lock size={48} className="text-gray-400 mx-auto mb-3" />
+                  <p className="text-white text-sm font-medium mb-1">This lecture is locked</p>
+                  <p className="text-gray-400 text-xs mb-4">
+                    Complete the previous lecture to unlock this one.
+                    {activeLecture.watchPercentage != null && activeLecture.watchPercentage > 0 && (
+                      <span className="block mt-1">Previous lecture: {activeLecture.watchPercentage}% watched</span>
+                    )}
+                  </p>
+                  {sortedLectures.length > 0 && (
+                    <button
+                      onClick={() => {
+                        const idx = sortedLectures.findIndex(l => l.id === activeLecture.id);
+                        if (idx > 0) onSelectLecture(sortedLectures[idx - 1].id);
+                      }}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 text-white text-sm rounded-lg hover:bg-white/20 transition-colors"
+                    >
+                      Go to Previous Lecture
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <VideoPlayer
+                key={activeLecture.id}
+                lectureId={activeLecture.id}
+                videoType={activeLecture.videoType}
+                videoUrl={activeLecture.videoUrl}
+                videoStatus={activeLecture.videoStatus}
+                watermark={watermark}
+              />
+            )
           ) : (
             <div className="aspect-video bg-gray-800 rounded-2xl flex items-center justify-center">
               <div className="text-center">
@@ -124,35 +152,53 @@ export function CourseVideoPlayer({
                   <div className="divide-y divide-gray-50">
                     {sortedLectures.map((lecture, index) => {
                       const isActive = (selectedLecture || sortedLectures[0]?.id) === lecture.id;
+                      const isLocked = lecture.isLocked === true;
+                      const isCompleted = lecture.progressStatus === 'completed';
+                      const isInProgress = lecture.progressStatus === 'in_progress';
                       return (
                         <button
                           key={lecture.id}
-                          onClick={() => onSelectLecture(lecture.id)}
+                          onClick={() => {
+                            if (isLocked) return;
+                            onSelectLecture(lecture.id);
+                          }}
+                          disabled={isLocked}
                           className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
-                            isActive
-                              ? 'bg-primary text-white'
-                              : 'hover:bg-gray-50 text-primary'
+                            isLocked
+                              ? 'opacity-50 cursor-not-allowed bg-gray-50'
+                              : isActive
+                                ? 'bg-primary text-white'
+                                : 'hover:bg-gray-50 text-primary'
                           }`}
                         >
                           <div
                             className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold ${
-                              isActive
-                                ? 'bg-accent text-primary'
-                                : 'bg-gray-100 text-gray-500'
+                              isLocked
+                                ? 'bg-gray-200 text-gray-400'
+                                : isActive
+                                  ? 'bg-accent text-primary'
+                                  : isCompleted
+                                    ? 'bg-green-100 text-green-600'
+                                    : 'bg-gray-100 text-gray-500'
                             }`}
                           >
-                            {index + 1}
+                            {isLocked ? <Lock size={12} /> : isCompleted ? <CheckCircle2 size={12} /> : index + 1}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-medium truncate ${isActive ? 'text-white' : 'text-primary'}`}>
+                            <p className={`text-sm font-medium truncate ${isLocked ? 'text-gray-400' : isActive ? 'text-white' : 'text-primary'}`}>
                               {lecture.title}
                             </p>
                             <div className={`flex items-center gap-1 text-xs mt-0.5 ${isActive ? 'text-gray-300' : 'text-gray-400'}`}>
                               <Clock size={10} />
                               {lecture.durationDisplay || `${lecture.duration || 0}s`}
+                              {isInProgress && lecture.watchPercentage != null && (
+                                <span className="ml-1 text-blue-500 font-medium">{lecture.watchPercentage}%</span>
+                              )}
                             </div>
                           </div>
-                          {isActive && <PlayCircle size={16} className="text-accent flex-shrink-0" />}
+                          {isLocked && <Lock size={14} className="text-gray-300 flex-shrink-0" />}
+                          {!isLocked && isActive && <PlayCircle size={16} className="text-accent flex-shrink-0" />}
+                          {!isLocked && !isActive && isCompleted && <CheckCircle2 size={14} className="text-green-500 flex-shrink-0" />}
                         </button>
                       );
                     })}
