@@ -15,6 +15,7 @@ class LectureProgress(SQLModel, table=True):
     __table_args__ = (
         UniqueConstraint("student_id", "lecture_id", name="uq_lecture_progress_student_lecture"),
         Index("ix_lecture_progress_student_id", "student_id"),
+        Index("ix_lecture_progress_institute_id", "institute_id"),
         CheckConstraint("watch_percentage >= 0 AND watch_percentage <= 100", name="ck_lecture_progress_watch_pct"),
     )
 

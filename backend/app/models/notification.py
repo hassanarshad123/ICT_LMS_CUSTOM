@@ -12,6 +12,7 @@ class Notification(SQLModel, table=True):
     __table_args__ = (
         Index("ix_notifications_user_id_read", "user_id", "read"),
         Index("ix_notifications_user_id_created_at", "user_id", "created_at"),
+        Index("ix_notifications_institute_id", "institute_id"),
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)

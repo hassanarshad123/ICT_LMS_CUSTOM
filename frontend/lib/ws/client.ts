@@ -2,12 +2,16 @@ const WS_BASE = typeof window !== 'undefined'
   ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`
   : '';
 
+const MAX_RECONNECT_DELAY = 30_000; // 30s max
+const MAX_RETRIES = 10;
+
 export class WebSocketClient {
   private ws: WebSocket | null = null;
   private url: string;
   private handlers: Map<string, ((data: any) => void)[]> = new Map();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private shouldReconnect = true;
+  private reconnectAttempt = 0;
 
   constructor(path: string) {
     const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
@@ -20,6 +24,11 @@ export class WebSocketClient {
     try {
       this.ws = new WebSocket(this.url);
 
+      this.ws.onopen = () => {
+        // Reset backoff on successful connection
+        this.reconnectAttempt = 0;
+      };
+
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
@@ -30,8 +39,11 @@ export class WebSocketClient {
       };
 
       this.ws.onclose = () => {
-        if (this.shouldReconnect) {
-          this.reconnectTimer = setTimeout(() => this.connect(), 5000);
+        if (this.shouldReconnect && this.reconnectAttempt < MAX_RETRIES) {
+          // Exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s, 30s...
+          const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempt), MAX_RECONNECT_DELAY);
+          this.reconnectAttempt++;
+          this.reconnectTimer = setTimeout(() => this.connect(), delay);
         }
       };
 

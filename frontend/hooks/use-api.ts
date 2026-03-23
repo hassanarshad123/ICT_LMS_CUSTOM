@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useAuth } from '@/lib/auth-context';
+import { useQuery } from '@tanstack/react-query';
+import { useState, useCallback, useRef } from 'react';
 
 interface UseApiResult<T> {
   data: T | null;
@@ -14,45 +14,23 @@ export function useApi<T>(
   fetcher: () => Promise<T>,
   deps: any[] = [],
 ): UseApiResult<T> {
-  const { isLoading: authLoading } = useAuth();
-  const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [trigger, setTrigger] = useState(0);
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
 
-  const refetch = useCallback(() => setTrigger((t) => t + 1), []);
+  const queryKey = ['api', ...deps];
 
-  useEffect(() => {
-    // Don't fire API calls until auth has loaded the token
-    if (authLoading) return;
+  const { data, isLoading, error, refetch: rqRefetch } = useQuery({
+    queryKey,
+    queryFn: () => fetcherRef.current(),
+    enabled: true,
+  });
 
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-
-    fetcherRef.current()
-      .then((result) => {
-        if (!cancelled) {
-          setData(result);
-          setLoading(false);
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setError(err.message || 'An error occurred');
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, ...deps, trigger]);
-
-  return { data, loading, error, refetch };
+  return {
+    data: data ?? null,
+    loading: isLoading,
+    error: error ? (error as Error).message : null,
+    refetch: () => { rqRefetch(); },
+  };
 }
 
 export function useMutation<TArgs extends any[], TResult>(

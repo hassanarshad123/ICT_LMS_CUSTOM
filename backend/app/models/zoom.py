@@ -48,6 +48,7 @@ class ZoomClass(SQLModel, table=True):
     __tablename__ = "zoom_classes"
     __table_args__ = (
         Index("ix_zoom_classes_batch_id", "batch_id"),
+        Index("ix_zoom_classes_institute_id", "institute_id"),
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)

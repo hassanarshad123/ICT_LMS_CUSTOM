@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from app.database import get_session
@@ -33,7 +34,9 @@ async def get_current_user(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
 
     result = await session.execute(
-        select(User).where(User.id == uuid.UUID(user_id), User.deleted_at.is_(None))
+        select(User)
+        .options(selectinload(User.institute))
+        .where(User.id == uuid.UUID(user_id), User.deleted_at.is_(None))
     )
     user = result.scalar_one_or_none()
 
@@ -61,7 +64,7 @@ async def get_current_user(
 
     # Check institute suspension/expiry (skip for super_admin who has no institute)
     if user.role != UserRole.super_admin and user.institute_id is not None:
-        institute = await session.get(Institute, user.institute_id)
+        institute = user.institute
         if institute:
             if institute.status == InstituteStatus.suspended:
                 raise HTTPException(

@@ -1,12 +1,15 @@
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
-from sqlmodel import SQLModel, Field, Column
+from sqlmodel import SQLModel, Field, Column, Relationship
 from sqlalchemy import Enum as SAEnum, UniqueConstraint, Index, ForeignKey
 from sqlalchemy.dialects.postgresql import TIMESTAMP, UUID as PG_UUID
 
 from app.models.enums import UserRole, UserStatus
+
+if TYPE_CHECKING:
+    from app.models.institute import Institute
 
 
 class User(SQLModel, table=True):
@@ -58,4 +61,8 @@ class User(SQLModel, table=True):
     locked_until: Optional[datetime] = Field(
         default=None,
         sa_column=Column(TIMESTAMP(timezone=True), nullable=True),
+    )
+
+    institute: Optional["Institute"] = Relationship(
+        sa_relationship_kwargs={"lazy": "noload", "foreign_keys": "[User.institute_id]"},
     )

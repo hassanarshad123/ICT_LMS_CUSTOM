@@ -11,6 +11,10 @@ from app.models.enums import BatchHistoryAction
 
 class Batch(SQLModel, table=True):
     __tablename__ = "batches"
+    __table_args__ = (
+        Index("ix_batches_institute_id", "institute_id"),
+        Index("ix_batches_teacher_id", "teacher_id"),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     name: str = Field(nullable=False)

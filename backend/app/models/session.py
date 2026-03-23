@@ -12,6 +12,7 @@ class UserSession(SQLModel, table=True):
     __table_args__ = (
         UniqueConstraint("session_token", name="uq_user_sessions_token"),
         Index("ix_user_sessions_user_id", "user_id"),
+        Index("ix_user_sessions_institute_id", "institute_id"),
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)

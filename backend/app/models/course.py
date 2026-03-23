@@ -12,6 +12,9 @@ from app.models.enums import CourseStatus, VideoType, MaterialFileType
 
 class Course(SQLModel, table=True):
     __tablename__ = "courses"
+    __table_args__ = (
+        Index("ix_courses_institute_id", "institute_id"),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     title: str = Field(nullable=False)
@@ -81,6 +84,7 @@ class Lecture(SQLModel, table=True):
     __table_args__ = (
         Index("ix_lectures_batch_id", "batch_id"),
         Index("ix_lectures_course_id", "course_id"),
+        Index("ix_lectures_institute_id", "institute_id"),
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
