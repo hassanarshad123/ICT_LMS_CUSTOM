@@ -6,7 +6,7 @@ import DashboardLayout from '@/components/layout/dashboard-layout';
 import { useAuth } from '@/lib/auth-context';
 import { useBasePath } from '@/hooks/use-base-path';
 import { useApi, useMutation } from '@/hooks/use-api';
-import { getCourse } from '@/lib/api/courses';
+import { getCourse, updateCourse } from '@/lib/api/courses';
 import { listModules, createModule, updateModule, deleteModule } from '@/lib/api/curriculum';
 import { listBatches, linkCourse, unlinkCourse } from '@/lib/api/batches';
 import { listQuizzes, createQuiz, deleteQuiz } from '@/lib/api/quizzes';
@@ -16,6 +16,9 @@ import {
   ArrowLeft,
   BookOpen,
   Layers,
+  Pencil,
+  X,
+  Loader2,
 } from 'lucide-react';
 import Link from 'next/link';
 import { CourseBatchesSection } from './course-batches-section';
@@ -52,6 +55,10 @@ export default function CourseCreatorCourseDetail() {
   const { execute: doUnlinkCourse } = useMutation(unlinkCourse);
   const { execute: doCreateQuiz, loading: creatingQuiz } = useMutation(createQuiz);
   const { execute: doDeleteQuiz } = useMutation(deleteQuiz);
+
+  const [showCourseEditModal, setShowCourseEditModal] = useState(false);
+  const [courseEditForm, setCourseEditForm] = useState({ title: '', description: '', status: '' });
+  const [courseEditSaving, setCourseEditSaving] = useState(false);
 
   const [showBatchDropdown, setShowBatchDropdown] = useState(false);
   const [showModuleForm, setShowModuleForm] = useState(false);
@@ -209,7 +216,19 @@ export default function CourseCreatorCourseDetail() {
           <ArrowLeft size={16} />
           Back to Courses
         </Link>
-        <h1 className="text-lg sm:text-2xl font-bold text-white mb-2">{course.title}</h1>
+        <div className="flex items-center gap-3 mb-2">
+          <h1 className="text-lg sm:text-2xl font-bold text-white">{course.title}</h1>
+          <button
+            onClick={() => {
+              setCourseEditForm({ title: course.title, description: course.description || '', status: course.status });
+              setShowCourseEditModal(true);
+            }}
+            className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
+            title="Edit Course"
+          >
+            <Pencil size={14} className="text-gray-300" />
+          </button>
+        </div>
         <p className="text-sm text-gray-300 max-w-2xl mb-3">{course.description}</p>
         <div className="flex flex-wrap items-center gap-2 sm:gap-4">
           <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -225,6 +244,57 @@ export default function CourseCreatorCourseDetail() {
           </div>
         </div>
       </div>
+
+      {/* Course Edit Modal */}
+      {showCourseEditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-2xl w-full max-w-md mx-4 p-6">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-lg font-bold text-primary">Edit Course</h3>
+              <button onClick={() => setShowCourseEditModal(false)} className="p-1 hover:bg-gray-100 rounded-lg"><X size={18} className="text-gray-400" /></button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Title</label>
+                <input type="text" value={courseEditForm.title} onChange={e => setCourseEditForm(f => ({ ...f, title: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-primary" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Description</label>
+                <textarea value={courseEditForm.description} onChange={e => setCourseEditForm(f => ({ ...f, description: e.target.value }))} rows={3} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-primary resize-none" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Status</label>
+                <select value={courseEditForm.status} onChange={e => setCourseEditForm(f => ({ ...f, status: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-primary bg-white">
+                  <option value="active">Active</option>
+                  <option value="upcoming">Upcoming</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={async () => {
+                    if (!courseEditForm.title.trim()) { toast.error('Title is required'); return; }
+                    setCourseEditSaving(true);
+                    try {
+                      await updateCourse(courseId, courseEditForm);
+                      refetchCourse();
+                      setShowCourseEditModal(false);
+                      toast.success('Course updated');
+                    } catch (err: any) { toast.error(err.message || 'Failed to update'); }
+                    finally { setCourseEditSaving(false); }
+                  }}
+                  disabled={courseEditSaving}
+                  className="flex-1 py-2.5 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {courseEditSaving ? <Loader2 size={14} className="animate-spin" /> : null}
+                  Save Changes
+                </button>
+                <button onClick={() => setShowCourseEditModal(false)} className="px-4 py-2.5 border border-gray-200 text-sm text-gray-600 rounded-xl hover:bg-gray-50">Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <CourseBatchesSection
         basePath={basePath}

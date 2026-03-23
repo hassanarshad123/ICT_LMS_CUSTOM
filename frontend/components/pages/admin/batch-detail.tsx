@@ -13,7 +13,7 @@ import CsvImportPanel from '@/components/shared/csv-import-panel';
 import { listUsers } from '@/lib/api/users';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
-import { ArrowLeft, UserPlus, Trash2, Loader2, Users, Calendar, GraduationCap, BookOpen, Upload } from 'lucide-react';
+import { ArrowLeft, UserPlus, Trash2, Loader2, Users, Calendar, GraduationCap, BookOpen, Upload, Pencil, X } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,6 +32,9 @@ export default function AdminBatchDetail() {
   const [selectedStudentId, setSelectedStudentId] = useState('');
   const [removeConfirmId, setRemoveConfirmId] = useState<string | null>(null);
   const [showImport, setShowImport] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editForm, setEditForm] = useState({ name: '', start_date: '', end_date: '', teacher_id: '' });
+  const [editSaving, setEditSaving] = useState(false);
 
   const { data: batch, loading: batchLoading, error: batchError, refetch: refetchBatch } = useApi(
     () => getBatch(batchId),
@@ -46,6 +49,11 @@ export default function AdminBatchDetail() {
   const { data: allStudentsData } = useApi(
     () => listUsers({ role: 'student', per_page: 100 }),
   );
+
+  const { data: teachersData } = useApi(
+    () => listUsers({ role: 'teacher', per_page: 100 }),
+  );
+  const teachers = teachersData?.data || [];
 
   const { execute: doEnroll, loading: enrolling } = useMutation(
     (studentId: string) => enrollStudent(batchId, studentId),
@@ -111,7 +119,24 @@ export default function AdminBatchDetail() {
           {/* Batch Info Card */}
           <div className="bg-white rounded-2xl p-6 card-shadow mb-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
-              <h2 className="text-xl font-bold text-primary">{batch.name}</h2>
+              <div className="flex items-center gap-3">
+                <h2 className="text-xl font-bold text-primary">{batch.name}</h2>
+                <button
+                  onClick={() => {
+                    setEditForm({
+                      name: batch.name,
+                      start_date: batch.startDate?.split('T')[0] || '',
+                      end_date: batch.endDate?.split('T')[0] || '',
+                      teacher_id: batch.teacherId || '',
+                    });
+                    setShowEditModal(true);
+                  }}
+                  className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                  title="Edit Batch"
+                >
+                  <Pencil size={14} className="text-gray-400" />
+                </button>
+              </div>
               <span className={`mt-2 sm:mt-0 inline-block px-3 py-1 rounded-full text-xs font-medium ${
                 batch.status === 'active' ? 'bg-green-100 text-green-700' :
                 batch.status === 'upcoming' ? 'bg-yellow-100 text-yellow-700' :
@@ -161,6 +186,67 @@ export default function AdminBatchDetail() {
               </div>
             </div>
           </div>
+
+          {/* Edit Batch Modal */}
+          {showEditModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+              <div className="bg-white rounded-2xl w-full max-w-md mx-4 p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <h3 className="text-lg font-bold text-primary">Edit Batch</h3>
+                  <button onClick={() => setShowEditModal(false)} className="p-1 hover:bg-gray-100 rounded-lg"><X size={18} className="text-gray-400" /></button>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Batch Name</label>
+                    <input type="text" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-primary" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 mb-1 block">Start Date</label>
+                      <input type="date" value={editForm.start_date} onChange={e => setEditForm(f => ({ ...f, start_date: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-primary" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 mb-1 block">End Date</label>
+                      <input type="date" value={editForm.end_date} onChange={e => setEditForm(f => ({ ...f, end_date: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-primary" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Teacher</label>
+                    <select value={editForm.teacher_id} onChange={e => setEditForm(f => ({ ...f, teacher_id: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-primary bg-white">
+                      <option value="">Unassigned</option>
+                      {teachers.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      onClick={async () => {
+                        if (!editForm.name.trim()) { toast.error('Batch name is required'); return; }
+                        setEditSaving(true);
+                        try {
+                          await updateBatch(batchId, {
+                            name: editForm.name,
+                            start_date: editForm.start_date,
+                            end_date: editForm.end_date,
+                            teacher_id: editForm.teacher_id || null,
+                          });
+                          refetchBatch();
+                          setShowEditModal(false);
+                          toast.success('Batch updated');
+                        } catch (err: any) { toast.error(err.message || 'Failed to update'); }
+                        finally { setEditSaving(false); }
+                      }}
+                      disabled={editSaving}
+                      className="flex-1 py-2.5 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {editSaving ? <Loader2 size={14} className="animate-spin" /> : null}
+                      Save Changes
+                    </button>
+                    <button onClick={() => setShowEditModal(false)} className="px-4 py-2.5 border border-gray-200 text-sm text-gray-600 rounded-xl hover:bg-gray-50">Cancel</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Progress Gating Settings */}
           <div className="bg-white rounded-2xl p-4 sm:p-6 card-shadow mb-6">

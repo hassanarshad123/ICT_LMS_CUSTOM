@@ -31,6 +31,9 @@ import {
   BookOpen,
   Users,
   Layers,
+  Pencil,
+  X,
+  Loader2 as Loader2Icon,
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -60,6 +63,15 @@ export default function BatchContentPage() {
     () => listBatchCourses(batchId),
     [batchId],
   );
+
+  // Teachers for edit modal
+  const { data: teachersData } = useApi(() => listUsers({ role: 'teacher', per_page: 100 }));
+  const teachers = teachersData?.data || [];
+
+  // Batch edit modal state
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editForm, setEditForm] = useState({ name: '', start_date: '', end_date: '', teacher_id: '' });
+  const [editSaving, setEditSaving] = useState(false);
 
   // Per-course lecture and material data
   const [courseLectures, setCourseLectures] = useState<Record<string, LectureOut[]>>({});
@@ -336,7 +348,24 @@ export default function BatchContentPage() {
           <ArrowLeft size={16} />
           Back to Batches
         </Link>
-        <h1 className="text-lg sm:text-2xl font-bold text-white mb-2">{batch.name}</h1>
+        <div className="flex items-center gap-3 mb-2">
+          <h1 className="text-lg sm:text-2xl font-bold text-white">{batch.name}</h1>
+          <button
+            onClick={() => {
+              setEditForm({
+                name: batch.name,
+                start_date: batch.startDate?.split('T')[0] || '',
+                end_date: batch.endDate?.split('T')[0] || '',
+                teacher_id: batch.teacherId || '',
+              });
+              setShowEditModal(true);
+            }}
+            className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
+            title="Edit Batch"
+          >
+            <Pencil size={14} className="text-gray-300" />
+          </button>
+        </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-4 mb-2">
           <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
             batch.status === 'active' ? 'bg-green-100 text-green-700' :
@@ -362,6 +391,67 @@ export default function BatchContentPage() {
           </div>
         )}
       </div>
+
+      {/* Edit Batch Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-2xl w-full max-w-md mx-4 p-6">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-lg font-bold text-primary">Edit Batch</h3>
+              <button onClick={() => setShowEditModal(false)} className="p-1 hover:bg-gray-100 rounded-lg"><X size={18} className="text-gray-400" /></button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Batch Name</label>
+                <input type="text" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-primary" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Start Date</label>
+                  <input type="date" value={editForm.start_date} onChange={e => setEditForm(f => ({ ...f, start_date: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-primary" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">End Date</label>
+                  <input type="date" value={editForm.end_date} onChange={e => setEditForm(f => ({ ...f, end_date: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-primary" />
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Teacher</label>
+                <select value={editForm.teacher_id} onChange={e => setEditForm(f => ({ ...f, teacher_id: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-primary bg-white">
+                  <option value="">Unassigned</option>
+                  {teachers.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={async () => {
+                    if (!editForm.name.trim()) { toast.error('Batch name is required'); return; }
+                    setEditSaving(true);
+                    try {
+                      await updateBatch(batchId, {
+                        name: editForm.name,
+                        start_date: editForm.start_date,
+                        end_date: editForm.end_date,
+                        teacher_id: editForm.teacher_id || null,
+                      });
+                      refetchBatch();
+                      setShowEditModal(false);
+                      toast.success('Batch updated');
+                    } catch (err: any) { toast.error(err.message || 'Failed to update'); }
+                    finally { setEditSaving(false); }
+                  }}
+                  disabled={editSaving}
+                  className="flex-1 py-2.5 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {editSaving ? <Loader2Icon size={14} className="animate-spin" /> : null}
+                  Save Changes
+                </button>
+                <button onClick={() => setShowEditModal(false)} className="px-4 py-2.5 border border-gray-200 text-sm text-gray-600 rounded-xl hover:bg-gray-50">Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Progress Gating Settings */}
       <div className="bg-white rounded-2xl card-shadow p-4 sm:p-6 mb-6 sm:mb-8">
