@@ -89,8 +89,8 @@ async def update_account(
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     # Verify institute ownership
-    existing = await zoom_service.get_account(session, account_id)
-    if not existing or (current_user.institute_id and existing.institute_id != current_user.institute_id):
+    existing = await zoom_service.get_account(session, account_id, institute_id=current_user.institute_id)
+    if not existing:
         raise HTTPException(status_code=404, detail="Zoom account not found")
 
     fields = body.model_dump(exclude_unset=True)
@@ -99,7 +99,7 @@ async def update_account(
         fields["client_secret"] = encrypt(fields["client_secret"])
 
     try:
-        account = await zoom_service.update_account(session, account_id, **fields)
+        account = await zoom_service.update_account(session, account_id, institute_id=current_user.institute_id, **fields)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     return ZoomAccountOut(
@@ -116,11 +116,11 @@ async def delete_account(
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     # Verify institute ownership
-    existing = await zoom_service.get_account(session, account_id)
-    if not existing or (current_user.institute_id and existing.institute_id != current_user.institute_id):
+    existing = await zoom_service.get_account(session, account_id, institute_id=current_user.institute_id)
+    if not existing:
         raise HTTPException(status_code=404, detail="Zoom account not found")
     try:
-        await zoom_service.soft_delete_account(session, account_id)
+        await zoom_service.soft_delete_account(session, account_id, institute_id=current_user.institute_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -132,8 +132,8 @@ async def set_default_account(
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     # Verify institute ownership
-    existing = await zoom_service.get_account(session, account_id)
-    if not existing or (current_user.institute_id and existing.institute_id != current_user.institute_id):
+    existing = await zoom_service.get_account(session, account_id, institute_id=current_user.institute_id)
+    if not existing:
         raise HTTPException(status_code=404, detail="Zoom account not found")
     try:
         account = await zoom_service.set_default_account(session, account_id, institute_id=current_user.institute_id)
@@ -178,7 +178,7 @@ async def create_class(
 ):
     # Get zoom account for API call
     account = await zoom_service.get_account(session, body.zoom_account_id)
-    if not account or (current_user.institute_id and account.institute_id != current_user.institute_id):
+    if not account or not check_institute_ownership(current_user.institute_id, account.institute_id):
         raise HTTPException(status_code=404, detail="Zoom account not found")
 
     # Validate batch belongs to this course creator
@@ -276,7 +276,7 @@ async def update_class(
     update_fields = body.model_dump(exclude_unset=True)
 
     try:
-        zc = await zoom_service.update_class(session, class_id, **update_fields)
+        zc = await zoom_service.update_class(session, class_id, institute_id=current_user.institute_id, **update_fields)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -348,7 +348,7 @@ async def delete_class(
             raise HTTPException(status_code=403, detail="You can only delete classes in your own batches")
 
     try:
-        await zoom_service.soft_delete_class(session, class_id)
+        await zoom_service.soft_delete_class(session, class_id, institute_id=current_user.institute_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -389,9 +389,9 @@ async def sync_attendance(
     current_user: AdminOrCourseCreator,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    count = await zoom_service.sync_attendance(session, class_id)
+    count = await zoom_service.sync_attendance(session, class_id, institute_id=current_user.institute_id)
 
-    if current_user.institute_id and count:
+    if current_user.institute_id is not None and count:
         await webhook_event_service.queue_webhook_event(
             session, current_user.institute_id, "attendance.recorded",
             {"class_id": str(class_id), "records_synced": count},

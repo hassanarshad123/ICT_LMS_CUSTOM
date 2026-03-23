@@ -2,7 +2,7 @@ import math
 import uuid
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -162,10 +162,24 @@ async def clear_resolved_errors(
 
 @router.post("/client-errors", status_code=status.HTTP_201_CREATED)
 async def report_client_error(
+    request: Request,
     body: ClientErrorReport,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Receive error reports from the frontend. No auth required for error reporting."""
+    # Resolve institute context from X-Institute-Slug header (best-effort)
+    institute_id = None
+    slug = request.headers.get("X-Institute-Slug")
+    if slug:
+        from app.models.institute import Institute
+        from sqlmodel import select as _select
+        r = await session.execute(
+            _select(Institute.id).where(Institute.slug == slug, Institute.deleted_at.is_(None))
+        )
+        row = r.scalar_one_or_none()
+        if row:
+            institute_id = row
+
     await monitoring_service.record_client_error(
         session=session,
         error_data={
@@ -175,6 +189,7 @@ async def report_client_error(
             "component": body.component,
             "extra": body.extra,
         },
+        institute_id=institute_id,
     )
 
     # Discord alert for frontend errors too

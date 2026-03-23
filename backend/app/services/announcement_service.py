@@ -140,7 +140,7 @@ async def update_announcement(
     query = select(Announcement).where(
         Announcement.id == announcement_id, Announcement.deleted_at.is_(None)
     )
-    if institute_id:
+    if institute_id is not None:
         query = query.where(Announcement.institute_id == institute_id)
     result = await session.execute(query)
     ann = result.scalar_one_or_none()
@@ -162,7 +162,7 @@ async def soft_delete_announcement(session: AsyncSession, announcement_id: uuid.
     query = select(Announcement).where(
         Announcement.id == announcement_id, Announcement.deleted_at.is_(None)
     )
-    if institute_id:
+    if institute_id is not None:
         query = query.where(Announcement.institute_id == institute_id)
     result = await session.execute(query)
     ann = result.scalar_one_or_none()

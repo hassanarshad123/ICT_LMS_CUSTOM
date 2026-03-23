@@ -27,7 +27,7 @@ async def list_lectures(
         Lecture.batch_id == batch_id, Lecture.deleted_at.is_(None)
     )
 
-    if institute_id:
+    if institute_id is not None:
         query = query.where(Lecture.institute_id == institute_id)
         count_query = count_query.where(Lecture.institute_id == institute_id)
 
@@ -70,7 +70,7 @@ async def get_lecture(
     session: AsyncSession, lecture_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None
 ) -> Lecture | None:
     filters = [Lecture.id == lecture_id, Lecture.deleted_at.is_(None)]
-    if institute_id:
+    if institute_id is not None:
         filters.append(Lecture.institute_id == institute_id)
     result = await session.execute(select(Lecture).where(*filters))
     return result.scalar_one_or_none()
@@ -126,8 +126,8 @@ async def create_lecture(
     return lecture
 
 
-async def update_lecture(session: AsyncSession, lecture_id: uuid.UUID, **fields) -> Lecture:
-    lecture = await get_lecture(session, lecture_id)
+async def update_lecture(session: AsyncSession, lecture_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None, **fields) -> Lecture:
+    lecture = await get_lecture(session, lecture_id, institute_id=institute_id)
     if not lecture:
         raise ValueError("Lecture not found")
 
@@ -142,8 +142,8 @@ async def update_lecture(session: AsyncSession, lecture_id: uuid.UUID, **fields)
     return lecture
 
 
-async def soft_delete_lecture(session: AsyncSession, lecture_id: uuid.UUID) -> None:
-    lecture = await get_lecture(session, lecture_id)
+async def soft_delete_lecture(session: AsyncSession, lecture_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None) -> None:
+    lecture = await get_lecture(session, lecture_id, institute_id=institute_id)
     if not lecture:
         raise ValueError("Lecture not found")
 
@@ -160,8 +160,8 @@ async def soft_delete_lecture(session: AsyncSession, lecture_id: uuid.UUID) -> N
     await session.commit()
 
 
-async def reorder_lecture(session: AsyncSession, lecture_id: uuid.UUID, new_order: int) -> Lecture:
-    lecture = await get_lecture(session, lecture_id)
+async def reorder_lecture(session: AsyncSession, lecture_id: uuid.UUID, new_order: int, institute_id: Optional[uuid.UUID] = None) -> Lecture:
+    lecture = await get_lecture(session, lecture_id, institute_id=institute_id)
     if not lecture:
         raise ValueError("Lecture not found")
 
@@ -182,7 +182,7 @@ async def upsert_progress(
     institute_id: Optional[uuid.UUID] = None,
 ) -> LectureProgress:
     # Validate lecture belongs to the same institute
-    if institute_id:
+    if institute_id is not None:
         lec = await get_lecture(session, lecture_id, institute_id=institute_id)
         if not lec:
             raise ValueError("Lecture not found")
@@ -245,6 +245,10 @@ async def update_lecture_status(
 ) -> None:
     """Find lecture by bunny_video_id and update its video_status (and optionally thumbnail).
 
+    Called from Bunny webhook (HMAC-signed, no auth context). Queries globally by
+    bunny_video_id which is unique per video. The HMAC signature on the webhook
+    prevents unauthorized callers.
+
     Status rank protection: never downgrades a higher-rank status (e.g. ready → processing).
     """
     result = await session.execute(
@@ -281,7 +285,7 @@ async def bulk_reorder_lectures(
         Lecture.id.in_(lecture_ids),
         Lecture.deleted_at.is_(None),
     ]
-    if institute_id:
+    if institute_id is not None:
         filters.append(Lecture.institute_id == institute_id)
 
     result = await session.execute(select(Lecture).where(*filters))
@@ -304,7 +308,7 @@ async def get_progress(
     institute_id: Optional[uuid.UUID] = None,
 ) -> LectureProgress | None:
     # Validate lecture belongs to the same institute
-    if institute_id:
+    if institute_id is not None:
         lec = await get_lecture(session, lecture_id, institute_id=institute_id)
         if not lec:
             raise ValueError("Lecture not found")

@@ -22,7 +22,7 @@ async def list_jobs(
     query = select(Job).where(Job.deleted_at.is_(None))
     count_query = select(func.count()).select_from(Job).where(Job.deleted_at.is_(None))
 
-    if institute_id:
+    if institute_id is not None:
         query = query.where(Job.institute_id == institute_id)
         count_query = count_query.where(Job.institute_id == institute_id)
 
@@ -70,7 +70,7 @@ async def get_job(
     session: AsyncSession, job_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None
 ) -> dict | None:
     query = select(Job).where(Job.id == job_id, Job.deleted_at.is_(None))
-    if institute_id:
+    if institute_id is not None:
         query = query.where(Job.institute_id == institute_id)
     result = await session.execute(query)
     j = result.scalar_one_or_none()
@@ -112,7 +112,7 @@ async def update_job(
     session: AsyncSession, job_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None, **fields
 ) -> Job:
     query = select(Job).where(Job.id == job_id, Job.deleted_at.is_(None))
-    if institute_id:
+    if institute_id is not None:
         query = query.where(Job.institute_id == institute_id)
     result = await session.execute(query)
     job = result.scalar_one_or_none()
@@ -136,7 +136,7 @@ async def soft_delete_job(
     session: AsyncSession, job_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None
 ) -> None:
     query = select(Job).where(Job.id == job_id, Job.deleted_at.is_(None))
-    if institute_id:
+    if institute_id is not None:
         query = query.where(Job.institute_id == institute_id)
     result = await session.execute(query)
     job = result.scalar_one_or_none()
@@ -205,7 +205,7 @@ async def list_applications(
             JobApplication.deleted_at.is_(None),
         )
     )
-    if institute_id:
+    if institute_id is not None:
         query = query.where(JobApplication.institute_id == institute_id)
     result = await session.execute(
         query.order_by(JobApplication.created_at.desc())
@@ -232,12 +232,12 @@ async def update_application_status(
     app_id: uuid.UUID,
     new_status: str,
     changed_by: uuid.UUID,
+    institute_id: Optional[uuid.UUID] = None,
 ) -> JobApplication:
-    result = await session.execute(
-        select(JobApplication).where(
-            JobApplication.id == app_id, JobApplication.deleted_at.is_(None)
-        )
-    )
+    filters = [JobApplication.id == app_id, JobApplication.deleted_at.is_(None)]
+    if institute_id is not None:
+        filters.append(JobApplication.institute_id == institute_id)
+    result = await session.execute(select(JobApplication).where(*filters))
     app = result.scalar_one_or_none()
     if not app:
         raise ValueError("Application not found")
@@ -262,7 +262,7 @@ async def get_my_applications(
             JobApplication.deleted_at.is_(None),
         )
     )
-    if institute_id:
+    if institute_id is not None:
         query = query.where(JobApplication.institute_id == institute_id, Job.institute_id == institute_id)
     result = await session.execute(
         query.order_by(JobApplication.created_at.desc())

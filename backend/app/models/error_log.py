@@ -3,8 +3,8 @@ from datetime import datetime
 from typing import Optional
 
 from sqlmodel import SQLModel, Field, Column
-from sqlalchemy import Text, Boolean, Integer
-from sqlalchemy.dialects.postgresql import TIMESTAMP, JSONB
+from sqlalchemy import Text, Boolean, Integer, ForeignKey
+from sqlalchemy.dialects.postgresql import TIMESTAMP, JSONB, UUID as PG_UUID
 
 
 class ErrorLog(SQLModel, table=True):
@@ -46,8 +46,11 @@ class ErrorLog(SQLModel, table=True):
     # Extra context (JSONB)
     extra: Optional[dict] = Field(default=None, sa_column=Column(JSONB))
 
-    # Institute context (no FK needed, just store the value)
-    institute_id: Optional[uuid.UUID] = Field(default=None)
+    # Institute context
+    institute_id: Optional[uuid.UUID] = Field(
+        default=None,
+        sa_column=Column(PG_UUID(as_uuid=True), ForeignKey("institutes.id"), nullable=True),
+    )
 
     created_at: Optional[datetime] = Field(
         default=None,

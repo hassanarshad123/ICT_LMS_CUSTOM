@@ -20,18 +20,17 @@ async def list_accounts(
     session: AsyncSession, institute_id: Optional[uuid.UUID] = None
 ) -> list[ZoomAccount]:
     query = select(ZoomAccount).where(ZoomAccount.deleted_at.is_(None))
-    if institute_id:
+    if institute_id is not None:
         query = query.where(ZoomAccount.institute_id == institute_id)
     result = await session.execute(query)
     return list(result.scalars().all())
 
 
-async def get_account(session: AsyncSession, account_id: uuid.UUID) -> ZoomAccount | None:
-    result = await session.execute(
-        select(ZoomAccount).where(
-            ZoomAccount.id == account_id, ZoomAccount.deleted_at.is_(None)
-        )
-    )
+async def get_account(session: AsyncSession, account_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None) -> ZoomAccount | None:
+    filters = [ZoomAccount.id == account_id, ZoomAccount.deleted_at.is_(None)]
+    if institute_id is not None:
+        filters.append(ZoomAccount.institute_id == institute_id)
+    result = await session.execute(select(ZoomAccount).where(*filters))
     return result.scalar_one_or_none()
 
 
@@ -45,8 +44,8 @@ async def create_account(
     return account
 
 
-async def update_account(session: AsyncSession, account_id: uuid.UUID, **fields) -> ZoomAccount:
-    account = await get_account(session, account_id)
+async def update_account(session: AsyncSession, account_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None, **fields) -> ZoomAccount:
+    account = await get_account(session, account_id, institute_id=institute_id)
     if not account:
         raise ValueError("Zoom account not found")
 
@@ -61,8 +60,8 @@ async def update_account(session: AsyncSession, account_id: uuid.UUID, **fields)
     return account
 
 
-async def soft_delete_account(session: AsyncSession, account_id: uuid.UUID) -> None:
-    account = await get_account(session, account_id)
+async def soft_delete_account(session: AsyncSession, account_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None) -> None:
+    account = await get_account(session, account_id, institute_id=institute_id)
     if not account:
         raise ValueError("Zoom account not found")
 
@@ -97,7 +96,7 @@ async def set_default_account(
 ) -> ZoomAccount:
     # Unset all defaults (scoped to institute)
     filters = [ZoomAccount.deleted_at.is_(None), ZoomAccount.is_default.is_(True)]
-    if institute_id:
+    if institute_id is not None:
         filters.append(ZoomAccount.institute_id == institute_id)
     result = await session.execute(
         select(ZoomAccount).where(*filters)
@@ -135,7 +134,7 @@ async def list_classes(
 
     base_filters = [ZoomClass.deleted_at.is_(None)]
 
-    if institute_id:
+    if institute_id is not None:
         base_filters.append(ZoomClass.institute_id == institute_id)
 
     # Role scoping
@@ -238,10 +237,11 @@ async def create_class(
     return zc
 
 
-async def update_class(session: AsyncSession, class_id: uuid.UUID, **fields) -> ZoomClass:
-    result = await session.execute(
-        select(ZoomClass).where(ZoomClass.id == class_id, ZoomClass.deleted_at.is_(None))
-    )
+async def update_class(session: AsyncSession, class_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None, **fields) -> ZoomClass:
+    filters = [ZoomClass.id == class_id, ZoomClass.deleted_at.is_(None)]
+    if institute_id is not None:
+        filters.append(ZoomClass.institute_id == institute_id)
+    result = await session.execute(select(ZoomClass).where(*filters))
     zc = result.scalar_one_or_none()
     if not zc:
         raise ValueError("Zoom class not found")
@@ -262,10 +262,11 @@ async def update_class(session: AsyncSession, class_id: uuid.UUID, **fields) -> 
 
 # --- Phase 2: Delete Zoom meeting on class deletion ---
 
-async def soft_delete_class(session: AsyncSession, class_id: uuid.UUID) -> None:
-    result = await session.execute(
-        select(ZoomClass).where(ZoomClass.id == class_id, ZoomClass.deleted_at.is_(None))
-    )
+async def soft_delete_class(session: AsyncSession, class_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None) -> None:
+    filters = [ZoomClass.id == class_id, ZoomClass.deleted_at.is_(None)]
+    if institute_id is not None:
+        filters.append(ZoomClass.institute_id == institute_id)
+    result = await session.execute(select(ZoomClass).where(*filters))
     zc = result.scalar_one_or_none()
     if not zc:
         raise ValueError("Zoom class not found")
@@ -273,7 +274,7 @@ async def soft_delete_class(session: AsyncSession, class_id: uuid.UUID) -> None:
     # Delete the Zoom meeting via API
     if zc.zoom_meeting_id:
         try:
-            account = await get_account(session, zc.zoom_account_id)
+            account = await get_account(session, zc.zoom_account_id, institute_id=institute_id)
             if account:
                 from app.utils.zoom_api import delete_meeting
                 await delete_meeting(
@@ -292,7 +293,7 @@ async def get_attendance(
     session: AsyncSession, class_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None
 ) -> list[dict]:
     filters = [ZoomAttendance.zoom_class_id == class_id]
-    if institute_id:
+    if institute_id is not None:
         filters.append(ZoomAttendance.institute_id == institute_id)
     result = await session.execute(
         select(ZoomAttendance, User)
@@ -319,7 +320,7 @@ async def get_recordings(
     session: AsyncSession, class_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None
 ) -> list[ClassRecording]:
     filters = [ClassRecording.zoom_class_id == class_id]
-    if institute_id:
+    if institute_id is not None:
         filters.append(ClassRecording.institute_id == institute_id)
     result = await session.execute(
         select(ClassRecording).where(*filters)
@@ -354,12 +355,14 @@ async def create_recording(
     original_download_url: Optional[str] = None,
     duration: Optional[int] = None,
     file_size: Optional[int] = None,
+    institute_id: Optional[uuid.UUID] = None,
 ) -> ClassRecording:
     recording = ClassRecording(
         zoom_class_id=zoom_class_id,
         original_download_url=original_download_url,
         duration=duration,
         file_size=file_size,
+        institute_id=institute_id,
     )
     session.add(recording)
     await session.commit()
@@ -382,7 +385,7 @@ async def list_all_recordings(
 
     base_filters = [ZoomClass.deleted_at.is_(None)]
 
-    if institute_id:
+    if institute_id is not None:
         base_filters.append(ZoomClass.institute_id == institute_id)
 
     # Role scoping (same as list_classes)
@@ -461,7 +464,7 @@ async def get_recording_signed_url(
     session: AsyncSession, recording_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None
 ) -> dict:
     filters = [ClassRecording.id == recording_id]
-    if institute_id:
+    if institute_id is not None:
         filters.append(ClassRecording.institute_id == institute_id)
     result = await session.execute(
         select(ClassRecording).where(*filters)
@@ -482,7 +485,7 @@ async def get_recording_signed_url(
 
 # --- Phase 4A: Attendance sync ---
 
-async def sync_attendance(session: AsyncSession, class_id: uuid.UUID) -> int:
+async def sync_attendance(session: AsyncSession, class_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None) -> int:
     """Sync Zoom meeting participants into ZoomAttendance records. Returns count synced."""
     # Check if already synced
     existing = await session.execute(
@@ -494,17 +497,15 @@ async def sync_attendance(session: AsyncSession, class_id: uuid.UUID) -> int:
         return 0  # Already synced
 
     # Get the class + account (skip deleted classes)
-    result = await session.execute(
-        select(ZoomClass).where(
-            ZoomClass.id == class_id,
-            ZoomClass.deleted_at.is_(None),
-        )
-    )
+    filters = [ZoomClass.id == class_id, ZoomClass.deleted_at.is_(None)]
+    if institute_id is not None:
+        filters.append(ZoomClass.institute_id == institute_id)
+    result = await session.execute(select(ZoomClass).where(*filters))
     zc = result.scalar_one_or_none()
     if not zc or not zc.zoom_meeting_id:
         return 0
 
-    account = await get_account(session, zc.zoom_account_id)
+    account = await get_account(session, zc.zoom_account_id, institute_id=institute_id)
     if not account:
         return 0
 

@@ -24,6 +24,7 @@ from app.models.user import User
 from app.models.batch import StudentBatch
 from app.utils.formatters import format_duration
 from app.utils.rate_limit import limiter
+from app.utils.tenant import check_institute_ownership
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -250,7 +251,7 @@ async def reencode_lecture(
 ):
     """Re-encode a failed video without re-uploading."""
     lecture = await lecture_service.get_lecture(session, lecture_id)
-    if not lecture or (current_user.institute_id and lecture.institute_id != current_user.institute_id):
+    if not lecture or not check_institute_ownership(current_user.institute_id, lecture.institute_id):
         raise HTTPException(status_code=404, detail="Lecture not found")
     if not lecture.bunny_video_id:
         raise HTTPException(status_code=400, detail="Lecture has no Bunny video")
@@ -278,7 +279,7 @@ async def get_lecture(
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     lecture = await lecture_service.get_lecture(session, lecture_id)
-    if not lecture or (current_user.institute_id and lecture.institute_id != current_user.institute_id):
+    if not lecture or not check_institute_ownership(current_user.institute_id, lecture.institute_id):
         raise HTTPException(status_code=404, detail="Lecture not found")
     return _lecture_out(lecture)
 
@@ -291,7 +292,7 @@ async def get_lecture_status(
 ):
     """Get video processing status, polling Bunny if needed."""
     lecture = await lecture_service.get_lecture(session, lecture_id)
-    if not lecture or (current_user.institute_id and lecture.institute_id != current_user.institute_id):
+    if not lecture or not check_institute_ownership(current_user.institute_id, lecture.institute_id):
         raise HTTPException(status_code=404, detail="Lecture not found")
 
     current_status = lecture.video_status
@@ -330,11 +331,11 @@ async def update_lecture(
 ):
     # Verify institute ownership before update
     existing = await lecture_service.get_lecture(session, lecture_id)
-    if not existing or (current_user.institute_id and existing.institute_id != current_user.institute_id):
+    if not existing or not check_institute_ownership(current_user.institute_id, existing.institute_id):
         raise HTTPException(status_code=404, detail="Lecture not found")
     try:
         lecture = await lecture_service.update_lecture(
-            session, lecture_id, **body.model_dump(exclude_unset=True)
+            session, lecture_id, institute_id=current_user.institute_id, **body.model_dump(exclude_unset=True)
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -349,10 +350,10 @@ async def delete_lecture(
 ):
     # Verify institute ownership before delete
     existing = await lecture_service.get_lecture(session, lecture_id)
-    if not existing or (current_user.institute_id and existing.institute_id != current_user.institute_id):
+    if not existing or not check_institute_ownership(current_user.institute_id, existing.institute_id):
         raise HTTPException(status_code=404, detail="Lecture not found")
     try:
-        await lecture_service.soft_delete_lecture(session, lecture_id)
+        await lecture_service.soft_delete_lecture(session, lecture_id, institute_id=current_user.institute_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -366,10 +367,10 @@ async def reorder_lecture(
 ):
     # Verify institute ownership before reorder
     existing = await lecture_service.get_lecture(session, lecture_id)
-    if not existing or (current_user.institute_id and existing.institute_id != current_user.institute_id):
+    if not existing or not check_institute_ownership(current_user.institute_id, existing.institute_id):
         raise HTTPException(status_code=404, detail="Lecture not found")
     try:
-        lecture = await lecture_service.reorder_lecture(session, lecture_id, body.sequence_order)
+        lecture = await lecture_service.reorder_lecture(session, lecture_id, body.sequence_order, institute_id=current_user.institute_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     return _lecture_out(lecture)
@@ -385,7 +386,7 @@ async def get_signed_url(
 ):
     """Generate a signed embed URL. Checks enrollment for students."""
     lecture = await lecture_service.get_lecture(session, lecture_id)
-    if not lecture or lecture.deleted_at or (current_user.institute_id and lecture.institute_id != current_user.institute_id):
+    if not lecture or lecture.deleted_at or not check_institute_ownership(current_user.institute_id, lecture.institute_id):
         raise HTTPException(status_code=404, detail="Lecture not found")
 
     # Enrollment check — only enforce for students

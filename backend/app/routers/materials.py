@@ -14,6 +14,7 @@ from app.schemas.common import PaginatedResponse
 from app.services import material_service
 from app.middleware.auth import require_roles, get_current_user
 from app.models.user import User
+from app.utils.tenant import check_institute_ownership
 
 router = APIRouter()
 
@@ -108,7 +109,7 @@ async def get_download_url(
     from app.utils.s3 import generate_download_url
 
     material = await material_service.get_material(session, material_id)
-    if not material or (current_user.institute_id and material.institute_id != current_user.institute_id):
+    if not material or not check_institute_ownership(current_user.institute_id, material.institute_id):
         raise HTTPException(status_code=404, detail="Material not found")
 
     try:
@@ -127,7 +128,7 @@ async def delete_material(
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     material = await material_service.get_material(session, material_id)
-    if not material or (current_user.institute_id and material.institute_id != current_user.institute_id):
+    if not material or not check_institute_ownership(current_user.institute_id, material.institute_id):
         raise HTTPException(status_code=404, detail="Material not found")
 
     # Teachers can only delete own uploads
@@ -135,7 +136,7 @@ async def delete_material(
         raise HTTPException(status_code=403, detail="Can only delete own uploads")
 
     try:
-        await material_service.soft_delete_material(session, material_id)
+        await material_service.soft_delete_material(session, material_id, institute_id=current_user.institute_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 

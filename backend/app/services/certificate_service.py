@@ -28,7 +28,7 @@ settings = get_settings()
 async def _load_cert_design(session: AsyncSession, institute_id: uuid.UUID = None) -> CertDesign:
     """Load cert design settings from SystemSetting table."""
     query = select(SystemSetting).where(SystemSetting.setting_key.like("cert_%"))
-    if institute_id:
+    if institute_id is not None:
         query = query.where(SystemSetting.institute_id == institute_id)
     else:
         query = query.where(SystemSetting.institute_id.is_(None))
@@ -100,7 +100,7 @@ async def calculate_completion_percentage(
 async def get_completion_threshold(session: AsyncSession, institute_id: uuid.UUID = None) -> int:
     """Read threshold from system_settings, default 70."""
     query = select(SystemSetting).where(SystemSetting.setting_key == "certificate_completion_threshold")
-    if institute_id:
+    if institute_id is not None:
         query = query.where(SystemSetting.institute_id == institute_id)
     else:
         query = query.where(SystemSetting.institute_id.is_(None))
@@ -344,7 +344,7 @@ async def approve_existing_certificate(
 ) -> Certificate:
     """Approve a pending certificate request — generate cert_id, verification_code, PDF."""
     query = select(Certificate).where(Certificate.id == cert_uuid, Certificate.deleted_at.is_(None))
-    if institute_id:
+    if institute_id is not None:
         query = query.where(Certificate.institute_id == institute_id)
     result = await session.execute(query)
     cert = result.scalar_one_or_none()
@@ -555,7 +555,7 @@ async def revoke_certificate(
 ) -> Certificate:
     """Revoke an issued certificate."""
     query = select(Certificate).where(Certificate.id == cert_uuid, Certificate.deleted_at.is_(None))
-    if institute_id:
+    if institute_id is not None:
         query = query.where(Certificate.institute_id == institute_id)
     result = await session.execute(query)
     cert = result.scalar_one_or_none()
@@ -582,7 +582,7 @@ async def get_certificate(session: AsyncSession, cert_uuid: uuid.UUID, institute
         .join(Course, Certificate.course_id == Course.id)
         .where(Certificate.id == cert_uuid, Certificate.deleted_at.is_(None))
     )
-    if institute_id:
+    if institute_id is not None:
         query = query.where(Certificate.institute_id == institute_id)
     result = await session.execute(query)
     row = result.one_or_none()
@@ -623,7 +623,7 @@ async def get_certificate_by_verification_code(session: AsyncSession, code: str,
         .join(Course, Certificate.course_id == Course.id)
         .where(Certificate.verification_code == code, Certificate.deleted_at.is_(None))
     )
-    if institute_id:
+    if institute_id is not None:
         query = query.where(Certificate.institute_id == institute_id)
     result = await session.execute(query)
     row = result.one_or_none()
@@ -813,7 +813,7 @@ async def list_certificates(
 async def get_download_url(session: AsyncSession, cert_uuid: uuid.UUID, institute_id: uuid.UUID = None) -> str | None:
     """Get a presigned S3 download URL for the certificate PDF."""
     query = select(Certificate).where(Certificate.id == cert_uuid, Certificate.deleted_at.is_(None))
-    if institute_id:
+    if institute_id is not None:
         query = query.where(Certificate.institute_id == institute_id)
     result = await session.execute(query)
     cert = result.scalar_one_or_none()
