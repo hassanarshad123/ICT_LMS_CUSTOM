@@ -312,12 +312,14 @@ async def exchange_handoff(
     from datetime import datetime, timedelta, timezone
 
     jti = payload.get("jti")
-    if jti:
-        existing = await session.execute(
-            select(UserSession.id).where(UserSession.device_info == f"handoff:{jti}")
-        )
-        if existing.scalar_one_or_none():
-            raise HTTPException(status_code=400, detail="Invalid or expired handoff token")
+    if not jti:
+        raise HTTPException(status_code=400, detail="Invalid handoff token")
+
+    existing = await session.execute(
+        select(UserSession.id).where(UserSession.device_info == f"handoff:{jti}")
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Invalid or expired handoff token")
 
     result = await session.execute(
         select(User).where(User.id == user_id, User.deleted_at.is_(None))
@@ -339,7 +341,7 @@ async def exchange_handoff(
 
     # Create session record (store JTI in device_info for replay prevention)
     hashed_token_id = hashlib.sha256(token_id.encode()).hexdigest()
-    device_info_value = f"handoff:{jti}" if jti else "Signup handoff"
+    device_info_value = f"handoff:{jti}"
     user_session = UserSession(
         user_id=user.id,
         session_token=hashed_token_id,

@@ -76,8 +76,16 @@ def upgrade() -> None:
         "ON announcements (institute_id, deleted_at)"
     ))
 
+    # 11. Handoff JTI replay prevention — index for device_info lookups
+    op.execute(text(
+        "CREATE INDEX IF NOT EXISTS ix_user_sessions_handoff_device_info "
+        "ON user_sessions (device_info) "
+        "WHERE device_info LIKE 'handoff:%'"
+    ))
+
 
 def downgrade() -> None:
+    op.execute(text("DROP INDEX IF EXISTS ix_user_sessions_handoff_device_info"))
     op.execute(text("DROP INDEX IF EXISTS ix_announcements_institute_deleted"))
     op.execute(text("DROP INDEX IF EXISTS ix_notifications_user_institute"))
     op.execute(text("DROP INDEX IF EXISTS ix_certificates_institute_deleted"))
