@@ -6,6 +6,7 @@ const API_BASE = '/api/v1';
 interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | undefined>;
   skipConversion?: boolean;
+  timeout?: number;
 }
 
 function getAccessToken(): string | null {
@@ -68,7 +69,7 @@ export async function apiClient<T = any>(
   path: string,
   options: RequestOptions = {},
 ): Promise<T> {
-  const { params, headers: customHeaders, skipConversion, ...rest } = options;
+  const { params, headers: customHeaders, skipConversion, timeout: customTimeout, ...rest } = options;
 
   // Build URL with query params (query params stay snake_case)
   let url = `${API_BASE}${path}`;
@@ -137,7 +138,7 @@ export async function apiClient<T = any>(
   }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30000);
+  const timeoutId = setTimeout(() => controller.abort(), customTimeout || 30000);
 
   let res: Response;
   try {
@@ -206,7 +207,10 @@ export async function apiClient<T = any>(
 
   if (!res.ok) {
     const error = await res.json().catch(() => ({ detail: 'Request failed' }));
-    throw new Error(error.detail || `HTTP ${res.status}`);
+    const message = Array.isArray(error.detail)
+      ? error.detail.map((e: any) => e.msg || e.message || JSON.stringify(e)).join('; ')
+      : error.detail || `HTTP ${res.status}`;
+    throw new Error(message);
   }
 
   const json = await res.json();
