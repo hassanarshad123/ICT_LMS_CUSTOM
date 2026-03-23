@@ -1,20 +1,37 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import DashboardHeader from '@/components/layout/dashboard-header';
 import { useAuth } from '@/lib/auth-context';
 import { useBasePath } from '@/hooks/use-base-path';
 import { useApi } from '@/hooks/use-api';
-import { getDashboard } from '@/lib/api/admin';
+import { getDashboard, getSettings } from '@/lib/api/admin';
 import { PageLoading } from '@/components/shared/page-states';
 import { PageError } from '@/components/shared/page-states';
+import WelcomeBanner from '@/components/shared/welcome-banner';
 import { Layers, Users, GraduationCap, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
 
 export default function AdminDashboard() {
   const { name } = useAuth();
   const basePath = useBasePath();
+  const router = useRouter();
+  const redirected = useRef(false);
   const { data, loading, error, refetch } = useApi(getDashboard);
+  const { data: settingsData, loading: settingsLoading } = useApi(getSettings);
+
+  // Redirect to onboarding wizard if setup not completed
+  useEffect(() => {
+    if (settingsLoading || redirected.current) return;
+    if (!settingsData) return;
+    const completed = settingsData.settings?.onboarding_completed;
+    if (completed !== 'true') {
+      redirected.current = true;
+      router.replace(`${basePath}/setup`);
+    }
+  }, [settingsData, settingsLoading, basePath, router]);
 
   return (
     <DashboardLayout>
@@ -25,6 +42,12 @@ export default function AdminDashboard() {
 
       {data && (
         <>
+          {data.totalBatches === 0 &&
+            data.totalStudents === 0 &&
+            data.totalTeachers === 0 &&
+            data.activeBatches === 0 &&
+            !redirected.current && <WelcomeBanner />}
+
           <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
             {[
               { label: 'Total Batches', value: data.totalBatches, icon: <Layers size={22} />, color: 'bg-accent', href: `${basePath}/batches` },
