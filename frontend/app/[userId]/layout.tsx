@@ -8,6 +8,7 @@ import { UploadProvider } from '@/lib/upload-context';
 import { ErrorBoundary } from '@/components/shared/error-boundary';
 import { ImpersonationBanner } from '@/components/shared/impersonation-banner';
 import { ContentProtection } from '@/components/shared/content-protection';
+import { TourProvider } from '@/components/shared/tour-provider';
 
 export default function UserLayout({ children }: { children: React.ReactNode }) {
   const { userId } = useParams<{ userId: string }>();
@@ -49,10 +50,12 @@ export default function UserLayout({ children }: { children: React.ReactNode }) 
   return (
     <AuthProvider>
       <UploadProvider>
-        <ImpersonationBanner />
-        <ContentProtection>
-          <ErrorBoundary>{children}</ErrorBoundary>
-        </ContentProtection>
+        <TourProvider>
+          <ImpersonationBanner />
+          <ContentProtection>
+            <ErrorBoundary>{children}</ErrorBoundary>
+          </ContentProtection>
+        </TourProvider>
       </UploadProvider>
     </AuthProvider>
   );

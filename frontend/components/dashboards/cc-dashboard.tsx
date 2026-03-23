@@ -39,7 +39,7 @@ export default function CourseCreatorDashboard() {
       {!loading && !error && (
         <>
           {/* KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
+          <div id="tour-stats" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
             <Link href={`${basePath}/courses`}>
               <div className="bg-white rounded-2xl p-4 sm:p-6 card-shadow hover:card-shadow-hover transition-all duration-200 cursor-pointer">
                 <div className="w-12 h-12 bg-accent rounded-2xl flex items-center justify-center mb-4">

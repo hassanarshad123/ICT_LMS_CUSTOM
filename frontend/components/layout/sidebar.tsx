@@ -31,65 +31,68 @@ import {
   LogOut,
   Menu,
   X,
+  HelpCircle,
 } from 'lucide-react';
 import { ZensbotSidebarBadge } from '@/components/shared/zensbot-badge';
 import UploadIndicator from '@/components/shared/upload-indicator';
+import { useTour } from '@/components/shared/tour-provider';
 
 interface NavItem {
   label: string;
   path: string;
   icon: string;
+  navId?: string;
 }
 
 const navConfig: Record<UserRole, NavItem[]> = {
   admin: [
-    { label: 'Dashboard', path: '', icon: 'home' },
-    { label: 'Users', path: '/users', icon: 'user-cog' },
-    { label: 'Batches', path: '/batches', icon: 'layers' },
-    { label: 'Students', path: '/students', icon: 'users' },
-    { label: 'Teachers', path: '/teachers', icon: 'graduation-cap' },
-    { label: 'Course Creators', path: '/course-creators', icon: 'pen-tool' },
-    { label: 'Devices', path: '/devices', icon: 'smartphone' },
-    { label: 'Insights', path: '/insights', icon: 'bar-chart-3' },
-    { label: 'Recordings', path: '/recordings', icon: 'play-circle' },
-    { label: 'Certificates', path: '/certificates', icon: 'award' },
-    { label: 'Announcements', path: '/announcements', icon: 'megaphone' },
-    { label: 'Monitoring', path: '/monitoring', icon: 'activity' },
-    { label: 'Branding', path: '/branding', icon: 'palette' },
-    { label: 'Integrations', path: '/integrations', icon: 'plug' },
-    { label: 'Settings', path: '/settings', icon: 'settings' },
+    { label: 'Dashboard', path: '', icon: 'home', navId: 'nav-dashboard' },
+    { label: 'Users', path: '/users', icon: 'user-cog', navId: 'nav-users' },
+    { label: 'Batches', path: '/batches', icon: 'layers', navId: 'nav-batches' },
+    { label: 'Students', path: '/students', icon: 'users', navId: 'nav-students' },
+    { label: 'Teachers', path: '/teachers', icon: 'graduation-cap', navId: 'nav-teachers' },
+    { label: 'Course Creators', path: '/course-creators', icon: 'pen-tool', navId: 'nav-course-creators' },
+    { label: 'Devices', path: '/devices', icon: 'smartphone', navId: 'nav-devices' },
+    { label: 'Insights', path: '/insights', icon: 'bar-chart-3', navId: 'nav-insights' },
+    { label: 'Recordings', path: '/recordings', icon: 'play-circle', navId: 'nav-recordings' },
+    { label: 'Certificates', path: '/certificates', icon: 'award', navId: 'nav-certificates' },
+    { label: 'Announcements', path: '/announcements', icon: 'megaphone', navId: 'nav-announcements' },
+    { label: 'Monitoring', path: '/monitoring', icon: 'activity', navId: 'nav-monitoring' },
+    { label: 'Branding', path: '/branding', icon: 'palette', navId: 'nav-branding' },
+    { label: 'Integrations', path: '/integrations', icon: 'plug', navId: 'nav-integrations' },
+    { label: 'Settings', path: '/settings', icon: 'settings', navId: 'nav-settings' },
   ],
   'course-creator': [
-    { label: 'Dashboard', path: '', icon: 'home' },
-    { label: 'Users', path: '/users', icon: 'user-cog' },
-    { label: 'Courses', path: '/courses', icon: 'book-open' },
-    { label: 'Batches', path: '/batches', icon: 'layers' },
-    { label: 'Upload Videos', path: '/upload', icon: 'upload' },
-    { label: 'Schedule Class', path: '/schedule', icon: 'calendar' },
-    { label: 'Recordings', path: '/recordings', icon: 'play-circle' },
-    { label: 'Certificates', path: '/certificates', icon: 'award' },
-    { label: 'Announcements', path: '/announcements', icon: 'megaphone' },
-    { label: 'Jobs', path: '/jobs', icon: 'briefcase' },
-    { label: 'Settings', path: '/settings', icon: 'settings' },
+    { label: 'Dashboard', path: '', icon: 'home', navId: 'nav-dashboard' },
+    { label: 'Users', path: '/users', icon: 'user-cog', navId: 'nav-users' },
+    { label: 'Courses', path: '/courses', icon: 'book-open', navId: 'nav-courses' },
+    { label: 'Batches', path: '/batches', icon: 'layers', navId: 'nav-batches' },
+    { label: 'Upload Videos', path: '/upload', icon: 'upload', navId: 'nav-upload' },
+    { label: 'Schedule Class', path: '/schedule', icon: 'calendar', navId: 'nav-schedule' },
+    { label: 'Recordings', path: '/recordings', icon: 'play-circle', navId: 'nav-recordings' },
+    { label: 'Certificates', path: '/certificates', icon: 'award', navId: 'nav-certificates' },
+    { label: 'Announcements', path: '/announcements', icon: 'megaphone', navId: 'nav-announcements' },
+    { label: 'Jobs', path: '/jobs', icon: 'briefcase', navId: 'nav-jobs' },
+    { label: 'Settings', path: '/settings', icon: 'settings', navId: 'nav-settings' },
   ],
   teacher: [
-    { label: 'Dashboard', path: '', icon: 'home' },
-    { label: 'My Courses', path: '/courses', icon: 'book-open' },
-    { label: 'My Batches', path: '/batches', icon: 'layers' },
-    { label: 'Zoom Classes', path: '/classes', icon: 'video' },
-    { label: 'Recordings', path: '/recordings', icon: 'play-circle' },
-    { label: 'Announcements', path: '/announcements', icon: 'megaphone' },
-    { label: 'Settings', path: '/settings', icon: 'settings' },
+    { label: 'Dashboard', path: '', icon: 'home', navId: 'nav-dashboard' },
+    { label: 'My Courses', path: '/courses', icon: 'book-open', navId: 'nav-courses' },
+    { label: 'My Batches', path: '/batches', icon: 'layers', navId: 'nav-batches' },
+    { label: 'Zoom Classes', path: '/classes', icon: 'video', navId: 'nav-classes' },
+    { label: 'Recordings', path: '/recordings', icon: 'play-circle', navId: 'nav-recordings' },
+    { label: 'Announcements', path: '/announcements', icon: 'megaphone', navId: 'nav-announcements' },
+    { label: 'Settings', path: '/settings', icon: 'settings', navId: 'nav-settings' },
   ],
   student: [
-    { label: 'Dashboard', path: '', icon: 'home' },
-    { label: 'Courses', path: '/courses', icon: 'book-open' },
-    { label: 'Zoom Classes', path: '/classes', icon: 'video' },
-    { label: 'Recordings', path: '/recordings', icon: 'play-circle' },
-    { label: 'Announcements', path: '/announcements', icon: 'megaphone' },
-    { label: 'Certificates', path: '/certificates', icon: 'award' },
-    { label: 'Job Opportunities', path: '/jobs', icon: 'briefcase' },
-    { label: 'Settings', path: '/settings', icon: 'settings' },
+    { label: 'Dashboard', path: '', icon: 'home', navId: 'nav-dashboard' },
+    { label: 'Courses', path: '/courses', icon: 'book-open', navId: 'nav-courses' },
+    { label: 'Zoom Classes', path: '/classes', icon: 'video', navId: 'nav-classes' },
+    { label: 'Recordings', path: '/recordings', icon: 'play-circle', navId: 'nav-recordings' },
+    { label: 'Announcements', path: '/announcements', icon: 'megaphone', navId: 'nav-announcements' },
+    { label: 'Certificates', path: '/certificates', icon: 'award', navId: 'nav-certificates' },
+    { label: 'Job Opportunities', path: '/jobs', icon: 'briefcase', navId: 'nav-jobs' },
+    { label: 'Settings', path: '/settings', icon: 'settings', navId: 'nav-settings' },
   ],
 };
 
@@ -142,6 +145,7 @@ export default function Sidebar({ role, userName, onLogout }: SidebarProps) {
   const items = navConfig[role] || navConfig.student;
   const basePath = `/${id}`;
   const { mobileOpen, setMobileOpen } = useSidebar();
+  const { startTour } = useTour();
 
   // Close mobile sidebar on route change
   useEffect(() => {
@@ -195,7 +199,7 @@ export default function Sidebar({ role, userName, onLogout }: SidebarProps) {
           </div>
         </div>
 
-        <nav className="flex-1 p-4 space-y-1">
+        <nav id="sidebar-nav" className="flex-1 p-4 space-y-1">
           {items.map((item) => {
             const href = item.path === '' ? basePath : `${basePath}${item.path}`;
             const isActive = item.path === ''
@@ -204,6 +208,7 @@ export default function Sidebar({ role, userName, onLogout }: SidebarProps) {
             return (
               <Link
                 key={item.path}
+                id={item.navId}
                 href={href}
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
                   isActive
@@ -232,6 +237,15 @@ export default function Sidebar({ role, userName, onLogout }: SidebarProps) {
           >
             <LogOut size={20} />
             Logout
+          </button>
+          <button
+            id="tour-help-btn"
+            onClick={startTour}
+            className="flex items-center gap-2 px-3 py-2 text-xs text-gray-400 hover:text-gray-600 transition-colors w-full"
+            title="Show guided tour"
+          >
+            <HelpCircle size={16} />
+            <span>Help & Tour</span>
           </button>
           <div className="mt-2 border-t border-gray-100 pt-2">
             <ZensbotSidebarBadge />

@@ -40,7 +40,7 @@ export default function TeacherDashboard() {
 
       {!loading && !batchesError && (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
+          <div id="tour-stats" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
             <div className="bg-white rounded-2xl p-6 card-shadow">
               <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center mb-4">
                 <Layers size={20} />
