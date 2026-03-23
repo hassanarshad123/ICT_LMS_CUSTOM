@@ -6,7 +6,7 @@ export default function PrivacyPolicyPage() {
 
       <p>
         Zensbot (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;) operates the Zensbot LMS mobile application and the
-        ict.zensbot.site website (collectively, the &quot;Service&quot;). This Privacy Policy explains how we
+        zensbot.online website (collectively, the &quot;Service&quot;). This Privacy Policy explains how we
         collect, use, and protect your information when you use our Service.
       </p>
 

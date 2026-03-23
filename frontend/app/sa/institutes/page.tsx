@@ -174,7 +174,7 @@ export default function InstitutesPage() {
                     <td className="px-4 py-3">
                       <Link href={`/sa/institutes/${inst.id}`} className="hover:underline">
                         <div className="font-medium text-gray-900">{inst.name}</div>
-                        <div className="text-xs text-gray-500">{inst.slug}.ict.zensbot.site</div>
+                        <div className="text-xs text-gray-500">{inst.slug}.zensbot.online</div>
                       </Link>
                     </td>
                     <td className="px-4 py-3"><StatusBadge status={inst.status} /></td>

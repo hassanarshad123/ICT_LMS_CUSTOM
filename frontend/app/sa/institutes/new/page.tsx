@@ -122,7 +122,7 @@ export default function NewInstitutePage() {
                 pattern="[a-z0-9-]+"
                 className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-gray-400"
               />
-              <p className="text-xs text-gray-400 mt-1">{form.slug || 'slug'}.ict.zensbot.site</p>
+              <p className="text-xs text-gray-400 mt-1">{form.slug || 'slug'}.zensbot.online</p>
             </div>
           </div>
 

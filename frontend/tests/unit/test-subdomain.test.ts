@@ -44,26 +44,26 @@ describe('getInstituteSlug', () => {
     expect(getInstituteSlug()).toBe('acme');
   });
 
-  it('returns null for bare domain (ict.zensbot.site)', async () => {
-    mockHostname('ict.zensbot.site');
+  it('returns null for bare domain (zensbot.online)', async () => {
+    mockHostname('zensbot.online');
     const { getInstituteSlug } = await import('@/lib/utils/subdomain');
     expect(getInstituteSlug()).toBeNull();
   });
 
-  it('returns slug for subdomain (acme.ict.zensbot.site)', async () => {
-    mockHostname('acme.ict.zensbot.site');
+  it('returns slug for subdomain (acme.zensbot.online)', async () => {
+    mockHostname('acme.zensbot.online');
     const { getInstituteSlug } = await import('@/lib/utils/subdomain');
     expect(getInstituteSlug()).toBe('acme');
   });
 
-  it('skips www prefix (www.ict.zensbot.site → null)', async () => {
-    mockHostname('www.ict.zensbot.site');
+  it('skips www prefix (www.zensbot.online → null)', async () => {
+    mockHostname('www.zensbot.online');
     const { getInstituteSlug } = await import('@/lib/utils/subdomain');
     expect(getInstituteSlug()).toBeNull();
   });
 
-  it('skips www and gets subdomain (www.acme.ict.zensbot.site → acme)', async () => {
-    mockHostname('www.acme.ict.zensbot.site');
+  it('skips www and gets subdomain (www.acme.zensbot.online → acme)', async () => {
+    mockHostname('www.acme.zensbot.online');
     const { getInstituteSlug } = await import('@/lib/utils/subdomain');
     expect(getInstituteSlug()).toBe('acme');
   });
@@ -76,7 +76,7 @@ describe('isSuperAdminDomain', () => {
 
   it('returns true when slug is null (bare domain)', async () => {
     Object.defineProperty(globalThis, 'window', {
-      value: { location: { hostname: 'ict.zensbot.site' } },
+      value: { location: { hostname: 'zensbot.online' } },
       writable: true,
       configurable: true,
     });
@@ -86,7 +86,7 @@ describe('isSuperAdminDomain', () => {
 
   it('returns false when slug exists (subdomain)', async () => {
     Object.defineProperty(globalThis, 'window', {
-      value: { location: { hostname: 'acme.ict.zensbot.site' } },
+      value: { location: { hostname: 'acme.zensbot.online' } },
       writable: true,
       configurable: true,
     });

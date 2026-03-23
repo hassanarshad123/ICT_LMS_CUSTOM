@@ -6,11 +6,11 @@ const SIDEBAR_ITEMS = ["Dashboard", "Courses", "Students", "Schedule", "Certific
 type Tab = (typeof SIDEBAR_ITEMS)[number];
 
 const URL_PATHS: Record<Tab, string> = {
-  Dashboard: "yourschool.zensbot.site/dashboard",
-  Courses: "yourschool.zensbot.site/courses",
-  Students: "yourschool.zensbot.site/students",
-  Schedule: "yourschool.zensbot.site/schedule",
-  Certificates: "yourschool.zensbot.site/certificates",
+  Dashboard: "yourschool.zensbot.online/dashboard",
+  Courses: "yourschool.zensbot.online/courses",
+  Students: "yourschool.zensbot.online/students",
+  Schedule: "yourschool.zensbot.online/schedule",
+  Certificates: "yourschool.zensbot.online/certificates",
 };
 
 function DashboardTab() {

@@ -99,7 +99,7 @@ export default function SADashboard() {
               <Link key={inst.id} href={`/sa/institutes/${inst.id}`} className="flex items-center justify-between p-2 rounded-xl hover:bg-gray-50 transition-colors">
                 <div>
                   <div className="text-sm font-medium text-gray-900">{inst.name}</div>
-                  <div className="text-xs text-gray-500">{inst.slug}.ict.zensbot.site</div>
+                  <div className="text-xs text-gray-500">{inst.slug}.zensbot.online</div>
                 </div>
                 <span className={`text-xs px-2 py-1 rounded-full font-medium ${
                   inst.status === 'active' ? 'bg-green-100 text-green-700' :

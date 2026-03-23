@@ -15,8 +15,8 @@ class Settings(BaseSettings):
 
     # CORS (comma-separated for multiple origins)
     FRONTEND_URL: str = "http://localhost:3000"
-    FRONTEND_BASE_DOMAIN: str = ""  # e.g. "ict.zensbot.site" for tenant-aware reset URLs
-    ALLOWED_ORIGINS: str = ""  # e.g. "https://ict.zensbot.site,http://localhost:3000"
+    FRONTEND_BASE_DOMAIN: str = ""  # e.g. "zensbot.online" for tenant-aware reset URLs
+    ALLOWED_ORIGINS: str = ""  # e.g. "https://zensbot.online,http://localhost:3000"
 
     # AWS S3
     AWS_ACCESS_KEY_ID: str = ""
@@ -40,7 +40,7 @@ class Settings(BaseSettings):
 
     # Resend
     RESEND_API_KEY: str = ""
-    EMAIL_FROM: str = "noreply@ictinstitute.com"
+    EMAIL_FROM: str = "noreply@zensbot.com"
 
     # Monitoring
     SENTRY_DSN: str = ""

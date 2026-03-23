@@ -61,7 +61,7 @@ export function MultiTenantMockup() {
               <tr key={inst.slug} className="border-t border-zen-border/20">
                 <td className="px-5 py-3">
                   <div className="text-[12px] font-medium text-zen-dark">{inst.name}</div>
-                  <div className="text-[10px] text-zen-dark/30">{inst.slug}.zensbot.site</div>
+                  <div className="text-[10px] text-zen-dark/30">{inst.slug}.zensbot.online</div>
                 </td>
                 <td className="px-3 py-3">
                   <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${STATUS_STYLES[inst.status]}`}>

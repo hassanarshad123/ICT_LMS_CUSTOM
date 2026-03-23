@@ -516,7 +516,7 @@ async def main():
         print("  ICT Institute seed complete!")
         print("=" * 50)
         print(f"\n  Institute slug: {SLUG}")
-        print(f"  Login URL:      https://{SLUG}.ict.zensbot.site")
+        print(f"  Login URL:      https://{SLUG}.zensbot.online")
         print()
         print("  Accounts:")
         print(f"    Admin:          {ADMIN_EMAIL} / {ADMIN_PASSWORD}")

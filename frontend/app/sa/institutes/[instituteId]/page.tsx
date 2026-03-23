@@ -143,7 +143,7 @@ export default function InstituteDetailPage() {
               <h1 className="text-xl font-bold text-gray-900">{institute.name}</h1>
               <StatusBadge status={institute.status} />
             </div>
-            <p className="text-sm text-gray-500">{institute.slug}.ict.zensbot.site</p>
+            <p className="text-sm text-gray-500">{institute.slug}.zensbot.online</p>
           </div>
         </div>
         <div className="flex gap-2">
@@ -299,7 +299,7 @@ export default function InstituteDetailPage() {
                               onClick={async () => {
                                 try {
                                   const res = await impersonateUser(item.id);
-                                  const host = `${res.instituteSlug}.ict.zensbot.site`;
+                                  const host = `${res.instituteSlug}.zensbot.online`;
                                   const url = `https://${host}/impersonate-callback?token=${res.token}`;
                                   window.open(url, '_blank');
                                   toast.success(`Impersonating ${res.targetUserName}`);

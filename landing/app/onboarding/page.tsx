@@ -112,7 +112,7 @@ export default function OnboardingPage() {
         const appPort = process.env.NEXT_PUBLIC_APP_PORT || '3000';
         const targetDomain = isLocal
           ? `${institute.slug}.localhost:${appPort}`
-          : `${institute.slug}.ict.zensbot.site`;
+          : `${institute.slug}.zensbot.online`;
 
         const protocol = window.location.protocol;
         window.location.href = `${protocol}//${targetDomain}/auth-callback?token=${handoff.handoffToken}`;
@@ -127,7 +127,7 @@ export default function OnboardingPage() {
         const appPort = process.env.NEXT_PUBLIC_APP_PORT || '3000';
         const loginUrl = isLocal
           ? `http://localhost:${appPort}/login`
-          : 'https://ict.zensbot.site/login';
+          : 'https://zensbot.online/login';
         window.location.href = loginUrl;
       }
     } catch (err: unknown) {

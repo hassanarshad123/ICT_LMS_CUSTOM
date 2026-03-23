@@ -1,7 +1,7 @@
 // URL constants
 export const SITE_URL = "https://zensbot.site";
 export const REGISTER_URL = "/register";
-export const LOGIN_URL = "https://ict.zensbot.site/login";
+export const LOGIN_URL = "https://zensbot.online/login";
 export const CONTACT_EMAIL = "hello@zensbot.com";
 
 export const STATS = [
@@ -83,7 +83,7 @@ export const FAQS = [
   {
     question: "How does white-label branding work?",
     answer:
-      "Every institute gets its own subdomain (yourname.ict.zensbot.site) with fully customizable branding. Upload your logo, pick your colors, choose a theme. The entire student experience carries your brand identity.",
+      "Every institute gets its own subdomain (yourname.zensbot.online) with fully customizable branding. Upload your logo, pick your colors, choose a theme. The entire student experience carries your brand identity.",
   },
   {
     question: "Can I run live classes through the platform?",
@@ -108,7 +108,7 @@ export const FAQS = [
   {
     question: "Can I use my own custom domain?",
     answer:
-      "Yes. Every institute gets a subdomain by default (yourname.zensbot.site), and you can point your own custom domain to it. Your students will see your domain, your branding, your identity — Zensbot stays invisible.",
+      "Yes. Every institute gets a subdomain by default (yourname.zensbot.online), and you can point your own custom domain to it. Your students will see your domain, your branding, your identity — Zensbot stays invisible.",
   },
   {
     question: "How secure is my data?",

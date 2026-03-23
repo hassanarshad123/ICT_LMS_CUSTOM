@@ -1,6 +1,6 @@
 export function getInstituteSlug(): string | null {
   if (typeof window === 'undefined') return null;
-  const hostname = window.location.hostname; // "acme.ict.zensbot.site"
+  const hostname = window.location.hostname; // "acme.zensbot.online"
   const parts = hostname.split('.');
 
   // localhost (dev without explicit slug) = no institute
@@ -17,10 +17,10 @@ export function getInstituteSlug(): string | null {
   // Skip www prefix
   const startIndex = parts[0] === 'www' ? 1 : 0;
 
-  // Bare domain (e.g., "ict.zensbot.site") — 3 parts after skipping www
-  if (parts.length - startIndex <= 3) return null;
+  // Bare domain (e.g., "zensbot.online") — 2 parts after skipping www
+  if (parts.length - startIndex <= 2) return null;
 
-  // Subdomain (e.g., "acme.ict.zensbot.site") — 4+ parts
+  // Subdomain (e.g., "acme.zensbot.online") — 3+ parts
   return parts[startIndex];
 }
 

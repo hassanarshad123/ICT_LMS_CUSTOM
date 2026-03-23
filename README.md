@@ -346,7 +346,7 @@ graph LR
 | Component | URL | Host |
 |-----------|-----|------|
 | **API** | `https://apiict.zensbot.site` | AWS EC2 (ap-south-1) |
-| **Frontend** | `https://ict.zensbot.site` | Vercel |
+| **Frontend** | `https://zensbot.online` | Vercel |
 | **Database** | AWS RDS PostgreSQL | ap-south-1 (Mumbai) |
 | **Video CDN** | Bunny.net Stream | Global Edge |
 

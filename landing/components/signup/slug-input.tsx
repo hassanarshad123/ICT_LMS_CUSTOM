@@ -66,7 +66,7 @@ export function SlugInput({ value, onChange, onAvailabilityChange }: SlugInputPr
           className="flex-1 px-4 py-3 rounded-l-xl border border-r-0 border-gray-200 text-sm focus:outline-none focus:border-zen-purple transition-colors bg-gray-50"
         />
         <span className="px-3 py-3 bg-gray-100 border border-l-0 border-gray-200 rounded-r-xl text-sm text-gray-500 whitespace-nowrap">
-          .ict.zensbot.site
+          .zensbot.online
         </span>
       </div>
       {value.length >= 3 && (
