@@ -397,17 +397,23 @@ async def bulk_import(
     text = content.decode("utf-8-sig")
     reader = csv.DictReader(io.StringIO(text))
 
+    # Read all rows first to detect truncation
+    all_rows = list(reader)
+    total_rows = len(all_rows)
+    truncated = total_rows > 500
+    rows_to_process = all_rows[:500]
+
     imported = 0
     skipped = 0
     enrolled_count = 0
-    errors = []
-    row_num = 0
+    errors: list[dict] = []
+    created_users: list[dict] = []
 
-    for row in reader:
-        row_num += 1
-        if row_num > 500:
-            break
+    import re
+    email_re = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+    valid_roles = {r.value for r in UserRole}
 
+    for row_num, row in enumerate(rows_to_process, start=1):
         name = row.get("name", "").strip()
         email = row.get("email", "").strip()
         phone = row.get("phone", "").strip() or None
@@ -418,6 +424,17 @@ async def bulk_import(
             errors.append({"row": row_num, "error": "Missing name or email"})
             continue
 
+        # Validate email format
+        if not email_re.match(email):
+            errors.append({"row": row_num, "error": f"Invalid email format: {email}"})
+            continue
+
+        # Validate role early
+        db_role = to_db(role)
+        if db_role not in valid_roles:
+            errors.append({"row": row_num, "error": f"Invalid role: {role}. Must be student, teacher, admin, or course-creator"})
+            continue
+
         # Enforce user quota per row
         if current_user.institute_id:
             try:
@@ -426,7 +443,6 @@ async def bulk_import(
                 errors.append({"row": row_num, "error": str(e)})
                 continue
 
-        db_role = to_db(role)
         password = secrets.token_urlsafe(8)
 
         try:
@@ -436,6 +452,12 @@ async def bulk_import(
                 institute_id=current_user.institute_id,
             )
             imported += 1
+            created_users.append({
+                "row": row_num,
+                "name": name,
+                "email": email,
+                "temporary_password": password,
+            })
             if current_user.institute_id:
                 await increment_usage(session, current_user.institute_id, users=1)
 
@@ -445,12 +467,21 @@ async def bulk_import(
                     try:
                         await enroll_student(session, bid, user.id, enrolled_by=current_user.id, institute_id=current_user.institute_id)
                         enrolled_count += 1
-                    except ValueError:
-                        pass  # skip if already enrolled
+                    except ValueError as enroll_err:
+                        errors.append({"row": row_num, "error": f"Enrollment failed for batch {bid}: {enroll_err}"})
         except ValueError as e:
             if "already in use" in str(e):
                 skipped += 1
+                errors.append({"row": row_num, "error": f"Duplicate email (skipped): {email}"})
             else:
                 errors.append({"row": row_num, "error": str(e)})
 
-    return {"imported": imported, "skipped": skipped, "enrolled": enrolled_count, "errors": errors}
+    return {
+        "imported": imported,
+        "skipped": skipped,
+        "enrolled": enrolled_count,
+        "errors": errors,
+        "created_users": created_users,
+        "truncated": truncated,
+        "total_rows": total_rows,
+    }

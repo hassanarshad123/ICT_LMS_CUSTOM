@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import Papa from 'papaparse';
 import { toast } from 'sonner';
-import { Upload, FileText, Download, Loader2, CheckCircle2, AlertCircle, X } from 'lucide-react';
-import { bulkImportUsers } from '@/lib/api/users';
+import { Upload, FileText, Download, Loader2, CheckCircle2, AlertCircle, X, AlertTriangle } from 'lucide-react';
+import { bulkImportUsers, BulkImportResult } from '@/lib/api/users';
 import { useMutation } from '@/hooks/use-api';
 import { downloadCsvTemplate } from './csv-template';
 
@@ -17,12 +17,7 @@ interface CsvRow {
   [key: string]: string | undefined;
 }
 
-interface ImportResult {
-  imported: number;
-  skipped: number;
-  enrolled: number;
-  errors: { row: number; error: string }[];
-}
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 interface BatchOption {
   id: string;
@@ -36,11 +31,35 @@ interface CsvImportPanelProps {
   preSelectedBatchIds?: string[];
 }
 
+function getRowValidation(row: CsvRow, duplicateEmailSet: ReadonlySet<string>) {
+  const missingName = !row.name?.trim();
+  const missingEmail = !row.email?.trim();
+  const invalidEmail = !missingEmail && !EMAIL_REGEX.test(row.email!.trim());
+  const isDuplicate = !missingEmail && duplicateEmailSet.has(row.email!.trim().toLowerCase());
+  return { missingName, missingEmail, invalidEmail, isDuplicate };
+}
+
+function downloadCredentialsCsv(
+  users: ReadonlyArray<{ name: string; email: string; temporaryPassword: string }>
+) {
+  const header = 'Name,Email,Temporary Password';
+  const rows = users.map(
+    (u) => `${u.name},${u.email},${u.temporaryPassword}`
+  );
+  const csv = [header, ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'imported_credentials.csv';
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function CsvImportPanel({ onSuccess, onClose, batches = [], preSelectedBatchIds = [] }: CsvImportPanelProps) {
   const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<CsvRow[]>([]);
   const [allRows, setAllRows] = useState<CsvRow[]>([]);
-  const [result, setResult] = useState<ImportResult | null>(null);
+  const [result, setResult] = useState<BulkImportResult | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [selectedBatchIds, setSelectedBatchIds] = useState<string[]>(preSelectedBatchIds);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -48,6 +67,40 @@ export default function CsvImportPanel({ onSuccess, onClose, batches = [], preSe
   const { execute: doImport, loading: importing } = useMutation(
     (f: File) => bulkImportUsers(f, selectedBatchIds.length > 0 ? selectedBatchIds : undefined)
   );
+
+  // Detect duplicate emails within the CSV
+  const duplicateEmailSet = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const row of allRows) {
+      const email = row.email?.trim().toLowerCase();
+      if (email) {
+        counts.set(email, (counts.get(email) ?? 0) + 1);
+      }
+    }
+    const dupes = new Set<string>();
+    counts.forEach((count, email) => {
+      if (count > 1) dupes.add(email);
+    });
+    return dupes;
+  }, [allRows]);
+
+  // Validation counts
+  const validationStats = useMemo(() => {
+    let missingCount = 0;
+    let invalidEmailCount = 0;
+    let validCount = 0;
+    for (const row of allRows) {
+      const v = getRowValidation(row, duplicateEmailSet);
+      if (v.missingName || v.missingEmail) {
+        missingCount++;
+      } else if (v.invalidEmail) {
+        invalidEmailCount++;
+      } else {
+        validCount++;
+      }
+    }
+    return { missingCount, invalidEmailCount, duplicateCount: duplicateEmailSet.size, validCount };
+  }, [allRows, duplicateEmailSet]);
 
   const parseFile = useCallback((f: File) => {
     // Client-side file size limit (2MB)
@@ -66,7 +119,6 @@ export default function CsvImportPanel({ onSuccess, onClose, batches = [], preSe
           toast.warning(`CSV has ${rows.length} rows. Only the first 500 will be imported.`);
         }
         setAllRows(rows.slice(0, 500));
-        setPreview(rows.slice(0, 10));
       },
       error: () => {
         toast.error('Failed to parse CSV file');
@@ -96,7 +148,7 @@ export default function CsvImportPanel({ onSuccess, onClose, batches = [], preSe
       const res = await doImport(file);
       setResult(res);
       if (res.imported > 0) {
-        toast.success(`${res.imported} students imported successfully`);
+        toast.success(`${res.imported} users imported successfully`);
         onSuccess?.();
       }
       if (res.skipped > 0) {
@@ -107,12 +159,8 @@ export default function CsvImportPanel({ onSuccess, onClose, batches = [], preSe
     }
   };
 
-  const validRows = allRows.filter((r) => r.name?.trim() && r.email?.trim());
-  const invalidRows = allRows.filter((r) => !r.name?.trim() || !r.email?.trim());
-
   const reset = () => {
     setFile(null);
-    setPreview([]);
     setAllRows([]);
     setResult(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -121,7 +169,7 @@ export default function CsvImportPanel({ onSuccess, onClose, batches = [], preSe
   return (
     <div className="bg-white rounded-2xl p-6 card-shadow mb-6">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-primary">Import Students (CSV)</h3>
+        <h3 className="text-lg font-semibold text-primary">Import Users (CSV)</h3>
         <div className="flex items-center gap-2">
           <button
             onClick={downloadCsvTemplate}
@@ -156,7 +204,7 @@ export default function CsvImportPanel({ onSuccess, onClose, batches = [], preSe
             ))}
           </div>
           {selectedBatchIds.length > 0 && (
-            <p className="text-xs text-gray-400 mt-1">{selectedBatchIds.length} batch{selectedBatchIds.length > 1 ? 'es' : ''} selected — imported students will be enrolled</p>
+            <p className="text-xs text-gray-400 mt-1">{selectedBatchIds.length} batch{selectedBatchIds.length > 1 ? 'es' : ''} selected — imported users will be enrolled</p>
           )}
         </div>
       )}
@@ -204,64 +252,89 @@ export default function CsvImportPanel({ onSuccess, onClose, batches = [], preSe
           </div>
 
           {/* Validation summary */}
-          <div className="flex gap-4 mb-4">
+          <div className="flex flex-wrap gap-4 mb-4">
             <div className="flex items-center gap-1.5 text-sm">
               <CheckCircle2 size={14} className="text-green-500" />
-              <span className="text-green-700">{validRows.length} valid</span>
+              <span className="text-green-700">{validationStats.validCount} valid</span>
             </div>
-            {invalidRows.length > 0 && (
+            {validationStats.missingCount > 0 && (
               <div className="flex items-center gap-1.5 text-sm">
                 <AlertCircle size={14} className="text-red-500" />
-                <span className="text-red-700">{invalidRows.length} missing name/email</span>
+                <span className="text-red-700">{validationStats.missingCount} missing name/email</span>
+              </div>
+            )}
+            {validationStats.invalidEmailCount > 0 && (
+              <div className="flex items-center gap-1.5 text-sm">
+                <AlertCircle size={14} className="text-amber-500" />
+                <span className="text-amber-700">{validationStats.invalidEmailCount} invalid emails</span>
+              </div>
+            )}
+            {validationStats.duplicateCount > 0 && (
+              <div className="flex items-center gap-1.5 text-sm">
+                <AlertTriangle size={14} className="text-yellow-500" />
+                <span className="text-yellow-700">{validationStats.duplicateCount} duplicate emails</span>
               </div>
             )}
           </div>
 
-          {/* Preview table */}
+          {/* Preview table — all rows, scrollable */}
           <div className="overflow-x-auto mb-4 border border-gray-100 rounded-xl">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50">
-                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500">#</th>
-                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500">Name</th>
-                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500">Email</th>
-                  <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500">Phone</th>
-                </tr>
-              </thead>
-              <tbody>
-                {preview.map((row, i) => {
-                  const isInvalid = !row.name?.trim() || !row.email?.trim();
-                  return (
-                    <tr key={i} className={isInvalid ? 'bg-red-50' : 'hover:bg-gray-50'}>
-                      <td className="px-3 py-2 text-gray-400">{i + 1}</td>
-                      <td className={`px-3 py-2 ${!row.name?.trim() ? 'text-red-500 italic' : 'text-gray-700'}`}>
-                        {row.name || 'Missing'}
-                      </td>
-                      <td className={`px-3 py-2 ${!row.email?.trim() ? 'text-red-500 italic' : 'text-gray-700'}`}>
-                        {row.email || 'Missing'}
-                      </td>
-                      <td className="px-3 py-2 text-gray-600">{row.phone || '—'}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            {allRows.length > 10 && (
-              <div className="px-3 py-2 text-xs text-gray-500 bg-gray-50 border-t border-gray-100">
-                Showing first 10 of {allRows.length} rows
-              </div>
-            )}
+            <div className="max-h-[300px] overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-gray-50">
+                    <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500">#</th>
+                    <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500">Name</th>
+                    <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500">Email</th>
+                    <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500">Phone</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allRows.map((row, i) => {
+                    const v = getRowValidation(row, duplicateEmailSet);
+                    const hasMissing = v.missingName || v.missingEmail;
+                    const rowBg = hasMissing
+                      ? 'bg-red-50'
+                      : v.invalidEmail
+                        ? 'bg-amber-50'
+                        : v.isDuplicate
+                          ? 'bg-yellow-50'
+                          : 'hover:bg-gray-50';
+                    const emailCellClass = v.missingEmail
+                      ? 'text-red-500 italic'
+                      : v.invalidEmail
+                        ? 'text-amber-600 italic'
+                        : v.isDuplicate
+                          ? 'text-yellow-700'
+                          : 'text-gray-700';
+                    return (
+                      <tr key={i} className={rowBg}>
+                        <td className="px-3 py-2 text-gray-400">{i + 1}</td>
+                        <td className={`px-3 py-2 ${v.missingName ? 'text-red-500 italic' : 'text-gray-700'}`}>
+                          {row.name || 'Missing'}
+                        </td>
+                        <td className={`px-3 py-2 ${emailCellClass}`}>
+                          {row.email || 'Missing'}
+                          {v.isDuplicate && <span className="ml-1 text-xs text-yellow-600">(dup)</span>}
+                        </td>
+                        <td className="px-3 py-2 text-gray-600">{row.phone || '\u2014'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* Upload button */}
           <div className="flex gap-3">
             <button
               onClick={handleUpload}
-              disabled={importing || validRows.length === 0}
+              disabled={importing || validationStats.validCount === 0}
               className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors disabled:opacity-60"
             >
               {importing && <Loader2 size={16} className="animate-spin" />}
-              Import {validRows.length} Students
+              Import {validationStats.validCount} Users
             </button>
             <button
               onClick={reset}
@@ -276,13 +349,21 @@ export default function CsvImportPanel({ onSuccess, onClose, batches = [], preSe
       {/* Results */}
       {result && (
         <div>
+          {/* Truncation warning */}
+          {result.truncated && (
+            <div className="flex items-center gap-2 text-sm text-amber-800 bg-amber-50 border border-amber-200 px-4 py-3 rounded-lg mb-4">
+              <AlertTriangle size={16} className="shrink-0" />
+              <span>Your file had {result.totalRows} rows. Only the first 500 were processed.</span>
+            </div>
+          )}
+
           <div className="flex flex-col gap-2 mb-4">
             {result.imported > 0 && (
               <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-4 py-2 rounded-lg">
                 <CheckCircle2 size={16} />
                 <span>
-                  {result.imported} students imported successfully
-                  {result.enrolled > 0 && ` · ${result.enrolled} batch enrollment${result.enrolled > 1 ? 's' : ''} created`}
+                  {result.imported} users imported successfully
+                  {result.enrolled > 0 && ` \u00B7 ${result.enrolled} batch enrollment${result.enrolled > 1 ? 's' : ''} created`}
                 </span>
               </div>
             )}
@@ -298,17 +379,57 @@ export default function CsvImportPanel({ onSuccess, onClose, batches = [], preSe
                   <AlertCircle size={16} />
                   {result.errors.length} errors
                 </div>
-                <ul className="ml-6 text-xs space-y-0.5">
-                  {result.errors.slice(0, 10).map((err, i) => (
-                    <li key={i}>Row {err.row}: {err.error}</li>
-                  ))}
-                  {result.errors.length > 10 && (
-                    <li className="text-gray-500">...and {result.errors.length - 10} more</li>
-                  )}
-                </ul>
+                <div className="max-h-[200px] overflow-y-auto">
+                  <ul className="ml-6 text-xs space-y-0.5">
+                    {result.errors.map((err, i) => (
+                      <li key={i}>Row {err.row}: {err.error}</li>
+                    ))}
+                  </ul>
+                </div>
               </div>
             )}
           </div>
+
+          {/* Credentials display */}
+          {result.createdUsers.length > 0 && (
+            <div className="border border-blue-200 bg-blue-50 rounded-xl p-4 mb-4">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-blue-900">
+                  Created User Credentials ({result.createdUsers.length})
+                </h4>
+                <button
+                  onClick={() => downloadCredentialsCsv(result.createdUsers)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-white border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+                >
+                  <Download size={14} />
+                  Download Credentials CSV
+                </button>
+              </div>
+              <div className="overflow-x-auto border border-blue-100 rounded-lg bg-white">
+                <div className="max-h-[300px] overflow-y-auto">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 z-10">
+                      <tr className="bg-blue-50">
+                        <th className="text-left px-3 py-2 text-xs font-semibold text-blue-700">Name</th>
+                        <th className="text-left px-3 py-2 text-xs font-semibold text-blue-700">Email</th>
+                        <th className="text-left px-3 py-2 text-xs font-semibold text-blue-700">Temporary Password</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {result.createdUsers.map((user, i) => (
+                        <tr key={i} className="hover:bg-blue-50/50">
+                          <td className="px-3 py-2 text-gray-700">{user.name}</td>
+                          <td className="px-3 py-2 text-gray-700">{user.email}</td>
+                          <td className="px-3 py-2 font-mono text-gray-900">{user.temporaryPassword}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
           <button
             onClick={reset}
             className="px-4 py-2 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors"
