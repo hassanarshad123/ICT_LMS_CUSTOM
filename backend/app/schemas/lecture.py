@@ -38,6 +38,10 @@ class LectureOut(BaseModel):
     thumbnail_url: Optional[str] = None
     upload_date: Optional[datetime] = None
     created_at: Optional[datetime] = None
+    # Progress gating fields (populated for students when batch has gating enabled)
+    watch_percentage: Optional[int] = None
+    progress_status: Optional[str] = None
+    is_locked: Optional[bool] = None
 
     model_config = {"from_attributes": True}
 

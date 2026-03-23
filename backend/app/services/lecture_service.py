@@ -19,6 +19,7 @@ async def list_lectures(
     page: int = 1,
     per_page: int = 50,
     institute_id: Optional[uuid.UUID] = None,
+    student_id: Optional[uuid.UUID] = None,
 ) -> tuple[list[dict], int]:
     query = select(Lecture).where(
         Lecture.batch_id == batch_id, Lecture.deleted_at.is_(None)
@@ -43,8 +44,31 @@ async def list_lectures(
     result = await session.execute(query)
     lectures = result.scalars().all()
 
-    return [
-        {
+    # Fetch progress and gating info for students
+    progress_map: dict[uuid.UUID, tuple[int, str]] = {}
+    gating_enabled = False
+    gating_threshold = 65
+    if student_id:
+        from app.models.batch import Batch
+        batch = await session.get(Batch, batch_id)
+        if batch:
+            gating_enabled = batch.enable_lecture_gating
+            gating_threshold = batch.lecture_gating_threshold
+
+        lecture_ids = [lec.id for lec in lectures]
+        if lecture_ids:
+            prog_result = await session.execute(
+                select(LectureProgress).where(
+                    LectureProgress.student_id == student_id,
+                    LectureProgress.lecture_id.in_(lecture_ids),
+                )
+            )
+            for p in prog_result.scalars().all():
+                progress_map[p.lecture_id] = (p.watch_percentage, p.status.value)
+
+    items = []
+    for i, lec in enumerate(lectures):
+        item = {
             "id": lec.id,
             "title": lec.title,
             "description": lec.description,
@@ -62,8 +86,23 @@ async def list_lectures(
             "upload_date": lec.created_at,
             "created_at": lec.created_at,
         }
-        for lec in lectures
-    ], total
+
+        if student_id:
+            wp, ps = progress_map.get(lec.id, (0, "unwatched"))
+            item["watch_percentage"] = wp
+            item["progress_status"] = ps
+            if gating_enabled:
+                if i == 0:
+                    item["is_locked"] = False
+                else:
+                    prev_wp, _ = progress_map.get(lectures[i - 1].id, (0, "unwatched"))
+                    item["is_locked"] = prev_wp < gating_threshold
+            else:
+                item["is_locked"] = False
+
+        items.append(item)
+
+    return items, total
 
 
 async def get_lecture(
