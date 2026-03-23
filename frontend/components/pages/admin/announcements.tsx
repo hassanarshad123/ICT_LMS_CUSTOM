@@ -173,30 +173,34 @@ export default function AdminAnnouncements() {
     <DashboardLayout>
       <DashboardHeader greeting="Announcements" subtitle="Manage announcements for your institute" />
 
-      {/* Scope filter tabs + create button */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-        <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
-          {[{ value: 'all', label: 'All' }, ...SCOPE_OPTIONS].map((s) => (
-            <button
-              key={s.value}
-              onClick={() => { setScopeFilter(s.value); setPage(1); }}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                scopeFilter === s.value
-                  ? 'bg-primary text-white'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              {s.label}
-            </button>
-          ))}
+      {/* Filter bar */}
+      <div className="space-y-3 mb-6">
+        {/* Row 1: (no search for announcements) */}
+        {/* Row 2: Scope filter tabs (left) + Create button (right) */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="inline-flex bg-gray-100 rounded-lg p-1 gap-0.5">
+            {[{ value: 'all', label: 'All' }, ...SCOPE_OPTIONS].map((s) => (
+              <button
+                key={s.value}
+                onClick={() => { setScopeFilter(s.value); setPage(1); }}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  scopeFilter === s.value
+                    ? 'bg-white text-primary shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={openCreateForm}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary/80 transition-colors"
+          >
+            <Plus size={16} />
+            New Announcement
+          </button>
         </div>
-        <button
-          onClick={openCreateForm}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary/80 transition-colors"
-        >
-          <Plus size={16} />
-          New Announcement
-        </button>
       </div>
 
       {/* Create / Edit form */}

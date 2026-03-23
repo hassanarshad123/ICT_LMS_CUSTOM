@@ -81,7 +81,7 @@ export default function AdminBatches() {
     <DashboardLayout>
       <DashboardHeader greeting="Batches" subtitle="Manage all course batches" />
 
-      <div className="flex justify-end gap-3 mb-6">
+      <div className="flex justify-end mb-4">
         <button
           onClick={() => setShowForm(!showForm)}
           className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors"

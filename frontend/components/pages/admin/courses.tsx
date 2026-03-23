@@ -95,27 +95,30 @@ export default function AdminCourses() {
     <DashboardLayout>
       <DashboardHeader greeting="Courses" subtitle="Manage all courses on the platform" />
 
-      <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative">
-            <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search courses..."
-              className="pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-white w-full sm:w-64"
-            />
-          </div>
-          <StyledSelect
-            options={statusOptions}
-            value={statusFilter}
-            onChange={setStatusFilter}
-            placeholder="All Status"
-            className="w-auto min-w-[140px]"
+      <div className="space-y-3 mb-6">
+        {/* Row 1: Search */}
+        <div className="relative">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search courses..."
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-white"
           />
         </div>
-        <div className="flex gap-3">
+
+        {/* Row 2: Status dropdown (left) + Create button (right) */}
+        <div className="flex items-center justify-between gap-3">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:border-primary min-w-[130px]"
+          >
+            {statusOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
           <button
             onClick={() => setShowForm(!showForm)}
             className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors"
