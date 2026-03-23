@@ -5,7 +5,7 @@ import secrets
 import math
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, func, col
 
@@ -30,6 +30,7 @@ from app.utils.security import hash_password
 from app.utils.transformers import to_db
 from app.services import webhook_event_service
 from app.services.institute_service import check_user_quota, increment_usage, decrement_usage
+from app.services.batch_service import enroll_student, get_batch
 
 router = APIRouter()
 
@@ -370,11 +371,27 @@ async def force_logout_endpoint(
 @router.post("/bulk-import")
 async def bulk_import(
     file: UploadFile = File(...),
-    current_user: User = Depends(require_roles("admin")),
+    batch_ids: str = Form(default=""),
+    current_user: User = Depends(require_roles("admin", "course_creator")),
     session: AsyncSession = Depends(get_session),
 ):
     if not file.filename or not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="File must be a CSV")
+
+    # Parse and validate batch IDs
+    batch_id_list = []
+    for b in batch_ids.split(","):
+        b = b.strip()
+        if not b:
+            continue
+        try:
+            bid = uuid.UUID(b)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid batch ID: {b}")
+        batch = await get_batch(session, bid, institute_id=current_user.institute_id)
+        if not batch:
+            raise HTTPException(status_code=400, detail=f"Batch not found: {b}")
+        batch_id_list.append(bid)
 
     content = await file.read()
     text = content.decode("utf-8-sig")
@@ -382,6 +399,7 @@ async def bulk_import(
 
     imported = 0
     skipped = 0
+    enrolled_count = 0
     errors = []
     row_num = 0
 
@@ -397,10 +415,10 @@ async def bulk_import(
         specialization = row.get("specialization", "").strip() or None
 
         if not name or not email:
-            errors.append({"row": row_num, "error": f"Missing name or email"})
+            errors.append({"row": row_num, "error": "Missing name or email"})
             continue
 
-        # Enforce user quota per row (Fix 5)
+        # Enforce user quota per row
         if current_user.institute_id:
             try:
                 await check_user_quota(session, current_user.institute_id)
@@ -412,19 +430,27 @@ async def bulk_import(
         password = secrets.token_urlsafe(8)
 
         try:
-            await create_user(
+            user = await create_user(
                 session, email=email, name=name, password=password,
                 role=db_role, phone=phone, specialization=specialization,
                 institute_id=current_user.institute_id,
             )
             imported += 1
-            # Increment usage counter (Fix 5)
             if current_user.institute_id:
                 await increment_usage(session, current_user.institute_id, users=1)
+
+            # Auto-enroll in selected batches (students only)
+            if batch_id_list and db_role == "student":
+                for bid in batch_id_list:
+                    try:
+                        await enroll_student(session, bid, user.id, enrolled_by=current_user.id, institute_id=current_user.institute_id)
+                        enrolled_count += 1
+                    except ValueError:
+                        pass  # skip if already enrolled
         except ValueError as e:
             if "already in use" in str(e):
                 skipped += 1
             else:
                 errors.append({"row": row_num, "error": str(e)})
 
-    return {"imported": imported, "skipped": skipped, "errors": errors}
+    return {"imported": imported, "skipped": skipped, "enrolled": enrolled_count, "errors": errors}

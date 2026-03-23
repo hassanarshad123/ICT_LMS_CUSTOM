@@ -9,10 +9,11 @@ import { useAuth } from '@/lib/auth-context';
 import { useBasePath } from '@/hooks/use-base-path';
 import { useApi, useMutation } from '@/hooks/use-api';
 import { getBatch, listBatchStudents, enrollStudent, removeStudent, updateBatch } from '@/lib/api/batches';
+import CsvImportPanel from '@/components/shared/csv-import-panel';
 import { listUsers } from '@/lib/api/users';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
-import { ArrowLeft, UserPlus, Trash2, Loader2, Users, Calendar, GraduationCap, BookOpen } from 'lucide-react';
+import { ArrowLeft, UserPlus, Trash2, Loader2, Users, Calendar, GraduationCap, BookOpen, Upload } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,6 +31,7 @@ export default function AdminBatchDetail() {
   const basePath = useBasePath();
   const [selectedStudentId, setSelectedStudentId] = useState('');
   const [removeConfirmId, setRemoveConfirmId] = useState<string | null>(null);
+  const [showImport, setShowImport] = useState(false);
 
   const { data: batch, loading: batchLoading, error: batchError, refetch: refetchBatch } = useApi(
     () => getBatch(batchId),
@@ -204,9 +206,28 @@ export default function AdminBatchDetail() {
             )}
           </div>
 
+          {/* Bulk Import Panel */}
+          {showImport && (
+            <CsvImportPanel
+              onSuccess={() => { refetchStudents(); refetchBatch(); }}
+              onClose={() => setShowImport(false)}
+              batches={[{ id: batchId, name: batch.name }]}
+              preSelectedBatchIds={[batchId]}
+            />
+          )}
+
           {/* Add Student Section */}
           <div className="bg-white rounded-2xl p-6 card-shadow mb-6">
-            <h3 className="text-lg font-semibold text-primary mb-4">Enroll Student</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-primary">Enroll Student</h3>
+              <button
+                onClick={() => setShowImport(!showImport)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <Upload size={14} />
+                Import CSV
+              </button>
+            </div>
             <div className="flex flex-col sm:flex-row gap-3">
               <select
                 value={selectedStudentId}

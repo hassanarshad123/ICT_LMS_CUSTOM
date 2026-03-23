@@ -75,16 +75,18 @@ export async function deleteUser(userId: string): Promise<void> {
   return apiClient(`/users/${userId}`, { method: 'DELETE' });
 }
 
-export async function bulkImportUsers(file: File): Promise<{
+export async function bulkImportUsers(file: File, batchIds?: string[]): Promise<{
   imported: number;
   skipped: number;
+  enrolled: number;
   errors: { row: number; error: string }[];
 }> {
   const formData = new FormData();
   formData.append('file', file);
+  if (batchIds?.length) formData.append('batch_ids', batchIds.join(','));
   return apiClient('/users/bulk-import', {
     method: 'POST',
     body: formData,
-    timeout: 120000, // 2 min for large CSV imports (500 students with bcrypt)
+    timeout: 120000,
   });
 }

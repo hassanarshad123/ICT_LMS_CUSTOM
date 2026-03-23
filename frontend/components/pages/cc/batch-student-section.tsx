@@ -1,10 +1,13 @@
 'use client';
 
+import { useState } from 'react';
 import { EmptyState } from '@/components/shared/page-states';
+import CsvImportPanel from '@/components/shared/csv-import-panel';
 import {
   Trash2,
   Users,
   UserPlus,
+  Upload,
   Loader2,
 } from 'lucide-react';
 
@@ -22,6 +25,10 @@ export interface BatchStudentSectionProps {
   studentsLoading: boolean;
   /** Called when user clicks the remove button on a student row */
   onRemoveStudentConfirm: (studentId: string) => void;
+  /** Batch info for import */
+  batchId?: string;
+  batchName?: string;
+  onImportComplete?: () => void;
 }
 
 export function BatchStudentSection({
@@ -33,12 +40,38 @@ export function BatchStudentSection({
   students,
   studentsLoading,
   onRemoveStudentConfirm,
+  batchId,
+  batchName,
+  onImportComplete,
 }: BatchStudentSectionProps) {
+  const [showImport, setShowImport] = useState(false);
+
   return (
     <>
+      {/* Bulk Import Panel */}
+      {showImport && batchId && (
+        <CsvImportPanel
+          onSuccess={() => { onImportComplete?.(); }}
+          onClose={() => setShowImport(false)}
+          batches={batchId && batchName ? [{ id: batchId, name: batchName }] : []}
+          preSelectedBatchIds={batchId ? [batchId] : []}
+        />
+      )}
+
       {/* Enroll Student */}
       <div className="bg-white rounded-2xl p-6 card-shadow mb-6">
-        <h3 className="text-lg font-semibold text-primary mb-4">Enroll Student</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-primary">Enroll Student</h3>
+          {batchId && (
+            <button
+              onClick={() => setShowImport(!showImport)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <Upload size={14} />
+              Import CSV
+            </button>
+          )}
+        </div>
         <div className="flex flex-col sm:flex-row gap-3">
           <select
             value={selectedStudentId}

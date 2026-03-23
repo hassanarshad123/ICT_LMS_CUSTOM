@@ -89,6 +89,7 @@ export default function AdminStudents() {
         <CsvImportPanel
           onSuccess={() => { refetch(); }}
           onClose={() => setShowImport(false)}
+          batches={batches.map(b => ({ id: b.id, name: b.name }))}
         />
       )}
 
