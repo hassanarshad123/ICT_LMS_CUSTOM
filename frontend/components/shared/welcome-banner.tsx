@@ -8,13 +8,14 @@ export default function WelcomeBanner() {
   const basePath = useBasePath();
 
   return (
-    <div className="rounded-2xl p-8 sm:p-10 bg-gradient-to-br from-primary/90 to-primary mb-6 sm:mb-8 card-shadow">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
-        <div className="w-14 h-14 rounded-2xl bg-accent flex items-center justify-center shrink-0">
-          <Rocket size={28} className="text-primary" />
+    <div className="rounded-2xl p-5 sm:p-8 md:p-10 bg-gradient-to-br from-primary/90 to-primary mb-4 sm:mb-6 md:mb-8 card-shadow">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-6">
+        <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-2xl bg-accent flex items-center justify-center shrink-0">
+          <Rocket size={22} className="text-primary sm:hidden" />
+          <Rocket size={28} className="text-primary hidden sm:block" />
         </div>
         <div className="flex-1">
-          <h2 className="text-xl sm:text-2xl font-bold text-primary-foreground mb-1">
+          <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-primary-foreground mb-1">
             Welcome to your LMS! Let&apos;s get you set up.
           </h2>
           <p className="text-primary-foreground/70 text-sm sm:text-base">

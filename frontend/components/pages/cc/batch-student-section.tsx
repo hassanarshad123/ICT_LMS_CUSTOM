@@ -113,39 +113,70 @@ export function BatchStudentSection({
             />
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[600px]">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Name</th>
-                  <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Email</th>
-                  <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Phone</th>
-                  <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Enrolled Date</th>
-                  <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {students.map((student: any) => (
-                  <tr key={student.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm font-medium text-primary">{student.name}</td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{student.email}</td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{student.phone || '—'}</td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">
+          <>
+            {/* Mobile card view */}
+            <div className="md:hidden space-y-3 p-4">
+              {students.map((student: any) => (
+                <div key={student.id} className="bg-white rounded-xl p-4 border border-gray-100">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-9 h-9 rounded-full bg-accent flex items-center justify-center text-xs font-semibold text-primary">{student.name.charAt(0)}</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-primary truncate">{student.name}</p>
+                      <p className="text-xs text-gray-500 truncate">{student.email}</p>
+                    </div>
+                    <button
+                      onClick={() => onRemoveStudentConfirm(student.id)}
+                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-gray-500 mt-2">
+                    <span>{student.phone || 'No phone'}</span>
+                    <span>
                       {student.enrolledAt ? new Date(student.enrolledAt).toLocaleDateString() : student.createdAt ? new Date(student.createdAt).toLocaleDateString() : '—'}
-                    </td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4">
-                      <button
-                        onClick={() => onRemoveStudentConfirm(student.id)}
-                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </td>
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop table view */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full min-w-[600px]">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Name</th>
+                    <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Email</th>
+                    <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Phone</th>
+                    <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Enrolled Date</th>
+                    <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {students.map((student: any) => (
+                    <tr key={student.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm font-medium text-primary">{student.name}</td>
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{student.email}</td>
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{student.phone || '—'}</td>
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">
+                        {student.enrolledAt ? new Date(student.enrolledAt).toLocaleDateString() : student.createdAt ? new Date(student.createdAt).toLocaleDateString() : '—'}
+                      </td>
+                      <td className="px-3 sm:px-6 py-3 sm:py-4">
+                        <button
+                          onClick={() => onRemoveStudentConfirm(student.id)}
+                          className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+
         )}
       </div>
     </>

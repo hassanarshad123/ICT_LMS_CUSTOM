@@ -50,3 +50,10 @@
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
   }
 }
+
+/* Prevent iOS Safari zoom-on-focus for inputs with small font sizes */
+@media (max-width: 768px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}

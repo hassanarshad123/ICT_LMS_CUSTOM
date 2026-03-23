@@ -54,16 +54,16 @@ export default function ResetPasswordPage() {
       <div className="w-full max-w-lg">
         <div className="text-center mb-8">
           {logoUrl ? (
-            <img src={logoUrl} alt={instituteName} className="w-16 h-16 object-contain rounded-[20%] mx-auto mb-4" />
+            <img src={logoUrl} alt={instituteName} className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 object-contain rounded-[20%] mx-auto mb-4" />
           ) : (
-            <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center mx-auto mb-4">
+            <div className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-2xl bg-primary flex items-center justify-center mx-auto mb-4">
               <GraduationCap size={32} className="text-white" />
             </div>
           )}
           <h1 className="text-2xl sm:text-3xl font-bold text-primary">{instituteName}</h1>
         </div>
 
-        <div className="bg-white rounded-2xl p-5 sm:p-8 card-shadow">
+        <div className="bg-white rounded-2xl p-4 sm:p-6 md:p-8 card-shadow">
           {!token ? (
             <div className="text-center py-4">
               <div className="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4">

@@ -242,7 +242,43 @@ export default function UsersListView({ basePath: basePathProp }: UsersListViewP
 
       {!loading && !error && (
         <div className="bg-white rounded-2xl card-shadow overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Mobile card view */}
+          <div className="md:hidden space-y-3 p-4">
+            {userList.map((user) => (
+              <div
+                key={user.id}
+                onClick={() => router.push(`${basePath}/${user.id}`)}
+                className="bg-white rounded-xl p-4 border border-gray-100 cursor-pointer active:bg-gray-50"
+              >
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-9 h-9 rounded-full bg-accent flex items-center justify-center text-xs font-semibold text-primary">{user.name.charAt(0)}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-primary truncate">{user.name}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${roleBadgeColors[user.role] || 'bg-gray-100 text-gray-600'}`}>
+                        {roleLabels[user.role] || user.role}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                  </div>
+                  <button onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(user.id); }} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+                <div className="flex items-center justify-between mt-2">
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${user.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                    {user.status}
+                  </span>
+                </div>
+              </div>
+            ))}
+            {userList.length === 0 && (
+              <p className="px-2 py-12 text-center text-sm text-gray-500">No users found matching your filters.</p>
+            )}
+          </div>
+
+          {/* Desktop table view */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full min-w-[600px]">
               <thead>
                 <tr className="border-b border-gray-100">
@@ -290,7 +326,10 @@ export default function UsersListView({ basePath: basePathProp }: UsersListViewP
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-between px-6 py-4 border-t border-gray-100">
-            <p className="text-sm text-gray-500 mb-2 sm:mb-0">Page {page} of {totalPages} ({total} users)</p>
+            <p className="text-sm text-gray-500 mb-2 sm:mb-0">
+              <span className="hidden sm:inline">Page {page} of {totalPages} ({total} users)</span>
+              <span className="sm:hidden">{page}/{totalPages}</span>
+            </p>
             <div className="flex gap-2">
               <button onClick={() => setPage(page - 1)} disabled={page === 1} className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">Previous</button>
               <button onClick={() => setPage(page + 1)} disabled={page === totalPages} className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">Next</button>

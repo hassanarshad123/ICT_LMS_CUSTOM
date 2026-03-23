@@ -139,7 +139,7 @@ export default function InsightsPage() {
       <DashboardHeader greeting="Insights" subtitle="Visual overview of your institute's performance" />
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
         {[
           { label: 'Total Students', value: totalStudents, icon: <Users size={22} />, accent: 'hsl(var(--accent))' },
           { label: 'Active Batches', value: activeBatches, icon: <Layers size={22} />, accent: 'hsl(var(--secondary))' },
@@ -160,7 +160,7 @@ export default function InsightsPage() {
         {studentStatusData.length > 0 && (
           <div className="bg-white rounded-2xl p-6 card-shadow overflow-hidden">
             <h3 className="text-sm font-semibold text-primary mb-4">Student Status</h3>
-            <ChartContainer config={studentStatusConfig} className="h-[250px] aspect-auto w-full">
+            <ChartContainer config={studentStatusConfig} className="h-[180px] sm:h-[250px] aspect-auto w-full">
               <PieChart>
                 <Pie data={studentStatusData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={80}>
                   {studentStatusData.map((entry) => (<Cell key={entry.name} fill={entry.fill} />))}
@@ -174,7 +174,7 @@ export default function InsightsPage() {
         {enrollmentData.length > 0 && (
           <div className="bg-white rounded-2xl p-6 card-shadow overflow-hidden">
             <h3 className="text-sm font-semibold text-primary mb-4">Enrollment per Batch</h3>
-            <ChartContainer config={enrollmentConfig} className="h-[250px] aspect-auto w-full">
+            <ChartContainer config={enrollmentConfig} className="h-[180px] sm:h-[250px] aspect-auto w-full">
               <BarChart data={enrollmentData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="name" tick={{ fontSize: 11, angle: -35, textAnchor: 'end' } as Record<string, unknown>} height={50} />
@@ -193,7 +193,7 @@ export default function InsightsPage() {
         {batchStatusData.length > 0 && (
           <div className="bg-white rounded-2xl p-6 card-shadow overflow-hidden">
             <h3 className="text-sm font-semibold text-primary mb-4">Batch Status</h3>
-            <ChartContainer config={batchStatusConfig} className="h-[250px] aspect-auto w-full">
+            <ChartContainer config={batchStatusConfig} className="h-[180px] sm:h-[250px] aspect-auto w-full">
               <PieChart>
                 <Pie data={batchStatusData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={80}>
                   {batchStatusData.map((entry) => (<Cell key={entry.name} fill={entry.fill} />))}
@@ -207,7 +207,7 @@ export default function InsightsPage() {
         {workloadData.length > 0 && (
           <div className="bg-white rounded-2xl p-6 card-shadow overflow-hidden lg:col-span-2">
             <h3 className="text-sm font-semibold text-primary mb-4">Teacher Workload</h3>
-            <ChartContainer config={workloadConfig} className="h-[250px] aspect-auto w-full">
+            <ChartContainer config={workloadConfig} className="h-[180px] sm:h-[250px] aspect-auto w-full">
               <BarChart data={workloadData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="name" tick={{ fontSize: 11 }} />
@@ -230,7 +230,7 @@ export default function InsightsPage() {
             {lecturesData.length > 0 && (
               <div className="bg-white rounded-2xl p-6 card-shadow overflow-hidden">
                 <h3 className="text-sm font-semibold text-primary mb-4">Lectures per Course</h3>
-                <ChartContainer config={lecturesConfig} className="h-[250px] aspect-auto w-full">
+                <ChartContainer config={lecturesConfig} className="h-[180px] sm:h-[250px] aspect-auto w-full">
                   <BarChart data={lecturesData} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                     <XAxis type="number" tick={{ fontSize: 11 }} />
@@ -244,7 +244,7 @@ export default function InsightsPage() {
             {materialsData.length > 0 && (
               <div className="bg-white rounded-2xl p-6 card-shadow overflow-hidden">
                 <h3 className="text-sm font-semibold text-primary mb-4">Materials by Type</h3>
-                <ChartContainer config={materialsConfig} className="h-[250px] aspect-auto w-full">
+                <ChartContainer config={materialsConfig} className="h-[180px] sm:h-[250px] aspect-auto w-full">
                   <PieChart>
                     <Pie data={materialsData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80}>
                       {materialsData.map((entry) => (<Cell key={entry.name} fill={entry.fill} />))}
@@ -266,7 +266,7 @@ export default function InsightsPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
             <div className="bg-white rounded-2xl p-6 card-shadow overflow-hidden">
               <h3 className="text-sm font-semibold text-primary mb-4">Device Sessions Overview</h3>
-              <ChartContainer config={deviceConfig} className="h-[250px] aspect-auto w-full">
+              <ChartContainer config={deviceConfig} className="h-[180px] sm:h-[250px] aspect-auto w-full">
                 <PieChart>
                   <Pie data={deviceData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={80}>
                     {deviceData.map((entry) => (<Cell key={entry.name} fill={entry.fill} />))}

@@ -129,7 +129,63 @@ export default function AdminDevicesPage() {
         <EmptyState icon={<Monitor size={28} className="text-gray-400" />} title="No device sessions" description="No active device sessions found." />
       ) : !loading && !error && (
         <div className="bg-white rounded-2xl card-shadow overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Mobile card view */}
+          <div className="md:hidden space-y-3 p-4">
+            {deviceList.map((user: any) => {
+              const sessions = user.activeSessions || [];
+              const count = sessions.length;
+              const isExpanded = expandedUserId === user.userId;
+              const atLimit = count >= deviceLimit;
+
+              return (
+                <div key={user.userId} className="bg-white rounded-xl p-4 border border-gray-100">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-xs font-semibold text-primary">{user.userName?.charAt(0) || '?'}</div>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-medium text-primary block truncate">{user.userName}</span>
+                      <span className="text-xs text-gray-500 truncate block">{user.userEmail}</span>
+                    </div>
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium shrink-0 ${roleBadgeColors[user.userRole] || 'bg-gray-100 text-gray-600'}`}>{roleLabels[user.userRole] || user.userRole}</span>
+                  </div>
+                  <div className="flex items-center justify-between mt-3">
+                    <span className={`text-sm font-semibold ${atLimit ? 'text-red-600' : count === 0 ? 'text-gray-400' : 'text-primary'}`}>{count}/{deviceLimit} devices</span>
+                    <div className="flex items-center gap-2">
+                      {count > 0 && (
+                        <button onClick={() => setDeleteTarget({ userId: user.userId, sessionId: null })} className="px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors">Remove All</button>
+                      )}
+                      {count > 0 && (
+                        <button onClick={() => toggleExpand(user.userId)} className="p-1.5 text-gray-400 hover:text-primary rounded-lg transition-colors">
+                          {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {isExpanded && sessions.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
+                      {sessions.map((session: any) => (
+                        <div key={session.id} className="flex items-start justify-between gap-2">
+                          <div className="flex items-start gap-2 min-w-0">
+                            <Monitor size={14} className="text-gray-400 shrink-0 mt-0.5" />
+                            <div className="min-w-0">
+                              <p className="text-xs font-medium text-primary truncate">{session.deviceInfo}</p>
+                              <p className="text-xs text-gray-500">IP: {session.ipAddress}</p>
+                              <p className="text-xs text-gray-500">Last active: {formatDateTime(session.lastActiveAt)}</p>
+                            </div>
+                          </div>
+                          <button onClick={() => setDeleteTarget({ userId: user.userId, sessionId: session.id })} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop table view */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full min-w-[600px]">
               <thead>
                 <tr className="border-b border-gray-100">
@@ -197,7 +253,10 @@ export default function AdminDevicesPage() {
 
           {totalPages > 1 && (
             <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
-              <p className="text-sm text-gray-500">Page {page} of {totalPages}</p>
+              <p className="text-sm text-gray-500">
+                <span className="hidden sm:inline">Page {page} of {totalPages}</span>
+                <span className="sm:hidden">{page}/{totalPages}</span>
+              </p>
               <div className="flex gap-2">
                 <button onClick={() => setPage(page - 1)} disabled={page === 1} className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">Previous</button>
                 <button onClick={() => setPage(page + 1)} disabled={page === totalPages} className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">Next</button>

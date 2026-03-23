@@ -106,7 +106,7 @@ export default function OnboardingWizard() {
                     )}
                   </div>
                   <span
-                    className={`text-xs mt-2 font-medium ${
+                    className={`text-xs mt-2 font-medium hidden sm:block ${
                       isActive || isComplete ? 'text-primary' : 'text-gray-400'
                     }`}
                   >
@@ -119,7 +119,7 @@ export default function OnboardingWizard() {
         </div>
 
         {/* Step content */}
-        <div className="bg-white rounded-2xl p-6 sm:p-8 card-shadow">
+        <div className="bg-white rounded-2xl p-4 sm:p-6 md:p-8 card-shadow">
           {step === 0 && <StepBranding onNext={handleNext} onSkip={handleNext} />}
           {step === 1 && <StepBatch onNext={handleNext} onSkip={handleNext} />}
           {step === 2 && <StepImport onNext={handleNext} onSkip={handleNext} />}
