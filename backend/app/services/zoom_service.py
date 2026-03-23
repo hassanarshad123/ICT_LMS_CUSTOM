@@ -479,11 +479,8 @@ async def get_recording_signed_url(
         embed_url, _ = generate_embed_token(rec.bunny_video_id)
         return {"url": embed_url, "type": "bunny"}
 
-    # Fall back to original download URL
-    if rec.original_download_url:
-        return {"url": rec.original_download_url, "type": "direct"}
-
-    raise ValueError("No playable URL available for this recording")
+    # Never expose raw Zoom download URLs to the client
+    raise ValueError("Recording is still being processed. Please try again later.")
 
 
 # --- Phase 4A: Attendance sync ---
