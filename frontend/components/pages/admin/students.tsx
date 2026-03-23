@@ -12,12 +12,14 @@ import { listBatches } from '@/lib/api/batches';
 import { enrollStudent } from '@/lib/api/batches';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
-import { Plus, X, Search, Users, Loader2 } from 'lucide-react';
+import { Plus, X, Search, Users, Loader2, Upload } from 'lucide-react';
+import CsvImportPanel from '@/components/shared/csv-import-panel';
 
 export default function AdminStudents() {
   const { name } = useAuth();
   const basePath = useBasePath();
   const [showForm, setShowForm] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', batchId: '' });
@@ -71,11 +73,24 @@ export default function AdminStudents() {
           <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
           <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search students..." className="pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-white w-full sm:w-72" />
         </div>
-        <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors">
-          {showForm ? <X size={16} /> : <Plus size={16} />}
-          {showForm ? 'Cancel' : 'Add Student'}
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => { setShowImport(!showImport); setShowForm(false); }} className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+            <Upload size={16} />
+            Import CSV
+          </button>
+          <button onClick={() => { setShowForm(!showForm); setShowImport(false); }} className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors">
+            {showForm ? <X size={16} /> : <Plus size={16} />}
+            {showForm ? 'Cancel' : 'Add Student'}
+          </button>
+        </div>
       </div>
+
+      {showImport && (
+        <CsvImportPanel
+          onSuccess={() => { refetch(); }}
+          onClose={() => setShowImport(false)}
+        />
+      )}
 
       {showForm && (
         <div className="bg-white rounded-2xl p-6 card-shadow mb-6">
@@ -116,7 +131,7 @@ export default function AdminStudents() {
       {error && <PageError message={error} onRetry={refetch} />}
 
       {!loading && !error && studentList.length === 0 ? (
-        <EmptyState icon={<Users size={28} className="text-gray-400" />} title="No students found" description={search ? 'Try a different search term.' : 'Add your first student to get started.'} />
+        <EmptyState icon={<Users size={28} className="text-gray-400" />} title="No students found" description={search ? 'Try a different search term.' : 'Add your first student or import a CSV to get started.'} action={!search ? { label: 'Import Students (CSV)', onClick: () => { setShowImport(true); } } : undefined} />
       ) : !loading && !error && (
         <div className="bg-white rounded-2xl card-shadow overflow-hidden">
           <div className="overflow-x-auto">

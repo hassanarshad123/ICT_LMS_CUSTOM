@@ -85,5 +85,6 @@ export async function bulkImportUsers(file: File): Promise<{
   return apiClient('/users/bulk-import', {
     method: 'POST',
     body: formData,
+    timeout: 120000, // 2 min for large CSV imports (500 students with bcrypt)
   });
 }
