@@ -135,7 +135,29 @@ export default function AdminStudents() {
         <EmptyState icon={<Users size={28} className="text-gray-400" />} title="No students found" description={search ? 'Try a different search term.' : 'Add your first student or import a CSV to get started.'} action={!search ? { label: 'Import Students (CSV)', onClick: () => { setShowImport(true); } } : undefined} />
       ) : !loading && !error && (
         <div className="bg-white rounded-2xl card-shadow overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Mobile card view */}
+          <div className="md:hidden space-y-3 p-4">
+            {studentList.map((student) => (
+              <div key={student.id} className="bg-white rounded-xl p-4 border border-gray-100">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-xs font-semibold text-primary">{student.name.charAt(0)}</div>
+                  <span className="text-sm font-medium text-primary flex-1">{student.name}</span>
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${student.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                    {student.status}
+                  </span>
+                </div>
+                <div className="text-sm text-gray-600 space-y-1 ml-11">
+                  <p>{student.email} {student.phone ? `\u00B7 ${student.phone}` : ''}</p>
+                  {student.batchNames && student.batchNames.length > 0 && (
+                    <p className="text-xs text-gray-500">{student.batchNames.join(', ')}</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop table view */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full min-w-[600px]">
               <thead>
                 <tr className="border-b border-gray-100">
@@ -168,8 +190,12 @@ export default function AdminStudents() {
               </tbody>
             </table>
           </div>
+
           <div className="flex flex-col sm:flex-row items-center justify-between px-6 py-4 border-t border-gray-100">
-            <p className="text-sm text-gray-500 mb-2 sm:mb-0">Page {page} of {totalPages} ({total} students)</p>
+            <p className="text-sm text-gray-500 mb-2 sm:mb-0">
+              <span className="hidden sm:inline">Page {page} of {totalPages} ({total} students)</span>
+              <span className="sm:hidden">{page}/{totalPages}</span>
+            </p>
             <div className="flex gap-2">
               <button onClick={() => setPage(page - 1)} disabled={page === 1} className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">Previous</button>
               <button onClick={() => setPage(page + 1)} disabled={page === totalPages} className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">Next</button>

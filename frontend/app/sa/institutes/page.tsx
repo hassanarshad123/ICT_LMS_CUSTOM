@@ -156,7 +156,59 @@ export default function InstitutesPage() {
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
+          {/* Mobile card view */}
+          <div className="md:hidden space-y-3 p-4">
+            {institutes.map((inst) => (
+              <div key={inst.id} className="bg-white rounded-xl p-4 border border-gray-100">
+                <div className="flex items-center justify-between mb-2">
+                  <Link href={`/sa/institutes/${inst.id}`} className="hover:underline">
+                    <span className="text-sm font-medium text-gray-900">{inst.name}</span>
+                  </Link>
+                  <StatusBadge status={inst.status} />
+                </div>
+                <div className="text-xs text-gray-500 mb-3 space-y-1">
+                  <p>{inst.slug}.zensbot.online</p>
+                  <div className="flex items-center gap-2">
+                    <PlanBadge plan={inst.planTier} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <UsageBar current={inst.currentUsers} max={inst.maxUsers} label="Users" />
+                  <UsageBar
+                    current={parseFloat(inst.currentStorageGb.toFixed(1))}
+                    max={inst.maxStorageGb}
+                    label={`${inst.currentStorageGb.toFixed(1)}/${inst.maxStorageGb} GB`}
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Link
+                    href={`/sa/institutes/${inst.id}`}
+                    className="text-xs px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+                  >
+                    View
+                  </Link>
+                  {inst.status !== 'suspended' ? (
+                    <button
+                      onClick={() => handleSuspend(inst.id, inst.name)}
+                      className="text-xs px-2.5 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                    >
+                      Suspend
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleActivate(inst.id, inst.name)}
+                      className="text-xs px-2.5 py-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
+                    >
+                      Activate
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop table view */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
@@ -229,7 +281,10 @@ export default function InstitutesPage() {
               >
                 Previous
               </button>
-              <span className="text-sm text-gray-500">Page {page} of {totalPages}</span>
+              <span className="text-sm text-gray-500">
+                <span className="hidden sm:inline">Page {page} of {totalPages}</span>
+                <span className="sm:hidden">{page}/{totalPages}</span>
+              </span>
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}

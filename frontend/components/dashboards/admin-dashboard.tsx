@@ -48,7 +48,7 @@ export default function AdminDashboard() {
             data.activeBatches === 0 &&
             !redirected.current && <WelcomeBanner />}
 
-          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
             {[
               { label: 'Total Batches', value: data.totalBatches, icon: <Layers size={22} />, color: 'bg-accent', href: `${basePath}/batches` },
               { label: 'Total Students', value: data.totalStudents, icon: <Users size={22} />, color: 'bg-secondary', href: `${basePath}/students` },

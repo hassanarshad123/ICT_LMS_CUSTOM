@@ -173,7 +173,46 @@ function ApprovalQueue() {
             <p className="text-sm text-gray-500">{requests.length} pending request(s)</p>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* Mobile card view */}
+          <div className="md:hidden space-y-3 p-4">
+            {requests.map((request) => (
+              <div key={request.certUuid || request.studentId} className="bg-white rounded-xl p-4 border border-gray-100">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-primary truncate">{request.certificateName || request.studentName}</p>
+                    {request.certificateName && request.certificateName !== request.studentName && (
+                      <p className="text-xs text-gray-400">Account: {request.studentName}</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setApproveDialog(request)}
+                    disabled={approving}
+                    className="ml-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-medium hover:bg-primary/80 transition-colors disabled:opacity-60"
+                  >
+                    {approving ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                    Approve
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mb-2">{request.studentEmail}</p>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-16 h-2 bg-gray-200 rounded-full overflow-hidden">
+                      <div className="h-full bg-accent rounded-full" style={{ width: `${Math.min(request.completionPercentage, 100)}%` }} />
+                    </div>
+                    <span className="text-xs font-medium text-gray-600">{request.completionPercentage}%</span>
+                  </div>
+                  <span className="text-xs text-gray-400">
+                    {request.requestedAt
+                      ? new Date(request.requestedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                      : '—'}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop table view */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-100">
@@ -308,7 +347,57 @@ function IssuedCertificates() {
   return (
     <>
       <div className="bg-white rounded-2xl card-shadow overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Mobile card view */}
+        <div className="md:hidden space-y-3 p-4">
+          {certs.map((cert) => (
+            <div key={cert.id} className="bg-white rounded-xl p-4 border border-gray-100">
+              <div className="flex items-start justify-between mb-2">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-primary truncate">{cert.certificateName || cert.studentName}</p>
+                  <p className="text-xs text-gray-500">{cert.studentEmail}</p>
+                </div>
+                <span className={`ml-2 px-2.5 py-1 rounded-full text-xs font-medium capitalize whitespace-nowrap ${statusBadge[cert.status] || 'bg-gray-100 text-gray-600'}`}>
+                  {cert.status}
+                </span>
+              </div>
+              <div className="text-xs text-gray-500 space-y-1 mb-3">
+                <p>{cert.courseTitle} / {cert.batchName}</p>
+                {cert.certificateId && (
+                  <p className="font-mono text-gray-400">{cert.certificateId}</p>
+                )}
+                <p>
+                  {cert.issuedAt ? new Date(cert.issuedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {cert.status === 'approved' && (
+                  <>
+                    <button
+                      onClick={() => handleDownload(cert)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 text-xs font-medium transition-colors"
+                    >
+                      <Download size={14} />
+                      Download
+                    </button>
+                    <button
+                      onClick={() => setRevokeDialog(cert)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 text-xs font-medium transition-colors"
+                    >
+                      <XCircle size={14} />
+                      Revoke
+                    </button>
+                  </>
+                )}
+                {cert.status === 'revoked' && (
+                  <span className="text-xs text-red-400">Revoked</span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Desktop table view */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-100">

@@ -55,7 +55,7 @@ export default function SADashboard() {
       </div>
 
       {/* Status cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard label="Total Institutes" value={stats.totalInstitutes} icon={Building2} color="bg-blue-500" />
         <StatCard label="Active" value={stats.activeInstitutes} icon={TrendingUp} color="bg-green-500" />
         <StatCard label="Suspended" value={stats.suspendedInstitutes} icon={AlertCircle} color="bg-red-500" />

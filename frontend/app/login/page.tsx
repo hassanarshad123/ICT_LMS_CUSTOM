@@ -78,17 +78,17 @@ export default function LoginPage() {
       <div className="w-full max-w-lg">
         <div className="text-center mb-8">
           {logoUrl ? (
-            <img src={logoUrl} alt={instituteName} className="w-16 h-16 object-contain rounded-[20%] mx-auto mb-4" />
+            <img src={logoUrl} alt={instituteName} className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 object-contain rounded-[20%] mx-auto mb-4" />
           ) : (
-            <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center mx-auto mb-4">
-              <GraduationCap size={32} className="text-white" />
+            <div className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-2xl bg-primary flex items-center justify-center mx-auto mb-4">
+              <GraduationCap size={28} className="text-white" />
             </div>
           )}
           <h1 className="text-2xl sm:text-3xl font-bold text-primary">{instituteName}</h1>
           <p className="text-gray-500 mt-2">{tagline}</p>
         </div>
 
-        <div className="bg-white rounded-2xl p-5 sm:p-8 card-shadow">
+        <div className="bg-white rounded-2xl p-4 sm:p-6 md:p-8 card-shadow">
           <h2 className="text-lg font-semibold text-primary mb-6">Login to your account</h2>
 
           {error && (
@@ -123,7 +123,7 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors"
                   tabIndex={-1}
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}

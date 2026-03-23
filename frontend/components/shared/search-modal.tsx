@@ -161,7 +161,7 @@ export default function SearchModal() {
       />
 
       {/* Modal */}
-      <div className="fixed inset-0 z-[70] flex items-start justify-center pt-[15vh] px-4">
+      <div className="fixed inset-0 z-[70] flex items-start justify-center pt-[8vh] sm:pt-[15vh] px-4">
         <div className="w-full max-w-lg bg-white rounded-2xl card-shadow overflow-hidden">
           {/* Search input */}
           <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
@@ -185,7 +185,7 @@ export default function SearchModal() {
           </div>
 
           {/* Results */}
-          <div className="max-h-80 overflow-y-auto">
+          <div className="max-h-[50vh] sm:max-h-80 overflow-y-auto">
             {query.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-sm text-gray-400">Type to search across your LMS</p>

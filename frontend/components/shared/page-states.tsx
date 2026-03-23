@@ -77,7 +77,7 @@ interface PageErrorProps {
 
 export function PageError({ message = 'Something went wrong', onRetry }: PageErrorProps) {
   return (
-    <div className="bg-white rounded-2xl p-12 card-shadow text-center">
+    <div className="bg-white rounded-2xl p-6 sm:p-8 md:p-12 card-shadow text-center">
       <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
         <AlertCircle size={28} className="text-red-500" />
       </div>
@@ -110,7 +110,7 @@ interface EmptyStateProps {
 
 export function EmptyState({ icon, title, description, action }: EmptyStateProps) {
   return (
-    <div className="bg-white rounded-2xl p-12 card-shadow text-center">
+    <div className="bg-white rounded-2xl p-6 sm:p-8 md:p-12 card-shadow text-center">
       <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
         {icon || <Inbox size={28} className="text-gray-400" />}
       </div>

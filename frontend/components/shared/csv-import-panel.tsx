@@ -168,7 +168,7 @@ export default function CsvImportPanel({ onSuccess, onClose, batches = [], preSe
           onDragLeave={() => setDragOver(false)}
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
-          className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
+          className={`border-2 border-dashed rounded-xl p-6 sm:p-8 text-center cursor-pointer transition-colors ${
             dragOver ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-gray-300'
           }`}
         >
