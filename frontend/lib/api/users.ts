@@ -75,12 +75,17 @@ export async function deleteUser(userId: string): Promise<void> {
   return apiClient(`/users/${userId}`, { method: 'DELETE' });
 }
 
-export async function bulkImportUsers(file: File, batchIds?: string[]): Promise<{
+export interface BulkImportResult {
   imported: number;
   skipped: number;
   enrolled: number;
   errors: { row: number; error: string }[];
-}> {
+  createdUsers: { row: number; name: string; email: string; temporaryPassword: string }[];
+  truncated: boolean;
+  totalRows: number;
+}
+
+export async function bulkImportUsers(file: File, batchIds?: string[]): Promise<BulkImportResult> {
   const formData = new FormData();
   formData.append('file', file);
   if (batchIds?.length) formData.append('batch_ids', batchIds.join(','));
