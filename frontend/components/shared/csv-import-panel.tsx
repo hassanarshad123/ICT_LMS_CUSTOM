@@ -41,14 +41,23 @@ export default function CsvImportPanel({ onSuccess, onClose }: CsvImportPanelPro
   );
 
   const parseFile = useCallback((f: File) => {
+    // Client-side file size limit (2MB)
+    if (f.size > 2 * 1024 * 1024) {
+      toast.error('File too large. Maximum size is 2MB.');
+      return;
+    }
     setFile(f);
     setResult(null);
     Papa.parse<CsvRow>(f, {
       header: true,
       skipEmptyLines: true,
       complete: (results) => {
-        setAllRows(results.data);
-        setPreview(results.data.slice(0, 10));
+        const rows = results.data;
+        if (rows.length > 500) {
+          toast.warning(`CSV has ${rows.length} rows. Only the first 500 will be imported.`);
+        }
+        setAllRows(rows.slice(0, 500));
+        setPreview(rows.slice(0, 10));
       },
       error: () => {
         toast.error('Failed to parse CSV file');
@@ -60,7 +69,7 @@ export default function CsvImportPanel({ onSuccess, onClose }: CsvImportPanelPro
     e.preventDefault();
     setDragOver(false);
     const f = e.dataTransfer.files[0];
-    if (f && f.name.endsWith('.csv')) {
+    if (f && f.name.toLowerCase().endsWith('.csv')) {
       parseFile(f);
     } else {
       toast.error('Please drop a .csv file');
