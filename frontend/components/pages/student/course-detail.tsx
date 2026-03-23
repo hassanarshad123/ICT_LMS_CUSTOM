@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { CourseVideoPlayer } from './course-video-player';
-import { ContentProtection } from '@/components/shared/content-protection';
+
 import { CourseMaterialsSection } from './course-materials-section';
 import { CourseQuizzesSection } from './course-quizzes-section';
 
@@ -207,22 +207,20 @@ export default function CourseDetailPage() {
       </div>
 
       {/* Video Player + Playlist + Now Playing Info */}
-      <ContentProtection>
-        <CourseVideoPlayer
-          playlistTab={playlistTab}
-          onPlaylistTabChange={setPlaylistTab}
-          sortedLectures={sortedLectures}
-          recordings={recordings}
-          selectedLecture={selectedLecture}
-          selectedRecording={selectedRecording}
-          onSelectLecture={setSelectedLecture}
-          onSelectRecording={setSelectedRecording}
-          activeLecture={activeLecture}
-          activeRecording={activeRecording}
-          nowPlaying={nowPlaying}
-          watermark={email || studentId}
-        />
-      </ContentProtection>
+      <CourseVideoPlayer
+        playlistTab={playlistTab}
+        onPlaylistTabChange={setPlaylistTab}
+        sortedLectures={sortedLectures}
+        recordings={recordings}
+        selectedLecture={selectedLecture}
+        selectedRecording={selectedRecording}
+        onSelectLecture={setSelectedLecture}
+        onSelectRecording={setSelectedRecording}
+        activeLecture={activeLecture}
+        activeRecording={activeRecording}
+        nowPlaying={nowPlaying}
+        watermark={email || studentId}
+      />
 
       {/* Curriculum Modules */}
       <div className="bg-white rounded-2xl card-shadow p-6">

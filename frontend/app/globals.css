@@ -57,3 +57,20 @@
     font-size: 16px !important;
   }
 }
+
+/* Content protection — block printing */
+@media print {
+  body * {
+    display: none !important;
+    visibility: hidden !important;
+  }
+}
+
+/* Content protection — block text selection on protected pages */
+.content-protected {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
