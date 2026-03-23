@@ -10,6 +10,7 @@ import { useBasePath } from '@/hooks/use-base-path';
 import { useApi, useMutation } from '@/hooks/use-api';
 import { getBatch, listBatchStudents, enrollStudent, removeStudent, updateBatch } from '@/lib/api/batches';
 import CsvImportPanel from '@/components/shared/csv-import-panel';
+import { SearchableCombobox } from '@/components/ui/searchable-combobox';
 import { listUsers } from '@/lib/api/users';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
@@ -212,10 +213,13 @@ export default function AdminBatchDetail() {
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Teacher</label>
-                    <select value={editForm.teacher_id} onChange={e => setEditForm(f => ({ ...f, teacher_id: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-primary bg-white">
-                      <option value="">Unassigned</option>
-                      {teachers.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                    </select>
+                    <SearchableCombobox
+                      options={teachers.map((t: any) => ({ value: t.id, label: t.name }))}
+                      value={editForm.teacher_id}
+                      onChange={(v) => setEditForm(f => ({ ...f, teacher_id: v }))}
+                      placeholder="Unassigned"
+                      searchPlaceholder="Search teachers..."
+                    />
                   </div>
                   <div className="flex gap-3 pt-2">
                     <button
@@ -315,16 +319,15 @@ export default function AdminBatchDetail() {
               </button>
             </div>
             <div className="flex flex-col sm:flex-row gap-3">
-              <select
+              <SearchableCombobox
+                options={availableStudents.map((s) => ({ value: s.id, label: `${s.name} (${s.email})` }))}
                 value={selectedStudentId}
-                onChange={(e) => setSelectedStudentId(e.target.value)}
-                className="flex-1 px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
-              >
-                <option value="">Select a student...</option>
-                {availableStudents.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name} ({s.email})</option>
-                ))}
-              </select>
+                onChange={setSelectedStudentId}
+                placeholder="Select a student..."
+                searchPlaceholder="Search students..."
+                emptyMessage="No students found"
+                className="flex-1"
+              />
               <button
                 onClick={handleEnroll}
                 disabled={!selectedStudentId || enrolling}

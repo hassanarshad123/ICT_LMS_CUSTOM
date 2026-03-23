@@ -14,6 +14,7 @@ import { listUsers } from '@/lib/api/users';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
 import { Plus, X, Layers, Loader2, Trash2 } from 'lucide-react';
+import { SearchableCombobox } from '@/components/ui/searchable-combobox';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -100,12 +101,13 @@ export default function AdminBatches() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Assign Teacher</label>
-              <select value={formData.teacherId} onChange={(e) => setFormData({ ...formData, teacherId: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50">
-                <option value="">Select teacher (optional)</option>
-                {teachers.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
+              <SearchableCombobox
+                options={teachers.map((t) => ({ value: t.id, label: t.name }))}
+                value={formData.teacherId}
+                onChange={(v) => setFormData({ ...formData, teacherId: v })}
+                placeholder="Select teacher (optional)"
+                searchPlaceholder="Search teachers..."
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Start Date</label>

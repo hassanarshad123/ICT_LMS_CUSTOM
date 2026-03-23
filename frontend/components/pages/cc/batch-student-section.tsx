@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { EmptyState } from '@/components/shared/page-states';
 import CsvImportPanel from '@/components/shared/csv-import-panel';
+import { SearchableCombobox } from '@/components/ui/searchable-combobox';
 import {
   Trash2,
   Users,
@@ -73,16 +74,15 @@ export function BatchStudentSection({
           )}
         </div>
         <div className="flex flex-col sm:flex-row gap-3">
-          <select
+          <SearchableCombobox
+            options={availableStudents.map((s) => ({ value: s.id, label: `${s.name} (${s.email})` }))}
             value={selectedStudentId}
-            onChange={(e) => onSelectedStudentIdChange(e.target.value)}
-            className="flex-1 px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
-          >
-            <option value="">Select a student...</option>
-            {availableStudents.map((s) => (
-              <option key={s.id} value={s.id}>{s.name} ({s.email})</option>
-            ))}
-          </select>
+            onChange={onSelectedStudentIdChange}
+            placeholder="Select a student..."
+            searchPlaceholder="Search students..."
+            emptyMessage="No students found"
+            className="flex-1"
+          />
           <button
             onClick={onEnrollStudent}
             disabled={!selectedStudentId || enrolling}

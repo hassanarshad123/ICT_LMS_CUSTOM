@@ -48,6 +48,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { BatchStudentSection } from './batch-student-section';
 import { BatchCourseContent } from './batch-course-content';
+import { SearchableCombobox } from '@/components/ui/searchable-combobox';
 
 export default function BatchContentPage() {
   const params = useParams();
@@ -417,10 +418,13 @@ export default function BatchContentPage() {
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-1 block">Teacher</label>
-                <select value={editForm.teacher_id} onChange={e => setEditForm(f => ({ ...f, teacher_id: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-primary bg-white">
-                  <option value="">Unassigned</option>
-                  {teachers.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
+                <SearchableCombobox
+                  options={teachers.map((t: any) => ({ value: t.id, label: t.name }))}
+                  value={editForm.teacher_id}
+                  onChange={(v) => setEditForm(f => ({ ...f, teacher_id: v }))}
+                  placeholder="Unassigned"
+                  searchPlaceholder="Search teachers..."
+                />
               </div>
               <div className="flex gap-3 pt-2">
                 <button
