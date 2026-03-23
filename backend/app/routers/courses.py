@@ -15,6 +15,7 @@ from app.models.user import User
 router = APIRouter()
 
 CC = Annotated[User, Depends(require_roles("course_creator"))]
+AdminOrCC = Annotated[User, Depends(require_roles("admin", "course_creator"))]
 AllRoles = Annotated[User, Depends(get_current_user)]
 
 
@@ -70,7 +71,7 @@ async def get_course(
 async def update_course(
     course_id: uuid.UUID,
     body: CourseUpdate,
-    current_user: CC,
+    current_user: AdminOrCC,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -84,7 +85,7 @@ async def update_course(
 @router.delete("/{course_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_course(
     course_id: uuid.UUID,
-    current_user: CC,
+    current_user: AdminOrCC,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:

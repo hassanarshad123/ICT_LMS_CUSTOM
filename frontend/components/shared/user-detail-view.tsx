@@ -7,6 +7,7 @@ import DashboardLayout from '@/components/layout/dashboard-layout';
 import { useAuth } from '@/lib/auth-context';
 import { useApi, useMutation } from '@/hooks/use-api';
 import { getUser, updateUser, changeUserStatus, resetPassword, deleteUser } from '@/lib/api/users';
+import { listBatches, enrollStudent, removeStudent } from '@/lib/api/batches';
 import { PageLoading, PageError } from '@/components/shared/page-states';
 import { toast } from 'sonner';
 import { ArrowLeft, Edit3, Save, BookOpen, Video, Briefcase, Users, Calendar, Shield, Loader2, KeyRound, Trash2 } from 'lucide-react';
@@ -44,6 +45,9 @@ export default function UserDetailView({ backHref: backHrefProp }: UserDetailVie
   const { execute: doResetPassword } = useMutation(resetPassword);
   const { execute: doDelete } = useMutation(deleteUser);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [enrollBatchId, setEnrollBatchId] = useState('');
+  const { data: batchesData } = useApi(() => listBatches({ per_page: 100 }));
+  const allBatches = batchesData?.data || [];
 
   // Initialize edit data when user data loads
   if (userData && !editData) {
@@ -204,17 +208,63 @@ export default function UserDetailView({ backHref: backHrefProp }: UserDetailVie
             )}
           </div>
 
-          {/* Batch info for students */}
-          {user.role === 'student' && user.batchNames && user.batchNames.length > 0 && (
+          {/* Batch management for students */}
+          {user.role === 'student' && (
             <div className="bg-white rounded-2xl p-6 card-shadow">
               <div className="flex items-center gap-2 mb-4">
                 <Users size={18} className="text-primary" />
                 <h3 className="text-lg font-semibold text-primary">Enrolled Batches</h3>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {user.batchNames.map((name: string, i: number) => (
-                  <span key={i} className="px-3 py-1.5 bg-gray-100 rounded-lg text-sm text-gray-600">{name}</span>
-                ))}
+              {user.batchIds && user.batchIds.length > 0 ? (
+                <div className="space-y-2 mb-4">
+                  {user.batchIds.map((bid: string, i: number) => (
+                    <div key={bid} className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg">
+                      <span className="text-sm text-gray-700">{user.batchNames?.[i] || bid}</span>
+                      <button
+                        onClick={async () => {
+                          try {
+                            await removeStudent(bid, userId);
+                            refetch();
+                            toast.success('Removed from batch');
+                          } catch (err: any) { toast.error(err.message || 'Failed to remove'); }
+                        }}
+                        className="text-xs text-red-500 hover:text-red-700"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-400 mb-4">Not enrolled in any batch</p>
+              )}
+              <div className="flex gap-2">
+                <select
+                  value={enrollBatchId}
+                  onChange={e => setEnrollBatchId(e.target.value)}
+                  className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-primary bg-gray-50"
+                >
+                  <option value="">Select batch to enroll...</option>
+                  {allBatches
+                    .filter((b: any) => !user.batchIds?.includes(b.id))
+                    .map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)
+                  }
+                </select>
+                <button
+                  onClick={async () => {
+                    if (!enrollBatchId) return;
+                    try {
+                      await enrollStudent(enrollBatchId, userId);
+                      setEnrollBatchId('');
+                      refetch();
+                      toast.success('Enrolled in batch');
+                    } catch (err: any) { toast.error(err.message || 'Failed to enroll'); }
+                  }}
+                  disabled={!enrollBatchId}
+                  className="px-4 py-2 bg-primary text-white text-sm rounded-xl hover:bg-primary/80 disabled:opacity-50"
+                >
+                  Enroll
+                </button>
               </div>
             </div>
           )}
