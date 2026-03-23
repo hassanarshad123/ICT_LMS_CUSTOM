@@ -8,7 +8,7 @@ import sqlalchemy as sa
 
 
 revision = "014"
-down_revision = None  # adjust to actual previous revision
+down_revision = "013"
 
 
 def upgrade() -> None:
