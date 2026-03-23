@@ -69,12 +69,15 @@ export default function AdminStudents() {
     <DashboardLayout>
       <DashboardHeader greeting="Students" subtitle="Manage all enrolled students" />
 
-      <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
+      <div className="space-y-3 mb-6">
+        {/* Row 1: Search */}
         <div className="relative">
-          <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search students..." className="pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-white w-full sm:w-72" />
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search students..." className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-white" />
         </div>
-        <div className="flex gap-2">
+
+        {/* Row 2: Actions (right-aligned) */}
+        <div className="flex justify-end gap-2">
           <button onClick={() => { setShowImport(!showImport); setShowForm(false); }} className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
             <Upload size={16} />
             Import CSV

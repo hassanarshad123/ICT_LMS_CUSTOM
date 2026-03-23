@@ -13,7 +13,7 @@ import { enrollStudent } from '@/lib/api/batches';
 import { PageLoading, PageError } from '@/components/shared/page-states';
 import { toast } from 'sonner';
 import { Plus, X, Search, Trash2, GraduationCap, BookOpen, PenTool, Loader2, Eye, EyeOff } from 'lucide-react';
-import { StyledSelect } from '@/components/ui/styled-select';
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -131,43 +131,60 @@ export default function UsersListView({ basePath: basePathProp }: UsersListViewP
     <DashboardLayout>
       <DashboardHeader greeting="Users" subtitle="Manage all users across the platform" />
 
-      <div className="flex flex-col lg:flex-row justify-between gap-4 mb-6">
-        <div className="flex flex-col sm:flex-row gap-3 flex-1">
-          <div className="relative">
-            <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name or email..." className="pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-white w-full sm:w-72" />
-          </div>
-          <div className="flex gap-1 bg-white rounded-xl p-1 card-shadow w-fit">
-            {roleOptions.map((opt) => (
-              <button key={opt.value} onClick={() => setRoleFilter(opt.value)} className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors ${roleFilter === opt.value ? 'bg-primary text-white' : 'text-gray-500 hover:text-primary'}`}>
-                {opt.label}
-              </button>
-            ))}
-          </div>
+      <div className="space-y-3 mb-6">
+        {/* Row 1: Search */}
+        <div className="relative">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name or email..." className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-white" />
         </div>
 
-        <div className="flex flex-wrap gap-3">
-          <StyledSelect
-            options={[
-              { value: 'all', label: 'All Status' },
-              { value: 'active', label: 'Active' },
-              { value: 'inactive', label: 'Inactive' },
-            ]}
-            value={statusFilter}
-            onChange={setStatusFilter}
-            placeholder="All Status"
-            className="w-auto min-w-[130px]"
-          />
-          {(roleFilter === 'all' || roleFilter === 'student') && (
-            <SearchableCombobox
-              options={[{ value: 'all', label: 'All Batches' }, ...batches.map((b) => ({ value: b.id, label: b.name }))]}
+        {/* Row 2: Filters + Actions */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Role pill tabs */}
+            <div className="inline-flex bg-gray-100 rounded-lg p-1 gap-0.5">
+              {roleOptions.map((r) => (
+                <button
+                  key={r.value}
+                  onClick={() => setRoleFilter(r.value)}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    roleFilter === r.value
+                      ? 'bg-white text-primary shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Status dropdown */}
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:border-primary min-w-[130px]"
+            >
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+
+            {/* Batch dropdown — always visible */}
+            <select
               value={batchFilter}
-              onChange={setBatchFilter}
-              placeholder="All Batches"
-              searchPlaceholder="Search batches..."
-              emptyMessage="No batches found"
-            />
-          )}
+              onChange={(e) => setBatchFilter(e.target.value)}
+              disabled={roleFilter !== 'all' && roleFilter !== 'student'}
+              className={`px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:border-primary min-w-[130px] ${
+                roleFilter !== 'all' && roleFilter !== 'student' ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+            >
+              <option value="all">All Batches</option>
+              {batches.map((b) => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+          </div>
+
           <button onClick={() => { setShowForm(!showForm); setFormStep(1); setSelectedRole(''); }} className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors">
             {showForm ? <X size={16} /> : <Plus size={16} />}
             {showForm ? 'Cancel' : 'Add User'}
