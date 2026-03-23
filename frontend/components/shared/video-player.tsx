@@ -45,14 +45,24 @@ function toVimeoEmbed(url: string): string | null {
 }
 
 function WatermarkOverlay({ text }: { text: string }) {
+  const tiles = Array.from({ length: 6 });
   return (
-    <div className="absolute inset-0 z-10 pointer-events-none select-none flex items-center justify-center">
-      <span
-        className="text-white/20 text-2xl sm:text-3xl md:text-4xl font-bold font-mono tracking-widest"
-        style={{ textShadow: '0 0 6px rgba(0,0,0,0.4)' }}
-      >
-        {text}
-      </span>
+    <div
+      className="absolute inset-0 z-10 pointer-events-none overflow-hidden"
+      style={{ userSelect: 'none', WebkitUserSelect: 'none' } as React.CSSProperties}
+    >
+      <div className="w-full h-full grid grid-cols-2 grid-rows-3">
+        {tiles.map((_, i) => (
+          <div key={i} className="flex items-center justify-center" style={{ transform: 'rotate(-25deg)' }}>
+            <span
+              className="text-white/10 text-sm sm:text-base md:text-lg font-bold font-mono tracking-widest whitespace-nowrap"
+              style={{ textShadow: '0 0 4px rgba(0,0,0,0.3)' }}
+            >
+              {text}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -284,7 +294,12 @@ export function VideoPlayer({ lectureId, videoType, videoUrl, videoStatus, water
   // Iframe player (Bunny, YouTube, Vimeo)
   if (embedUrl) {
     return (
-      <div className="relative aspect-video bg-black rounded-2xl overflow-hidden">
+      <div
+        className="relative aspect-video bg-black rounded-2xl overflow-hidden"
+        onContextMenu={(e) => e.preventDefault()}
+        onDragStart={(e) => e.preventDefault()}
+        style={{ WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' } as React.CSSProperties}
+      >
         {watermark && <WatermarkOverlay text={watermark} />}
         <iframe
           ref={iframeRef}

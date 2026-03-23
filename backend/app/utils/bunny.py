@@ -50,7 +50,7 @@ def generate_tus_auth(video_id: str, expires_in: int = 7200) -> dict:
     }
 
 
-def generate_embed_token(video_id: str, expires_in: int = 7200) -> tuple[str, int]:
+def generate_embed_token(video_id: str, expires_in: int = 900) -> tuple[str, int]:
     """Generate a signed Bunny Stream embed URL. Returns (embed_url, expires_at)."""
     library_id = settings.BUNNY_LIBRARY_ID
     token_key = settings.BUNNY_TOKEN_KEY

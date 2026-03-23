@@ -22,6 +22,7 @@ from app.services import zoom_service, webhook_event_service
 from app.middleware.auth import require_roles, get_current_user
 from app.models.user import User
 from app.models.enums import ZoomClassStatus
+from app.utils.rate_limit import limiter
 
 router = APIRouter()
 settings = get_settings()
@@ -421,7 +422,9 @@ async def list_recordings(
 
 
 @router.post("/recordings/{recording_id}/signed-url", response_model=RecordingSignedUrlOut)
+@limiter.limit("30/minute")
 async def get_recording_signed_url(
+    request: Request,
     recording_id: uuid.UUID,
     current_user: AllRoles,
     session: Annotated[AsyncSession, Depends(get_session)],
