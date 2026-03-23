@@ -65,8 +65,10 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
       const data = await getBranding(slug);
       setBranding(data);
       applyBrandingToDOM(data);
-    } catch {
-      // Graceful fallback — CSS defaults from globals.css will be used
+    } catch (err) {
+      // Graceful fallback — apply default branding so new institutes get a usable UI
+      console.warn('Failed to fetch branding, using defaults:', err);
+      setBranding(defaults);
       applyBrandingToDOM(defaults);
     } finally {
       setLoading(false);

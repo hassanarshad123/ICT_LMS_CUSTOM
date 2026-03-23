@@ -9,6 +9,7 @@ import {
   useState,
 } from 'react';
 import * as tus from 'tus-js-client';
+import { toast } from 'sonner';
 import { initVideoUpload, getLectureStatus, deleteLecture } from '@/lib/api/lectures';
 
 export type UploadStatus =
@@ -33,6 +34,7 @@ export interface UploadItem {
   status: UploadStatus;
   progress: number;
   error?: string;
+  statusMessage?: string;
 }
 
 export interface FileMetadata {
@@ -65,6 +67,23 @@ export function useUpload(): UploadContextType {
   const ctx = useContext(UploadContext);
   if (!ctx) throw new Error('useUpload must be used inside UploadProvider');
   return ctx;
+}
+
+const TUS_ERROR_MAP: Array<[RegExp, string]> = [
+  [/network/i, 'Network error — check your internet connection and try again.'],
+  [/timed?\s?out/i, 'Upload timed out — your connection may be unstable.'],
+  [/403|forbidden/i, 'Upload authorization expired — please retry the upload.'],
+  [/413|too large|payload/i, 'File is too large for the server to accept.'],
+  [/404|not found/i, 'Upload endpoint not found — please retry.'],
+  [/5\d{2}|server error|internal/i, 'Server error — please try again later.'],
+  [/abort/i, 'Upload was interrupted — please retry.'],
+];
+
+function mapTusError(rawMessage: string): string {
+  for (const [pattern, friendly] of TUS_ERROR_MAP) {
+    if (pattern.test(rawMessage)) return friendly;
+  }
+  return `Upload failed: ${rawMessage}`;
 }
 
 export function UploadProvider({ children }: { children: React.ReactNode }) {
@@ -125,8 +144,15 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
           updateItem(queueId, {
             status: 'error',
             error: 'Processing timed out after 1 hour.',
+            statusMessage: undefined,
           });
           return;
+        }
+
+        if (elapsed > 30 * 60 * 1000) {
+          updateItem(queueId, {
+            statusMessage: 'Processing is taking longer than usual',
+          });
         }
 
         try {
@@ -213,9 +239,11 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
           onError: (err) => {
             // Clear the stale TUS upload on error so retry re-initializes
             delete tusUploads.current[queueId];
+
+            const friendlyMessage = mapTusError(err.message);
             updateItem(queueId, {
               status: 'error',
-              error: err.message,
+              error: friendlyMessage,
             });
           },
         });
@@ -255,10 +283,22 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
     ) => {
       const MAX_SIZE = 10 * 1024 * 1024 * 1024;
       const newItems: UploadItem[] = [];
+      const rejectionReasons: string[] = [];
+      let rejectedCount = 0;
 
       for (const { file, title, description } of files) {
-        if (!file.type.startsWith('video/')) continue;
-        if (file.size > MAX_SIZE) continue;
+        if (!file.type.startsWith('video/')) {
+          rejectedCount++;
+          const reason = `"${file.name}" is not a video file`;
+          if (!rejectionReasons.includes(reason)) rejectionReasons.push(reason);
+          continue;
+        }
+        if (file.size > MAX_SIZE) {
+          rejectedCount++;
+          const reason = `"${file.name}" exceeds 10 GB limit`;
+          if (!rejectionReasons.includes(reason)) rejectionReasons.push(reason);
+          continue;
+        }
         newItems.push({
           id: `uq-${nextIdRef.current++}`,
           file,
@@ -271,6 +311,10 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
           status: 'queued',
           progress: 0,
         });
+      }
+
+      if (rejectedCount > 0) {
+        toast.error(`${rejectedCount} file(s) rejected: ${rejectionReasons.join(', ')}`);
       }
 
       if (newItems.length > 0) {
