@@ -7,6 +7,7 @@ import { AuthProvider } from '@/lib/auth-context';
 import { UploadProvider } from '@/lib/upload-context';
 import { ErrorBoundary } from '@/components/shared/error-boundary';
 import { ImpersonationBanner } from '@/components/shared/impersonation-banner';
+import { ContentProtection } from '@/components/shared/content-protection';
 
 export default function UserLayout({ children }: { children: React.ReactNode }) {
   const { userId } = useParams<{ userId: string }>();
@@ -49,7 +50,9 @@ export default function UserLayout({ children }: { children: React.ReactNode }) 
     <AuthProvider>
       <UploadProvider>
         <ImpersonationBanner />
-        <ErrorBoundary>{children}</ErrorBoundary>
+        <ContentProtection>
+          <ErrorBoundary>{children}</ErrorBoundary>
+        </ContentProtection>
       </UploadProvider>
     </AuthProvider>
   );
