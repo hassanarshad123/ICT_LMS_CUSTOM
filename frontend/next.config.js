@@ -3,7 +3,13 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  images: { unoptimized: true },
+  images: {
+    remotePatterns: [
+      { protocol: 'https', hostname: '**.bunny.net' },
+      { protocol: 'https', hostname: '**.b-cdn.net' },
+      { protocol: 'https', hostname: '**.amazonaws.com' },
+    ],
+  },
   async headers() {
     return [
       {

@@ -70,20 +70,11 @@ export function ContentProtection({ children }: ContentProtectionProps) {
       return widthDiff || heightDiff;
     };
 
-    // ── Phase 2: DevTools detection — debugger timing trap ───────
-    const checkDebuggerTrap = (): boolean => {
-      const start = performance.now();
-      // eslint-disable-next-line no-debugger
-      debugger;
-      return performance.now() - start > 100;
-    };
-
     // ── Phase 2: Combined DevTools poll (every 1s) ───────────────
     const pollDevTools = () => {
       const sizeDetected = checkWindowSize();
-      const debugDetected = checkDebuggerTrap();
 
-      if (sizeDetected || debugDetected) {
+      if (sizeDetected) {
         flagThreat();
       } else if (devToolsRef.current) {
         // Only clear if previously flagged by DevTools (not extension)
@@ -91,10 +82,10 @@ export function ContentProtection({ children }: ContentProtectionProps) {
       }
     };
 
-    // ── Phase 2: Console clearing (every 2s) ─────────────────────
+    // ── Phase 2: Console clearing (every 5s) ─────────────────────
     const consoleClearInterval = setInterval(() => {
       try { console.clear(); } catch { /* ignore */ }
-    }, 2000);
+    }, 5000);
 
     // ── Phase 3: Extension detection — known globals ─────────────
     const checkExtensionGlobals = () => {

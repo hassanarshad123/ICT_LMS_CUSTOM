@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlmodel import SQLModel, Field, Column
-from sqlalchemy import Text, ForeignKey, UniqueConstraint
+from sqlalchemy import Text, ForeignKey, UniqueConstraint, Index
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import TIMESTAMP, ARRAY, UUID as PG_UUID
 
@@ -12,6 +12,9 @@ from app.models.enums import JobType, ApplicationStatus
 
 class Job(SQLModel, table=True):
     __tablename__ = "jobs"
+    __table_args__ = (
+        Index("ix_jobs_institute_id", "institute_id"),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     title: str = Field(nullable=False)
@@ -48,6 +51,7 @@ class JobApplication(SQLModel, table=True):
     __tablename__ = "job_applications"
     __table_args__ = (
         UniqueConstraint("job_id", "student_id", name="uq_job_application_job_student"),
+        Index("ix_job_applications_institute_id", "institute_id"),
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)

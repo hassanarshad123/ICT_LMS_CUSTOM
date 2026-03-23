@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { PaginatedResponse } from '@/lib/types/api';
 
 interface UsePaginatedApiResult<T> {
@@ -19,46 +20,35 @@ export function usePaginatedApi<T>(
   perPage: number = 15,
   deps: any[] = [],
 ): UsePaginatedApiResult<T> {
-  const [data, setData] = useState<T[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [trigger, setTrigger] = useState(0);
-
-  const refetch = useCallback(() => setTrigger((t) => t + 1), []);
+  const [page, setPageState] = useState(1);
+  const fetcherRef = useRef(fetcher);
+  fetcherRef.current = fetcher;
 
   // Reset to page 1 when deps change
+  const depsKey = JSON.stringify(deps);
   useEffect(() => {
-    setPage(1);
-  }, deps);
+    setPageState(1);
+  }, [depsKey]);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
+  const queryKey = ['api-paginated', ...deps, page, perPage];
 
-    fetcher({ page, per_page: perPage })
-      .then((result) => {
-        if (!cancelled) {
-          setData(result.data);
-          setTotal(result.total);
-          setTotalPages(result.totalPages || Math.max(1, Math.ceil(result.total / perPage)));
-          setLoading(false);
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setError(err.message || 'An error occurred');
-          setLoading(false);
-        }
-      });
+  const { data: result, isLoading, error, refetch: rqRefetch } = useQuery({
+    queryKey,
+    queryFn: () => fetcherRef.current({ page, per_page: perPage }),
+  });
 
-    return () => {
-      cancelled = true;
-    };
-  }, [page, perPage, trigger, ...deps]);
+  const setPage = useCallback((newPage: number) => {
+    setPageState(newPage);
+  }, []);
 
-  return { data, total, page, totalPages, loading, error, setPage, refetch };
+  return {
+    data: result?.data ?? [],
+    total: result?.total ?? 0,
+    page: result?.page ?? page,
+    totalPages: result?.totalPages ?? Math.max(1, Math.ceil((result?.total ?? 0) / perPage)),
+    loading: isLoading,
+    error: error ? (error as Error).message : null,
+    setPage,
+    refetch: () => { rqRefetch(); },
+  };
 }
