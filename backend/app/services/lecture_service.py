@@ -1,3 +1,4 @@
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
@@ -297,6 +298,10 @@ async def update_lecture_status(
         )
     )
     lecture = result.scalar_one_or_none()
+    if lecture and lecture.institute_id is None:
+        logging.getLogger(__name__).warning(
+            "Lecture %s has no institute_id (bunny_video_id=%s)", lecture.id, bunny_video_id,
+        )
     if lecture:
         current_rank = _STATUS_RANK.get(lecture.video_status, 0)
         new_rank = _STATUS_RANK.get(status, 0)

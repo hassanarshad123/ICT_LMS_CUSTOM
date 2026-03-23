@@ -66,8 +66,8 @@ async def authenticate_user(
         user.locked_until = None
         session.add(user)
 
-    # Enforce device limit
-    await _enforce_device_limit(session, user.id)
+    # Enforce device limit (scoped to institute for per-tenant settings)
+    await _enforce_device_limit(session, user.id, institute_id=user.institute_id)
 
     # Create tokens (embed token_version for revocation — Fix 1)
     access_token = create_access_token(user.id, user.role.value, user.token_version)
@@ -192,33 +192,39 @@ async def logout_all(session: AsyncSession, user_id: uuid.UUID) -> int:
     return count
 
 
-async def _enforce_device_limit(session: AsyncSession, user_id: uuid.UUID) -> None:
-    """If user has too many active sessions, deactivate the oldest."""
-    # Get device limit from system settings
-    result = await session.execute(
-        select(SystemSetting).where(SystemSetting.setting_key == "max_device_limit")
-    )
+async def _enforce_device_limit(
+    session: AsyncSession, user_id: uuid.UUID, institute_id: uuid.UUID | None = None,
+) -> None:
+    """If user has too many active sessions, deactivate the oldest.
+
+    Uses SELECT FOR UPDATE to prevent TOCTOU race conditions on concurrent logins.
+    """
+    # Get device limit from system settings (scoped to institute)
+    setting_query = select(SystemSetting).where(SystemSetting.setting_key == "max_device_limit")
+    if institute_id is not None:
+        setting_query = setting_query.where(SystemSetting.institute_id == institute_id)
+    else:
+        setting_query = setting_query.where(SystemSetting.institute_id.is_(None))
+    result = await session.execute(setting_query)
     setting = result.scalar_one_or_none()
     device_limit = int(setting.value) if setting else settings.DEVICE_LIMIT
 
-    # Count active sessions
+    # Lock and fetch all active sessions atomically to prevent race conditions
     result = await session.execute(
-        select(func.count()).where(
+        select(UserSession)
+        .where(
             UserSession.user_id == user_id,
             UserSession.is_active.is_(True),
         )
+        .with_for_update()
+        .order_by(UserSession.logged_in_at.asc())
     )
-    count = result.scalar()
+    active_sessions = result.scalars().all()
+    count = len(active_sessions)
 
     if count >= device_limit:
         # Deactivate oldest sessions to make room
-        result = await session.execute(
-            select(UserSession)
-            .where(UserSession.user_id == user_id, UserSession.is_active.is_(True))
-            .order_by(UserSession.logged_in_at.asc())
-            .limit(count - device_limit + 1)
-        )
-        oldest_sessions = result.scalars().all()
-        for s in oldest_sessions:
+        to_deactivate = count - device_limit + 1
+        for s in active_sessions[:to_deactivate]:
             s.is_active = False
             session.add(s)

@@ -5,8 +5,6 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request, Header
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-import time
-
 from app.database import get_session
 from app.schemas.auth import (
     LoginRequest, LoginResponse, RefreshRequest, TokenResponse, RefreshResponse,
@@ -25,9 +23,8 @@ from app.utils.rate_limit import limiter
 
 router = APIRouter()
 
-# In-memory store for used handoff JTIs to prevent replay attacks.
-# Maps jti -> expiry timestamp. Entries are cleaned on each exchange.
-_used_handoff_jtis: dict[str, float] = {}
+# Handoff JTI replay prevention is now DB-backed via UserSession.device_info
+# (see exchange_handoff below)
 
 
 async def _build_user_brief(session: AsyncSession, user: User) -> UserBrief:
@@ -162,6 +159,7 @@ async def change_password(
 
     current_user.hashed_password = hash_password(body.new_password)
     session.add(current_user)
+    await session.flush()  # Persist password change within this transaction before logout_all
 
     # Logout all devices after password change (logout_all increments token_version — Fix 1)
     count = await logout_all(session, current_user.id)
@@ -308,17 +306,20 @@ async def exchange_handoff(
     if not user_id:
         raise HTTPException(status_code=400, detail="Invalid handoff token")
 
-    # Enforce single-use via JTI tracking
+    # Enforce single-use via DB-backed JTI tracking (survives restarts and multi-worker)
+    from app.models.session import UserSession
+    import hashlib
+    from datetime import datetime, timedelta, timezone
+
     jti = payload.get("jti")
-    now = time.time()
-    # Clean expired entries
-    expired_jtis = [k for k, exp in _used_handoff_jtis.items() if exp < now]
-    for k in expired_jtis:
-        del _used_handoff_jtis[k]
-    if jti:
-        if jti in _used_handoff_jtis:
-            raise HTTPException(status_code=400, detail="Invalid or expired handoff token")
-        _used_handoff_jtis[jti] = payload.get("exp", now + 60)
+    if not jti:
+        raise HTTPException(status_code=400, detail="Invalid handoff token")
+
+    existing = await session.execute(
+        select(UserSession.id).where(UserSession.device_info == f"handoff:{jti}")
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Invalid or expired handoff token")
 
     result = await session.execute(
         select(User).where(User.id == user_id, User.deleted_at.is_(None))
@@ -327,20 +328,24 @@ async def exchange_handoff(
     if not user:
         raise HTTPException(status_code=400, detail="Invalid handoff token")
 
+    # Validate slug matches user's institute (prevent cross-institute token exchange)
+    token_slug = payload.get("slug")
+    if token_slug and user.institute_id:
+        institute = await session.get(Institute, user.institute_id)
+        if not institute or institute.slug != token_slug:
+            raise HTTPException(status_code=400, detail="Invalid handoff token")
+
     # Create fresh tokens
     access_token = create_access_token(user.id, user.role.value, user.token_version)
     refresh_token, token_id = create_refresh_token(user.id)
 
-    # Create session record
-    from app.models.session import UserSession
-    import hashlib
-    from datetime import datetime, timedelta, timezone
-
+    # Create session record (store JTI in device_info for replay prevention)
     hashed_token_id = hashlib.sha256(token_id.encode()).hexdigest()
+    device_info_value = f"handoff:{jti}"
     user_session = UserSession(
         user_id=user.id,
         session_token=hashed_token_id,
-        device_info="Signup handoff",
+        device_info=device_info_value,
         ip_address=request.client.host if request.client else None,
         is_active=True,
         logged_in_at=datetime.now(timezone.utc),

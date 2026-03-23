@@ -141,6 +141,7 @@ async def submit_attempt(
             attempt_id=attempt_id,
             answers=[a.model_dump() for a in body.answers],
             student_id=current_user.id,
+            institute_id=current_user.institute_id,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -181,6 +182,7 @@ async def grade_answer(
             points_awarded=body.points_awarded,
             feedback=body.feedback,
             grader_id=current_user.id,
+            institute_id=current_user.institute_id,
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))

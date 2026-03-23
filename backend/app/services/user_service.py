@@ -124,6 +124,10 @@ async def update_user(
     if not user:
         raise ValueError("User not found")
 
+    # Guard against role changes via generic update (must use dedicated endpoint)
+    if "role" in fields:
+        raise ValueError("Role changes are not supported through this endpoint")
+
     for key, value in fields.items():
         if value is not None and hasattr(user, key):
             setattr(user, key, value)

@@ -48,8 +48,8 @@ async def create_webhook(
     description: Optional[str] = None,
 ) -> WebhookEndpoint:
     """Create a new webhook endpoint."""
-    if not url.startswith("https://"):
-        raise ValueError("Webhook URL must start with https://")
+    from app.utils.url_validation import validate_webhook_url
+    validate_webhook_url(url)
 
     invalid = [e for e in events if e not in ALLOWED_WEBHOOK_EVENTS]
     if invalid:
@@ -115,8 +115,8 @@ async def update_webhook(
         raise ValueError("Webhook not found")
 
     if "url" in fields and fields["url"] is not None:
-        if not fields["url"].startswith("https://"):
-            raise ValueError("Webhook URL must start with https://")
+        from app.utils.url_validation import validate_webhook_url
+        validate_webhook_url(fields["url"])
 
     if "events" in fields and fields["events"] is not None:
         invalid = [e for e in fields["events"] if e not in ALLOWED_WEBHOOK_EVENTS]
