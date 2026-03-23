@@ -11,6 +11,7 @@ import { listCourses, createCourse, updateCourse, deleteCourse } from '@/lib/api
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
 import { BookOpen, Plus, X, Layers, Trash2, Loader2 } from 'lucide-react';
+import { StyledSelect } from '@/components/ui/styled-select';
 import Link from 'next/link';
 import {
   AlertDialog,
@@ -139,30 +140,26 @@ export default function CourseCreatorCourses() {
                   </div>
                   <div className="p-6">
                     <div className="flex items-center justify-between mb-3">
-                      <select
-                        value={course.status || 'active'}
-                        onChange={async (e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          try {
-                            await doUpdate(course.id, { status: e.target.value });
-                            toast.success('Status updated');
-                            refetch();
-                          } catch (err: any) {
-                            toast.error(err.message);
-                          }
-                        }}
-                        onClick={(e) => e.preventDefault()}
-                        className={`px-2.5 py-0.5 rounded-full text-xs font-medium border-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary ${
-                          course.status === 'active' ? 'bg-green-100 text-green-700' :
-                          course.status === 'upcoming' ? 'bg-yellow-100 text-yellow-700' :
-                          'bg-gray-100 text-gray-600'
-                        }`}
-                      >
-                        <option value="active">Active</option>
-                        <option value="upcoming">Upcoming</option>
-                        <option value="completed">Completed</option>
-                      </select>
+                      <div onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+                        <StyledSelect
+                          options={[
+                            { value: 'active', label: 'Active' },
+                            { value: 'upcoming', label: 'Upcoming' },
+                            { value: 'completed', label: 'Completed' },
+                          ]}
+                          value={course.status || 'active'}
+                          onChange={async (value) => {
+                            try {
+                              await doUpdate(course.id, { status: value });
+                              toast.success('Status updated');
+                              refetch();
+                            } catch (err: any) {
+                              toast.error(err.message);
+                            }
+                          }}
+                          className="w-auto min-w-[120px]"
+                        />
+                      </div>
                     </div>
                     <h3 className="text-lg font-bold text-primary mb-2">{course.title}</h3>
                     <p className="text-sm text-gray-500 line-clamp-2 mb-4">{course.description}</p>

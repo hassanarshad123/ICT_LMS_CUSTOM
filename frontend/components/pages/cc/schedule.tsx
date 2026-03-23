@@ -12,6 +12,8 @@ import { listUsers } from '@/lib/api/users';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
 import { Plus, X, Video, ExternalLink, Clock, Info, Loader2, Calendar, Trash2, Users } from 'lucide-react';
+import { StyledSelect } from '@/components/ui/styled-select';
+import { SearchableCombobox } from '@/components/ui/searchable-combobox';
 import AttendancePanel from '@/components/shared/attendance-panel';
 import {
   AlertDialog,
@@ -158,30 +160,37 @@ export default function CourseCreatorSchedule() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Batch</label>
-                <select value={formData.batchId} onChange={(e) => setFormData({ ...formData, batchId: e.target.value })} className={inputClass} required>
-                  <option value="">Select batch</option>
-                  {batches.map((b: any) => (
-                    <option key={b.id} value={b.id}>{b.name}</option>
-                  ))}
-                </select>
+                <SearchableCombobox
+                  options={batches.map((b: any) => ({ value: b.id, label: b.name }))}
+                  value={formData.batchId}
+                  onChange={(v) => setFormData({ ...formData, batchId: v })}
+                  placeholder="Select batch"
+                  searchPlaceholder="Search batches..."
+                  emptyMessage="No batches found"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Teacher</label>
-                <select value={formData.teacherId} onChange={(e) => setFormData({ ...formData, teacherId: e.target.value })} className={inputClass} required>
-                  <option value="">Select teacher</option>
-                  {teachers.map((t: any) => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
-                </select>
+                <SearchableCombobox
+                  options={teachers.map((t: any) => ({ value: t.id, label: t.name }))}
+                  value={formData.teacherId}
+                  onChange={(v) => setFormData({ ...formData, teacherId: v })}
+                  placeholder="Select teacher"
+                  searchPlaceholder="Search teachers..."
+                  emptyMessage="No teachers found"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Zoom Account</label>
-                <select value={formData.zoomAccountId} onChange={(e) => setFormData({ ...formData, zoomAccountId: e.target.value })} className={inputClass} required>
-                  <option value="">Select account</option>
-                  {accounts.map((a: any) => (
-                    <option key={a.id} value={a.id}>{a.accountName}{a.isDefault ? ' (Default)' : ''}</option>
-                  ))}
-                </select>
+                <StyledSelect
+                  options={accounts.map((a: any) => ({
+                    value: a.id,
+                    label: `${a.accountName}${a.isDefault ? ' (Default)' : ''}`,
+                  }))}
+                  value={formData.zoomAccountId}
+                  onChange={(value) => setFormData({ ...formData, zoomAccountId: value })}
+                  placeholder="Select account"
+                />
                 {selectedAccount && (
                   <p className="text-xs text-gray-400 mt-1.5 flex items-center gap-1">
                     <Info size={12} />

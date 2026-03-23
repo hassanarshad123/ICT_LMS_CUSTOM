@@ -16,6 +16,8 @@ import { listCourses, CourseOut } from '@/lib/api/courses';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { Award, CheckCircle2, Download, XCircle, Loader2, Users, FileCheck, Clock } from 'lucide-react';
+import { StyledSelect } from '@/components/ui/styled-select';
+import { SearchableCombobox } from '@/components/ui/searchable-combobox';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -129,30 +131,26 @@ function ApprovalQueue() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1.5">Filter by Batch</label>
-            <select
+            <SearchableCombobox
+              options={batches.map((b) => ({ value: b.id, label: b.name }))}
               value={selectedBatch}
-              onChange={(e) => { setSelectedBatch(e.target.value); setSelectedCourse(''); }}
-              className={selectClass}
-            >
-              <option value="">All batches</option>
-              {batches.map((b) => (
-                <option key={b.id} value={b.id}>{b.name}</option>
-              ))}
-            </select>
+              onChange={(v) => { setSelectedBatch(v); setSelectedCourse(''); }}
+              placeholder="All batches"
+              searchPlaceholder="Search batches..."
+              emptyMessage="No batches found"
+            />
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1.5">Filter by Course</label>
-            <select
+            <SearchableCombobox
+              options={courses.map((c) => ({ value: c.id, label: c.title }))}
               value={selectedCourse}
-              onChange={(e) => setSelectedCourse(e.target.value)}
-              className={selectClass}
+              onChange={setSelectedCourse}
+              placeholder="All courses"
+              searchPlaceholder="Search courses..."
+              emptyMessage="No courses found"
               disabled={!selectedBatch}
-            >
-              <option value="">All courses</option>
-              {courses.map((c) => (
-                <option key={c.id} value={c.id}>{c.title}</option>
-              ))}
-            </select>
+            />
           </div>
         </div>
       </div>

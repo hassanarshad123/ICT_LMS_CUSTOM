@@ -1,6 +1,7 @@
 'use client';
 
 import { CheckCircle2, Search, Trash2 } from 'lucide-react';
+import { StyledSelect } from '@/components/ui/styled-select';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -69,34 +70,40 @@ export function MonitoringFilters({
 
         {/* Filter dropdowns */}
         <div className="flex items-center gap-2 flex-wrap">
-          <select
+          <StyledSelect
+            options={[
+              { value: 'all', label: 'All Sources' },
+              { value: 'backend', label: 'Backend' },
+              { value: 'frontend', label: 'Frontend' },
+            ]}
             value={source}
-            onChange={(e) => onSourceChange(e.target.value)}
-            className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none"
-          >
-            <option value="">All Sources</option>
-            <option value="backend">Backend</option>
-            <option value="frontend">Frontend</option>
-          </select>
-          <select
+            onChange={onSourceChange}
+            placeholder="All Sources"
+            className="w-auto min-w-[130px]"
+          />
+          <StyledSelect
+            options={[
+              { value: 'all', label: 'All Levels' },
+              { value: 'critical', label: 'Critical' },
+              { value: 'error', label: 'Error' },
+              { value: 'warning', label: 'Warning' },
+            ]}
             value={level}
-            onChange={(e) => onLevelChange(e.target.value)}
-            className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none"
-          >
-            <option value="">All Levels</option>
-            <option value="critical">Critical</option>
-            <option value="error">Error</option>
-            <option value="warning">Warning</option>
-          </select>
-          <select
+            onChange={onLevelChange}
+            placeholder="All Levels"
+            className="w-auto min-w-[130px]"
+          />
+          <StyledSelect
+            options={[
+              { value: 'all', label: 'All Status' },
+              { value: 'false', label: 'Unresolved' },
+              { value: 'true', label: 'Resolved' },
+            ]}
             value={resolvedFilter}
-            onChange={(e) => onResolvedFilterChange(e.target.value)}
-            className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none"
-          >
-            <option value="">All Status</option>
-            <option value="false">Unresolved</option>
-            <option value="true">Resolved</option>
-          </select>
+            onChange={onResolvedFilterChange}
+            placeholder="All Status"
+            className="w-auto min-w-[130px]"
+          />
         </div>
 
         {/* Bulk actions */}

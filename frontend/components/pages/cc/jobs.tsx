@@ -11,6 +11,7 @@ import { listJobs, createJob, deleteJob, listApplications } from '@/lib/api/jobs
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
 import { Plus, X, Briefcase, MapPin, DollarSign, Clock, Trash2, ChevronDown, ChevronUp, Loader2, Users } from 'lucide-react';
+import { StyledSelect } from '@/components/ui/styled-select';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -136,12 +137,17 @@ export default function CourseCreatorJobs() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Job Type</label>
-              <select value={formData.jobType} onChange={(e) => setFormData({ ...formData, jobType: e.target.value })} className={inputClass}>
-                <option value="full-time">Full-time</option>
-                <option value="part-time">Part-time</option>
-                <option value="internship">Internship</option>
-                <option value="remote">Remote</option>
-              </select>
+              <StyledSelect
+                options={[
+                  { value: 'full-time', label: 'Full-time' },
+                  { value: 'part-time', label: 'Part-time' },
+                  { value: 'internship', label: 'Internship' },
+                  { value: 'remote', label: 'Remote' },
+                ]}
+                value={formData.jobType}
+                onChange={(value) => setFormData({ ...formData, jobType: value })}
+                placeholder="Select job type"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Salary</label>

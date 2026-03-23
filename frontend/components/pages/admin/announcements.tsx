@@ -36,6 +36,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { SearchableCombobox } from '@/components/ui/searchable-combobox';
 
 const SCOPE_OPTIONS = [
   { value: 'institute', label: 'Institute-wide', icon: Globe, color: 'bg-blue-100 text-blue-700' },
@@ -267,16 +268,14 @@ export default function AdminAnnouncements() {
                 {formData.scope === 'batch' && (
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Batch</label>
-                    <select
+                    <SearchableCombobox
+                      options={batches.map((b: any) => ({ value: b.id, label: b.name }))}
                       value={formData.batchId}
-                      onChange={(e) => setFormData({ ...formData, batchId: e.target.value })}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
-                    >
-                      <option value="">Select a batch...</option>
-                      {batches.map((b: any) => (
-                        <option key={b.id} value={b.id}>{b.name}</option>
-                      ))}
-                    </select>
+                      onChange={(v) => setFormData({ ...formData, batchId: v })}
+                      placeholder="Select a batch..."
+                      searchPlaceholder="Search batches..."
+                      emptyMessage="No batches found"
+                    />
                   </div>
                 )}
 
@@ -284,16 +283,14 @@ export default function AdminAnnouncements() {
                 {formData.scope === 'course' && (
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Course</label>
-                    <select
+                    <SearchableCombobox
+                      options={courses.map((c: any) => ({ value: c.id, label: c.title }))}
                       value={formData.courseId}
-                      onChange={(e) => setFormData({ ...formData, courseId: e.target.value })}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
-                    >
-                      <option value="">Select a course...</option>
-                      {courses.map((c: any) => (
-                        <option key={c.id} value={c.id}>{c.title}</option>
-                      ))}
-                    </select>
+                      onChange={(v) => setFormData({ ...formData, courseId: v })}
+                      placeholder="Select a course..."
+                      searchPlaceholder="Search courses..."
+                      emptyMessage="No courses found"
+                    />
                   </div>
                 )}
               </>

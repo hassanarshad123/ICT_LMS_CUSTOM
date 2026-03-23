@@ -14,6 +14,7 @@ import { PageLoading, PageError, EmptyState } from '@/components/shared/page-sta
 import { toast } from 'sonner';
 import { Plus, X, Search, Users, Loader2, Upload } from 'lucide-react';
 import CsvImportPanel from '@/components/shared/csv-import-panel';
+import { SearchableCombobox } from '@/components/ui/searchable-combobox';
 
 export default function AdminStudents() {
   const { name } = useAuth();
@@ -111,12 +112,14 @@ export default function AdminStudents() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Assign to Batch</label>
-              <select value={formData.batchId} onChange={(e) => setFormData({ ...formData, batchId: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50">
-                <option value="">Select batch (optional)</option>
-                {batches.map((b) => (
-                  <option key={b.id} value={b.id}>{b.name}</option>
-                ))}
-              </select>
+              <SearchableCombobox
+                options={batches.map((b) => ({ value: b.id, label: b.name }))}
+                value={formData.batchId}
+                onChange={(v) => setFormData({ ...formData, batchId: v })}
+                placeholder="Select batch (optional)"
+                searchPlaceholder="Search batches..."
+                emptyMessage="No batches found"
+              />
             </div>
             <div className="sm:col-span-2">
               <button type="submit" disabled={creating} className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors disabled:opacity-60">

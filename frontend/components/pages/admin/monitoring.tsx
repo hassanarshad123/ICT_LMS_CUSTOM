@@ -33,8 +33,8 @@ import { MonitoringErrorDetail } from './monitoring-error-detail';
 
 export default function AdminMonitoring() {
   const [page, setPage] = useState(1);
-  const [source, setSource] = useState<string>('');
-  const [level, setLevel] = useState<string>('');
+  const [source, setSource] = useState<string>('all');
+  const [level, setLevel] = useState<string>('all');
   const [resolvedFilter, setResolvedFilter] = useState<string>('false');
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
@@ -43,9 +43,9 @@ export default function AdminMonitoring() {
   const params = {
     page,
     per_page: 20,
-    ...(source && { source }),
-    ...(level && { level }),
-    ...(resolvedFilter !== '' && { resolved: resolvedFilter === 'true' }),
+    ...(source !== 'all' && { source }),
+    ...(level !== 'all' && { level }),
+    ...(resolvedFilter !== 'all' && { resolved: resolvedFilter === 'true' }),
     ...(search && { search }),
   };
 

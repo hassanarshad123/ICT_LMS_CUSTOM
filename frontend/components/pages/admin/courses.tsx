@@ -11,6 +11,7 @@ import { listCourses, createCourse, updateCourse, deleteCourse } from '@/lib/api
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
 import { BookOpen, Plus, X, Trash2, Edit3, Loader2, Search } from 'lucide-react';
+import { StyledSelect } from '@/components/ui/styled-select';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,12 +30,12 @@ export default function AdminCourses() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [editingCourse, setEditingCourse] = useState<{ id: string; title: string; description: string; status: string } | null>(null);
 
   const { data: courseList, total, page, totalPages, loading, error, setPage, refetch } = usePaginatedApi(
-    (params) => listCourses({ ...params, status: statusFilter || undefined, search: search || undefined }),
+    (params) => listCourses({ ...params, status: statusFilter !== 'all' ? statusFilter : undefined, search: search || undefined }),
     15,
     [search, statusFilter],
   );
@@ -84,7 +85,7 @@ export default function AdminCourses() {
   };
 
   const statusOptions = [
-    { value: '', label: 'All Status' },
+    { value: 'all', label: 'All Status' },
     { value: 'upcoming', label: 'Upcoming' },
     { value: 'active', label: 'Active' },
     { value: 'completed', label: 'Completed' },
@@ -106,15 +107,13 @@ export default function AdminCourses() {
               className="pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-white w-full sm:w-64"
             />
           </div>
-          <select
+          <StyledSelect
+            options={statusOptions}
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-white"
-          >
-            {statusOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
+            onChange={setStatusFilter}
+            placeholder="All Status"
+            className="w-auto min-w-[140px]"
+          />
         </div>
         <div className="flex gap-3">
           <button
@@ -189,15 +188,16 @@ export default function AdminCourses() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Status</label>
-              <select
+              <StyledSelect
+                options={[
+                  { value: 'active', label: 'Active' },
+                  { value: 'upcoming', label: 'Upcoming' },
+                  { value: 'completed', label: 'Completed' },
+                ]}
                 value={editingCourse.status}
-                onChange={(e) => setEditingCourse({ ...editingCourse, status: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
-              >
-                <option value="active">Active</option>
-                <option value="upcoming">Upcoming</option>
-                <option value="completed">Completed</option>
-              </select>
+                onChange={(value) => setEditingCourse({ ...editingCourse, status: value })}
+                placeholder="Select status"
+              />
             </div>
             <div className="flex gap-3">
               <button

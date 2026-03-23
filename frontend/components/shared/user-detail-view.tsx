@@ -22,6 +22,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { roleBadgeColors, roleLabels } from '@/lib/constants';
+import { SearchableCombobox } from '@/components/ui/searchable-combobox';
 
 interface UserDetailViewProps {
   backHref?: string;
@@ -239,17 +240,17 @@ export default function UserDetailView({ backHref: backHrefProp }: UserDetailVie
                 <p className="text-sm text-gray-400 mb-4">Not enrolled in any batch</p>
               )}
               <div className="flex gap-2">
-                <select
-                  value={enrollBatchId}
-                  onChange={e => setEnrollBatchId(e.target.value)}
-                  className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-primary bg-gray-50"
-                >
-                  <option value="">Select batch to enroll...</option>
-                  {allBatches
+                <SearchableCombobox
+                  options={allBatches
                     .filter((b: any) => !user.batchIds?.includes(b.id))
-                    .map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)
-                  }
-                </select>
+                    .map((b: any) => ({ value: b.id, label: b.name }))}
+                  value={enrollBatchId}
+                  onChange={setEnrollBatchId}
+                  placeholder="Select batch to enroll..."
+                  searchPlaceholder="Search batches..."
+                  emptyMessage="No batches available"
+                  className="flex-1"
+                />
                 <button
                   onClick={async () => {
                     if (!enrollBatchId) return;

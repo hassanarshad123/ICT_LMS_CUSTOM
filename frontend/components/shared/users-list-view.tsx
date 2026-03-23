@@ -13,6 +13,7 @@ import { enrollStudent } from '@/lib/api/batches';
 import { PageLoading, PageError } from '@/components/shared/page-states';
 import { toast } from 'sonner';
 import { Plus, X, Search, Trash2, GraduationCap, BookOpen, PenTool, Loader2 } from 'lucide-react';
+import { StyledSelect } from '@/components/ui/styled-select';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,6 +25,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { roleBadgeColors, roleLabels } from '@/lib/constants';
+import { SearchableCombobox } from '@/components/ui/searchable-combobox';
 
 interface UsersListViewProps {
   basePath?: string;
@@ -134,18 +136,26 @@ export default function UsersListView({ basePath: basePathProp }: UsersListViewP
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-white">
-            <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
+          <StyledSelect
+            options={[
+              { value: 'all', label: 'All Status' },
+              { value: 'active', label: 'Active' },
+              { value: 'inactive', label: 'Inactive' },
+            ]}
+            value={statusFilter}
+            onChange={setStatusFilter}
+            placeholder="All Status"
+            className="w-auto min-w-[130px]"
+          />
           {(roleFilter === 'all' || roleFilter === 'student') && (
-            <select value={batchFilter} onChange={(e) => setBatchFilter(e.target.value)} className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-white">
-              <option value="all">All Batches</option>
-              {batches.map((b) => (
-                <option key={b.id} value={b.id}>{b.name}</option>
-              ))}
-            </select>
+            <SearchableCombobox
+              options={[{ value: 'all', label: 'All Batches' }, ...batches.map((b) => ({ value: b.id, label: b.name }))]}
+              value={batchFilter}
+              onChange={setBatchFilter}
+              placeholder="All Batches"
+              searchPlaceholder="Search batches..."
+              emptyMessage="No batches found"
+            />
           )}
           <button onClick={() => { setShowForm(!showForm); setFormStep(1); setSelectedRole(''); }} className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors">
             {showForm ? <X size={16} /> : <Plus size={16} />}
@@ -195,10 +205,14 @@ export default function UsersListView({ basePath: basePathProp }: UsersListViewP
                 {selectedRole === 'student' && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">Assign to Batch</label>
-                    <select value={formData.batchId} onChange={(e) => setFormData({ ...formData, batchId: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50">
-                      <option value="">Select batch (optional)</option>
-                      {batches.map((b) => (<option key={b.id} value={b.id}>{b.name}</option>))}
-                    </select>
+                    <SearchableCombobox
+                      options={batches.map((b) => ({ value: b.id, label: b.name }))}
+                      value={formData.batchId}
+                      onChange={(v) => setFormData({ ...formData, batchId: v })}
+                      placeholder="Select batch (optional)"
+                      searchPlaceholder="Search batches..."
+                      emptyMessage="No batches found"
+                    />
                   </div>
                 )}
                 {selectedRole === 'teacher' && (

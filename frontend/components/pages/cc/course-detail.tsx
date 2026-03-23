@@ -21,6 +21,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import Link from 'next/link';
+import { StyledSelect } from '@/components/ui/styled-select';
 import { CourseBatchesSection } from './course-batches-section';
 import { CourseCurriculumSection } from './course-curriculum-section';
 import { CourseQuizzesSection } from './course-quizzes-section';
@@ -264,11 +265,16 @@ export default function CourseCreatorCourseDetail() {
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-1 block">Status</label>
-                <select value={courseEditForm.status} onChange={e => setCourseEditForm(f => ({ ...f, status: e.target.value }))} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-primary bg-white">
-                  <option value="active">Active</option>
-                  <option value="upcoming">Upcoming</option>
-                  <option value="inactive">Inactive</option>
-                </select>
+                <StyledSelect
+                  options={[
+                    { value: 'active', label: 'Active' },
+                    { value: 'upcoming', label: 'Upcoming' },
+                    { value: 'inactive', label: 'Inactive' },
+                  ]}
+                  value={courseEditForm.status}
+                  onChange={(value) => setCourseEditForm(f => ({ ...f, status: value }))}
+                  placeholder="Select status"
+                />
               </div>
               <div className="flex gap-3 pt-2">
                 <button
