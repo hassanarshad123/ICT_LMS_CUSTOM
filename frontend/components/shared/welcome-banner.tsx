@@ -16,18 +16,18 @@ export default function WelcomeBanner() {
         </div>
         <div className="flex-1">
           <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-primary-foreground mb-1">
-            Welcome to your LMS! Let&apos;s get you set up.
+            Welcome to your LMS!
           </h2>
           <p className="text-primary-foreground/70 text-sm sm:text-base">
             Create your first batch, add courses, and invite students to get started.
           </p>
         </div>
         <Link
-          href={`${basePath}/setup`}
+          href={`${basePath}/batches`}
           className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-accent text-primary font-semibold text-sm hover:bg-accent/90 transition-colors shrink-0"
         >
           <Rocket size={16} />
-          Start Setup
+          Get Started
         </Link>
       </div>
     </div>
