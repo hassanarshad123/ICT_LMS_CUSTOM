@@ -67,7 +67,7 @@ async def list_notifications(
     institute_id: Optional[uuid.UUID] = None,
 ) -> tuple[list[Notification], int]:
     base_filters = [Notification.user_id == user_id]
-    if institute_id:
+    if institute_id is not None:
         base_filters.append(Notification.institute_id == institute_id)
 
     count_query = select(func.count()).select_from(Notification).where(*base_filters)
@@ -92,7 +92,7 @@ async def get_unread_count(session: AsyncSession, user_id: uuid.UUID, institute_
         Notification.user_id == user_id,
         Notification.read == False,  # noqa: E712
     ]
-    if institute_id:
+    if institute_id is not None:
         filters.append(Notification.institute_id == institute_id)
     query = select(func.count()).select_from(Notification).where(*filters)
     result = await session.execute(query)
@@ -107,7 +107,7 @@ async def mark_as_read(
         Notification.id == notification_id,
         Notification.user_id == user_id,
     ]
-    if institute_id:
+    if institute_id is not None:
         filters.append(Notification.institute_id == institute_id)
     result = await session.execute(
         select(Notification).where(*filters)
@@ -131,7 +131,7 @@ async def mark_all_read(session: AsyncSession, user_id: uuid.UUID, institute_id:
         Notification.user_id == user_id,
         Notification.read == False,  # noqa: E712
     ]
-    if institute_id:
+    if institute_id is not None:
         filters.append(Notification.institute_id == institute_id)
 
     stmt = (

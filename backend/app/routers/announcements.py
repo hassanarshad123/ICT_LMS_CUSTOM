@@ -40,7 +40,7 @@ async def _send_announcement_notifications(
                 UserModel.status == UserStatus.active,
                 UserModel.id != poster_id,
             )
-            if institute_id:
+            if institute_id is not None:
                 q = q.where(UserModel.institute_id == institute_id)
             result = await session.execute(q)
             user_ids = [row[0] for row in result.all()]

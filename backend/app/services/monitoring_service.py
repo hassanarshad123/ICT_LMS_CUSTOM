@@ -250,11 +250,13 @@ async def clear_resolved_errors(
 async def record_client_error(
     session: AsyncSession,
     error_data: dict,
+    institute_id: uuid.UUID | None = None,
 ) -> ErrorLog:
     """Record a client-side error report.
 
     Args:
         error_data: dict with keys: message, stack, url, component, extra
+        institute_id: optional institute scope
     Returns:
         The created ErrorLog instance.
     """
@@ -270,6 +272,7 @@ async def record_client_error(
         traceback=stack[:10000] if stack else None,
         request_path=url[:500] if url else None,
         source="frontend",
+        institute_id=institute_id,
         extra={
             **(extra or {}),
             **({"component": component} if component else {}),

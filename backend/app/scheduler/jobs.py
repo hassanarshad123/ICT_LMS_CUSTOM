@@ -8,7 +8,10 @@ logger = logging.getLogger("ict_lms.scheduler")
 
 
 async def cleanup_expired_sessions():
-    """Deactivate expired sessions (hourly)."""
+    """Deactivate expired sessions (hourly).
+
+    Processes ALL institutes globally — system-level cleanup is tenant-agnostic.
+    """
     from sqlmodel import select
     from app.models.session import UserSession
 
@@ -29,7 +32,10 @@ async def cleanup_expired_sessions():
 
 
 async def retry_failed_recordings():
-    """Retry recordings stuck in 'processing' status (every 30 minutes)."""
+    """Retry recordings stuck in 'processing' status (every 30 minutes).
+
+    Processes ALL institutes globally — retry logic is tenant-agnostic.
+    """
     from sqlmodel import select
     from app.models.zoom import ClassRecording
     from app.models.enums import RecordingStatus
@@ -54,7 +60,11 @@ async def retry_failed_recordings():
 
 
 async def send_zoom_reminders():
-    """Send reminders for upcoming Zoom classes (every 10 minutes)."""
+    """Send reminders for upcoming Zoom classes (every 10 minutes).
+
+    Processes ALL institutes globally — email delivery is tenant-agnostic.
+    Each class's batch/student relationship ensures correct recipients.
+    """
     from sqlmodel import select
     from app.models.zoom import ZoomClass
     from app.models.user import User
@@ -162,6 +172,8 @@ async def process_webhook_deliveries():
 
 async def cleanup_stale_uploads():
     """Soft-delete lectures stuck in 'pending' for over 24 hours (daily).
+
+    Processes ALL institutes globally — cleanup is tenant-agnostic.
 
     These are upload-init records where TUS upload never completed.
     Only cleans 'pending' — never touches 'processing' which may still be encoding.

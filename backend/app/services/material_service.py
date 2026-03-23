@@ -27,7 +27,7 @@ async def list_materials(
         BatchMaterial.batch_id == batch_id, BatchMaterial.deleted_at.is_(None)
     )
 
-    if institute_id:
+    if institute_id is not None:
         query = query.where(BatchMaterial.institute_id == institute_id)
         count_query = count_query.where(BatchMaterial.institute_id == institute_id)
 
@@ -110,14 +110,14 @@ async def get_material(
     session: AsyncSession, material_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None
 ) -> BatchMaterial | None:
     filters = [BatchMaterial.id == material_id, BatchMaterial.deleted_at.is_(None)]
-    if institute_id:
+    if institute_id is not None:
         filters.append(BatchMaterial.institute_id == institute_id)
     result = await session.execute(select(BatchMaterial).where(*filters))
     return result.scalar_one_or_none()
 
 
-async def soft_delete_material(session: AsyncSession, material_id: uuid.UUID) -> None:
-    material = await get_material(session, material_id)
+async def soft_delete_material(session: AsyncSession, material_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None) -> None:
+    material = await get_material(session, material_id, institute_id=institute_id)
     if not material:
         raise ValueError("Material not found")
 
