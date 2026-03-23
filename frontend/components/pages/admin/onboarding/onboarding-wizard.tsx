@@ -3,8 +3,9 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Loader2, Palette, Layers, Users, BookOpen, CheckCircle2 } from 'lucide-react';
+import { Loader2, Palette, Layers, Users, BookOpen, CheckCircle2, LogOut } from 'lucide-react';
 import { useBasePath } from '@/hooks/use-base-path';
+import { useAuth } from '@/lib/auth-context';
 import { updateSettings } from '@/lib/api/admin';
 import { useMutation } from '@/hooks/use-api';
 import StepBranding from './step-branding';
@@ -23,6 +24,7 @@ export default function OnboardingWizard() {
   const [step, setStep] = useState(0);
   const router = useRouter();
   const basePath = useBasePath();
+  const { logout } = useAuth();
 
   const { execute: doUpdateSettings, loading: completing } = useMutation(
     (settings: Record<string, string>) => updateSettings(settings),
@@ -52,7 +54,16 @@ export default function OnboardingWizard() {
   }, [completeOnboarding]);
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4 relative">
+      {/* Logout button — always visible */}
+      <button
+        onClick={logout}
+        className="absolute top-4 right-4 sm:top-6 sm:right-6 flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+      >
+        <LogOut size={16} />
+        <span className="hidden sm:inline">Logout</span>
+      </button>
+
       <div className="w-full max-w-2xl">
         {/* Progress indicator */}
         <div className="mb-8">
