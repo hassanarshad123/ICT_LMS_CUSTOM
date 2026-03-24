@@ -54,6 +54,7 @@ async def _fetch_and_cache_user(session: AsyncSession, user_id: str) -> User | N
 
 
 async def get_current_user(
+    request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(bearer_scheme)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> User:
@@ -128,10 +129,22 @@ async def get_current_user(
             )
             user._impersonator_id = uuid.UUID(imp_id) if imp_id else None
 
+            # Propagate to request.state for downstream middleware (error_tracking)
+            request.state.user_id = cached["id"]
+            request.state.user_email = cached["email"]
+            request.state.institute_id = cached.get("institute_id")
+            request.state.user_role = cached["role"]
+            if imp_id:
+                request.state.impersonator_id = str(imp_id)
+
             # Set Sentry context
             try:
                 import sentry_sdk
-                sentry_sdk.set_user({"id": cached["id"], "email": cached["email"], "username": cached["name"], "role": cached["role"]})
+                sentry_sdk.set_user({"id": cached["id"], "email": cached["email"], "username": cached["name"]})
+                sentry_sdk.set_tag("user.role", cached["role"])
+                sentry_sdk.set_tag("institute_id", cached.get("institute_id") or "none")
+                if imp_id:
+                    sentry_sdk.set_tag("impersonator_id", str(imp_id))
             except Exception:
                 pass
 
@@ -197,10 +210,22 @@ async def get_current_user(
     }
     await cache.set(cache.user_key(user_id), cache_data, ttl=_USER_CACHE_TTL)
 
+    # Propagate to request.state for downstream middleware (error_tracking)
+    request.state.user_id = str(user.id)
+    request.state.user_email = user.email
+    request.state.institute_id = str(user.institute_id) if user.institute_id else None
+    request.state.user_role = user.role.value
+    if hasattr(user, "_impersonator_id") and user._impersonator_id:
+        request.state.impersonator_id = str(user._impersonator_id)
+
     # Set Sentry context
     try:
         import sentry_sdk
-        sentry_sdk.set_user({"id": str(user.id), "email": user.email, "username": user.name, "role": user.role.value})
+        sentry_sdk.set_user({"id": str(user.id), "email": user.email, "username": user.name})
+        sentry_sdk.set_tag("user.role", user.role.value)
+        sentry_sdk.set_tag("institute_id", str(user.institute_id) if user.institute_id else "none")
+        if hasattr(user, "_impersonator_id") and user._impersonator_id:
+            sentry_sdk.set_tag("impersonator_id", str(user._impersonator_id))
     except Exception:
         pass
 

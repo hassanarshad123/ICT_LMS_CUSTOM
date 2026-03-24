@@ -4,7 +4,9 @@ Fail-open: every operation silently degrades if Redis is unavailable.
 All keys are namespaced per institute for multi-tenant isolation.
 """
 
+import asyncio
 import logging
+import time
 from typing import Any, Callable, Awaitable, Optional
 
 import orjson
@@ -30,7 +32,7 @@ class CacheService:
                 return None
             return orjson.loads(raw)
         except Exception as e:
-            logger.debug("cache.get error key=%s: %s", key, e)
+            logger.warning("cache.get error key=%s: %s", key, e)
             return None
 
     async def set(self, key: str, value: Any, ttl: int = 300) -> None:
@@ -42,7 +44,7 @@ class CacheService:
             raw = orjson.dumps(value, option=orjson.OPT_NON_STR_KEYS)
             await r.set(key, raw, ex=ttl)
         except Exception as e:
-            logger.debug("cache.set error key=%s: %s", key, e)
+            logger.warning("cache.set error key=%s: %s", key, e)
 
     async def delete(self, key: str) -> None:
         """Delete a key from cache. No-op on error."""
@@ -52,7 +54,7 @@ class CacheService:
         try:
             await r.delete(key)
         except Exception as e:
-            logger.debug("cache.delete error key=%s: %s", key, e)
+            logger.warning("cache.delete error key=%s: %s", key, e)
 
     async def delete_pattern(self, pattern: str) -> int:
         """Delete all keys matching a glob pattern (uses SCAN, not KEYS). Returns count deleted."""
@@ -65,10 +67,10 @@ class CacheService:
                 await r.delete(key)
                 count += 1
             if count:
-                logger.debug("cache.delete_pattern pattern=%s deleted=%d", pattern, count)
+                logger.info("cache.delete_pattern pattern=%s deleted=%d", pattern, count)
             return count
         except Exception as e:
-            logger.debug("cache.delete_pattern error pattern=%s: %s", pattern, e)
+            logger.warning("cache.delete_pattern error pattern=%s: %s", pattern, e)
             return 0
 
     async def get_or_set(
@@ -90,6 +92,47 @@ class CacheService:
         value = await factory()
         if value is not None:
             await self.set(key, value, ttl)
+        return value
+
+    async def get_or_set_swr(
+        self,
+        key: str,
+        factory: Callable[[], Awaitable[Any]],
+        fresh_ttl: int = 120,
+        stale_ttl: int = 600,
+    ) -> Any:
+        """Stale-While-Revalidate: serve stale data instantly, refresh in background.
+
+        - Within fresh_ttl: return cached data (fresh)
+        - Between fresh_ttl and stale_ttl: return stale data instantly + trigger background refresh
+        - After stale_ttl (or no data): call factory synchronously (cold miss)
+        """
+        meta_key = f"{key}:swr_meta"
+
+        cached = await self.get(key)
+        if cached is not None:
+            meta = await self.get(meta_key)
+            if meta and meta.get("fresh_until", 0) > time.time():
+                return cached  # Fresh — return immediately
+
+            # Stale but available — return instantly, refresh in background
+            async def _bg_refresh():
+                try:
+                    value = await factory()
+                    if value is not None:
+                        await self.set(key, value, stale_ttl)
+                        await self.set(meta_key, {"fresh_until": time.time() + fresh_ttl}, stale_ttl)
+                except Exception as e:
+                    logger.debug("SWR background refresh failed for %s: %s", key, e)
+
+            asyncio.create_task(_bg_refresh())
+            return cached  # Return stale data instantly
+
+        # Complete miss — must wait for factory
+        value = await factory()
+        if value is not None:
+            await self.set(key, value, stale_ttl)
+            await self.set(meta_key, {"fresh_until": time.time() + fresh_ttl}, stale_ttl)
         return value
 
     # ── Helpers ──────────────────────────────────────────────────────

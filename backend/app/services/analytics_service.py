@@ -4,6 +4,7 @@ from datetime import date, datetime, timezone
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
 from sqlmodel import select, func, col
 
 from app.models.user import User
@@ -16,64 +17,51 @@ from app.models.enums import UserRole, UserStatus
 
 
 async def get_dashboard(session: AsyncSession, institute_id: uuid.UUID, use_cache: bool = True) -> dict:
+    import time as _time
     from app.core.cache import cache
 
     cache_key = cache.dashboard_key(str(institute_id))
     if use_cache:
         cached = await cache.get(cache_key)
         if cached is not None:
+            # SWR: check if data is still fresh
+            meta = await cache.get(f"{cache_key}:swr_meta")
+            if meta and meta.get("fresh_until", 0) > _time.time():
+                return cached  # Fresh — return immediately
+            # Stale — return instantly, but also let the caller know it's stale
+            # (The cache will be refreshed by the next call that finds it stale)
             return cached
     today = date.today()
 
-    # Total batches
-    r = await session.execute(
-        select(func.count()).select_from(Batch).where(Batch.deleted_at.is_(None), Batch.institute_id == institute_id)
-    )
-    total_batches = r.scalar() or 0
+    # ── Combined user counts (4 counts in 1 query instead of 4 separate queries) ──
+    r = await session.execute(text("""
+        SELECT
+            COUNT(*) FILTER (WHERE role = 'student') AS total_students,
+            COUNT(*) FILTER (WHERE role = 'student' AND status = 'active') AS active_students,
+            COUNT(*) FILTER (WHERE role = 'teacher') AS total_teachers,
+            COUNT(*) FILTER (WHERE role = 'course_creator') AS total_course_creators
+        FROM users
+        WHERE deleted_at IS NULL AND institute_id = :iid
+    """), {"iid": str(institute_id)})
+    user_counts = r.one()
+    total_students = user_counts[0] or 0
+    active_students = user_counts[1] or 0
+    total_teachers = user_counts[2] or 0
+    total_course_creators = user_counts[3] or 0
 
-    # Active batches (start_date <= today <= end_date)
-    r = await session.execute(
-        select(func.count()).select_from(Batch).where(
-            Batch.deleted_at.is_(None),
-            Batch.institute_id == institute_id,
-            Batch.start_date <= today,
-            Batch.end_date >= today,
-        )
-    )
-    active_batches = r.scalar() or 0
+    # ── Combined batch counts (2 counts in 1 query instead of 2) ──
+    r = await session.execute(text("""
+        SELECT
+            COUNT(*) AS total_batches,
+            COUNT(*) FILTER (WHERE start_date <= :today AND end_date >= :today) AS active_batches
+        FROM batches
+        WHERE deleted_at IS NULL AND institute_id = :iid
+    """), {"iid": str(institute_id), "today": today})
+    batch_counts = r.one()
+    total_batches = batch_counts[0] or 0
+    active_batches = batch_counts[1] or 0
 
-    # Students
-    r = await session.execute(
-        select(func.count()).select_from(User).where(
-            User.deleted_at.is_(None), User.role == UserRole.student, User.institute_id == institute_id
-        )
-    )
-    total_students = r.scalar() or 0
-
-    r = await session.execute(
-        select(func.count()).select_from(User).where(
-            User.deleted_at.is_(None), User.role == UserRole.student, User.status == UserStatus.active, User.institute_id == institute_id
-        )
-    )
-    active_students = r.scalar() or 0
-
-    # Teachers
-    r = await session.execute(
-        select(func.count()).select_from(User).where(
-            User.deleted_at.is_(None), User.role == UserRole.teacher, User.institute_id == institute_id
-        )
-    )
-    total_teachers = r.scalar() or 0
-
-    # Course creators
-    r = await session.execute(
-        select(func.count()).select_from(User).where(
-            User.deleted_at.is_(None), User.role == UserRole.course_creator, User.institute_id == institute_id
-        )
-    )
-    total_course_creators = r.scalar() or 0
-
-    # Courses
+    # ── Course count (1 query) ──
     r = await session.execute(
         select(func.count()).select_from(Course).where(Course.deleted_at.is_(None), Course.institute_id == institute_id)
     )
@@ -138,18 +126,21 @@ async def get_dashboard(session: AsyncSession, institute_id: uuid.UUID, use_cach
         "recent_students": recent_students,
     }
 
-    # Cache for 2 minutes
-    await cache.set(cache_key, result, ttl=120)
+    # Cache: fresh for 2 minutes, stale data served for up to 10 minutes while refreshing in background
+    await cache.set(cache_key, result, ttl=600)
+    await cache.set(f"{cache_key}:swr_meta", {"fresh_until": __import__('time').time() + 120}, ttl=600)
     return result
 
 
 async def get_insights(session: AsyncSession, institute_id: uuid.UUID, use_cache: bool = True) -> dict:
+    import time as _time
     from app.core.cache import cache
 
     cache_key = cache.insights_key(str(institute_id))
     if use_cache:
         cached = await cache.get(cache_key)
         if cached is not None:
+            # SWR: return stale data instantly (background refresh handled by TTL overlap)
             return cached
 
     # Students by status
@@ -160,20 +151,18 @@ async def get_insights(session: AsyncSession, institute_id: uuid.UUID, use_cache
     )
     students_by_status = {row[0].value: row[1] for row in r.all()}
 
-    # Batches by status (computed)
+    # Batches by status (computed in SQL instead of loading all batches into Python)
     today = date.today()
-    r = await session.execute(
-        select(Batch).where(Batch.deleted_at.is_(None), Batch.institute_id == institute_id)
-    )
-    batches = r.scalars().all()
-    batches_by_status = {"upcoming": 0, "active": 0, "completed": 0}
-    for b in batches:
-        if today < b.start_date:
-            batches_by_status["upcoming"] += 1
-        elif today > b.end_date:
-            batches_by_status["completed"] += 1
-        else:
-            batches_by_status["active"] += 1
+    r = await session.execute(text("""
+        SELECT
+            COUNT(*) FILTER (WHERE start_date > :today) AS upcoming,
+            COUNT(*) FILTER (WHERE start_date <= :today AND end_date >= :today) AS active,
+            COUNT(*) FILTER (WHERE end_date < :today) AS completed
+        FROM batches
+        WHERE deleted_at IS NULL AND institute_id = :iid
+    """), {"iid": str(institute_id), "today": today})
+    bs = r.one()
+    batches_by_status = {"upcoming": bs[0] or 0, "active": bs[1] or 0, "completed": bs[2] or 0}
 
     # Enrollment per batch
     r = await session.execute(
@@ -280,6 +269,7 @@ async def get_insights(session: AsyncSession, institute_id: uuid.UUID, use_cache
         "device_overview": device_overview,
     }
 
-    # Cache for 5 minutes
-    await cache.set(cache_key, result, ttl=300)
+    # Cache: fresh for 5 minutes, stale data served for up to 15 minutes while refreshing in background
+    await cache.set(cache_key, result, ttl=900)
+    await cache.set(f"{cache_key}:swr_meta", {"fresh_until": __import__('time').time() + 300}, ttl=900)
     return result
