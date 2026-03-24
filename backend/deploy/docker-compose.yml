@@ -6,7 +6,7 @@ services:
     ports:
       - "127.0.0.1:8000:8000"
     env_file:
-      - .env
+      - ../.env
     environment:
       - DEPLOY_SLOT=blue
       - GIT_SHA=${GIT_SHA:-unknown}
@@ -33,7 +33,7 @@ services:
     ports:
       - "127.0.0.1:8001:8000"
     env_file:
-      - .env
+      - ../.env
     environment:
       - DEPLOY_SLOT=green
       - GIT_SHA=${GIT_SHA:-unknown}
