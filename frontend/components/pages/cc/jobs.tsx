@@ -255,7 +255,7 @@ export default function CourseCreatorJobs() {
                         <div className="mb-4">
                           <h5 className="text-xs font-semibold text-gray-500 uppercase mb-2">Requirements</h5>
                           <ul className="space-y-1.5">
-                            {job.requirements!.map((req, i) => (
+                            {(job.requirements ?? []).map((req, i) => (
                               <li key={i} className="flex items-center gap-2 text-sm text-gray-600">
                                 <div className="w-1.5 h-1.5 rounded-full bg-accent" />
                                 {req}

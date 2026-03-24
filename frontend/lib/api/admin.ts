@@ -1,5 +1,24 @@
 import { apiClient } from './client';
 
+// ── Dashboard typed interfaces ──────────────────────────────
+
+export interface RecentBatch {
+  id: string;
+  name: string;
+  startDate: string;
+  teacherName: string;
+  studentCount: number;
+  status: string;
+}
+
+export interface RecentStudent {
+  id: string;
+  name: string;
+  email: string;
+  status: string;
+  batchNames: string[];
+}
+
 export interface DashboardData {
   totalBatches: number;
   activeBatches: number;
@@ -8,18 +27,44 @@ export interface DashboardData {
   totalTeachers: number;
   totalCourseCreators: number;
   totalCourses: number;
-  recentBatches: any[];
-  recentStudents: any[];
+  recentBatches: RecentBatch[];
+  recentStudents: RecentStudent[];
+}
+
+// ── Insights typed interfaces ───────────────────────────────
+
+export interface MonthlyStatItem {
+  month: string;
+  count: number;
+}
+
+export interface BatchEnrollmentItem {
+  batchId: string;
+  name: string;
+  studentCount: number;
+}
+
+export interface TeacherWorkloadItem {
+  teacherId: string;
+  name: string;
+  batchCount: number;
+  studentCount: number;
+}
+
+export interface LecturesPerCourseItem {
+  courseId: string;
+  title: string;
+  lectureCount: number;
 }
 
 export interface InsightsData {
-  monthly: any[];
+  monthly: MonthlyStatItem[];
   studentsByStatus: Record<string, number>;
   batchesByStatus: Record<string, number>;
-  enrollmentPerBatch: any[];
-  teacherWorkload: any[];
+  enrollmentPerBatch: BatchEnrollmentItem[];
+  teacherWorkload: TeacherWorkloadItem[];
   materialsByType: Record<string, number>;
-  lecturesPerCourse: any[];
+  lecturesPerCourse: LecturesPerCourseItem[];
   deviceOverview: Record<string, number>;
 }
 

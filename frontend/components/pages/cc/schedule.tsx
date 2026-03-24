@@ -50,7 +50,7 @@ export default function CourseCreatorSchedule() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const batches = batchesData?.data || [];
-  const accounts = accountsData || [];
+  const accounts = Array.isArray(accountsData) ? accountsData : [];
   const teachers = teachersData?.data || [];
   const hasAccounts = accounts.length > 0;
   const defaultAccount = accounts.find((a: any) => a.isDefault);

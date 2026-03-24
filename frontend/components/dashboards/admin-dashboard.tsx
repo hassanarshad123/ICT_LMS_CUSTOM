@@ -5,7 +5,7 @@ import DashboardHeader from '@/components/layout/dashboard-header';
 import { useAuth } from '@/lib/auth-context';
 import { useBasePath } from '@/hooks/use-base-path';
 import { useApi } from '@/hooks/use-api';
-import { getDashboard } from '@/lib/api/admin';
+import { getDashboard, RecentBatch, RecentStudent } from '@/lib/api/admin';
 import { PageLoading } from '@/components/shared/page-states';
 import { PageError } from '@/components/shared/page-states';
 import WelcomeBanner from '@/components/shared/welcome-banner';
@@ -58,7 +58,7 @@ export default function AdminDashboard() {
                 {(data.recentBatches || []).length === 0 ? (
                   <p className="text-sm text-gray-500 py-4 text-center">No batches yet</p>
                 ) : (
-                  (data.recentBatches ?? []).slice(0, 4).map((batch: any) => (
+                  (data.recentBatches ?? []).slice(0, 4).map((batch: RecentBatch) => (
                     <div key={batch.id} className="flex items-center justify-between p-4 rounded-xl bg-gray-50">
                       <div>
                         <p className="font-medium text-sm text-primary">{batch.name}</p>
@@ -86,7 +86,7 @@ export default function AdminDashboard() {
                 {(data.recentStudents || []).length === 0 ? (
                   <p className="text-sm text-gray-500 py-4 text-center">No students yet</p>
                 ) : (
-                  (data.recentStudents ?? []).slice(0, 5).map((student: any) => (
+                  (data.recentStudents ?? []).slice(0, 5).map((student: RecentStudent) => (
                     <div key={student.id} className="flex items-center justify-between p-4 rounded-xl bg-gray-50">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-xs font-semibold text-primary">

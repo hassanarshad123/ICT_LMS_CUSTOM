@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useId } from 'react';
 import { PaginatedResponse } from '@/lib/types/api';
 
 interface UsePaginatedApiResult<T> {
@@ -20,6 +20,7 @@ export function usePaginatedApi<T>(
   perPage: number = 15,
   deps: any[] = [],
 ): UsePaginatedApiResult<T> {
+  const hookId = useId();
   const [page, setPageState] = useState(1);
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
@@ -33,7 +34,7 @@ export function usePaginatedApi<T>(
     setPageState(1);
   }, [depsKey]);
 
-  const queryKey = ['api-paginated', ...deps, page, perPage];
+  const queryKey = ['api-paginated', hookId, ...deps, page, perPage];
 
   const { data: result, error, refetch: rqRefetch } = useQuery({
     queryKey,

@@ -11,6 +11,7 @@ from app.schemas.auth import (
     UserBrief, ChangePasswordRequest, LogoutAllResponse,
     ForgotPasswordRequest, ResetPasswordRequest,
 )
+from app.schemas.common import MessageResponse
 from app.config import get_settings
 from app.services.auth_service import authenticate_user, refresh_access_token, logout, logout_all
 from app.middleware.auth import get_current_user
@@ -127,7 +128,7 @@ async def refresh(
     return RefreshResponse(access_token=access_token, refresh_token=refresh_token)
 
 
-@router.post("/logout")
+@router.post("/logout", response_model=MessageResponse)
 async def logout_endpoint(
     body: RefreshRequest,
     session: Annotated[AsyncSession, Depends(get_session)],
@@ -148,7 +149,7 @@ async def logout_all_endpoint(
     )
 
 
-@router.post("/change-password")
+@router.post("/change-password", response_model=MessageResponse)
 async def change_password(
     body: ChangePasswordRequest,
     current_user: Annotated[User, Depends(get_current_user)],
@@ -167,7 +168,7 @@ async def change_password(
     return {"detail": "Password changed successfully"}
 
 
-@router.post("/forgot-password")
+@router.post("/forgot-password", response_model=MessageResponse)
 @limiter.limit("3/minute")
 async def forgot_password(
     request: Request,
@@ -217,7 +218,7 @@ async def forgot_password(
     return {"detail": "If an account exists with that email, we've sent a password reset link."}
 
 
-@router.post("/reset-password")
+@router.post("/reset-password", response_model=MessageResponse)
 @limiter.limit("5/minute")
 async def reset_password(
     request: Request,
