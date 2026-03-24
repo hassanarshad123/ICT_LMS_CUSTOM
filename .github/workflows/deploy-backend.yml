@@ -63,7 +63,7 @@ jobs:
           "
 
   deploy:
-    name: Deploy to Production
+    name: Deploy to Production (Blue-Green)
     needs: ci
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -72,88 +72,17 @@ jobs:
       url: https://apiict.zensbot.site
 
     steps:
-      - name: Deploy via SSH
+      - name: Blue-Green Deploy via SSH
         uses: appleboy/ssh-action@v1
-        env:
-          BUNNY_API_KEY: ${{ secrets.BUNNY_API_KEY }}
-          BUNNY_LIBRARY_ID: ${{ secrets.BUNNY_LIBRARY_ID }}
-          BUNNY_CDN_HOSTNAME: ${{ secrets.BUNNY_CDN_HOSTNAME }}
-          BUNNY_TOKEN_KEY: ${{ secrets.BUNNY_TOKEN_KEY }}
-          BUNNY_WEBHOOK_SECRET: ${{ secrets.BUNNY_WEBHOOK_SECRET }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
-          SUPER_ADMIN_EMAIL: ${{ secrets.SUPER_ADMIN_EMAIL }}
-          SUPER_ADMIN_PASSWORD: ${{ secrets.SUPER_ADMIN_PASSWORD }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          envs: BUNNY_API_KEY,BUNNY_LIBRARY_ID,BUNNY_CDN_HOSTNAME,BUNNY_TOKEN_KEY,BUNNY_WEBHOOK_SECRET,DATABASE_URL,DATABASE_URL_DIRECT,SUPER_ADMIN_EMAIL,SUPER_ADMIN_PASSWORD
+          command_timeout: 10m
           script: |
-            set -e
-
-            # Pull latest code
-            cd /home/ubuntu/ICT_LMS_CUSTOM
-            git fetch origin main
-            git reset --hard origin/main
-            git clean -fd backend/migrations/versions/
-
-            # Ensure credentials are in .env
-            cd backend
-            for VAR in DATABASE_URL DATABASE_URL_DIRECT BUNNY_API_KEY BUNNY_LIBRARY_ID BUNNY_CDN_HOSTNAME BUNNY_TOKEN_KEY BUNNY_WEBHOOK_SECRET SUPER_ADMIN_EMAIL; do
-              VAL=$(eval echo \$$VAR)
-              if [ -n "$VAL" ]; then
-                grep -q "^${VAR}=" .env 2>/dev/null && sed -i "s|^${VAR}=.*|${VAR}=${VAL}|" .env || echo "${VAR}=${VAL}" >> .env
-              fi
-            done
-            source venv/bin/activate
-            pip install -r requirements.txt --quiet
-
-            # Run migrations
-            # If alembic_version references a removed revision, purge and re-stamp
-            if alembic current 2>&1 | grep -q "Can't locate revision"; then
-              echo "Clearing stale alembic revision and stamping baseline..."
-              alembic stamp --purge 001
-            fi
-            alembic upgrade head
-
-            # Seed super admin if not exists
-            if [ -n "$SUPER_ADMIN_EMAIL" ] && [ -n "$SUPER_ADMIN_PASSWORD" ]; then
-              SUPER_ADMIN_EMAIL="$SUPER_ADMIN_EMAIL" SUPER_ADMIN_PASSWORD="$SUPER_ADMIN_PASSWORD" python scripts/seed_super_admin.py || true
-            fi
-
-            # Stop service and wait for port to be released
-            sudo systemctl stop ict-lms-api || true
-            sleep 2
-
-            # Kill anything still holding port 8000 (safety net)
-            sudo fuser -k 8000/tcp 2>/dev/null || true
-            sleep 1
-
-            # Start service
-            sudo systemctl start ict-lms-api
-
-            # Wait for startup and verify
-            sleep 3
-            if ! sudo systemctl is-active --quiet ict-lms-api; then
-              echo "Service failed to start. Last 30 log lines:"
-              sudo journalctl -u ict-lms-api -n 30 --no-pager
-              exit 1
-            fi
-
-            # Local health check with retries
-            for i in 1 2 3 4 5; do
-              if curl -sf http://127.0.0.1:8000/api/health; then
-                echo ""
-                echo "Health check passed"
-                exit 0
-              fi
-              echo "Health check attempt $i failed, retrying in 2s..."
-              sleep 2
-            done
-            echo "Health check failed after 5 attempts"
-            sudo journalctl -u ict-lms-api -n 30 --no-pager
-            exit 1
+            cd /home/ubuntu/ICT_LMS_CUSTOM/backend
+            chmod +x deploy-bg.sh rollback.sh
+            ./deploy-bg.sh
 
       - name: External health check
         run: |

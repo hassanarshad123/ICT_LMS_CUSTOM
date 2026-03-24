@@ -1,0 +1,17 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.env
+.env.*
+*.egg-info/
+tests/
+*.log
+*.md
+.git/
+.active-slot
+deploy-bg.sh
+rollback.sh
+nginx/

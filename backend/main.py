@@ -41,23 +41,27 @@ async def lifespan(app: FastAPI):
     from app.websockets.pubsub import start_pubsub_listener
     pubsub_task = await start_pubsub_listener()
 
-    # Startup — start scheduler
-    try:
-        from apscheduler.schedulers.asyncio import AsyncIOScheduler
-        from app.scheduler.jobs import cleanup_expired_sessions, send_zoom_reminders, retry_failed_recordings, cleanup_stale_uploads, auto_suspend_expired_institutes, process_webhook_deliveries
+    # Startup — start scheduler (only if SCHEDULER_ENABLED for blue-green dedup)
+    if settings.SCHEDULER_ENABLED:
+        try:
+            from apscheduler.schedulers.asyncio import AsyncIOScheduler
+            from app.scheduler.jobs import cleanup_expired_sessions, send_zoom_reminders, retry_failed_recordings, cleanup_stale_uploads, auto_suspend_expired_institutes, process_webhook_deliveries
 
-        scheduler = AsyncIOScheduler()
-        scheduler.add_job(cleanup_expired_sessions, "interval", hours=1, id="cleanup_sessions")
-        scheduler.add_job(send_zoom_reminders, "interval", minutes=10, id="zoom_reminders")
-        scheduler.add_job(retry_failed_recordings, "interval", minutes=30, id="retry_recordings")
-        scheduler.add_job(cleanup_stale_uploads, "interval", hours=24, id="cleanup_stale_uploads")
-        scheduler.add_job(auto_suspend_expired_institutes, "interval", hours=24, id="auto_suspend_institutes")
-        scheduler.add_job(process_webhook_deliveries, "interval", minutes=1, id="webhook_deliveries")
-        scheduler.start()
-        app.state.scheduler = scheduler
-    except Exception as e:
-        logging.getLogger("ict_lms").warning("Scheduler not started: %s", e)
-        capture_exception_safe(e)
+            scheduler = AsyncIOScheduler()
+            scheduler.add_job(cleanup_expired_sessions, "interval", hours=1, id="cleanup_sessions")
+            scheduler.add_job(send_zoom_reminders, "interval", minutes=10, id="zoom_reminders")
+            scheduler.add_job(retry_failed_recordings, "interval", minutes=30, id="retry_recordings")
+            scheduler.add_job(cleanup_stale_uploads, "interval", hours=24, id="cleanup_stale_uploads")
+            scheduler.add_job(auto_suspend_expired_institutes, "interval", hours=24, id="auto_suspend_institutes")
+            scheduler.add_job(process_webhook_deliveries, "interval", minutes=1, id="webhook_deliveries")
+            scheduler.start()
+            app.state.scheduler = scheduler
+            logging.getLogger("ict_lms").info("Scheduler started (slot=%s)", settings.DEPLOY_SLOT)
+        except Exception as e:
+            logging.getLogger("ict_lms").warning("Scheduler not started: %s", e)
+            capture_exception_safe(e)
+    else:
+        logging.getLogger("ict_lms").info("Scheduler disabled (slot=%s)", settings.DEPLOY_SLOT)
 
     yield
 
