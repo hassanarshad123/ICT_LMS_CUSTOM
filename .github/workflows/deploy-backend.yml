@@ -80,7 +80,10 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           command_timeout: 10m
           script: |
-            cd /home/ubuntu/ICT_LMS_CUSTOM/backend/deploy
+            cd /home/ubuntu/ICT_LMS_CUSTOM
+            git fetch origin main
+            git reset --hard origin/main
+            cd backend/deploy
             chmod +x deploy-bg.sh rollback.sh
             ./deploy-bg.sh
 
