@@ -22,9 +22,9 @@ class NotificationCountNotifier extends StateNotifier<int> {
   void _startPolling() {
     // Fetch immediately on creation
     refresh();
-    // Then poll every 60 seconds
+    // Then poll every 5 minutes
     _pollTimer = Timer.periodic(
-      const Duration(seconds: 60),
+      const Duration(minutes: 5),
       (_) => _fetchIfAuthenticated(),
     );
   }
@@ -42,7 +42,7 @@ class NotificationCountNotifier extends StateNotifier<int> {
       final response = await _dio.get(ApiConstants.unreadCount);
       final data = response.data as Map<String, dynamic>;
       final count = data['count'] as int? ?? data['unreadCount'] as int? ?? 0;
-      if (mounted) {
+      if (mounted && count != state) {
         state = count;
       }
     } catch (_) {

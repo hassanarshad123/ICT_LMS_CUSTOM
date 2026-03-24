@@ -84,11 +84,14 @@ class BrandingNotifier extends StateNotifier<BrandingState> {
           logoUrl: data.logoUrl,
           faviconUrl: data.faviconUrl,
         );
+        // Cache restored successfully — delay background refresh by 30s
+        Future.delayed(const Duration(seconds: 30), fetchBranding);
+        return;
       } catch (_) {
         // Cache corrupted — ignore, will fetch fresh
       }
     }
-    // Fetch fresh branding in background (slug interceptor reads from prefs)
+    // No cache or corrupted — fetch immediately
     fetchBranding();
   }
 

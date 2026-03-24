@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -242,6 +243,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Powered by Zensbot.com',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 12,
+                      color: AppColors.textTertiary,
+                    ),
+                  ),
                   const SizedBox(height: AppSpacing.space16),
                 ],
               ),
@@ -298,14 +308,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           borderRadius: BorderRadius.circular(16),
         ),
         clipBehavior: Clip.antiAlias,
-        child: Image.network(
-          logoUrl,
+        child: CachedNetworkImage(
+          imageUrl: logoUrl,
           fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) => _buildFallbackIcon(accentColor),
-          loadingBuilder: (context, child, loadingProgress) {
-            if (loadingProgress == null) return child;
-            return _buildFallbackIcon(accentColor);
-          },
+          placeholder: (_, __) => _buildFallbackIcon(accentColor),
+          errorWidget: (_, __, ___) => _buildFallbackIcon(accentColor),
         ),
       );
     }

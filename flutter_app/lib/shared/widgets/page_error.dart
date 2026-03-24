@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
 
 class PageError extends StatelessWidget {
@@ -36,7 +35,8 @@ class PageError extends StatelessWidget {
             const SizedBox(height: 20),
             Text(
               message,
-              style: GoogleFonts.inter(
+              style: const TextStyle(
+                fontFamily: 'Inter',
                 fontSize: 17,
                 fontWeight: FontWeight.w500,
                 color: AppColors.textPrimary,

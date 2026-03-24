@@ -27,8 +27,8 @@ class AuthInterceptor extends Interceptor {
   ) async {
     final token = await _secureStorage.read(key: StorageKeys.accessToken);
     if (token != null) {
-      // Proactive refresh: if token expires within 30 seconds
-      if (isTokenExpired(token, bufferSeconds: 30)) {
+      // Proactive refresh: if token expires within 5 seconds
+      if (isTokenExpired(token, bufferSeconds: 5)) {
         final newToken = await _tryRefresh();
         if (newToken != null) {
           options.headers['Authorization'] = 'Bearer $newToken';

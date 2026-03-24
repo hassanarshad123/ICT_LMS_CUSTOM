@@ -8,6 +8,7 @@ import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 import 'package:ict_lms_student/features/profile/widgets/menu_item_tile.dart';
 import 'package:ict_lms_student/features/profile/widgets/profile_header.dart';
 import 'package:ict_lms_student/providers/auth_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -125,6 +126,20 @@ class ProfileScreen extends ConsumerWidget {
             child: Text(
               'v1.0.0',
               style: AppTextStyles.caption1,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Center(
+            child: GestureDetector(
+              onTap: () => launchUrl(Uri.parse('https://zensbot.com')),
+              child: Text(
+                'Powered by Zensbot.com',
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 12,
+                  color: AppColors.textTertiary,
+                ),
+              ),
             ),
           ),
           const SizedBox(height: AppSpacing.space16),

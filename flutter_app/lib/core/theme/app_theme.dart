@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_spacing.dart';
 
@@ -21,18 +20,19 @@ ThemeData buildTheme(Color accentColor) {
     dividerColor: AppColors.border,
 
     // AppBar — clean white, thin bottom border
-    appBarTheme: AppBarTheme(
+    appBarTheme: const AppBarTheme(
       backgroundColor: AppColors.cardBg,
       elevation: 0,
       scrolledUnderElevation: 0.5,
       surfaceTintColor: Colors.transparent,
       centerTitle: false,
-      titleTextStyle: GoogleFonts.inter(
+      titleTextStyle: TextStyle(
+        fontFamily: 'Inter',
         color: AppColors.textPrimary,
         fontSize: 17,
         fontWeight: FontWeight.w600,
       ),
-      iconTheme: const IconThemeData(color: AppColors.textPrimary),
+      iconTheme: IconThemeData(color: AppColors.textPrimary),
       systemOverlayStyle: SystemUiOverlayStyle.dark,
     ),
 
@@ -46,18 +46,26 @@ ThemeData buildTheme(Color accentColor) {
     ),
 
     // Text theme
-    textTheme: GoogleFonts.interTextTheme(base.textTheme).copyWith(
-      headlineLarge: GoogleFonts.inter(
+    textTheme: base.textTheme.apply(fontFamily: 'Inter').copyWith(
+      headlineLarge: const TextStyle(
+          fontFamily: 'Inter',
           color: AppColors.textPrimary, fontWeight: FontWeight.w700),
-      headlineMedium: GoogleFonts.inter(
+      headlineMedium: const TextStyle(
+          fontFamily: 'Inter',
           color: AppColors.textPrimary, fontWeight: FontWeight.w600),
-      titleLarge: GoogleFonts.inter(
+      titleLarge: const TextStyle(
+          fontFamily: 'Inter',
           color: AppColors.textPrimary, fontWeight: FontWeight.w600),
-      titleMedium: GoogleFonts.inter(color: AppColors.textPrimary),
-      bodyLarge: GoogleFonts.inter(color: AppColors.textPrimary),
-      bodyMedium: GoogleFonts.inter(color: AppColors.textSecondary),
-      bodySmall: GoogleFonts.inter(color: AppColors.textTertiary),
-      labelLarge: GoogleFonts.inter(
+      titleMedium: const TextStyle(
+          fontFamily: 'Inter', color: AppColors.textPrimary),
+      bodyLarge: const TextStyle(
+          fontFamily: 'Inter', color: AppColors.textPrimary),
+      bodyMedium: const TextStyle(
+          fontFamily: 'Inter', color: AppColors.textSecondary),
+      bodySmall: const TextStyle(
+          fontFamily: 'Inter', color: AppColors.textTertiary),
+      labelLarge: const TextStyle(
+          fontFamily: 'Inter',
           color: AppColors.textPrimary, fontWeight: FontWeight.w600),
     ),
 
@@ -87,7 +95,8 @@ ThemeData buildTheme(Color accentColor) {
       ),
       contentPadding:
           const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      hintStyle: GoogleFonts.inter(color: AppColors.textTertiary, fontSize: 16),
+      hintStyle: const TextStyle(
+          fontFamily: 'Inter', color: AppColors.textTertiary, fontSize: 16),
     ),
 
     // Elevated buttons — accent color, rounded, 50px height
@@ -101,7 +110,8 @@ ThemeData buildTheme(Color accentColor) {
           borderRadius: BorderRadius.circular(AppSpacing.buttonRadius),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        textStyle: GoogleFonts.inter(
+        textStyle: const TextStyle(
+          fontFamily: 'Inter',
           fontWeight: FontWeight.w600,
           fontSize: 17,
         ),
@@ -118,7 +128,8 @@ ThemeData buildTheme(Color accentColor) {
           borderRadius: BorderRadius.circular(AppSpacing.buttonRadius),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        textStyle: GoogleFonts.inter(
+        textStyle: const TextStyle(
+          fontFamily: 'Inter',
           fontWeight: FontWeight.w600,
           fontSize: 17,
         ),
@@ -140,7 +151,8 @@ ThemeData buildTheme(Color accentColor) {
     // Snackbar
     snackBarTheme: SnackBarThemeData(
       backgroundColor: AppColors.textPrimary,
-      contentTextStyle: GoogleFonts.inter(color: Colors.white, fontSize: 14),
+      contentTextStyle: const TextStyle(
+          fontFamily: 'Inter', color: Colors.white, fontSize: 14),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
@@ -151,10 +163,10 @@ ThemeData buildTheme(Color accentColor) {
     chipTheme: ChipThemeData(
       backgroundColor: AppColors.scaffoldBg,
       selectedColor: accentColor.withValues(alpha: 0.12),
-      labelStyle:
-          GoogleFonts.inter(color: AppColors.textPrimary, fontSize: 14),
-      secondaryLabelStyle:
-          GoogleFonts.inter(color: accentColor, fontSize: 14),
+      labelStyle: const TextStyle(
+          fontFamily: 'Inter', color: AppColors.textPrimary, fontSize: 14),
+      secondaryLabelStyle: TextStyle(
+          fontFamily: 'Inter', color: accentColor, fontSize: 14),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
       ),
@@ -182,10 +194,10 @@ ThemeData buildTheme(Color accentColor) {
       labelColor: accentColor,
       unselectedLabelColor: AppColors.textTertiary,
       indicatorColor: accentColor,
-      labelStyle:
-          GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600),
-      unselectedLabelStyle:
-          GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w400),
+      labelStyle: const TextStyle(
+          fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.w600),
+      unselectedLabelStyle: const TextStyle(
+          fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.w400),
     ),
   );
 }
