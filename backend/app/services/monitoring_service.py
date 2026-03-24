@@ -134,7 +134,8 @@ async def get_error_stats(
         WHERE created_at >= :since{inst_clause}
         GROUP BY source
     """), params)
-    by_source = {row[0]: row[1] for row in result.fetchall()}
+    raw_source = {row[0]: row[1] for row in result.fetchall()}
+    by_source = {"backend": 0, "frontend": 0, **raw_source}
 
     # Errors by level
     result = await session.execute(text(f"""
@@ -143,7 +144,8 @@ async def get_error_stats(
         WHERE created_at >= :since{inst_clause}
         GROUP BY level
     """), params)
-    by_level = {row[0]: row[1] for row in result.fetchall()}
+    raw_level = {row[0]: row[1] for row in result.fetchall()}
+    by_level = {"critical": 0, "error": 0, "warning": 0, **raw_level}
 
     return {
         "total_errors_24h": total_24h,

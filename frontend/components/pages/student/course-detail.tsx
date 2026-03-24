@@ -174,8 +174,8 @@ export default function CourseDetailPage() {
     );
   }
 
-  const sortedModules = (modules || []).sort((a, b) => a.sequenceOrder - b.sequenceOrder);
-  const sortedLectures = lectures.sort((a, b) => a.sequenceOrder - b.sequenceOrder);
+  const sortedModules = [...(Array.isArray(modules) ? modules : [])].sort((a, b) => a.sequenceOrder - b.sequenceOrder);
+  const sortedLectures = [...(Array.isArray(lectures) ? lectures : [])].sort((a, b) => a.sequenceOrder - b.sequenceOrder);
 
   return (
     <DashboardLayout>

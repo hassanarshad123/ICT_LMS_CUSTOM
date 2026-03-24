@@ -146,7 +146,7 @@ export default function AdminStudents() {
             {studentList.map((student) => (
               <div key={student.id} className="bg-white rounded-xl p-4 border border-gray-100">
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-xs font-semibold text-primary">{student.name.charAt(0)}</div>
+                  <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-xs font-semibold text-primary">{student.name?.charAt(0) || '?'}</div>
                   <span className="text-sm font-medium text-primary flex-1">{student.name}</span>
                   <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${student.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
                     {student.status}
@@ -179,7 +179,7 @@ export default function AdminStudents() {
                   <tr key={student.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                     <td className="px-3 sm:px-6 py-3 sm:py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-xs font-semibold text-primary">{student.name.charAt(0)}</div>
+                        <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-xs font-semibold text-primary">{student.name?.charAt(0) || '?'}</div>
                         <span className="text-sm font-medium text-primary">{student.name}</span>
                       </div>
                     </td>

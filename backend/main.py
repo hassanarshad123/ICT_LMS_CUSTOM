@@ -92,13 +92,21 @@ app.add_middleware(SecurityHeadersMiddleware)
 # Error tracking + request logging (replaces old RequestLoggingMiddleware)
 app.add_middleware(ErrorTrackingMiddleware)
 
-# CORS
+# CORS — support multi-tenant subdomains
 origins = [settings.FRONTEND_URL]
 if settings.ALLOWED_ORIGINS:
     origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",")]
+
+allow_origin_regex = None
+if settings.FRONTEND_BASE_DOMAIN:
+    import re
+    escaped = re.escape(settings.FRONTEND_BASE_DOMAIN)
+    allow_origin_regex = rf"^https?://([a-zA-Z0-9\-]+\.)?{escaped}$"
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex=allow_origin_regex,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],

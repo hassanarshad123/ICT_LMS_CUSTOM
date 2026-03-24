@@ -239,7 +239,7 @@ export function BatchCourseContent({
                         strategy={verticalListSortingStrategy}
                       >
                         <div className="space-y-2">
-                          {[...lectures]
+                          {[...(lectures || [])]
                             .sort((a, b) => a.sequenceOrder - b.sequenceOrder)
                             .map((lecture) => (
                               <SortableLectureCard

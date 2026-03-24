@@ -144,7 +144,7 @@ export default function AdminCourseCreators() {
             <div key={creator.id} className="bg-white rounded-2xl p-6 card-shadow hover:card-shadow-hover transition-all duration-200">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-accent flex items-center justify-center text-lg font-semibold text-primary">{creator.name.charAt(0)}</div>
+                  <div className="w-12 h-12 rounded-full bg-accent flex items-center justify-center text-lg font-semibold text-primary">{creator.name?.charAt(0) || '?'}</div>
                   <div>
                     <h4 className="font-semibold text-primary">{creator.name}</h4>
                     <p className="text-xs text-gray-500">Course Creator</p>
@@ -160,7 +160,7 @@ export default function AdminCourseCreators() {
               </div>
               <div className="flex items-center justify-between pt-4 border-t border-gray-100">
                 <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${creator.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                  {creator.status.charAt(0).toUpperCase() + creator.status.slice(1)}
+                  {creator.status ? creator.status.charAt(0).toUpperCase() + creator.status.slice(1) : ''}
                 </span>
                 <button onClick={() => toggleStatus(creator.id, creator.status)} className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${creator.status === 'active' ? 'text-red-600 hover:bg-red-50' : 'text-green-600 hover:bg-green-50'}`}>
                   {creator.status === 'active' ? 'Deactivate' : 'Activate'}

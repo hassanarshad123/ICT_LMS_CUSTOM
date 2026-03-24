@@ -286,7 +286,7 @@ export default function UsersListView({ basePath: basePathProp }: UsersListViewP
                 className="bg-white rounded-xl p-4 border border-gray-100 cursor-pointer active:bg-gray-50"
               >
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="w-9 h-9 rounded-full bg-accent flex items-center justify-center text-xs font-semibold text-primary">{user.name.charAt(0)}</div>
+                  <div className="w-9 h-9 rounded-full bg-accent flex items-center justify-center text-xs font-semibold text-primary">{user.name?.charAt(0) || '?'}</div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-semibold text-primary truncate">{user.name}</span>
@@ -329,7 +329,7 @@ export default function UsersListView({ basePath: basePathProp }: UsersListViewP
                   <tr key={user.id} onClick={() => router.push(`${basePath}/${user.id}`)} className="border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer">
                     <td className="px-3 sm:px-6 py-3 sm:py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-xs font-semibold text-primary">{user.name.charAt(0)}</div>
+                        <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-xs font-semibold text-primary">{user.name?.charAt(0) || '?'}</div>
                         <span className="text-sm font-medium text-primary">{user.name}</span>
                       </div>
                     </td>

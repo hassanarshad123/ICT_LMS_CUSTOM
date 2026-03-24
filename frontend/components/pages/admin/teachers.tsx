@@ -123,7 +123,7 @@ export default function AdminTeachers() {
           {teacherList.map((teacher) => (
             <div key={teacher.id} className="bg-white rounded-2xl p-6 card-shadow hover:card-shadow-hover transition-all duration-200">
               <div className="flex items-center gap-4 mb-4">
-                <div className="w-12 h-12 rounded-full bg-accent flex items-center justify-center text-lg font-semibold text-primary">{teacher.name.charAt(0)}</div>
+                <div className="w-12 h-12 rounded-full bg-accent flex items-center justify-center text-lg font-semibold text-primary">{teacher.name?.charAt(0) || '?'}</div>
                 <div>
                   <h4 className="font-semibold text-primary">{teacher.name}</h4>
                   <p className="text-xs text-gray-500">{teacher.specialization || 'No specialization'}</p>

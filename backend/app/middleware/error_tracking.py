@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 import time
 import logging
@@ -60,14 +61,15 @@ async def _store_error(
             try:
                 from sqlmodel import select as sql_select
                 from app.models.user import User
-                async with async_session() as lookup_session:
-                    result = await lookup_session.execute(
-                        sql_select(User).where(User.id == user_id)
-                    )
-                    user_obj = result.scalar_one_or_none()
-                    if user_obj:
-                        institute_id = user_obj.institute_id
-            except Exception:
+                async with asyncio.timeout(2):
+                    async with async_session() as lookup_session:
+                        result = await lookup_session.execute(
+                            sql_select(User).where(User.id == user_id)
+                        )
+                        user_obj = result.scalar_one_or_none()
+                        if user_obj:
+                            institute_id = user_obj.institute_id
+            except (asyncio.TimeoutError, Exception):
                 pass  # best-effort
 
         ip = request.client.host if request.client else None
@@ -89,9 +91,14 @@ async def _store_error(
             source="backend",
         )
 
-        async with async_session() as session:
-            session.add(error_log)
-            await session.commit()
+        try:
+            async with asyncio.timeout(3):
+                async with async_session() as session:
+                    session.add(error_log)
+                    await session.commit()
+        except asyncio.TimeoutError:
+            logger.warning("Error logging timed out (pool likely exhausted)")
+            return
 
         # Send Discord alert for 500+ errors
         if status_code >= 500:
