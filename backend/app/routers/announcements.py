@@ -10,13 +10,14 @@ from app.database import get_session
 from app.schemas.announcement import AnnouncementCreate, AnnouncementUpdate, AnnouncementOut
 from app.schemas.common import PaginatedResponse
 from app.services import announcement_service, notification_service
-from app.middleware.auth import get_current_user
+from app.middleware.auth import get_current_user, require_roles
 from app.models.user import User
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 AllRoles = Annotated[User, Depends(get_current_user)]
+AdminCCTeacher = Annotated[User, Depends(require_roles("admin", "course_creator", "teacher"))]
 
 
 async def _send_announcement_notifications(
@@ -121,7 +122,7 @@ async def list_announcements(
 @router.post("", response_model=AnnouncementOut, status_code=status.HTTP_201_CREATED)
 async def create_announcement(
     body: AnnouncementCreate,
-    current_user: AllRoles,
+    current_user: AdminCCTeacher,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -157,7 +158,7 @@ async def create_announcement(
 async def update_announcement(
     announcement_id: uuid.UUID,
     body: AnnouncementUpdate,
-    current_user: AllRoles,
+    current_user: AdminCCTeacher,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -185,7 +186,7 @@ async def update_announcement(
 @router.delete("/{announcement_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_announcement(
     announcement_id: uuid.UUID,
-    current_user: AllRoles,
+    current_user: AdminCCTeacher,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:

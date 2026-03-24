@@ -43,6 +43,16 @@ class UserOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class UserPublicOut(BaseModel):
+    """Minimal user info returned to students viewing other users."""
+    id: uuid.UUID
+    name: str
+    role: str
+    avatar_url: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
 class UserListResponse(BaseModel):
     data: list[UserOut]
     total: int

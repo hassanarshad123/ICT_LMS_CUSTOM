@@ -68,6 +68,7 @@ async def list_users(
     search: Optional[str] = None,
     batch_id: Optional[uuid.UUID] = None,
     institute_id: Optional[uuid.UUID] = None,
+    allowed_roles: Optional[list[str]] = None,
 ) -> tuple[list[User], int]:
     """Return (users, total_count) with pagination and filters."""
     query = select(User).where(User.deleted_at.is_(None))
@@ -80,6 +81,12 @@ async def list_users(
     if role:
         query = query.where(User.role == UserRole(role))
         count_query = count_query.where(User.role == UserRole(role))
+
+    # Restrict to specific roles (e.g., CCs can only see students/teachers)
+    if allowed_roles:
+        role_enums = [UserRole(r) for r in allowed_roles]
+        query = query.where(User.role.in_(role_enums))
+        count_query = count_query.where(User.role.in_(role_enums))
 
     if status:
         query = query.where(User.status == UserStatus(status))

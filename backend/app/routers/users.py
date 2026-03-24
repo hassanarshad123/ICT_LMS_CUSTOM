@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, func, col
 
 from app.database import get_session
-from app.schemas.user import UserCreate, UserUpdate, UserOut, UserListResponse, StatusUpdate
+from app.schemas.user import UserCreate, UserUpdate, UserOut, UserPublicOut, UserListResponse, StatusUpdate
 from app.schemas.common import PaginatedResponse
 from app.services.user_service import (
     create_user,
@@ -134,9 +134,21 @@ async def list_users_endpoint(
     # Convert kebab-case role from API
     db_role = to_db(role) if role else None
 
+    # Course creators can only see students and teachers, not admins or other CCs
+    cc_allowed_roles = None
+    if current_user.role.value == "course_creator" and not db_role:
+        cc_allowed_roles = ["student", "teacher"]
+    elif current_user.role.value == "course_creator" and db_role:
+        if db_role not in ("student", "teacher"):
+            # CC tried to filter by admin/course_creator — return empty
+            return UserListResponse(data=[], total=0, page=page, per_page=per_page, total_pages=0)
+
     users, total = await list_users(
-        session, page=page, per_page=per_page, role=db_role, status=status,
-        search=search, batch_id=batch_id, institute_id=current_user.institute_id,
+        session, page=page, per_page=per_page,
+        role=db_role, status=status,
+        search=search, batch_id=batch_id,
+        institute_id=current_user.institute_id,
+        allowed_roles=cc_allowed_roles,
     )
 
     # Batch-load batch data for all students on this page (single query)
@@ -247,7 +259,7 @@ async def create_user_endpoint(
     }
 
 
-@router.get("/{user_id}", response_model=UserOut)
+@router.get("/{user_id}")
 async def get_user_endpoint(
     user_id: uuid.UUID,
     current_user: AllRoles,
@@ -258,6 +270,19 @@ async def get_user_endpoint(
         raise HTTPException(status_code=404, detail="User not found")
     if user.institute_id != current_user.institute_id:
         raise HTTPException(status_code=404, detail="User not found")
+
+    # Students viewing OTHER users get minimal info only
+    if (
+        current_user.role.value == "student"
+        and user.id != current_user.id
+    ):
+        return UserPublicOut(
+            id=user.id,
+            name=user.name,
+            role=user.role.value,
+            avatar_url=user.avatar_url,
+        )
+
     data = await _enrich_user(session, user)
     return UserOut(**data)
 

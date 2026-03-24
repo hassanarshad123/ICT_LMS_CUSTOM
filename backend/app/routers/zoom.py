@@ -20,6 +20,7 @@ from app.schemas.zoom import (
 from app.schemas.common import PaginatedResponse
 from app.services import zoom_service, webhook_event_service
 from app.middleware.auth import require_roles, get_current_user
+from app.middleware.access_control import verify_zoom_class_access
 from app.models.user import User
 from app.models.enums import ZoomClassStatus
 from app.utils.rate_limit import limiter
@@ -185,7 +186,11 @@ async def create_class(
     from sqlmodel import select
     from app.models.batch import Batch
     from app.models.enums import UserRole
-    r = await session.execute(select(Batch).where(Batch.id == body.batch_id, Batch.deleted_at.is_(None)))
+    r = await session.execute(select(Batch).where(
+        Batch.id == body.batch_id,
+        Batch.deleted_at.is_(None),
+        Batch.institute_id == current_user.institute_id,
+    ))
     batch = r.scalar_one_or_none()
     if not batch or batch.created_by != current_user.id:
         raise HTTPException(status_code=403, detail="You can only schedule classes for your own batches")
@@ -359,6 +364,7 @@ async def get_attendance(
     current_user: AllRoles,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
+    await verify_zoom_class_access(session, current_user, class_id)
     items = await zoom_service.get_attendance(session, class_id, institute_id=current_user.institute_id)
     return [AttendanceOut(**item) for item in items]
 
@@ -369,6 +375,7 @@ async def get_recordings(
     current_user: AllRoles,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
+    await verify_zoom_class_access(session, current_user, class_id)
     recordings = await zoom_service.get_recordings(session, class_id, institute_id=current_user.institute_id)
     return [
         RecordingOut(
