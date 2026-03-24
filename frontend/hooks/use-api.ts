@@ -39,6 +39,12 @@ export function useApi<T>(
 
 export function useMutation<TArgs extends any[], TResult>(
   mutator: (...args: TArgs) => Promise<TResult>,
+  options?: {
+    /** Specific query key prefixes to invalidate after mutation.
+     *  e.g. [['api', 'courses'], ['api', 'dashboard']]
+     *  If omitted, invalidates ALL queries (backward compatible). */
+    invalidateKeys?: string[][];
+  },
 ) {
   const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
@@ -50,8 +56,15 @@ export function useMutation<TArgs extends any[], TResult>(
       setError(null);
       try {
         const result = await mutator(...args);
-        // Invalidate all cached queries so stale data is refetched
-        queryClient.invalidateQueries();
+        // Targeted invalidation: only refetch affected queries
+        if (options?.invalidateKeys && options.invalidateKeys.length > 0) {
+          for (const key of options.invalidateKeys) {
+            queryClient.invalidateQueries({ queryKey: key });
+          }
+        } else {
+          // Fallback: invalidate everything (backward compatible for un-migrated call sites)
+          queryClient.invalidateQueries();
+        }
         return result;
       } catch (err: any) {
         setError(err.message || 'An error occurred');
@@ -60,7 +73,7 @@ export function useMutation<TArgs extends any[], TResult>(
         setLoading(false);
       }
     },
-    [mutator, queryClient],
+    [mutator, queryClient, options?.invalidateKeys],
   );
 
   return { execute, loading, error };

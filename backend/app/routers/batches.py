@@ -53,6 +53,12 @@ async def create_batch(
         created_by=current_user.id, institute_id=current_user.institute_id,
     )
     data = await batch_service.get_batch(session, batch.id, institute_id=current_user.institute_id)
+
+    # Invalidate dashboard cache
+    from app.core.cache import cache
+    if current_user.institute_id:
+        await cache.invalidate_dashboard(str(current_user.institute_id))
+
     return BatchOut(**data)
 
 
@@ -93,6 +99,11 @@ async def delete_batch(
         await batch_service.soft_delete_batch(session, batch_id, institute_id=current_user.institute_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+    # Invalidate dashboard cache
+    from app.core.cache import cache
+    if current_user.institute_id:
+        await cache.invalidate_dashboard(str(current_user.institute_id))
 
 
 @router.get("/{batch_id}/students")

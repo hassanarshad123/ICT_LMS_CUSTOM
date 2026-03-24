@@ -15,7 +15,14 @@ from app.models.activity import ActivityLog
 from app.models.enums import UserRole, UserStatus
 
 
-async def get_dashboard(session: AsyncSession, institute_id: uuid.UUID) -> dict:
+async def get_dashboard(session: AsyncSession, institute_id: uuid.UUID, use_cache: bool = True) -> dict:
+    from app.core.cache import cache
+
+    cache_key = cache.dashboard_key(str(institute_id))
+    if use_cache:
+        cached = await cache.get(cache_key)
+        if cached is not None:
+            return cached
     today = date.today()
 
     # Total batches
@@ -119,7 +126,7 @@ async def get_dashboard(session: AsyncSession, institute_id: uuid.UUID) -> dict:
         for u in students
     ]
 
-    return {
+    result = {
         "total_batches": total_batches,
         "active_batches": active_batches,
         "total_students": total_students,
@@ -131,8 +138,20 @@ async def get_dashboard(session: AsyncSession, institute_id: uuid.UUID) -> dict:
         "recent_students": recent_students,
     }
 
+    # Cache for 2 minutes
+    await cache.set(cache_key, result, ttl=120)
+    return result
 
-async def get_insights(session: AsyncSession, institute_id: uuid.UUID) -> dict:
+
+async def get_insights(session: AsyncSession, institute_id: uuid.UUID, use_cache: bool = True) -> dict:
+    from app.core.cache import cache
+
+    cache_key = cache.insights_key(str(institute_id))
+    if use_cache:
+        cached = await cache.get(cache_key)
+        if cached is not None:
+            return cached
+
     # Students by status
     r = await session.execute(
         select(User.status, func.count()).where(
@@ -250,7 +269,7 @@ async def get_insights(session: AsyncSession, institute_id: uuid.UUID) -> dict:
         "no_sessions": max(0, no_sessions),
     }
 
-    return {
+    result = {
         "monthly": [],  # Computed from activity log in production
         "students_by_status": students_by_status,
         "batches_by_status": batches_by_status,
@@ -260,3 +279,7 @@ async def get_insights(session: AsyncSession, institute_id: uuid.UUID) -> dict:
         "lectures_per_course": lectures_per_course,
         "device_overview": device_overview,
     }
+
+    # Cache for 5 minutes
+    await cache.set(cache_key, result, ttl=300)
+    return result

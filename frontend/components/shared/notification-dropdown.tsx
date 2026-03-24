@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useBasePath } from '@/hooks/use-base-path';
+import { useAuth } from '@/lib/auth-context';
+import { useNotificationCount } from '@/hooks/use-websocket';
 import { listNotifications, getUnreadCount, markAsRead, markAllRead, NotificationItem } from '@/lib/api/notifications';
 import {
   Bell,
@@ -39,6 +41,7 @@ function timeAgo(dateStr?: string): string {
 export default function NotificationDropdown() {
   const router = useRouter();
   const basePath = useBasePath();
+  const { id: userId } = useAuth();
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -68,10 +71,16 @@ export default function NotificationDropdown() {
     }
   }, []);
 
-  // Poll unread count every 30 seconds
+  // Real-time notification count via WebSocket
+  const handleWsCountChange = useCallback((count: number) => {
+    setUnreadCount(count);
+  }, []);
+  useNotificationCount(userId, handleWsCountChange);
+
+  // Fallback: poll every 60s (in case WS disconnects). Initial fetch on mount.
   useEffect(() => {
     fetchUnreadCount();
-    pollRef.current = setInterval(fetchUnreadCount, 30000);
+    pollRef.current = setInterval(fetchUnreadCount, 60000);
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };

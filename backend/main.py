@@ -46,6 +46,10 @@ async def lifespan(app: FastAPI):
     from app.core.redis import init_redis, close_redis
     await init_redis()
 
+    # Startup — WebSocket Pub/Sub listener (cross-worker notification delivery)
+    from app.websockets.pubsub import start_pubsub_listener
+    pubsub_task = await start_pubsub_listener()
+
     # Startup — start scheduler
     try:
         from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -68,6 +72,8 @@ async def lifespan(app: FastAPI):
     # Shutdown
     if hasattr(app.state, "scheduler"):
         app.state.scheduler.shutdown()
+    if pubsub_task is not None:
+        pubsub_task.cancel()
     await close_redis()
 
 

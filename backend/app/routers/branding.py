@@ -85,8 +85,16 @@ async def get_branding(
     request: Request,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    """Public endpoint — returns all branding settings with defaults."""
+    """Public endpoint — returns all branding settings with defaults. Cached for 1 hour."""
+    from app.core.cache import cache
+
     institute_id = await _resolve_institute_id(request, session)
+    cache_key = cache.branding_key(str(institute_id) if institute_id else None)
+
+    # Try cache first
+    cached = await cache.get(cache_key)
+    if cached is not None:
+        return BrandingResponse(**cached)
 
     query = select(SystemSetting).where(
         SystemSetting.setting_key.in_(list(BRANDING_KEYS.keys()))
@@ -106,6 +114,9 @@ async def get_branding(
             data[field_name] = value
         else:
             data[field_name] = getattr(DEFAULTS, field_name)
+
+    # Cache for 1 hour
+    await cache.set(cache_key, data, ttl=3600)
 
     return BrandingResponse(**data)
 
@@ -138,6 +149,10 @@ async def update_branding(
             session.add(SystemSetting(setting_key=db_key, value=str(value), institute_id=institute_id))
 
     await session.commit()
+
+    # Invalidate branding cache
+    from app.core.cache import cache
+    await cache.delete(cache.branding_key(str(institute_id)))
 
     return await get_branding(request, session)
 
@@ -187,6 +202,10 @@ async def upload_logo(
         session.add(SystemSetting(setting_key=db_key, value=data_url, institute_id=institute_id))
 
     await session.commit()
+
+    # Invalidate branding cache
+    from app.core.cache import cache
+    await cache.delete(cache.branding_key(str(institute_id)))
 
     return {"logo_url": data_url}
 
