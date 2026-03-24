@@ -44,7 +44,6 @@ class Settings(BaseSettings):
 
     # Monitoring
     SENTRY_DSN: str = ""
-    DISCORD_WEBHOOK_URL: str = ""
 
     # Redis Cache
     REDIS_URL: str = "redis://127.0.0.1:6379/0"

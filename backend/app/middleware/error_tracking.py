@@ -31,6 +31,19 @@ def _sentry_set_context(request: Request, request_id: str, exc: Exception | None
             "ip_address": request.client.host if request.client else None,
         })
 
+    # Attach tenant / role / impersonation context
+    institute_id = getattr(request.state, "institute_id", None)
+    if institute_id:
+        sentry_sdk.set_tag("institute_id", str(institute_id))
+
+    user_role = getattr(request.state, "user_role", None)
+    if user_role:
+        sentry_sdk.set_tag("user.role", user_role)
+
+    impersonator_id = getattr(request.state, "impersonator_id", None)
+    if impersonator_id:
+        sentry_sdk.set_tag("impersonator_id", str(impersonator_id))
+
     # If there's an exception, capture it explicitly so Sentry gets full context
     if exc is not None:
         sentry_sdk.capture_exception(exc)
@@ -42,11 +55,10 @@ async def _store_error(
     status_code: int,
     exc: Exception | None = None,
 ):
-    """Store error in database and send Discord alert. Best-effort, never raises."""
+    """Store error in database. Best-effort, never raises."""
     try:
         from app.database import async_session
         from app.models.error_log import ErrorLog
-        from app.utils.discord import send_discord_alert
 
         message = str(exc) if exc else f"HTTP {status_code}"
         traceback_str = "".join(tb.format_exception(type(exc), exc, exc.__traceback__)) if exc else None
@@ -100,31 +112,6 @@ async def _store_error(
             logger.warning("Error logging timed out (pool likely exhausted)")
             return
 
-        # Send Discord alert for 500+ errors
-        if status_code >= 500:
-            fields = [
-                {"name": "Path", "value": f"`{request.method} {request.url.path}`", "inline": True},
-                {"name": "Status", "value": str(status_code), "inline": True},
-                {"name": "Request ID", "value": f"`{request_id}`", "inline": True},
-            ]
-            if user_email:
-                fields.append({"name": "User", "value": user_email, "inline": True})
-            if ip:
-                fields.append({"name": "IP", "value": ip, "inline": True})
-
-            desc = message[:500]
-            if traceback_str:
-                # Include last few lines of traceback
-                tb_lines = traceback_str.strip().split("\n")
-                desc = "```\n" + "\n".join(tb_lines[-5:]) + "\n```"
-
-            await send_discord_alert(
-                title="Server Error",
-                description=desc,
-                color=0xFF0000,
-                fields=fields,
-            )
-
     except Exception as e:
         logger.error("Failed to store error log: %s", e)
 
@@ -173,6 +160,15 @@ class ErrorTrackingMiddleware(BaseHTTPMiddleware):
         if response.status_code >= 500:
             _sentry_set_context(request, request_id)
             await _store_error(request, request_id, response.status_code)
+            # Capture handled 5xx to Sentry as a message (no exception object available)
+            try:
+                import sentry_sdk
+                sentry_sdk.capture_message(
+                    f"HTTP {response.status_code} on {request.method} {request.url.path}",
+                    level="error",
+                )
+            except ImportError:
+                pass
 
         response.headers["X-Request-ID"] = request_id
         return response

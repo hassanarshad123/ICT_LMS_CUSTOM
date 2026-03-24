@@ -74,7 +74,7 @@ async def start_pubsub_listener() -> asyncio.Task:
                         message = data["message"]
                         await manager.broadcast(channel, message)
                     except Exception as e:
-                        logger.debug("Pub/Sub message handling error: %s", e)
+                        logger.warning("Pub/Sub message handling error: %s", e)
 
             except asyncio.CancelledError:
                 logger.info("Pub/Sub listener stopped")

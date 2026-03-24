@@ -192,44 +192,54 @@ async def report_client_error(
         institute_id=institute_id,
     )
 
-    # Discord alert for frontend errors too
-    from app.utils.discord import send_discord_alert
-    await send_discord_alert(
-        title="Frontend Error",
-        description=f"```\n{body.message[:500]}\n```",
-        color=0xFFA500,
-        fields=[
-            {"name": "URL", "value": body.url or "unknown", "inline": True},
-            {"name": "Component", "value": body.component or "unknown", "inline": True},
-        ],
-    )
+    # Forward frontend errors to Sentry with structured context
+    try:
+        import sentry_sdk
+        with sentry_sdk.new_scope() as scope:
+            scope.set_tag("source", "frontend")
+            scope.set_tag("institute_id", str(institute_id) if institute_id else "unknown")
+            if body.url:
+                scope.set_tag("frontend_url", body.url)
+            if body.component:
+                scope.set_tag("frontend_component", body.component)
+            scope.set_context("frontend_error", {
+                "url": body.url,
+                "component": body.component,
+                "stack": body.stack,
+                "extra": body.extra,
+            })
+            sentry_sdk.capture_message(
+                f"[Frontend] {body.message[:200]}",
+                level="error",
+            )
+    except Exception:
+        pass
 
     return {"status": "recorded"}
 
 
 @router.post("/test-alert", status_code=status.HTTP_200_OK)
-async def test_discord_alert(current_user: Admin):
-    """Send a test alert to verify Discord webhook is working."""
-    from app.utils.discord import send_discord_alert
+async def test_sentry_alert(current_user: Admin):
+    """Send a test alert to verify Sentry is capturing events."""
     from app.config import get_settings
 
     settings = get_settings()
-    if not settings.DISCORD_WEBHOOK_URL:
+    if not settings.SENTRY_DSN:
         raise HTTPException(
             status_code=400,
-            detail="DISCORD_WEBHOOK_URL not configured in environment",
+            detail="SENTRY_DSN not configured in environment",
         )
 
-    await send_discord_alert(
-        title="Test Alert",
-        description="This is a test alert from ICT LMS monitoring system.",
-        color=0x00FF00,
-        fields=[
-            {"name": "Triggered by", "value": current_user.email, "inline": True},
-            {"name": "Environment", "value": settings.APP_ENV, "inline": True},
-        ],
-    )
-    return {"status": "sent"}
+    try:
+        import sentry_sdk
+        sentry_sdk.capture_message(
+            "Test alert from ICT LMS monitoring system",
+            level="info",
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to send Sentry alert: {e}")
+
+    return {"status": "sent", "destination": "sentry"}
 
 
 @router.get("/sentry-test")

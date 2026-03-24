@@ -3,10 +3,12 @@ import logging
 from datetime import datetime, timezone, timedelta
 
 from app.database import async_session
+from app.core.sentry import sentry_job_wrapper
 
 logger = logging.getLogger("ict_lms.scheduler")
 
 
+@sentry_job_wrapper("cleanup_expired_sessions")
 async def cleanup_expired_sessions():
     """Deactivate expired sessions (hourly).
 
@@ -31,6 +33,7 @@ async def cleanup_expired_sessions():
             logger.info("Cleaned up %d expired sessions", len(expired))
 
 
+@sentry_job_wrapper("retry_failed_recordings")
 async def retry_failed_recordings():
     """Retry recordings stuck in 'processing' status (every 30 minutes).
 
@@ -59,6 +62,7 @@ async def retry_failed_recordings():
                 logger.error("Retry failed for recording %s: %s", rec.id, e)
 
 
+@sentry_job_wrapper("send_zoom_reminders")
 async def send_zoom_reminders():
     """Send reminders for upcoming Zoom classes (every 10 minutes).
 
@@ -130,6 +134,7 @@ async def send_zoom_reminders():
         await session.commit()
 
 
+@sentry_job_wrapper("auto_suspend_expired_institutes")
 async def auto_suspend_expired_institutes():
     """Auto-suspend institutes whose subscription has expired (daily)."""
     from sqlmodel import select
@@ -157,6 +162,7 @@ async def auto_suspend_expired_institutes():
             logger.info("Auto-suspended %d expired institutes", len(expired))
 
 
+@sentry_job_wrapper("process_webhook_deliveries")
 async def process_webhook_deliveries():
     """Process pending webhook deliveries and retries (every 1 minute)."""
     from app.services.webhook_event_service import process_pending_deliveries
@@ -170,6 +176,7 @@ async def process_webhook_deliveries():
             logger.error("Webhook delivery processing failed: %s", e)
 
 
+@sentry_job_wrapper("cleanup_stale_uploads")
 async def cleanup_stale_uploads():
     """Soft-delete lectures stuck in 'pending' for over 24 hours (daily).
 
