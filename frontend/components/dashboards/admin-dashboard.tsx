@@ -8,6 +8,7 @@ import { useApi } from '@/hooks/use-api';
 import { getDashboard, RecentBatch, RecentStudent } from '@/lib/api/admin';
 import { PageLoading } from '@/components/shared/page-states';
 import { PageError } from '@/components/shared/page-states';
+import { pluralize } from '@/lib/utils/pluralize';
 import WelcomeBanner from '@/components/shared/welcome-banner';
 import { Layers, Users, GraduationCap, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
@@ -65,7 +66,7 @@ export default function AdminDashboard() {
                         <p className="text-xs text-gray-500 mt-0.5">Teacher: {batch.teacherName || 'Unassigned'}</p>
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className="text-xs text-gray-500">{batch.studentCount} students</span>
+                        <span className="text-xs text-gray-500">{batch.studentCount} {pluralize(batch.studentCount, 'student')}</span>
                         <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
                           batch.status === 'active' ? 'bg-green-100 text-green-700' :
                           batch.status === 'upcoming' ? 'bg-yellow-100 text-yellow-700' :

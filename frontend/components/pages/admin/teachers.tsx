@@ -7,10 +7,12 @@ import { useAuth } from '@/lib/auth-context';
 import { useBasePath } from '@/hooks/use-base-path';
 import { usePaginatedApi } from '@/hooks/use-paginated-api';
 import { useMutation } from '@/hooks/use-api';
-import { listUsers, createUser, changeUserStatus } from '@/lib/api/users';
+import { listUsers, createUser, changeUserStatus, updateUser, UserOut } from '@/lib/api/users';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
-import { Plus, X, GraduationCap, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Plus, X, GraduationCap, Loader2, Eye, EyeOff, Pencil } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { formatPhone } from '@/lib/utils/format-phone';
 
 export default function AdminTeachers() {
   const { name } = useAuth();
@@ -18,6 +20,9 @@ export default function AdminTeachers() {
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', specialization: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
+  const [editingTeacher, setEditingTeacher] = useState<UserOut | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', email: '', phone: '', specialization: '' });
+  const [editSaving, setEditSaving] = useState(false);
 
   const { data: teacherList, total, page, totalPages, loading, error, setPage, refetch } = usePaginatedApi(
     (params) => listUsers({ ...params, role: 'teacher' }),
@@ -26,6 +31,7 @@ export default function AdminTeachers() {
 
   const { execute: doCreate, loading: creating } = useMutation(createUser);
   const { execute: doToggleStatus } = useMutation(changeUserStatus);
+  const { execute: doUpdate } = useMutation(updateUser);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,6 +66,29 @@ export default function AdminTeachers() {
       refetch();
     } catch (err: any) {
       toast.error(err.message);
+    }
+  };
+
+  const handleEdit = async () => {
+    if (!editingTeacher || !editForm.name.trim()) {
+      toast.error('Name is required');
+      return;
+    }
+    setEditSaving(true);
+    try {
+      await doUpdate(editingTeacher.id, {
+        name: editForm.name,
+        email: editForm.email,
+        phone: editForm.phone,
+        specialization: editForm.specialization,
+      });
+      toast.success('Teacher updated');
+      setEditingTeacher(null);
+      refetch();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update teacher');
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -131,7 +160,7 @@ export default function AdminTeachers() {
               </div>
               <div className="space-y-2 text-sm text-gray-600">
                 <p>{teacher.email}</p>
-                <p>{teacher.phone || '—'}</p>
+                <p>{teacher.phone ? formatPhone(teacher.phone) : '—'}</p>
               </div>
               {teacher.batchNames && teacher.batchNames.length > 0 && (
                 <div className="mt-4 pt-4 border-t border-gray-100">
@@ -147,14 +176,19 @@ export default function AdminTeachers() {
                 <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${teacher.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
                   {teacher.status}
                 </span>
-                <button
-                  onClick={() => handleToggleStatus(teacher.id, teacher.status)}
-                  className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${
-                    teacher.status === 'active' ? 'text-red-600 hover:bg-red-50' : 'text-green-600 hover:bg-green-50'
-                  }`}
-                >
-                  {teacher.status === 'active' ? 'Deactivate' : 'Activate'}
-                </button>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => { setEditForm({ name: teacher.name, email: teacher.email, phone: teacher.phone || '', specialization: teacher.specialization || '' }); setEditingTeacher(teacher); }} className="text-xs font-medium px-3 py-1.5 rounded-lg transition-colors text-blue-600 hover:bg-blue-50" aria-label={`Edit teacher ${teacher.name}`}>
+                    <Pencil size={14} className="inline mr-1" />Edit
+                  </button>
+                  <button
+                    onClick={() => handleToggleStatus(teacher.id, teacher.status)}
+                    className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${
+                      teacher.status === 'active' ? 'text-red-600 hover:bg-red-50' : 'text-green-600 hover:bg-green-50'
+                    }`}
+                  >
+                    {teacher.status === 'active' ? 'Deactivate' : 'Activate'}
+                  </button>
+                </div>
               </div>
             </div>
           ))}
@@ -172,6 +206,38 @@ export default function AdminTeachers() {
           <button onClick={() => setPage(page + 1)} disabled={page === totalPages} className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">Next</button>
         </div>
       )}
+      <Dialog open={!!editingTeacher} onOpenChange={(open) => { if (!open) { setEditingTeacher(null); setEditSaving(false); } }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Teacher</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4">
+            <div>
+              <label htmlFor="edit-teacher-name" className="block text-sm font-medium text-gray-700 mb-1.5">Full Name</label>
+              <input id="edit-teacher-name" type="text" value={editForm.name} onChange={(e) => setEditForm(f => ({ ...f, name: e.target.value }))} placeholder="Teacher name" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50" required />
+            </div>
+            <div>
+              <label htmlFor="edit-teacher-email" className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
+              <input id="edit-teacher-email" type="email" value={editForm.email} onChange={(e) => setEditForm(f => ({ ...f, email: e.target.value }))} placeholder="teacher@email.com" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50" required />
+            </div>
+            <div>
+              <label htmlFor="edit-teacher-phone" className="block text-sm font-medium text-gray-700 mb-1.5">Phone</label>
+              <input id="edit-teacher-phone" type="text" value={editForm.phone} onChange={(e) => setEditForm(f => ({ ...f, phone: e.target.value }))} placeholder="0300-1234567" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50" />
+            </div>
+            <div>
+              <label htmlFor="edit-teacher-spec" className="block text-sm font-medium text-gray-700 mb-1.5">Specialization</label>
+              <input id="edit-teacher-spec" type="text" value={editForm.specialization} onChange={(e) => setEditForm(f => ({ ...f, specialization: e.target.value }))} placeholder="e.g. Web Development" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50" />
+            </div>
+          </div>
+          <DialogFooter>
+            <button onClick={() => setEditingTeacher(null)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors">Cancel</button>
+            <button onClick={handleEdit} disabled={editSaving} className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors disabled:opacity-60">
+              {editSaving && <Loader2 size={16} className="animate-spin" />}
+              Save Changes
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

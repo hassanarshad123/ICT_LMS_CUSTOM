@@ -40,6 +40,11 @@
     @apply text-foreground antialiased;
     background-color: hsl(var(--background));
   }
+  /* Keyboard focus indicator — only activates on Tab navigation, not mouse clicks */
+  *:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
 }
 
 @layer utilities {

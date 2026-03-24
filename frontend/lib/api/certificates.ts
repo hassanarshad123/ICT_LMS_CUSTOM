@@ -98,7 +98,8 @@ export async function listEligibleStudents(params: {
 }
 
 export async function getStudentDashboard(): Promise<StudentDashboardCourse[]> {
-  return apiClient('/certificates/my-dashboard');
+  const result = await apiClient<StudentDashboardCourse[]>('/certificates/my-dashboard');
+  return Array.isArray(result) ? result : [];
 }
 
 export async function requestCertificate(

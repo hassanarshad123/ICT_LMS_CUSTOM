@@ -7,14 +7,16 @@ import { useAuth } from '@/lib/auth-context';
 import { useBasePath } from '@/hooks/use-base-path';
 import { usePaginatedApi } from '@/hooks/use-paginated-api';
 import { useMutation, useApi } from '@/hooks/use-api';
-import { listUsers, createUser } from '@/lib/api/users';
+import { listUsers, createUser, updateUser, UserOut } from '@/lib/api/users';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { listBatches } from '@/lib/api/batches';
 import { enrollStudent } from '@/lib/api/batches';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
-import { Plus, X, Search, Users, Loader2, Upload } from 'lucide-react';
+import { Plus, X, Search, Users, Loader2, Upload, Pencil } from 'lucide-react';
 import CsvImportPanel from '@/components/shared/csv-import-panel';
 import { SearchableCombobox } from '@/components/ui/searchable-combobox';
+import { formatPhone } from '@/lib/utils/format-phone';
 
 export default function AdminStudents() {
   const { name } = useAuth();
@@ -24,6 +26,9 @@ export default function AdminStudents() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', batchId: '' });
+  const [editingStudent, setEditingStudent] = useState<UserOut | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', email: '', phone: '' });
+  const [editSaving, setEditSaving] = useState(false);
 
   // Debounce search
   useEffect(() => {
@@ -42,6 +47,7 @@ export default function AdminStudents() {
 
   const { execute: doCreate, loading: creating } = useMutation(createUser);
   const { execute: doEnroll } = useMutation(enrollStudent);
+  const { execute: doUpdate } = useMutation(updateUser);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,6 +68,28 @@ export default function AdminStudents() {
       refetch();
     } catch (err: any) {
       toast.error(err.message);
+    }
+  };
+
+  const handleEdit = async () => {
+    if (!editingStudent || !editForm.name.trim()) {
+      toast.error('Name is required');
+      return;
+    }
+    setEditSaving(true);
+    try {
+      await doUpdate(editingStudent.id, {
+        name: editForm.name,
+        email: editForm.email,
+        phone: editForm.phone,
+      });
+      toast.success('Student updated');
+      setEditingStudent(null);
+      refetch();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update student');
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -151,9 +179,12 @@ export default function AdminStudents() {
                   <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${student.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
                     {student.status}
                   </span>
+                  <button onClick={() => { setEditForm({ name: student.name, email: student.email, phone: student.phone || '' }); setEditingStudent(student); }} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" aria-label={`Edit student ${student.name}`}>
+                    <Pencil size={14} />
+                  </button>
                 </div>
                 <div className="text-sm text-gray-600 space-y-1 ml-11">
-                  <p>{student.email} {student.phone ? `\u00B7 ${student.phone}` : ''}</p>
+                  <p>{student.email} {student.phone ? `\u00B7 ${formatPhone(student.phone)}` : ''}</p>
                   {student.batchNames && student.batchNames.length > 0 && (
                     <p className="text-xs text-gray-500">{student.batchNames.join(', ')}</p>
                   )}
@@ -172,6 +203,7 @@ export default function AdminStudents() {
                   <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Phone</th>
                   <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Batch</th>
                   <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Status</th>
+                  <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -184,12 +216,17 @@ export default function AdminStudents() {
                       </div>
                     </td>
                     <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{student.email}</td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{student.phone}</td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{student.batchNames?.join(', ') || '—'}</td>
+                    <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{formatPhone(student.phone || '')}</td>
+                    <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600 max-w-[200px] truncate" title={student.batchNames?.join(', ') || '—'}>{student.batchNames?.join(', ') || '—'}</td>
                     <td className="px-3 sm:px-6 py-3 sm:py-4">
                       <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${student.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
                         {student.status}
                       </span>
+                    </td>
+                    <td className="px-3 sm:px-6 py-3 sm:py-4">
+                      <button onClick={(e) => { e.stopPropagation(); setEditForm({ name: student.name, email: student.email, phone: student.phone || '' }); setEditingStudent(student); }} className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" aria-label={`Edit student ${student.name}`}>
+                        <Pencil size={16} />
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -209,6 +246,34 @@ export default function AdminStudents() {
           </div>
         </div>
       )}
+      <Dialog open={!!editingStudent} onOpenChange={(open) => { if (!open) { setEditingStudent(null); setEditSaving(false); } }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Student</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4">
+            <div>
+              <label htmlFor="edit-student-name" className="block text-sm font-medium text-gray-700 mb-1.5">Full Name</label>
+              <input id="edit-student-name" type="text" value={editForm.name} onChange={(e) => setEditForm(f => ({ ...f, name: e.target.value }))} placeholder="Student name" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50" required />
+            </div>
+            <div>
+              <label htmlFor="edit-student-email" className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
+              <input id="edit-student-email" type="email" value={editForm.email} onChange={(e) => setEditForm(f => ({ ...f, email: e.target.value }))} placeholder="student@email.com" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50" required />
+            </div>
+            <div className="sm:col-span-2">
+              <label htmlFor="edit-student-phone" className="block text-sm font-medium text-gray-700 mb-1.5">Phone</label>
+              <input id="edit-student-phone" type="text" value={editForm.phone} onChange={(e) => setEditForm(f => ({ ...f, phone: e.target.value }))} placeholder="0300-1234567" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50" />
+            </div>
+          </div>
+          <DialogFooter>
+            <button onClick={() => setEditingStudent(null)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors">Cancel</button>
+            <button onClick={handleEdit} disabled={editSaving} className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors disabled:opacity-60">
+              {editSaving && <Loader2 size={16} className="animate-spin" />}
+              Save Changes
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

@@ -3,18 +3,20 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
+import { pluralize } from '@/lib/utils/pluralize';
 import DashboardHeader from '@/components/layout/dashboard-header';
 import { useAuth } from '@/lib/auth-context';
 import { useBasePath } from '@/hooks/use-base-path';
 import { usePaginatedApi } from '@/hooks/use-paginated-api';
 import { useMutation } from '@/hooks/use-api';
 import { useApi } from '@/hooks/use-api';
-import { listBatches, createBatch, deleteBatch } from '@/lib/api/batches';
+import { listBatches, createBatch, deleteBatch, updateBatch, BatchOut } from '@/lib/api/batches';
 import { listUsers } from '@/lib/api/users';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
-import { Plus, X, Layers, Loader2, Trash2 } from 'lucide-react';
+import { Plus, X, Layers, Loader2, Trash2, Pencil } from 'lucide-react';
 import { SearchableCombobox } from '@/components/ui/searchable-combobox';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,6 +35,9 @@ export default function AdminBatches() {
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({ name: '', startDate: '', endDate: '', teacherId: '' });
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [editingBatch, setEditingBatch] = useState<BatchOut | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', startDate: '', endDate: '', teacherId: '' });
+  const [editSaving, setEditSaving] = useState(false);
 
   const { data: batchList, total, page, totalPages, loading, error, setPage, refetch } = usePaginatedApi(
     (params) => listBatches({ ...params }),
@@ -46,6 +51,7 @@ export default function AdminBatches() {
 
   const { execute: doCreate, loading: creating } = useMutation(createBatch);
   const { execute: doDelete } = useMutation(deleteBatch);
+  const { execute: doUpdate } = useMutation(updateBatch);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,6 +80,29 @@ export default function AdminBatches() {
     } catch (err: any) {
       toast.error(err.message);
       setDeleteConfirmId(null);
+    }
+  };
+
+  const handleEdit = async () => {
+    if (!editingBatch || !editForm.name.trim()) {
+      toast.error('Batch name is required');
+      return;
+    }
+    setEditSaving(true);
+    try {
+      await doUpdate(editingBatch.id, {
+        name: editForm.name,
+        startDate: editForm.startDate || undefined,
+        endDate: editForm.endDate || undefined,
+        teacherId: editForm.teacherId || undefined,
+      });
+      toast.success('Batch updated');
+      setEditingBatch(null);
+      refetch();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update batch');
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -149,7 +178,10 @@ export default function AdminBatches() {
                       }`}>
                         {batch.status}
                       </span>
-                      <button onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(batch.id); }} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                      <button onClick={(e) => { e.stopPropagation(); setEditForm({ name: batch.name, startDate: batch.startDate?.split('T')[0] || '', endDate: batch.endDate?.split('T')[0] || '', teacherId: batch.teacherId || '' }); setEditingBatch(batch); }} className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" aria-label={`Edit batch ${batch.name}`}>
+                        <Pencil size={14} />
+                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(batch.id); }} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" aria-label={`Delete batch ${batch.name}`}>
                         <Trash2 size={14} />
                       </button>
                     </div>
@@ -157,7 +189,7 @@ export default function AdminBatches() {
                   <p className="text-xs text-gray-500 mb-1">
                     {batch.startDate ? new Date(batch.startDate).toLocaleDateString() : '—'} to {batch.endDate ? new Date(batch.endDate).toLocaleDateString() : '—'}
                   </p>
-                  <p className="text-xs text-gray-600">{batch.studentCount} students</p>
+                  <p className="text-xs text-gray-600">{batch.studentCount} {pluralize(batch.studentCount, 'student')}</p>
                 </div>
               ))}
             </div>
@@ -194,7 +226,10 @@ export default function AdminBatches() {
                         </span>
                       </td>
                       <td className="px-3 sm:px-6 py-3 sm:py-4">
-                        <button onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(batch.id); }} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                        <button onClick={(e) => { e.stopPropagation(); setEditForm({ name: batch.name, startDate: batch.startDate?.split('T')[0] || '', endDate: batch.endDate?.split('T')[0] || '', teacherId: batch.teacherId || '' }); setEditingBatch(batch); }} className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" aria-label={`Edit batch ${batch.name}`}>
+                          <Pencil size={16} />
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(batch.id); }} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" aria-label={`Delete batch ${batch.name}`}>
                           <Trash2 size={16} />
                         </button>
                       </td>
@@ -218,6 +253,44 @@ export default function AdminBatches() {
           </div>
         </>
       )}
+      <Dialog open={!!editingBatch} onOpenChange={(open) => { if (!open) { setEditingBatch(null); setEditSaving(false); } }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Batch</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4">
+            <div>
+              <label htmlFor="edit-batch-name" className="block text-sm font-medium text-gray-700 mb-1.5">Batch Name</label>
+              <input id="edit-batch-name" type="text" value={editForm.name} onChange={(e) => setEditForm(f => ({ ...f, name: e.target.value }))} placeholder="Batch name" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50" required />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Assign Teacher</label>
+              <SearchableCombobox
+                options={teachers.map((t) => ({ value: t.id, label: t.name }))}
+                value={editForm.teacherId}
+                onChange={(v) => setEditForm(f => ({ ...f, teacherId: v }))}
+                placeholder="Select teacher (optional)"
+                searchPlaceholder="Search teachers..."
+              />
+            </div>
+            <div>
+              <label htmlFor="edit-batch-start" className="block text-sm font-medium text-gray-700 mb-1.5">Start Date</label>
+              <input id="edit-batch-start" type="date" value={editForm.startDate} onChange={(e) => setEditForm(f => ({ ...f, startDate: e.target.value }))} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50" />
+            </div>
+            <div>
+              <label htmlFor="edit-batch-end" className="block text-sm font-medium text-gray-700 mb-1.5">End Date</label>
+              <input id="edit-batch-end" type="date" value={editForm.endDate} onChange={(e) => setEditForm(f => ({ ...f, endDate: e.target.value }))} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50" />
+            </div>
+          </div>
+          <DialogFooter>
+            <button onClick={() => setEditingBatch(null)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors">Cancel</button>
+            <button onClick={handleEdit} disabled={editSaving} className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors disabled:opacity-60">
+              {editSaving && <Loader2 size={16} className="animate-spin" />}
+              Save Changes
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

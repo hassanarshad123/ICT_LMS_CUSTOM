@@ -95,7 +95,7 @@ export default function StudentCertificates() {
   if (loading) return <DashboardLayout><PageLoading variant="cards" /></DashboardLayout>;
   if (error) return <DashboardLayout><PageError message={error} onRetry={refetch} /></DashboardLayout>;
 
-  if (!courses || courses.length === 0) {
+  if (!Array.isArray(courses) || courses.length === 0) {
     return (
       <DashboardLayout>
         <EmptyState

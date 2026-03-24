@@ -7,12 +7,12 @@ import DashboardHeader from '@/components/layout/dashboard-header';
 import { useAuth } from '@/lib/auth-context';
 import { usePaginatedApi } from '@/hooks/use-paginated-api';
 import { useMutation, useApi } from '@/hooks/use-api';
-import { listUsers, createUser, deleteUser } from '@/lib/api/users';
+import { listUsers, createUser, deleteUser, updateUser, UserOut } from '@/lib/api/users';
 import { listBatches } from '@/lib/api/batches';
 import { enrollStudent } from '@/lib/api/batches';
 import { PageLoading, PageError } from '@/components/shared/page-states';
 import { toast } from 'sonner';
-import { Plus, X, Search, Trash2, GraduationCap, BookOpen, PenTool, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Plus, X, Search, Trash2, GraduationCap, BookOpen, PenTool, Loader2, Eye, EyeOff, Pencil } from 'lucide-react';
 
 import {
   AlertDialog,
@@ -24,6 +24,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { roleBadgeColors, roleLabels } from '@/lib/constants';
 import { SearchableCombobox } from '@/components/ui/searchable-combobox';
 
@@ -48,6 +49,9 @@ export default function UsersListView({ basePath: basePathProp }: UsersListViewP
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', batchId: '', specialization: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [editingUser, setEditingUser] = useState<UserOut | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', email: '', phone: '', specialization: '' });
+  const [editSaving, setEditSaving] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 300);
@@ -72,6 +76,7 @@ export default function UsersListView({ basePath: basePathProp }: UsersListViewP
   const { execute: doCreate, loading: creating } = useMutation(createUser);
   const { execute: doDeleteUser } = useMutation(deleteUser);
   const { execute: doEnroll } = useMutation(enrollStudent);
+  const { execute: doUpdate } = useMutation(updateUser);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,6 +122,31 @@ export default function UsersListView({ basePath: basePathProp }: UsersListViewP
     } catch (err: any) {
       toast.error(err.message);
       setDeleteConfirmId(null);
+    }
+  };
+
+  const handleEdit = async () => {
+    if (!editingUser || !editForm.name.trim()) {
+      toast.error('Name is required');
+      return;
+    }
+    setEditSaving(true);
+    try {
+      await doUpdate(editingUser.id, {
+        name: editForm.name,
+        email: editForm.email,
+        phone: editForm.phone,
+        ...(editingUser.role === 'teacher' || editingUser.role === 'course-creator'
+          ? { specialization: editForm.specialization }
+          : {}),
+      });
+      toast.success('User updated');
+      setEditingUser(null);
+      refetch();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update user');
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -296,7 +326,10 @@ export default function UsersListView({ basePath: basePathProp }: UsersListViewP
                     </div>
                     <p className="text-xs text-gray-500 truncate">{user.email}</p>
                   </div>
-                  <button onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(user.id); }} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                  <button onClick={(e) => { e.stopPropagation(); setEditForm({ name: user.name, email: user.email, phone: user.phone || '', specialization: user.specialization || '' }); setEditingUser(user); }} className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" aria-label={`Edit user ${user.name}`}>
+                    <Pencil size={16} />
+                  </button>
+                  <button onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(user.id); }} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" aria-label={`Delete user ${user.name}`}>
                     <Trash2 size={16} />
                   </button>
                 </div>
@@ -345,9 +378,14 @@ export default function UsersListView({ basePath: basePathProp }: UsersListViewP
                       </span>
                     </td>
                     <td className="px-3 sm:px-6 py-3 sm:py-4">
-                      <button onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(user.id); }} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
-                        <Trash2 size={16} />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button onClick={(e) => { e.stopPropagation(); setEditForm({ name: user.name, email: user.email, phone: user.phone || '', specialization: user.specialization || '' }); setEditingUser(user); }} className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" aria-label={`Edit user ${user.name}`}>
+                          <Pencil size={16} />
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(user.id); }} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" aria-label={`Delete user ${user.name}`}>
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -372,6 +410,41 @@ export default function UsersListView({ basePath: basePathProp }: UsersListViewP
           </div>
         </div>
       )}
+
+      <Dialog open={!!editingUser} onOpenChange={(open) => { if (!open) { setEditingUser(null); setEditSaving(false); } }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4">
+            <div>
+              <label htmlFor="edit-user-name" className="block text-sm font-medium text-gray-700 mb-1.5">Full Name</label>
+              <input id="edit-user-name" type="text" value={editForm.name} onChange={(e) => setEditForm(f => ({ ...f, name: e.target.value }))} placeholder="Full name" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50" required />
+            </div>
+            <div>
+              <label htmlFor="edit-user-email" className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
+              <input id="edit-user-email" type="email" value={editForm.email} onChange={(e) => setEditForm(f => ({ ...f, email: e.target.value }))} placeholder="user@email.com" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50" required />
+            </div>
+            <div>
+              <label htmlFor="edit-user-phone" className="block text-sm font-medium text-gray-700 mb-1.5">Phone</label>
+              <input id="edit-user-phone" type="text" value={editForm.phone} onChange={(e) => setEditForm(f => ({ ...f, phone: e.target.value }))} placeholder="0300-1234567" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50" />
+            </div>
+            {editingUser && (editingUser.role === 'teacher' || editingUser.role === 'course-creator') && (
+              <div>
+                <label htmlFor="edit-user-spec" className="block text-sm font-medium text-gray-700 mb-1.5">Specialization</label>
+                <input id="edit-user-spec" type="text" value={editForm.specialization} onChange={(e) => setEditForm(f => ({ ...f, specialization: e.target.value }))} placeholder="e.g. Web Development" className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50" />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <button onClick={() => setEditingUser(null)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors">Cancel</button>
+            <button onClick={handleEdit} disabled={editSaving} className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors disabled:opacity-60">
+              {editSaving && <Loader2 size={16} className="animate-spin" />}
+              Save Changes
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
         <AlertDialogContent>
