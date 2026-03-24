@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import SearchModal from '@/components/shared/search-modal';
 import NotificationDropdown from '@/components/shared/notification-dropdown';
 import { useAuth } from '@/lib/auth-context';
@@ -12,6 +13,10 @@ interface DashboardHeaderProps {
 
 export default function DashboardHeader({ greeting, subtitle }: DashboardHeaderProps) {
   const { logout } = useAuth();
+
+  useEffect(() => {
+    document.title = `${greeting} | ICT Institute LMS`;
+  }, [greeting]);
 
   return (
     <div className="flex items-start justify-between gap-3 mb-6 sm:mb-8">

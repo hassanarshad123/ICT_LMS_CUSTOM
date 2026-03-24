@@ -48,9 +48,13 @@ export default function CCCertificates() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-6 w-fit">
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-6 w-fit" role="tablist">
         <button
           onClick={() => setActiveTab('queue')}
+          role="tab"
+          id="tab-queue"
+          aria-selected={activeTab === 'queue'}
+          aria-controls="panel-content"
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
             activeTab === 'queue' ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'
           }`}
@@ -62,6 +66,10 @@ export default function CCCertificates() {
         </button>
         <button
           onClick={() => setActiveTab('issued')}
+          role="tab"
+          id="tab-issued"
+          aria-selected={activeTab === 'issued'}
+          aria-controls="panel-content"
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
             activeTab === 'issued' ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'
           }`}
@@ -73,7 +81,9 @@ export default function CCCertificates() {
         </button>
       </div>
 
-      {activeTab === 'queue' ? <ApprovalQueue /> : <IssuedCertificates />}
+      <div role="tabpanel" id="panel-content" aria-labelledby={`tab-${activeTab}`}>
+        {activeTab === 'queue' ? <ApprovalQueue /> : <IssuedCertificates />}
+      </div>
     </div>
     </DashboardLayout>
   );
