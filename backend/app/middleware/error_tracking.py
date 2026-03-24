@@ -11,8 +11,12 @@ from starlette.responses import Response, JSONResponse
 logger = logging.getLogger("ict_lms")
 
 
-def _sentry_set_context(request: Request, request_id: str, exc: Exception | None = None):
-    """Push request context + user info into the current Sentry scope. Best-effort."""
+def _sentry_set_context(request: Request, request_id: str):
+    """Push request context + user info into the current Sentry scope. Best-effort.
+
+    Only SETS context (tags, user) — does not capture events. Capture is handled
+    by LoggingIntegration (for logger.error calls) or explicit capture_message.
+    """
     try:
         import sentry_sdk
     except ImportError:
@@ -43,10 +47,6 @@ def _sentry_set_context(request: Request, request_id: str, exc: Exception | None
     impersonator_id = getattr(request.state, "impersonator_id", None)
     if impersonator_id:
         sentry_sdk.set_tag("impersonator_id", str(impersonator_id))
-
-    # If there's an exception, capture it explicitly so Sentry gets full context
-    if exc is not None:
-        sentry_sdk.capture_exception(exc)
 
 
 async def _store_error(
@@ -128,7 +128,9 @@ class ErrorTrackingMiddleware(BaseHTTPMiddleware):
         try:
             response = await call_next(request)
         except Exception as exc:
-            # Unhandled exception — log it and return 500
+            # Set Sentry context BEFORE logger.error so LoggingIntegration
+            # captures the event with full user/tenant tags attached
+            _sentry_set_context(request, request_id)
             logger.error(
                 "Unhandled exception [%s] %s %s: %s",
                 request_id,
@@ -136,7 +138,6 @@ class ErrorTrackingMiddleware(BaseHTTPMiddleware):
                 request.url.path,
                 exc,
             )
-            _sentry_set_context(request, request_id, exc)
             await _store_error(request, request_id, 500, exc)
             return JSONResponse(
                 status_code=500,
