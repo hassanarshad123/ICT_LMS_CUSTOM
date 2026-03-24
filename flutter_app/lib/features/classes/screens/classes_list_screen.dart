@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
+import 'package:ict_lms_student/core/constants/app_spacing.dart';
+import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 import 'package:ict_lms_student/features/classes/providers/classes_provider.dart';
 import 'package:ict_lms_student/features/classes/widgets/class_card.dart';
 
@@ -40,11 +42,16 @@ class ClassesListScreen extends ConsumerWidget {
     final asyncData = ref.watch(classesProvider);
 
     return Scaffold(
+      backgroundColor: AppColors.scaffoldBg,
       appBar: AppBar(
-        title: const Text('Classes'),
+        title: Text('Classes', style: AppTextStyles.headline),
+        backgroundColor: AppColors.cardBg,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.video_library_outlined),
+            icon: const Icon(Icons.video_library_outlined,
+                color: AppColors.textPrimary),
             tooltip: 'Recordings',
             onPressed: () => context.push('/classes/recordings'),
           ),
@@ -53,23 +60,26 @@ class ClassesListScreen extends ConsumerWidget {
       body: asyncData.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline,
-                  color: AppColors.error, size: 48),
-              const SizedBox(height: 16),
-              Text(
-                error.toString().replaceFirst('Exception: ', ''),
-                style: const TextStyle(color: AppColors.textSecondary),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              TextButton(
-                onPressed: () => ref.invalidate(classesProvider),
-                child: const Text('Retry'),
-              ),
-            ],
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline,
+                    color: AppColors.error, size: 48),
+                const SizedBox(height: AppSpacing.space16),
+                Text(
+                  error.toString().replaceFirst('Exception: ', ''),
+                  style: AppTextStyles.subheadline,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: AppSpacing.space16),
+                TextButton(
+                  onPressed: () => ref.invalidate(classesProvider),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
           ),
         ),
         data: (data) {
@@ -80,13 +90,10 @@ class ClassesListScreen extends ConsumerWidget {
                 children: [
                   Icon(Icons.videocam_off_outlined,
                       color: AppColors.textTertiary, size: 64),
-                  const SizedBox(height: 16),
-                  const Text(
+                  const SizedBox(height: AppSpacing.space16),
+                  Text(
                     'No classes scheduled',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 16,
-                    ),
+                    style: AppTextStyles.callout,
                   ),
                 ],
               ),
@@ -96,7 +103,12 @@ class ClassesListScreen extends ConsumerWidget {
           return RefreshIndicator(
             onRefresh: () async => ref.invalidate(classesProvider),
             child: ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.screenH,
+                AppSpacing.space16,
+                AppSpacing.screenH,
+                80,
+              ),
               children: [
                 // Upcoming / Live section.
                 if (data.upcoming.isNotEmpty) ...[
@@ -104,7 +116,7 @@ class ClassesListScreen extends ConsumerWidget {
                     title: 'Upcoming & Live',
                     count: data.upcoming.length,
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AppSpacing.space12),
                   ...data.upcoming.map(
                     (zoomClass) => ClassCard(
                       zoomClass: zoomClass,
@@ -112,7 +124,7 @@ class ClassesListScreen extends ConsumerWidget {
                           _joinClass(context, zoomClass.zoomMeetingUrl),
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: AppSpacing.space24),
                 ],
                 // Past section.
                 if (data.past.isNotEmpty) ...[
@@ -120,7 +132,7 @@ class ClassesListScreen extends ConsumerWidget {
                     title: 'Past Classes',
                     count: data.past.length,
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AppSpacing.space12),
                   ...data.past.map(
                     (zoomClass) => ClassCard(
                       zoomClass: zoomClass,
@@ -146,26 +158,17 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Text(
-          title,
-          style: const TextStyle(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.w700,
-            fontSize: 18,
-          ),
-        ),
-        const SizedBox(width: 8),
+        Text(title, style: AppTextStyles.title3),
+        const SizedBox(width: AppSpacing.space8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
           decoration: BoxDecoration(
-            color: AppColors.surfaceBg,
+            color: AppColors.inputBg,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Text(
             '$count',
-            style: const TextStyle(
-              color: AppColors.textTertiary,
-              fontSize: 12,
+            style: AppTextStyles.caption1.copyWith(
               fontWeight: FontWeight.w600,
             ),
           ),

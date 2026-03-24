@@ -21,7 +21,7 @@ class ProgressBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final accentColor = Theme.of(context).colorScheme.primary;
     final fill = fillColor ?? accentColor;
-    final bg = backgroundColor ?? AppColors.surfaceBg;
+    final bg = backgroundColor ?? AppColors.border;
     final clampedPercentage = percentage.clamp(0, 100);
 
     return Column(
@@ -34,7 +34,7 @@ class ProgressBar extends StatelessWidget {
             height: height,
             child: Stack(
               children: [
-                // Background track
+                // Background track — light gray for iOS feel
                 Container(
                   width: double.infinity,
                   color: bg,
@@ -60,7 +60,7 @@ class ProgressBar extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             '${clampedPercentage.toInt()}%',
-            style: TextStyle(
+            style: const TextStyle(
               color: AppColors.textSecondary,
               fontSize: 12,
               fontWeight: FontWeight.w500,

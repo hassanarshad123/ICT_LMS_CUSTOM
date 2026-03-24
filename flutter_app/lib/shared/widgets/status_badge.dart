@@ -8,67 +8,66 @@ class StatusBadge extends StatelessWidget {
   const StatusBadge({
     super.key,
     required this.status,
-    this.fontSize = 11,
+    this.fontSize = 12,
   });
 
   @override
   Widget build(BuildContext context) {
-    final color = _getStatusColor(status);
-    final label = _formatLabel(status);
-
+    final config = _statusConfig(status);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: EdgeInsets.symmetric(
+        horizontal: fontSize < 12 ? 8 : 10,
+        vertical: fontSize < 12 ? 3 : 4,
+      ),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(20),
+        color: config.color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(100),
       ),
       child: Text(
-        label,
+        config.label,
         style: TextStyle(
-          color: color,
+          color: config.color,
           fontSize: fontSize,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.3,
+          fontWeight: FontWeight.w500,
+          height: 1.2,
         ),
       ),
     );
   }
 
-  Color _getStatusColor(String status) {
+  static _StatusConfig _statusConfig(String status) {
     final normalized = status.toLowerCase().replaceAll('-', '_');
     return switch (normalized) {
-      'upcoming' => AppColors.statusUpcoming,
-      'active' => AppColors.statusActive,
-      'completed' => AppColors.statusCompleted,
-      'live' => AppColors.statusLive,
-      'eligible' => AppColors.success,
-      'approved' => AppColors.success,
-      'revoked' => AppColors.error,
-      'applied' => AppColors.statusUpcoming,
-      'shortlisted' => AppColors.success,
-      'rejected' => AppColors.error,
-      'processing' => AppColors.warning,
-      'ready' => AppColors.success,
-      'failed' => AppColors.error,
-      'pending' => AppColors.warning,
-      'institute' => AppColors.info,
-      'batch' => AppColors.statusActive,
-      'course' => AppColors.warning,
-      'student' => AppColors.statusUpcoming,
-      'teacher' => AppColors.statusActive,
-      'admin' => AppColors.warning,
-      _ => AppColors.textTertiary,
+      'active' || 'live' || 'ready' => _StatusConfig('Active', AppColors.success),
+      'upcoming' || 'pending' || 'processing' => _StatusConfig('Upcoming', AppColors.info),
+      'completed' || 'approved' || 'graded' => _StatusConfig('Completed', AppColors.textTertiary),
+      'eligible' => _StatusConfig('Eligible', AppColors.success),
+      'revoked' || 'failed' || 'rejected' => _StatusConfig('Revoked', AppColors.error),
+      'expired' => _StatusConfig('Expired', AppColors.warning),
+      'institute' => _StatusConfig('Institute', AppColors.info),
+      'batch' => _StatusConfig('Batch', AppColors.success),
+      'course' => _StatusConfig('Course', AppColors.warning),
+      'in_progress' => _StatusConfig('In Progress', AppColors.info),
+      'applied' || 'shortlisted' => _StatusConfig(
+          _titleCase(status),
+          AppColors.info,
+        ),
+      _ => _StatusConfig(_titleCase(status), AppColors.textSecondary),
     };
   }
 
-  String _formatLabel(String status) {
-    // Convert snake_case or kebab-case to Title Case
-    return status
+  static String _titleCase(String text) {
+    return text
         .replaceAll('_', ' ')
         .replaceAll('-', ' ')
         .split(' ')
-        .map((word) =>
-            word.isEmpty ? '' : '${word[0].toUpperCase()}${word.substring(1)}')
+        .map((w) => w.isEmpty ? '' : '${w[0].toUpperCase()}${w.substring(1)}')
         .join(' ');
   }
+}
+
+class _StatusConfig {
+  final String label;
+  final Color color;
+  const _StatusConfig(this.label, this.color);
 }

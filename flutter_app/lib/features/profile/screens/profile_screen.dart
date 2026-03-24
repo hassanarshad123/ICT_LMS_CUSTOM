@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
+import 'package:ict_lms_student/core/constants/app_shadows.dart';
+import 'package:ict_lms_student/core/constants/app_spacing.dart';
+import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 import 'package:ict_lms_student/features/profile/widgets/menu_item_tile.dart';
 import 'package:ict_lms_student/features/profile/widgets/profile_header.dart';
 import 'package:ict_lms_student/providers/auth_provider.dart';
@@ -15,11 +18,20 @@ class ProfileScreen extends ConsumerWidget {
     final user = authState.user;
 
     return Scaffold(
+      backgroundColor: AppColors.scaffoldBg,
       appBar: AppBar(
-        title: const Text('Profile'),
+        title: Text('Profile', style: AppTextStyles.headline),
+        backgroundColor: AppColors.cardBg,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.screenH,
+          AppSpacing.space20,
+          AppSpacing.screenH,
+          80,
+        ),
         children: [
           // Profile header with avatar, name, email, role, batch badges.
           ProfileHeader(
@@ -29,79 +41,93 @@ class ProfileScreen extends ConsumerWidget {
             avatarUrl: user?.avatarUrl,
             role: user?.role ?? 'student',
             batchNames: user?.batchNames ?? [],
-            onEditTap: () => context.push('/profile/edit'),
           ),
-          const SizedBox(height: 24),
-          // Menu section: Account.
-          _SectionLabel(title: 'Account'),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.space32),
+          // Section 1: Account.
+          _SectionLabel(title: 'ACCOUNT'),
+          const SizedBox(height: AppSpacing.space8),
           Container(
             decoration: BoxDecoration(
               color: AppColors.cardBg,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+              boxShadow: AppShadows.sm,
             ),
             child: Column(
               children: [
+                MenuItemTile(
+                  icon: Icons.person_outline,
+                  title: 'Edit Profile',
+                  onTap: () => context.push('/profile/edit'),
+                ),
+                const Divider(
+                    color: AppColors.border, height: 1, indent: 56),
                 MenuItemTile(
                   icon: Icons.lock_outline,
                   title: 'Change Password',
                   onTap: () => context.push('/profile/change-password'),
                 ),
-                const Divider(
-                    color: AppColors.surfaceBg, height: 1, indent: 56),
-                MenuItemTile(
-                  icon: Icons.workspace_premium_outlined,
-                  title: 'Certificates',
-                  subtitle: 'View and request certificates',
-                  onTap: () => context.push('/profile/certificates'),
-                ),
               ],
             ),
           ),
-          const SizedBox(height: 20),
-          // Menu section: Explore.
-          _SectionLabel(title: 'Explore'),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.space24),
+          // Section 2: Explore.
+          _SectionLabel(title: 'EXPLORE'),
+          const SizedBox(height: AppSpacing.space8),
           Container(
             decoration: BoxDecoration(
               color: AppColors.cardBg,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+              boxShadow: AppShadows.sm,
             ),
             child: Column(
               children: [
                 MenuItemTile(
+                  icon: Icons.workspace_premium_outlined,
+                  title: 'Certificates',
+                  onTap: () => context.push('/profile/certificates'),
+                ),
+                const Divider(
+                    color: AppColors.border, height: 1, indent: 56),
+                MenuItemTile(
                   icon: Icons.work_outline,
                   title: 'Jobs',
-                  subtitle: 'Browse job openings',
                   onTap: () => context.push('/profile/jobs'),
                 ),
                 const Divider(
-                    color: AppColors.surfaceBg, height: 1, indent: 56),
+                    color: AppColors.border, height: 1, indent: 56),
                 MenuItemTile(
                   icon: Icons.campaign_outlined,
                   title: 'Announcements',
-                  subtitle: 'Latest announcements',
                   onTap: () => context.push('/profile/announcements'),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 20),
-          // Menu section: Session.
+          const SizedBox(height: AppSpacing.space24),
+          // Section 3: Sign Out.
           Container(
             decoration: BoxDecoration(
               color: AppColors.cardBg,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+              boxShadow: AppShadows.sm,
             ),
             child: MenuItemTile(
               icon: Icons.logout,
-              title: 'Logout',
+              title: 'Sign Out',
               isDanger: true,
               showChevron: false,
               onTap: () => _confirmLogout(context, ref),
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: AppSpacing.space24),
+          // App version.
+          Center(
+            child: Text(
+              'v1.0.0',
+              style: AppTextStyles.caption1,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.space16),
         ],
       ),
     );
@@ -113,29 +139,38 @@ class ProfileScreen extends ConsumerWidget {
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.cardBg,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
         ),
-        title: const Text(
-          'Logout',
-          style: TextStyle(color: AppColors.textPrimary),
+        title: Text(
+          'Sign Out',
+          style: AppTextStyles.headline,
         ),
-        content: const Text(
-          'Are you sure you want to logout?',
-          style: TextStyle(color: AppColors.textSecondary),
+        content: Text(
+          'Are you sure you want to sign out?',
+          style: AppTextStyles.subheadline.copyWith(
+            color: AppColors.textSecondary,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
+            child: Text(
+              'Cancel',
+              style: AppTextStyles.body.copyWith(
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
           ),
           TextButton(
             onPressed: () {
               Navigator.of(ctx).pop();
               ref.read(authProvider.notifier).logout();
             },
-            child: const Text(
-              'Logout',
-              style: TextStyle(color: AppColors.error),
+            child: Text(
+              'Sign Out',
+              style: AppTextStyles.body.copyWith(
+                color: AppColors.error,
+              ),
             ),
           ),
         ],
@@ -151,13 +186,13 @@ class _SectionLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: const TextStyle(
-        color: AppColors.textTertiary,
-        fontWeight: FontWeight.w600,
-        fontSize: 13,
-        letterSpacing: 0.5,
+    return Padding(
+      padding: const EdgeInsets.only(left: 16),
+      child: Text(
+        title,
+        style: AppTextStyles.overline.copyWith(
+          color: AppColors.textTertiary,
+        ),
       ),
     );
   }

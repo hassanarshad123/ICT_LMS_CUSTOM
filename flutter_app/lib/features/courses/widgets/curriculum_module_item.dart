@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
+import 'package:ict_lms_student/core/constants/app_shadows.dart';
+import 'package:ict_lms_student/core/constants/app_spacing.dart';
+import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 import 'package:ict_lms_student/models/curriculum_module_out.dart';
 
 class CurriculumModuleItem extends StatelessWidget {
@@ -14,53 +17,53 @@ class CurriculumModuleItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final accentColor = Theme.of(context).colorScheme.primary;
 
-    return Card(
-      color: AppColors.cardBg,
-      margin: const EdgeInsets.only(bottom: 8),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.space8),
+      decoration: BoxDecoration(
+        color: AppColors.cardBg,
+        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+        boxShadow: AppShadows.sm,
       ),
+      clipBehavior: Clip.antiAlias,
       child: ExpansionTile(
-        tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        childrenPadding:
-            const EdgeInsets.only(left: 16, right: 16, bottom: 12),
+        tilePadding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.space16,
+          vertical: AppSpacing.space4,
+        ),
+        childrenPadding: const EdgeInsets.only(
+          left: AppSpacing.space16,
+          right: AppSpacing.space16,
+          bottom: AppSpacing.space12,
+        ),
         iconColor: AppColors.textSecondary,
         collapsedIconColor: AppColors.textTertiary,
         leading: Container(
           width: 32,
           height: 32,
           decoration: BoxDecoration(
-            color: accentColor.withValues(alpha: 0.15),
+            color: accentColor.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Center(
             child: Text(
               '${module.sequenceOrder}',
-              style: TextStyle(
+              style: AppTextStyles.subheadline.copyWith(
                 color: accentColor,
                 fontWeight: FontWeight.w700,
-                fontSize: 14,
               ),
             ),
           ),
         ),
         title: Text(
           module.title,
-          style: const TextStyle(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.w600,
-            fontSize: 15,
-          ),
+          style: AppTextStyles.headline.copyWith(fontSize: 15),
         ),
         subtitle: module.description != null && module.description!.isNotEmpty
             ? Padding(
-                padding: const EdgeInsets.only(top: 4),
+                padding: const EdgeInsets.only(top: AppSpacing.space4),
                 child: Text(
                   module.description!,
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 13,
-                  ),
+                  style: AppTextStyles.footnote,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -70,7 +73,9 @@ class CurriculumModuleItem extends StatelessWidget {
           if (module.topics != null && module.topics!.isNotEmpty)
             ...module.topics!.map(
               (topic) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  vertical: AppSpacing.space4,
+                ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -85,13 +90,12 @@ class CurriculumModuleItem extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: AppSpacing.space12),
                     Expanded(
                       child: Text(
                         topic,
-                        style: const TextStyle(
+                        style: AppTextStyles.subheadline.copyWith(
                           color: AppColors.textSecondary,
-                          fontSize: 14,
                         ),
                       ),
                     ),
@@ -100,14 +104,15 @@ class CurriculumModuleItem extends StatelessWidget {
               ),
             ),
           if (module.topics == null || module.topics!.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 4),
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                vertical: AppSpacing.space4,
+              ),
               child: Text(
                 'No topics listed',
-                style: TextStyle(
-                  color: AppColors.textTertiary,
-                  fontSize: 13,
+                style: AppTextStyles.footnote.copyWith(
                   fontStyle: FontStyle.italic,
+                  color: AppColors.textTertiary,
                 ),
               ),
             ),

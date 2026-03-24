@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
+import 'package:ict_lms_student/core/constants/app_shadows.dart';
+import 'package:ict_lms_student/core/constants/app_spacing.dart';
+import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 import 'package:ict_lms_student/models/zoom_class_out.dart';
 import 'package:ict_lms_student/shared/widgets/status_badge.dart';
 
@@ -17,145 +20,128 @@ class ClassCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final accentColor = Theme.of(context).colorScheme.primary;
 
-    return Card(
-      color: AppColors.cardBg,
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: zoomClass.isLive
-            ? const BorderSide(color: AppColors.statusLive, width: 1.5)
-            : BorderSide.none,
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.space12),
+      decoration: BoxDecoration(
+        color: AppColors.cardBg,
+        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+        boxShadow: AppShadows.sm,
+        border: zoomClass.isLive
+            ? Border.all(color: AppColors.statusLive, width: 1.5)
+            : null,
       ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        splashColor: accentColor.withValues(alpha: 0.1),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Title + status row.
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      zoomClass.title,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  StatusBadge(status: zoomClass.status),
-                ],
-              ),
-              const SizedBox(height: 12),
-              // Date + time row.
-              Row(
-                children: [
-                  const Icon(Icons.calendar_today,
-                      size: 14, color: AppColors.textTertiary),
-                  const SizedBox(width: 6),
-                  Text(
-                    zoomClass.scheduledDate,
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 13,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  const Icon(Icons.access_time,
-                      size: 14, color: AppColors.textTertiary),
-                  const SizedBox(width: 6),
-                  Text(
-                    zoomClass.scheduledTime,
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              // Teacher + batch + duration row.
-              Row(
-                children: [
-                  if (zoomClass.teacherName != null) ...[
-                    const Icon(Icons.person_outline,
-                        size: 14, color: AppColors.textTertiary),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        zoomClass.teacherName!,
-                        style: const TextStyle(
-                          color: AppColors.textTertiary,
-                          fontSize: 12,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                  if (zoomClass.batchName != null) ...[
-                    const SizedBox(width: 12),
-                    const Icon(Icons.group_outlined,
-                        size: 14, color: AppColors.textTertiary),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        zoomClass.batchName!,
-                        style: const TextStyle(
-                          color: AppColors.textTertiary,
-                          fontSize: 12,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                  if (zoomClass.durationDisplay != null) ...[
-                    const SizedBox(width: 12),
-                    const Icon(Icons.timer_outlined,
-                        size: 14, color: AppColors.textTertiary),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+          splashColor: accentColor.withValues(alpha: 0.08),
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.cardPadding),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Date + time row (prominent, iOS title3 style).
+                Row(
+                  children: [
+                    Icon(Icons.calendar_today,
+                        size: 16, color: AppColors.textSecondary),
                     const SizedBox(width: 6),
                     Text(
-                      zoomClass.durationDisplay!,
-                      style: const TextStyle(
-                        color: AppColors.textTertiary,
-                        fontSize: 12,
-                      ),
+                      zoomClass.scheduledDate,
+                      style: AppTextStyles.headline,
                     ),
+                    const SizedBox(width: AppSpacing.space16),
+                    Icon(Icons.access_time,
+                        size: 16, color: AppColors.textSecondary),
+                    const SizedBox(width: 6),
+                    Text(
+                      zoomClass.scheduledTime,
+                      style: AppTextStyles.headline,
+                    ),
+                    const Spacer(),
+                    StatusBadge(status: zoomClass.status),
                   ],
-                ],
-              ),
-              // Join button for live classes.
-              if (zoomClass.isLive &&
-                  zoomClass.zoomMeetingUrl != null &&
-                  zoomClass.zoomMeetingUrl!.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: onTap,
-                    icon: const Icon(Icons.videocam, size: 18),
-                    label: const Text('Join Live Class'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.statusLive,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                ),
+                const SizedBox(height: AppSpacing.space12),
+                // Title.
+                Text(
+                  zoomClass.title,
+                  style: AppTextStyles.body.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: AppSpacing.space8),
+                // Teacher + batch + duration row.
+                Row(
+                  children: [
+                    if (zoomClass.teacherName != null) ...[
+                      Icon(Icons.person_outline,
+                          size: 14, color: AppColors.textTertiary),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          zoomClass.teacherName!,
+                          style: AppTextStyles.caption1,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                    if (zoomClass.batchName != null) ...[
+                      const SizedBox(width: AppSpacing.space12),
+                      Icon(Icons.group_outlined,
+                          size: 14, color: AppColors.textTertiary),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          zoomClass.batchName!,
+                          style: AppTextStyles.caption1,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                    if (zoomClass.durationDisplay != null) ...[
+                      const SizedBox(width: AppSpacing.space12),
+                      Icon(Icons.timer_outlined,
+                          size: 14, color: AppColors.textTertiary),
+                      const SizedBox(width: 4),
+                      Text(
+                        zoomClass.durationDisplay!,
+                        style: AppTextStyles.caption1,
+                      ),
+                    ],
+                  ],
+                ),
+                // Join button for live classes.
+                if (zoomClass.isLive &&
+                    zoomClass.zoomMeetingUrl != null &&
+                    zoomClass.zoomMeetingUrl!.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.space12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: onTap,
+                      icon: const Icon(Icons.videocam, size: 18),
+                      label: const Text('Join Live Class'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: accentColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(AppSpacing.buttonRadius),
+                        ),
                       ),
                     ),
                   ),
-                ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
+import 'package:ict_lms_student/core/constants/app_spacing.dart';
+import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 
 class ApplyBottomSheet extends StatefulWidget {
   final String jobTitle;
@@ -97,73 +99,64 @@ class _ApplyBottomSheetState extends State<ApplyBottomSheet> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: AppColors.surfaceBg,
+                color: AppColors.border,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: AppSpacing.space20),
           // Title.
-          const Text(
+          Text(
             'Apply for this job',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w700,
-              fontSize: 20,
-            ),
+            style: AppTextStyles.title3,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.space8),
           // Job info.
           Text(
             '${widget.jobTitle} at ${widget.company}',
-            style: const TextStyle(
+            style: AppTextStyles.subheadline.copyWith(
               color: AppColors.textSecondary,
-              fontSize: 14,
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: AppSpacing.space20),
           // Cover letter input.
-          const Text(
+          Text(
             'Cover Letter (optional)',
-            style: TextStyle(
+            style: AppTextStyles.footnote.copyWith(
               color: AppColors.textSecondary,
-              fontSize: 13,
               fontWeight: FontWeight.w500,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.space8),
           TextField(
             controller: _coverLetterController,
             maxLines: 5,
             maxLength: 1000,
-            style: const TextStyle(
+            style: AppTextStyles.subheadline.copyWith(
               color: AppColors.textPrimary,
-              fontSize: 14,
             ),
             decoration: InputDecoration(
               hintText: 'Tell the employer why you are a good fit...',
-              hintStyle: const TextStyle(
+              hintStyle: AppTextStyles.subheadline.copyWith(
                 color: AppColors.textTertiary,
-                fontSize: 14,
               ),
               filled: true,
-              fillColor: AppColors.inputBg,
+              fillColor: AppColors.scaffoldBg,
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
                 borderSide: BorderSide.none,
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
                 borderSide: BorderSide(color: accentColor, width: 1),
               ),
               contentPadding: const EdgeInsets.all(14),
-              counterStyle: const TextStyle(
+              counterStyle: AppTextStyles.caption2.copyWith(
                 color: AppColors.textTertiary,
-                fontSize: 11,
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpacing.space16),
           // Submit button.
           SizedBox(
             width: double.infinity,
@@ -171,26 +164,27 @@ class _ApplyBottomSheetState extends State<ApplyBottomSheet> {
               onPressed: _isSubmitting ? null : _submit,
               style: FilledButton.styleFrom(
                 backgroundColor: accentColor,
-                foregroundColor: AppColors.scaffoldBg,
+                foregroundColor: Colors.white,
                 disabledBackgroundColor: accentColor.withValues(alpha: 0.4),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius:
+                      BorderRadius.circular(AppSpacing.buttonRadius),
                 ),
               ),
               child: _isSubmitting
-                  ? SizedBox(
+                  ? const SizedBox(
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: AppColors.scaffoldBg,
+                        color: Colors.white,
                       ),
                     )
-                  : const Text(
+                  : Text(
                       'Submit Application',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
+                      style: AppTextStyles.headline.copyWith(
+                        color: Colors.white,
                         fontSize: 15,
                       ),
                     ),

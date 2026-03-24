@@ -1,5 +1,8 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
+import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 
 class QuizTimer extends StatelessWidget {
   final int remainingSeconds;
@@ -17,13 +20,12 @@ class QuizTimer extends StatelessWidget {
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.timer_outlined, size: 18, color: AppColors.error),
+          const Icon(Icons.timer_outlined, size: 18, color: AppColors.error),
           const SizedBox(width: 4),
           Text(
             "Time's up!",
-            style: TextStyle(
+            style: AppTextStyles.subheadline.copyWith(
               color: AppColors.error,
-              fontSize: 14,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -47,9 +49,8 @@ class QuizTimer extends StatelessWidget {
         const SizedBox(width: 4),
         Text(
           formatted,
-          style: TextStyle(
+          style: AppTextStyles.subheadline.copyWith(
             color: color,
-            fontSize: 14,
             fontWeight: FontWeight.w600,
             fontFeatures: const [FontFeature.tabularFigures()],
           ),

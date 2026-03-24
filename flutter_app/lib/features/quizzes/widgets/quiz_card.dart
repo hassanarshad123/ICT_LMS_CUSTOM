@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
+import 'package:ict_lms_student/core/constants/app_shadows.dart';
+import 'package:ict_lms_student/core/constants/app_spacing.dart';
+import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 import 'package:ict_lms_student/models/quiz_out.dart';
 
 class QuizCard extends StatelessWidget {
@@ -15,11 +18,11 @@ class QuizCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.cardPadding),
         decoration: BoxDecoration(
           color: AppColors.cardBg,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.surfaceBg),
+          borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+          boxShadow: AppShadows.sm,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -30,30 +33,26 @@ class QuizCard extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.15),
+                    color: accent.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     'Quiz',
-                    style: TextStyle(
+                    style: AppTextStyles.caption1.copyWith(
                       color: accent,
-                      fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
                 const Spacer(),
-                Icon(Icons.chevron_right, color: AppColors.textTertiary),
+                Icon(Icons.chevron_right,
+                    color: AppColors.textTertiary, size: 20),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.space12),
             Text(
               quiz.title,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
+              style: AppTextStyles.headline,
             ),
             if (quiz.description != null && quiz.description!.isNotEmpty) ...[
               const SizedBox(height: 4),
@@ -61,13 +60,10 @@ class QuizCard extends StatelessWidget {
                 quiz.description!,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 13,
-                ),
+                style: AppTextStyles.footnote,
               ),
             ],
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.space12),
             Wrap(
               spacing: 16,
               runSpacing: 8,
@@ -79,7 +75,8 @@ class QuizCard extends StatelessWidget {
                       ? '${quiz.timeLimitMinutes} min'
                       : 'No time limit',
                 ),
-                _metaChip(Icons.check_circle_outline, 'Pass: ${quiz.passPercentage}%'),
+                _metaChip(
+                    Icons.check_circle_outline, 'Pass: ${quiz.passPercentage}%'),
                 _metaChip(Icons.replay, '${quiz.maxAttempts} attempts'),
               ],
             ),
@@ -95,13 +92,7 @@ class QuizCard extends StatelessWidget {
       children: [
         Icon(icon, size: 14, color: AppColors.textTertiary),
         const SizedBox(width: 4),
-        Text(
-          text,
-          style: const TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 12,
-          ),
-        ),
+        Text(text, style: AppTextStyles.caption1),
       ],
     );
   }

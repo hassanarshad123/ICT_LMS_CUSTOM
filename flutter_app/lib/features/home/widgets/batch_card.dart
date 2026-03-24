@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_shadows.dart';
+import '../../../core/constants/app_spacing.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../models/batch_out.dart';
 import '../../../shared/widgets/status_badge.dart';
 import '../../../shared/extensions/date_extensions.dart';
@@ -25,10 +28,11 @@ class BatchCard extends StatelessWidget {
       },
       child: Container(
         width: 240,
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.cardPadding),
         decoration: BoxDecoration(
           color: AppColors.cardBg,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+          boxShadow: AppShadows.sm,
           border: Border(
             left: BorderSide(
               color: accentColor,
@@ -46,15 +50,11 @@ class BatchCard extends StatelessWidget {
               children: [
                 Text(
                   batch.name,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: AppTextStyles.headline,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppSpacing.space8),
                 StatusBadge(status: batch.status),
               ],
             ),
@@ -66,41 +66,32 @@ class BatchCard extends StatelessWidget {
                 if (batch.startDate != null && batch.endDate != null) ...[
                   Text(
                     batch.startDate!.toDateRange(batch.endDate!),
-                    style: const TextStyle(
-                      color: AppColors.textTertiary,
-                      fontSize: 12,
-                    ),
+                    style: AppTextStyles.caption1,
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: AppSpacing.space4),
                 ],
                 Row(
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.people_alt_outlined,
                       size: 14,
                       color: AppColors.textTertiary,
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: AppSpacing.space4),
                     Text(
                       '${batch.studentCount}',
-                      style: const TextStyle(
-                        color: AppColors.textTertiary,
-                        fontSize: 12,
-                      ),
+                      style: AppTextStyles.caption1,
                     ),
-                    const SizedBox(width: 12),
-                    Icon(
+                    const SizedBox(width: AppSpacing.space12),
+                    const Icon(
                       Icons.book_outlined,
                       size: 14,
                       color: AppColors.textTertiary,
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: AppSpacing.space4),
                     Text(
                       '${batch.courseCount} courses',
-                      style: const TextStyle(
-                        color: AppColors.textTertiary,
-                        fontSize: 12,
-                      ),
+                      style: AppTextStyles.caption1,
                     ),
                   ],
                 ),

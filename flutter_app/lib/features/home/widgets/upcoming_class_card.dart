@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_spacing.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../models/zoom_class_out.dart';
 import '../../../shared/widgets/accent_card.dart';
 import '../../../shared/widgets/status_badge.dart';
@@ -25,15 +27,11 @@ class UpcomingClassCard extends StatelessWidget {
           // Title
           Text(
             zoomClass.title,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-            ),
+            style: AppTextStyles.headline,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.space8),
 
           // Teacher name
           if (zoomClass.teacherName != null) ...[
@@ -44,20 +42,17 @@ class UpcomingClassCard extends StatelessWidget {
                   size: 16,
                   color: AppColors.textTertiary,
                 ),
-                const SizedBox(width: 4),
+                const SizedBox(width: AppSpacing.space4),
                 Text(
                   zoomClass.teacherName!,
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 13,
-                  ),
+                  style: AppTextStyles.footnote,
                 ),
               ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: AppSpacing.space4),
           ],
 
-          // Date, time, and duration
+          // Date, time, and duration — time-prominent
           Row(
             children: [
               const Icon(
@@ -65,31 +60,28 @@ class UpcomingClassCard extends StatelessWidget {
                 size: 14,
                 color: AppColors.textTertiary,
               ),
-              const SizedBox(width: 4),
+              const SizedBox(width: AppSpacing.space4),
               Text(
                 _formatDateTime(),
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 13,
+                style: AppTextStyles.subheadline.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: AppSpacing.space12),
               const Icon(
                 Icons.access_time_rounded,
                 size: 14,
                 color: AppColors.textTertiary,
               ),
-              const SizedBox(width: 4),
+              const SizedBox(width: AppSpacing.space4),
               Text(
                 zoomClass.durationDisplay ?? '${zoomClass.duration} min',
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 13,
-                ),
+                style: AppTextStyles.footnote,
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpacing.space12),
 
           // Status badge and Join button
           Row(
@@ -109,10 +101,14 @@ class UpcomingClassCard extends StatelessWidget {
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: accentColor,
-                      foregroundColor: AppColors.scaffoldBg,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.space16,
+                      ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(
+                          AppSpacing.buttonRadius,
+                        ),
                       ),
                     ),
                   ),
@@ -130,8 +126,19 @@ class UpcomingClassCard extends StatelessWidget {
     final dateParts = zoomClass.scheduledDate.split('-');
     if (dateParts.length == 3) {
       const months = [
-        '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+        '',
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
       ];
       final month = int.tryParse(dateParts[1]) ?? 1;
       final day = dateParts[2];

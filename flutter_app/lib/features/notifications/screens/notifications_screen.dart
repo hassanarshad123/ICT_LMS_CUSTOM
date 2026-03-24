@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
+import 'package:ict_lms_student/core/constants/app_spacing.dart';
+import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 import 'package:ict_lms_student/features/notifications/providers/notifications_provider.dart';
 import 'package:ict_lms_student/features/notifications/widgets/notification_card.dart';
 import 'package:ict_lms_student/providers/notification_count_provider.dart';
@@ -54,17 +56,21 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     final hasUnread = state.items.any((n) => n.isUnread);
 
     return Scaffold(
+      backgroundColor: AppColors.scaffoldBg,
       appBar: AppBar(
-        title: const Text('Notifications'),
+        title: Text('Notifications', style: AppTextStyles.headline),
+        backgroundColor: AppColors.cardBg,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
         actions: [
           if (hasUnread)
             TextButton(
               onPressed: _markAllRead,
               child: Text(
-                'Mark all read',
-                style: TextStyle(
+                'Mark All Read',
+                style: AppTextStyles.footnote.copyWith(
                   color: Theme.of(context).colorScheme.primary,
-                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
@@ -81,24 +87,27 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
     if (state.error != null && state.items.isEmpty) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline,
-                color: AppColors.error, size: 48),
-            const SizedBox(height: 16),
-            Text(
-              state.error!,
-              style: const TextStyle(color: AppColors.textSecondary),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            TextButton(
-              onPressed: () =>
-                  ref.read(notificationsProvider.notifier).refresh(),
-              child: const Text('Retry'),
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline,
+                  color: AppColors.error, size: 48),
+              const SizedBox(height: AppSpacing.space16),
+              Text(
+                state.error!,
+                style: AppTextStyles.subheadline,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppSpacing.space16),
+              TextButton(
+                onPressed: () =>
+                    ref.read(notificationsProvider.notifier).refresh(),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -110,13 +119,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           children: [
             Icon(Icons.notifications_none,
                 color: AppColors.textTertiary, size: 64),
-            const SizedBox(height: 16),
-            const Text(
+            const SizedBox(height: AppSpacing.space16),
+            Text(
               'No notifications yet',
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 16,
-              ),
+              style: AppTextStyles.callout,
             ),
           ],
         ),
@@ -130,13 +136,18 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       },
       child: ListView.builder(
         controller: _scrollController,
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.screenH,
+          AppSpacing.space16,
+          AppSpacing.screenH,
+          80,
+        ),
         itemCount: state.items.length + (state.isLoadingMore ? 1 : 0),
         itemBuilder: (context, index) {
           if (index == state.items.length) {
             return const Center(
               child: Padding(
-                padding: EdgeInsets.all(16),
+                padding: EdgeInsets.all(AppSpacing.space16),
                 child: CircularProgressIndicator(),
               ),
             );

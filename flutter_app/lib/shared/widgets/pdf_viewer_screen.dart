@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/app_text_styles.dart';
 
 class PdfViewerScreen extends StatefulWidget {
   final String filePath;
@@ -24,12 +25,18 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final accentColor = Theme.of(context).colorScheme.primary;
+
     return Scaffold(
+      backgroundColor: AppColors.scaffoldBg,
       appBar: AppBar(
         title: Text(
           widget.fileName,
-          style: const TextStyle(fontSize: 16),
+          style: AppTextStyles.headline.copyWith(fontSize: 16),
         ),
+        backgroundColor: AppColors.cardBg,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
         actions: [
           if (_isReady)
             Padding(
@@ -37,9 +44,8 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
               child: Center(
                 child: Text(
                   '${_currentPage + 1} / $_totalPages',
-                  style: const TextStyle(
+                  style: AppTextStyles.subheadline.copyWith(
                     color: AppColors.textSecondary,
-                    fontSize: 14,
                   ),
                 ),
               ),
@@ -56,7 +62,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
             pageFling: true,
             pageSnap: true,
             fitPolicy: FitPolicy.BOTH,
-            nightMode: true,
+            nightMode: false,
             onRender: (pages) {
               setState(() {
                 _totalPages = pages ?? 0;
@@ -88,7 +94,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
               color: AppColors.scaffoldBg,
               child: Center(
                 child: CircularProgressIndicator(
-                  color: Theme.of(context).colorScheme.primary,
+                  color: accentColor,
                 ),
               ),
             ),
@@ -96,8 +102,8 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _sharePdf,
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: AppColors.scaffoldBg,
+        backgroundColor: accentColor,
+        foregroundColor: Colors.white,
         child: const Icon(Icons.download_rounded),
       ),
     );

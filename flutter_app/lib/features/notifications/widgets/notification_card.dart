@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
+import 'package:ict_lms_student/core/constants/app_shadows.dart';
+import 'package:ict_lms_student/core/constants/app_spacing.dart';
+import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 import 'package:ict_lms_student/models/notification_out.dart';
 import 'package:intl/intl.dart';
 
@@ -58,101 +61,95 @@ class NotificationCard extends StatelessWidget {
     final isUnread = notification.isUnread;
     final iconColor = _typeColor(notification.type);
 
-    return Card(
-      color: isUnread
-          ? accentColor.withValues(alpha: 0.05)
-          : AppColors.cardBg,
-      margin: const EdgeInsets.only(bottom: 8),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: isUnread
-            ? BorderSide(color: accentColor.withValues(alpha: 0.2), width: 1)
-            : BorderSide.none,
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.space8),
+      decoration: BoxDecoration(
+        color: AppColors.cardBg,
+        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+        boxShadow: AppShadows.sm,
       ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        splashColor: accentColor.withValues(alpha: 0.1),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Icon.
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: iconColor.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  _typeIcon(notification.type),
-                  color: iconColor,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
-              // Content.
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Title.
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            notification.title,
-                            style: TextStyle(
-                              color: AppColors.textPrimary,
-                              fontWeight: isUnread
-                                  ? FontWeight.w600
-                                  : FontWeight.w500,
-                              fontSize: 14,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          _formatTime(notification.createdAt),
-                          style: const TextStyle(
-                            color: AppColors.textTertiary,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    // Message.
-                    Text(
-                      notification.message,
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 13,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              // Unread indicator dot.
-              if (isUnread)
-                Padding(
-                  padding: const EdgeInsets.only(left: 8, top: 4),
-                  child: Container(
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+          splashColor: accentColor.withValues(alpha: 0.08),
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.cardPadding),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Unread blue dot.
+                if (isUnread)
+                  Container(
                     width: 8,
                     height: 8,
+                    margin: const EdgeInsets.only(top: 6, right: 8),
                     decoration: BoxDecoration(
                       color: accentColor,
                       shape: BoxShape.circle,
                     ),
                   ),
+                // Type icon.
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: iconColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    _typeIcon(notification.type),
+                    color: iconColor,
+                    size: 20,
+                  ),
                 ),
-            ],
+                const SizedBox(width: AppSpacing.space12),
+                // Content.
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Title + timestamp.
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              notification.title,
+                              style: AppTextStyles.subheadline.copyWith(
+                                color: AppColors.textPrimary,
+                                fontWeight: isUnread
+                                    ? FontWeight.w600
+                                    : FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.space8),
+                          Text(
+                            _formatTime(notification.createdAt),
+                            style: AppTextStyles.caption2,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      // Message.
+                      Text(
+                        notification.message,
+                        style: AppTextStyles.footnote.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

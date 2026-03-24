@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
+import 'package:ict_lms_student/core/constants/app_spacing.dart';
 
 class BatchFilterChips extends StatelessWidget {
   final List<String> batchIds;
@@ -20,19 +21,22 @@ class BatchFilterChips extends StatelessWidget {
     final accentColor = Theme.of(context).colorScheme.primary;
 
     return SizedBox(
-      height: 48,
+      height: 52,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.screenH,
+          vertical: AppSpacing.space8,
+        ),
         children: [
           // "All" chip.
           Padding(
-            padding: const EdgeInsets.only(right: 8),
+            padding: const EdgeInsets.only(right: AppSpacing.space8),
             child: FilterChip(
               label: const Text('All'),
               selected: selectedBatchId == null,
               onSelected: (_) => onChanged(null),
-              selectedColor: accentColor.withValues(alpha: 0.2),
+              selectedColor: accentColor.withValues(alpha: 0.15),
               checkmarkColor: accentColor,
               labelStyle: TextStyle(
                 color: selectedBatchId == null
@@ -41,12 +45,13 @@ class BatchFilterChips extends StatelessWidget {
                 fontWeight: selectedBatchId == null
                     ? FontWeight.w600
                     : FontWeight.normal,
+                fontSize: 14,
               ),
-              backgroundColor: AppColors.surfaceBg,
+              backgroundColor: AppColors.cardBg,
               side: BorderSide(
                 color: selectedBatchId == null
-                    ? accentColor
-                    : AppColors.surfaceBg,
+                    ? accentColor.withValues(alpha: 0.3)
+                    : AppColors.border,
               ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
@@ -56,14 +61,14 @@ class BatchFilterChips extends StatelessWidget {
           // One chip per batch.
           for (int i = 0; i < batchIds.length; i++)
             Padding(
-              padding: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.only(right: AppSpacing.space8),
               child: FilterChip(
                 label: Text(
                   i < batchNames.length ? batchNames[i] : 'Batch ${i + 1}',
                 ),
                 selected: selectedBatchId == batchIds[i],
                 onSelected: (_) => onChanged(batchIds[i]),
-                selectedColor: accentColor.withValues(alpha: 0.2),
+                selectedColor: accentColor.withValues(alpha: 0.15),
                 checkmarkColor: accentColor,
                 labelStyle: TextStyle(
                   color: selectedBatchId == batchIds[i]
@@ -72,12 +77,13 @@ class BatchFilterChips extends StatelessWidget {
                   fontWeight: selectedBatchId == batchIds[i]
                       ? FontWeight.w600
                       : FontWeight.normal,
+                  fontSize: 14,
                 ),
-                backgroundColor: AppColors.surfaceBg,
+                backgroundColor: AppColors.cardBg,
                 side: BorderSide(
                   color: selectedBatchId == batchIds[i]
-                      ? accentColor
-                      : AppColors.surfaceBg,
+                      ? accentColor.withValues(alpha: 0.3)
+                      : AppColors.border,
                 ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),

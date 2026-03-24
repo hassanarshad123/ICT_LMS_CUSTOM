@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
+import 'package:ict_lms_student/core/constants/app_spacing.dart';
+import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 import 'package:ict_lms_student/data/repositories/user_repository.dart';
 import 'package:ict_lms_student/providers/auth_provider.dart';
+import 'package:ict_lms_student/shared/widgets/avatar_widget.dart';
 
 class EditProfileScreen extends ConsumerStatefulWidget {
   const EditProfileScreen({super.key});
@@ -83,139 +86,187 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     final user = ref.watch(authProvider).user;
 
     return Scaffold(
+      backgroundColor: AppColors.scaffoldBg,
       appBar: AppBar(
-        title: const Text('Edit Profile'),
+        title: Text('Edit Profile', style: AppTextStyles.headline),
+        backgroundColor: AppColors.cardBg,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
       ),
       body: GestureDetector(
         onTap: () => FocusScope.of(context).unfocus(),
         child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Email (read-only).
-              _ReadOnlyField(
-                label: 'Email',
-                value: user?.email ?? '',
-                icon: Icons.email_outlined,
-              ),
-              const SizedBox(height: 20),
-              // Name field.
-              const Text(
-                'Name',
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screenH,
+            AppSpacing.space24,
+            AppSpacing.screenH,
+            80,
+          ),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Avatar at top.
+                AvatarWidget(
+                  imageUrl: user?.avatarUrl,
+                  name: user?.name ?? '',
+                  radius: 48,
                 ),
-              ),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _nameController,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 15,
+                const SizedBox(height: AppSpacing.space32),
+                // Email (read-only).
+                _ReadOnlyField(
+                  label: 'Email',
+                  value: user?.email ?? '',
+                  icon: Icons.email_outlined,
                 ),
-                decoration: InputDecoration(
-                  hintText: 'Your full name',
-                  hintStyle: const TextStyle(color: AppColors.textTertiary),
-                  prefixIcon: const Icon(Icons.person_outline,
-                      color: AppColors.textTertiary),
-                  filled: true,
-                  fillColor: AppColors.inputBg,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: accentColor, width: 1),
-                  ),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Name is required';
-                  }
-                  if (value.trim().length < 2) {
-                    return 'Name must be at least 2 characters';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 20),
-              // Phone field.
-              const Text(
-                'Phone',
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _phoneController,
-                keyboardType: TextInputType.phone,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 15,
-                ),
-                decoration: InputDecoration(
-                  hintText: 'Phone number (optional)',
-                  hintStyle: const TextStyle(color: AppColors.textTertiary),
-                  prefixIcon: const Icon(Icons.phone_outlined,
-                      color: AppColors.textTertiary),
-                  filled: true,
-                  fillColor: AppColors.inputBg,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: accentColor, width: 1),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 32),
-              // Save button.
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: _isSaving ? null : _save,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: accentColor,
-                    foregroundColor: AppColors.scaffoldBg,
-                    disabledBackgroundColor: accentColor.withValues(alpha: 0.4),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                const SizedBox(height: AppSpacing.space20),
+                // Name field.
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Name',
+                      style: AppTextStyles.footnote.copyWith(
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
-                  ),
-                  child: _isSaving
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.scaffoldBg,
-                          ),
-                        )
-                      : const Text(
-                          'Save Changes',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 15,
-                          ),
+                    const SizedBox(height: AppSpacing.space8),
+                    TextFormField(
+                      controller: _nameController,
+                      style: AppTextStyles.subheadline.copyWith(
+                        color: AppColors.textPrimary,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'Your full name',
+                        hintStyle: AppTextStyles.subheadline.copyWith(
+                          color: AppColors.textTertiary,
                         ),
+                        prefixIcon: const Icon(Icons.person_outline,
+                            color: AppColors.textTertiary),
+                        filled: true,
+                        fillColor: AppColors.cardBg,
+                        border: OutlineInputBorder(
+                          borderRadius:
+                              BorderRadius.circular(AppSpacing.inputRadius),
+                          borderSide:
+                              const BorderSide(color: AppColors.border),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius:
+                              BorderRadius.circular(AppSpacing.inputRadius),
+                          borderSide:
+                              const BorderSide(color: AppColors.border),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius:
+                              BorderRadius.circular(AppSpacing.inputRadius),
+                          borderSide:
+                              BorderSide(color: accentColor, width: 1),
+                        ),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Name is required';
+                        }
+                        if (value.trim().length < 2) {
+                          return 'Name must be at least 2 characters';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
                 ),
-              ),
-            ],
+                const SizedBox(height: AppSpacing.space20),
+                // Phone field.
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Phone',
+                      style: AppTextStyles.footnote.copyWith(
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.space8),
+                    TextFormField(
+                      controller: _phoneController,
+                      keyboardType: TextInputType.phone,
+                      style: AppTextStyles.subheadline.copyWith(
+                        color: AppColors.textPrimary,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'Phone number (optional)',
+                        hintStyle: AppTextStyles.subheadline.copyWith(
+                          color: AppColors.textTertiary,
+                        ),
+                        prefixIcon: const Icon(Icons.phone_outlined,
+                            color: AppColors.textTertiary),
+                        filled: true,
+                        fillColor: AppColors.cardBg,
+                        border: OutlineInputBorder(
+                          borderRadius:
+                              BorderRadius.circular(AppSpacing.inputRadius),
+                          borderSide:
+                              const BorderSide(color: AppColors.border),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius:
+                              BorderRadius.circular(AppSpacing.inputRadius),
+                          borderSide:
+                              const BorderSide(color: AppColors.border),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius:
+                              BorderRadius.circular(AppSpacing.inputRadius),
+                          borderSide:
+                              BorderSide(color: accentColor, width: 1),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.space32),
+                // Save button.
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: _isSaving ? null : _save,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: accentColor,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor:
+                          accentColor.withValues(alpha: 0.4),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(AppSpacing.buttonRadius),
+                      ),
+                    ),
+                    child: _isSaving
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(
+                            'Save Changes',
+                            style: AppTextStyles.headline.copyWith(
+                              color: Colors.white,
+                              fontSize: 15,
+                            ),
+                          ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-      ),
       ),
     );
   }
@@ -239,19 +290,19 @@ class _ReadOnlyField extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(
+          style: AppTextStyles.footnote.copyWith(
             color: AppColors.textSecondary,
-            fontSize: 13,
             fontWeight: FontWeight.w500,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpacing.space8),
         Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           decoration: BoxDecoration(
-            color: AppColors.surfaceBg,
-            borderRadius: BorderRadius.circular(12),
+            color: AppColors.scaffoldBg,
+            borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+            border: Border.all(color: AppColors.border),
           ),
           child: Row(
             children: [
@@ -260,9 +311,8 @@ class _ReadOnlyField extends StatelessWidget {
               Expanded(
                 child: Text(
                   value,
-                  style: const TextStyle(
+                  style: AppTextStyles.subheadline.copyWith(
                     color: AppColors.textTertiary,
-                    fontSize: 15,
                   ),
                 ),
               ),

@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_spacing.dart';
+
+/// Light-theme shimmer colors for iOS feel.
+const _shimmerBase = Color(0xFFE5E5EA); // iOS separator gray
+const _shimmerHighlight = Color(0xFFF2F2F7); // iOS scaffold background
 
 /// A single shimmer placeholder card.
 class ShimmerCard extends StatelessWidget {
@@ -12,14 +17,14 @@ class ShimmerCard extends StatelessWidget {
     super.key,
     this.height = 100,
     this.width,
-    this.borderRadius = 16,
+    this.borderRadius = AppSpacing.cardRadius,
   });
 
   @override
   Widget build(BuildContext context) {
     return Shimmer.fromColors(
-      baseColor: AppColors.cardBg,
-      highlightColor: AppColors.surfaceBg,
+      baseColor: _shimmerBase,
+      highlightColor: _shimmerHighlight,
       child: Container(
         height: height,
         width: width,
@@ -44,7 +49,7 @@ class ShimmerList extends StatelessWidget {
     this.itemCount = 5,
     this.itemHeight = 100,
     this.spacing = 12,
-    this.padding = const EdgeInsets.all(16),
+    this.padding = const EdgeInsets.all(AppSpacing.screenH),
   });
 
   @override
@@ -78,7 +83,7 @@ class ShimmerHorizontalList extends StatelessWidget {
     this.itemHeight = 140,
     this.itemWidth = 240,
     this.spacing = 12,
-    this.padding = const EdgeInsets.symmetric(horizontal: 16),
+    this.padding = const EdgeInsets.symmetric(horizontal: AppSpacing.screenH),
   });
 
   @override
@@ -106,15 +111,15 @@ class ShimmerBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppSpacing.screenH),
       child: Shimmer.fromColors(
-        baseColor: AppColors.cardBg,
-        highlightColor: AppColors.surfaceBg,
+        baseColor: _shimmerBase,
+        highlightColor: _shimmerHighlight,
         child: Container(
           height: 120,
           decoration: BoxDecoration(
             color: AppColors.cardBg,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
           ),
         ),
       ),
@@ -131,10 +136,10 @@ class ShimmerStatRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenH),
       child: Shimmer.fromColors(
-        baseColor: AppColors.cardBg,
-        highlightColor: AppColors.surfaceBg,
+        baseColor: _shimmerBase,
+        highlightColor: _shimmerHighlight,
         child: Row(
           children: List.generate(
             count,
@@ -146,7 +151,7 @@ class ShimmerStatRow extends StatelessWidget {
                 height: 80,
                 decoration: BoxDecoration(
                   color: AppColors.cardBg,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
                 ),
               ),
             ),

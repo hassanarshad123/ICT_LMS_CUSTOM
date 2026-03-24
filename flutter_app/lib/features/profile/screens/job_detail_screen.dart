@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
+import 'package:ict_lms_student/core/constants/app_shadows.dart';
+import 'package:ict_lms_student/core/constants/app_spacing.dart';
+import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 import 'package:ict_lms_student/data/repositories/job_repository.dart';
 import 'package:ict_lms_student/features/profile/providers/jobs_provider.dart';
 import 'package:ict_lms_student/features/profile/widgets/apply_bottom_sheet.dart';
@@ -57,30 +60,41 @@ class JobDetailScreen extends ConsumerWidget {
     final accentColor = Theme.of(context).colorScheme.primary;
 
     return Scaffold(
+      backgroundColor: AppColors.scaffoldBg,
       appBar: AppBar(
-        title: const Text('Job Details'),
+        title: Text('Job Details', style: AppTextStyles.headline),
+        backgroundColor: AppColors.cardBg,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
       ),
       body: asyncData.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => Center(
+          child: CircularProgressIndicator(color: accentColor),
+        ),
         error: (error, _) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline,
-                  color: AppColors.error, size: 48),
-              const SizedBox(height: 16),
-              Text(
-                error.toString().replaceFirst('Exception: ', ''),
-                style: const TextStyle(color: AppColors.textSecondary),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              TextButton(
-                onPressed: () =>
-                    ref.invalidate(jobDetailProvider(jobId)),
-                child: const Text('Retry'),
-              ),
-            ],
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.screenH),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline,
+                    color: AppColors.error, size: 48),
+                const SizedBox(height: AppSpacing.space16),
+                Text(
+                  error.toString().replaceFirst('Exception: ', ''),
+                  style: AppTextStyles.subheadline.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: AppSpacing.space16),
+                TextButton(
+                  onPressed: () =>
+                      ref.invalidate(jobDetailProvider(jobId)),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
           ),
         ),
         data: (job) => _JobDetailContent(
@@ -112,45 +126,46 @@ class _JobDetailContent extends StatelessWidget {
       children: [
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.screenH,
+              AppSpacing.space20,
+              AppSpacing.screenH,
+              AppSpacing.space20,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Title.
                 Text(
                   job.title,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 22,
-                  ),
+                  style: AppTextStyles.title2,
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpacing.space12),
                 // Company + location row.
                 Row(
                   children: [
-                    const Icon(Icons.business,
+                    Icon(Icons.business,
                         size: 16, color: AppColors.textTertiary),
                     const SizedBox(width: 8),
                     Text(
                       job.company,
-                      style: const TextStyle(
+                      style: AppTextStyles.subheadline.copyWith(
                         color: AppColors.textSecondary,
-                        fontSize: 15,
                       ),
                     ),
                   ],
                 ),
-                if (job.location != null && job.location!.isNotEmpty) ...[
+                if (job.location != null &&
+                    job.location!.isNotEmpty) ...[
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      const Icon(Icons.location_on_outlined,
+                      Icon(Icons.location_on_outlined,
                           size: 16, color: AppColors.textTertiary),
                       const SizedBox(width: 8),
                       Text(
                         job.location!,
-                        style: const TextStyle(
+                        style: AppTextStyles.subheadline.copyWith(
                           color: AppColors.textSecondary,
                           fontSize: 14,
                         ),
@@ -158,7 +173,7 @@ class _JobDetailContent extends StatelessWidget {
                     ],
                   ),
                 ],
-                const SizedBox(height: 16),
+                const SizedBox(height: AppSpacing.space16),
                 // Info chips.
                 Wrap(
                   spacing: 10,
@@ -189,74 +204,107 @@ class _JobDetailContent extends StatelessWidget {
                   ],
                 ),
                 if (job.isExpired) ...[
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppSpacing.space12),
                   const StatusBadge(status: 'expired'),
                 ],
-                const SizedBox(height: 24),
-                // Description.
+                const SizedBox(height: AppSpacing.space24),
+                // Description section.
                 if (job.description != null &&
                     job.description!.isNotEmpty) ...[
-                  const Text(
-                    'Description',
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
+                  Container(
+                    width: double.infinity,
+                    padding:
+                        const EdgeInsets.all(AppSpacing.cardPadding),
+                    decoration: BoxDecoration(
+                      color: AppColors.cardBg,
+                      borderRadius: BorderRadius.circular(
+                          AppSpacing.cardRadius),
+                      boxShadow: AppShadows.sm,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Description',
+                          style: AppTextStyles.headline.copyWith(
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.space8),
+                        Text(
+                          job.description!,
+                          style: AppTextStyles.subheadline.copyWith(
+                            color: AppColors.textSecondary,
+                            fontSize: 14,
+                            height: 1.6,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    job.description!,
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 14,
-                      height: 1.6,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: AppSpacing.space16),
                 ],
-                // Requirements.
+                // Requirements section.
                 if (job.requirements != null &&
                     job.requirements!.isNotEmpty) ...[
-                  const Text(
-                    'Requirements',
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
+                  Container(
+                    width: double.infinity,
+                    padding:
+                        const EdgeInsets.all(AppSpacing.cardPadding),
+                    decoration: BoxDecoration(
+                      color: AppColors.cardBg,
+                      borderRadius: BorderRadius.circular(
+                          AppSpacing.cardRadius),
+                      boxShadow: AppShadows.sm,
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  ...job.requirements!.map(
-                    (req) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.only(top: 7),
-                            child: Container(
-                              width: 6,
-                              height: 6,
-                              decoration: BoxDecoration(
-                                color: accentColor,
-                                shape: BoxShape.circle,
-                              ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Requirements',
+                          style: AppTextStyles.headline.copyWith(
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.space8),
+                        ...job.requirements!.map(
+                          (req) => Padding(
+                            padding:
+                                const EdgeInsets.only(bottom: 8),
+                            child: Row(
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
+                              children: [
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.only(top: 7),
+                                  child: Container(
+                                    width: 6,
+                                    height: 6,
+                                    decoration: BoxDecoration(
+                                      color: accentColor,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    req,
+                                    style: AppTextStyles.subheadline
+                                        .copyWith(
+                                      color:
+                                          AppColors.textSecondary,
+                                      fontSize: 14,
+                                      height: 1.5,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              req,
-                              style: const TextStyle(
-                                color: AppColors.textSecondary,
-                                fontSize: 14,
-                                height: 1.5,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -273,11 +321,12 @@ class _JobDetailContent extends StatelessWidget {
               top: 12,
               bottom: 12 + MediaQuery.of(context).padding.bottom,
             ),
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: AppColors.cardBg,
-              border: Border(
-                top: BorderSide(color: AppColors.surfaceBg, width: 1),
+              border: const Border(
+                top: BorderSide(color: AppColors.border, width: 1),
               ),
+              boxShadow: AppShadows.nav,
             ),
             child: SizedBox(
               width: double.infinity,
@@ -287,10 +336,11 @@ class _JobDetailContent extends StatelessWidget {
                 label: const Text('Apply Now'),
                 style: FilledButton.styleFrom(
                   backgroundColor: accentColor,
-                  foregroundColor: AppColors.scaffoldBg,
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius:
+                        BorderRadius.circular(AppSpacing.buttonRadius),
                   ),
                 ),
               ),
@@ -312,8 +362,9 @@ class _DetailChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.surfaceBg,
+        color: AppColors.scaffoldBg,
         borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -322,9 +373,8 @@ class _DetailChip extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             label,
-            style: const TextStyle(
+            style: AppTextStyles.footnote.copyWith(
               color: AppColors.textSecondary,
-              fontSize: 13,
             ),
           ),
         ],

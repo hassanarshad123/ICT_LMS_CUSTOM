@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_shadows.dart';
+import '../../../core/constants/app_spacing.dart';
+import '../../../core/theme/app_text_styles.dart';
 
 /// Small card displaying an icon, count, and label.
 ///
@@ -22,35 +25,41 @@ class StatCard extends StatelessWidget {
     final accentColor = Theme.of(context).colorScheme.primary;
 
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+      width: 110,
+      padding: const EdgeInsets.symmetric(
+        vertical: AppSpacing.space16,
+        horizontal: AppSpacing.space12,
+      ),
       decoration: BoxDecoration(
         color: AppColors.cardBg,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+        boxShadow: AppShadows.sm,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            icon,
-            color: accentColor,
-            size: 24,
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: accentColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              icon,
+              color: accentColor,
+              size: 20,
+            ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.space8),
           Text(
             count.toString(),
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-            ),
+            style: AppTextStyles.title2,
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpacing.space2),
           Text(
             label,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 12,
-            ),
+            style: AppTextStyles.caption1,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
+import 'package:ict_lms_student/core/constants/app_shadows.dart';
+import 'package:ict_lms_student/core/constants/app_spacing.dart';
+import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 import 'package:ict_lms_student/models/job_out.dart';
 import 'package:intl/intl.dart';
 
@@ -17,99 +20,98 @@ class JobCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final accentColor = Theme.of(context).colorScheme.primary;
 
-    return Card(
-      color: AppColors.cardBg,
+    return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+      decoration: BoxDecoration(
+        color: AppColors.cardBg,
+        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+        boxShadow: AppShadows.sm,
       ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        splashColor: accentColor.withValues(alpha: 0.1),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Title.
-              Text(
-                job.title,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 16,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+          splashColor: accentColor.withValues(alpha: 0.08),
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.cardPadding),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Title.
+                Text(
+                  job.title,
+                  style: AppTextStyles.headline,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 8),
-              // Company + location.
-              Row(
-                children: [
-                  const Icon(Icons.business,
-                      size: 14, color: AppColors.textTertiary),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      job.company,
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 13,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  if (job.location != null && job.location!.isNotEmpty) ...[
-                    const SizedBox(width: 12),
-                    const Icon(Icons.location_on_outlined,
+                const SizedBox(height: AppSpacing.space8),
+                // Company + location.
+                Row(
+                  children: [
+                    Icon(Icons.business,
                         size: 14, color: AppColors.textTertiary),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 6),
                     Flexible(
                       child: Text(
-                        job.location!,
-                        style: const TextStyle(
-                          color: AppColors.textTertiary,
-                          fontSize: 12,
+                        job.company,
+                        style: AppTextStyles.footnote.copyWith(
+                          color: AppColors.textSecondary,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    if (job.location != null &&
+                        job.location!.isNotEmpty) ...[
+                      const SizedBox(width: 12),
+                      Icon(Icons.location_on_outlined,
+                          size: 14, color: AppColors.textTertiary),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          job.location!,
+                          style: AppTextStyles.caption1.copyWith(
+                            color: AppColors.textTertiary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ],
-                ],
-              ),
-              const SizedBox(height: 10),
-              // Type + salary + deadline row.
-              Wrap(
-                spacing: 10,
-                runSpacing: 6,
-                children: [
-                  _InfoChip(
-                    icon: Icons.work_outline,
-                    label: job.typeLabel,
-                    color: accentColor,
-                  ),
-                  if (job.salary != null && job.salary!.isNotEmpty)
+                ),
+                const SizedBox(height: 10),
+                // Type + salary + deadline row.
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 6,
+                  children: [
                     _InfoChip(
-                      icon: Icons.payments_outlined,
-                      label: job.salary!,
-                      color: AppColors.success,
+                      icon: Icons.work_outline,
+                      label: job.typeLabel,
+                      color: accentColor,
                     ),
-                  if (job.deadline != null)
-                    _InfoChip(
-                      icon: Icons.event,
-                      label: job.isExpired
-                          ? 'Expired'
-                          : 'Due ${DateFormat('MMM d').format(job.deadline!)}',
-                      color: job.isExpired
-                          ? AppColors.error
-                          : AppColors.textTertiary,
-                    ),
-                ],
-              ),
-            ],
+                    if (job.salary != null && job.salary!.isNotEmpty)
+                      _InfoChip(
+                        icon: Icons.payments_outlined,
+                        label: job.salary!,
+                        color: AppColors.success,
+                      ),
+                    if (job.deadline != null)
+                      _InfoChip(
+                        icon: Icons.event,
+                        label: job.isExpired
+                            ? 'Expired'
+                            : 'Due ${DateFormat('MMM d').format(job.deadline!)}',
+                        color: job.isExpired
+                            ? AppColors.error
+                            : AppColors.textTertiary,
+                      ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -133,7 +135,7 @@ class _InfoChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -143,9 +145,8 @@ class _InfoChip extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             label,
-            style: TextStyle(
+            style: AppTextStyles.caption2.copyWith(
               color: color,
-              fontSize: 11,
               fontWeight: FontWeight.w500,
             ),
           ),

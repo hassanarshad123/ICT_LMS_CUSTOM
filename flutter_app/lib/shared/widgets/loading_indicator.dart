@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 class LoadingIndicator extends StatelessWidget {
@@ -17,9 +18,9 @@ class LoadingIndicator extends StatelessWidget {
       child: SizedBox(
         width: size,
         height: size,
-        child: CircularProgressIndicator(
-          strokeWidth: strokeWidth,
-          valueColor: AlwaysStoppedAnimation<Color>(accentColor),
+        child: CupertinoActivityIndicator(
+          radius: size / 2.5,
+          color: accentColor,
         ),
       ),
     );

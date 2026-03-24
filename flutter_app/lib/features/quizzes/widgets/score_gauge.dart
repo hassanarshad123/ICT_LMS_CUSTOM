@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
+import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 
 class ScoreGauge extends StatelessWidget {
   final int? percentage;
@@ -26,11 +27,10 @@ class ScoreGauge extends StatelessWidget {
             Icon(Icons.hourglass_empty,
                 size: 40, color: AppColors.textTertiary),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Pending',
-              style: TextStyle(
+              style: AppTextStyles.callout.copyWith(
                 color: AppColors.textTertiary,
-                fontSize: 16,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -54,7 +54,7 @@ class ScoreGauge extends StatelessWidget {
             painter: _GaugePainter(
               progress: value,
               color: gaugeColor,
-              trackColor: AppColors.surfaceBg,
+              trackColor: AppColors.border,
             ),
             child: Center(
               child: Column(
@@ -62,18 +62,16 @@ class ScoreGauge extends StatelessWidget {
                 children: [
                   Text(
                     '${(value * 100).round()}%',
-                    style: TextStyle(
+                    style: AppTextStyles.largeTitle.copyWith(
                       color: gaugeColor,
                       fontSize: 32,
-                      fontWeight: FontWeight.w700,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     label,
-                    style: TextStyle(
+                    style: AppTextStyles.subheadline.copyWith(
                       color: gaugeColor,
-                      fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
                   ),

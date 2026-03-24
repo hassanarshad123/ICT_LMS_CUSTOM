@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
+import 'package:ict_lms_student/core/constants/app_shadows.dart';
+import 'package:ict_lms_student/core/constants/app_spacing.dart';
+import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 import 'package:ict_lms_student/models/quiz_question_out.dart';
 import 'package:ict_lms_student/models/quiz_attempt_out.dart';
 
@@ -18,11 +21,11 @@ class QuestionReviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppSpacing.cardPadding),
       decoration: BoxDecoration(
         color: AppColors.cardBg,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.surfaceBg),
+        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+        boxShadow: AppShadows.sm,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -32,54 +35,50 @@ class QuestionReviewCard extends StatelessWidget {
             children: [
               Text(
                 'Q$questionNumber',
-                style: const TextStyle(
-                  color: AppColors.textTertiary,
-                  fontSize: 13,
+                style: AppTextStyles.footnote.copyWith(
                   fontWeight: FontWeight.w600,
+                  color: AppColors.textTertiary,
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpacing.space8),
               _statusIcon(),
               const Spacer(),
               _pointsBadge(),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpacing.space12),
           // Question text
           Text(
             question.questionText,
-            style: const TextStyle(
+            style: AppTextStyles.subheadline.copyWith(
               color: AppColors.textPrimary,
-              fontSize: 15,
               fontWeight: FontWeight.w500,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpacing.space12),
           // Student's answer
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(AppSpacing.space12),
             decoration: BoxDecoration(
-              color: AppColors.surfaceBg,
+              color: AppColors.inputBg,
               borderRadius: BorderRadius.circular(10),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Your answer',
-                  style: TextStyle(
-                    color: AppColors.textTertiary,
-                    fontSize: 11,
+                  style: AppTextStyles.caption2.copyWith(
                     fontWeight: FontWeight.w600,
+                    color: AppColors.textTertiary,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   _displayAnswer(),
-                  style: const TextStyle(
+                  style: AppTextStyles.subheadline.copyWith(
                     color: AppColors.textPrimary,
-                    fontSize: 14,
                   ),
                 ),
               ],
@@ -87,12 +86,12 @@ class QuestionReviewCard extends StatelessWidget {
           ),
           // Feedback
           if (answer.feedback != null && answer.feedback!.isNotEmpty) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.space12),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(AppSpacing.space12),
               decoration: BoxDecoration(
-                color: AppColors.info.withValues(alpha: 0.1),
+                color: AppColors.info.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Column(
@@ -105,9 +104,8 @@ class QuestionReviewCard extends StatelessWidget {
                       const SizedBox(width: 4),
                       Text(
                         'Feedback',
-                        style: TextStyle(
+                        style: AppTextStyles.caption2.copyWith(
                           color: AppColors.info,
-                          fontSize: 11,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -116,9 +114,8 @@ class QuestionReviewCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     answer.feedback!,
-                    style: const TextStyle(
+                    style: AppTextStyles.footnote.copyWith(
                       color: AppColors.textPrimary,
-                      fontSize: 13,
                     ),
                   ),
                 ],
@@ -147,10 +144,9 @@ class QuestionReviewCard extends StatelessWidget {
 
     return Text(
       text,
-      style: const TextStyle(
-        color: AppColors.textSecondary,
-        fontSize: 12,
+      style: AppTextStyles.caption1.copyWith(
         fontWeight: FontWeight.w600,
+        color: AppColors.textSecondary,
       ),
     );
   }

@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ict_lms_student/core/utils/error_utils.dart';
 import 'package:ict_lms_student/data/repositories/course_repository.dart';
 import 'package:ict_lms_student/models/course_out.dart';
-import 'package:ict_lms_student/models/paginated_response.dart';
+
 
 class CoursesListState {
   final List<CourseOut> items;

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
+import 'package:ict_lms_student/core/constants/app_spacing.dart';
+import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 import 'package:ict_lms_student/models/lecture_out.dart';
 
 class LectureItem extends StatelessWidget {
@@ -22,15 +24,18 @@ class LectureItem extends StatelessWidget {
 
     return ListTile(
       onTap: isPlayable ? onTap : null,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.space4,
+        vertical: AppSpacing.space4,
+      ),
       leading: Container(
         width: 44,
         height: 44,
         decoration: BoxDecoration(
           color: isPlayable
-              ? accentColor.withValues(alpha: 0.15)
-              : AppColors.surfaceBg,
-          borderRadius: BorderRadius.circular(12),
+              ? accentColor.withValues(alpha: 0.1)
+              : AppColors.inputBg,
+          borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
         ),
         child: Icon(
           isPlayable ? Icons.play_circle_fill : Icons.hourglass_empty,
@@ -40,10 +45,9 @@ class LectureItem extends StatelessWidget {
       ),
       title: Text(
         lecture.title,
-        style: TextStyle(
+        style: AppTextStyles.subheadline.copyWith(
           color: isPlayable ? AppColors.textPrimary : AppColors.textTertiary,
           fontWeight: FontWeight.w500,
-          fontSize: 15,
         ),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
@@ -51,18 +55,18 @@ class LectureItem extends StatelessWidget {
       subtitle: Row(
         children: [
           if (lecture.durationDisplay != null) ...[
-            Icon(Icons.access_time, size: 14, color: AppColors.textTertiary),
-            const SizedBox(width: 4),
+            const Icon(Icons.access_time,
+                size: 14, color: AppColors.textTertiary),
+            const SizedBox(width: AppSpacing.space4),
             Text(
               lecture.durationDisplay!,
-              style: const TextStyle(
-                color: AppColors.textTertiary,
-                fontSize: 12,
-              ),
+              style: AppTextStyles.caption1,
             ),
           ],
-          if (lecture.videoStatus != null && lecture.videoStatus != 'ready') ...[
-            if (lecture.durationDisplay != null) const SizedBox(width: 12),
+          if (lecture.videoStatus != null &&
+              lecture.videoStatus != 'ready') ...[
+            if (lecture.durationDisplay != null)
+              const SizedBox(width: AppSpacing.space12),
             _VideoStatusIndicator(status: lecture.videoStatus!),
           ],
         ],
@@ -109,7 +113,7 @@ class _VideoStatusIndicator extends StatelessWidget {
             shape: BoxShape.circle,
           ),
         ),
-        const SizedBox(width: 4),
+        const SizedBox(width: AppSpacing.space4),
         Text(
           label,
           style: TextStyle(color: color, fontSize: 12),

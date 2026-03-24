@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
+import 'package:ict_lms_student/core/constants/app_shadows.dart';
+import 'package:ict_lms_student/core/constants/app_spacing.dart';
+import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 import 'package:ict_lms_student/data/repositories/quiz_repository.dart';
 import 'package:ict_lms_student/models/quiz_out.dart';
 import 'package:ict_lms_student/models/quiz_attempt_out.dart';
@@ -46,23 +49,35 @@ class QuizStartScreen extends ConsumerWidget {
     final accent = Theme.of(context).colorScheme.primary;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Quiz')),
+      backgroundColor: AppColors.scaffoldBg,
+      appBar: AppBar(
+        title: Text('Quiz', style: AppTextStyles.headline),
+        backgroundColor: AppColors.cardBg,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+      ),
       body: asyncData.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, color: AppColors.error, size: 48),
-              const SizedBox(height: 16),
-              Text(error.toString(),
-                  style: const TextStyle(color: AppColors.textSecondary)),
-              const SizedBox(height: 16),
-              TextButton(
-                onPressed: () => ref.invalidate(_quizStartDataProvider(params)),
-                child: const Text('Retry'),
-              ),
-            ],
+          child: Padding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: AppSpacing.space24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline,
+                    color: AppColors.error, size: 48),
+                const SizedBox(height: AppSpacing.space16),
+                Text(error.toString(), style: AppTextStyles.subheadline,
+                    textAlign: TextAlign.center),
+                const SizedBox(height: AppSpacing.space16),
+                TextButton(
+                  onPressed: () =>
+                      ref.invalidate(_quizStartDataProvider(params)),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
           ),
         ),
         data: (data) {
@@ -76,55 +91,51 @@ class QuizStartScreen extends ConsumerWidget {
             children: [
               Expanded(
                 child: ListView(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.screenH,
+                    AppSpacing.space16,
+                    AppSpacing.screenH,
+                    80,
+                  ),
                   children: [
                     // Quiz info card
                     Container(
-                      padding: const EdgeInsets.all(20),
+                      padding: const EdgeInsets.all(AppSpacing.space20),
                       decoration: BoxDecoration(
                         color: AppColors.cardBg,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColors.surfaceBg),
+                        borderRadius:
+                            BorderRadius.circular(AppSpacing.cardRadius),
+                        boxShadow: AppShadows.sm,
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            quiz.title,
-                            style: const TextStyle(
-                              color: AppColors.textPrimary,
-                              fontSize: 20,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
+                          Text(quiz.title, style: AppTextStyles.title3),
                           if (quiz.description != null &&
                               quiz.description!.isNotEmpty) ...[
-                            const SizedBox(height: 8),
+                            const SizedBox(height: AppSpacing.space8),
                             Text(
                               quiz.description!,
-                              style: const TextStyle(
-                                color: AppColors.textSecondary,
-                                fontSize: 14,
-                              ),
+                              style: AppTextStyles.subheadline,
                             ),
                           ],
-                          const SizedBox(height: 20),
+                          const SizedBox(height: AppSpacing.space20),
                           _infoRow(Icons.quiz_outlined,
                               '${quiz.questionCount} questions'),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: AppSpacing.space12),
                           _infoRow(
                             Icons.timer_outlined,
                             quiz.timeLimitMinutes != null
                                 ? '${quiz.timeLimitMinutes} minutes'
                                 : 'No time limit',
                           ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: AppSpacing.space12),
                           _infoRow(Icons.check_circle_outline,
                               'Pass: ${quiz.passPercentage}%'),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: AppSpacing.space12),
                           _infoRow(Icons.replay,
                               'Max attempts: ${quiz.maxAttempts}'),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: AppSpacing.space12),
                           _infoRow(Icons.donut_large,
                               'Used: $completedAttempts / ${quiz.maxAttempts}'),
                         ],
@@ -132,18 +143,12 @@ class QuizStartScreen extends ConsumerWidget {
                     ),
                     // Previous attempts
                     if (attempts.isNotEmpty) ...[
-                      const SizedBox(height: 24),
-                      const Text(
-                        'Previous Attempts',
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpacing.space24),
+                      Text('Previous Attempts', style: AppTextStyles.headline),
+                      const SizedBox(height: AppSpacing.space12),
                       ...attempts.map((attempt) => Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
+                            padding:
+                                const EdgeInsets.only(bottom: AppSpacing.space8),
                             child: _attemptTile(context, attempt, accent),
                           )),
                     ],
@@ -151,33 +156,38 @@ class QuizStartScreen extends ConsumerWidget {
                 ),
               ),
               // Start button
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: ElevatedButton(
-                    onPressed: canStart
-                        ? () => context.push(
-                              '/courses/$courseId/quiz/$quizId/take',
-                            )
-                        : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: accent,
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: AppColors.surfaceBg,
-                      disabledForegroundColor: AppColors.textTertiary,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+              Container(
+                color: AppColors.cardBg,
+                padding: const EdgeInsets.all(AppSpacing.screenH),
+                child: SafeArea(
+                  top: false,
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: canStart
+                          ? () => context.push(
+                                '/courses/$courseId/quiz/$quizId/take',
+                              )
+                          : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: accent,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: AppColors.inputBg,
+                        disabledForegroundColor: AppColors.textTertiary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(AppSpacing.buttonRadius),
+                        ),
+                        elevation: 0,
                       ),
-                    ),
-                    child: Text(
-                      canStart
-                          ? 'Start Quiz'
-                          : 'Max Attempts Reached',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                      child: Text(
+                        canStart ? 'Start Quiz' : 'Max Attempts Reached',
+                        style: AppTextStyles.headline.copyWith(
+                          color: canStart
+                              ? Colors.white
+                              : AppColors.textTertiary,
+                        ),
                       ),
                     ),
                   ),
@@ -195,13 +205,7 @@ class QuizStartScreen extends ConsumerWidget {
       children: [
         Icon(icon, size: 18, color: AppColors.textTertiary),
         const SizedBox(width: 10),
-        Text(
-          text,
-          style: const TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 14,
-          ),
-        ),
+        Text(text, style: AppTextStyles.subheadline),
       ],
     );
   }
@@ -209,7 +213,8 @@ class QuizStartScreen extends ConsumerWidget {
   Widget _attemptTile(
       BuildContext context, QuizAttemptOut attempt, Color accent) {
     final statusColor = switch (attempt.status) {
-      'graded' => attempt.passed == true ? AppColors.success : AppColors.error,
+      'graded' =>
+        attempt.passed == true ? AppColors.success : AppColors.error,
       'submitted' => AppColors.warning,
       _ => AppColors.textTertiary,
     };
@@ -221,11 +226,11 @@ class QuizStartScreen extends ConsumerWidget {
               )
           : null,
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(AppSpacing.cardPadding),
         decoration: BoxDecoration(
           color: AppColors.cardBg,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.surfaceBg),
+          borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+          boxShadow: AppShadows.sm,
         ),
         child: Row(
           children: [
@@ -237,7 +242,7 @@ class QuizStartScreen extends ConsumerWidget {
                 shape: BoxShape.circle,
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: AppSpacing.space12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -248,18 +253,14 @@ class QuizStartScreen extends ConsumerWidget {
                         : attempt.status == 'submitted'
                             ? 'Submitted — Pending Review'
                             : 'In Progress',
-                    style: const TextStyle(
+                    style: AppTextStyles.subheadline.copyWith(
                       color: AppColors.textPrimary,
-                      fontSize: 14,
                     ),
                   ),
                   if (attempt.score != null)
                     Text(
                       '${attempt.score}/${attempt.maxScore} points',
-                      style: const TextStyle(
-                        color: AppColors.textTertiary,
-                        fontSize: 12,
-                      ),
+                      style: AppTextStyles.caption1,
                     ),
                 ],
               ),

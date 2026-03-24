@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_spacing.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../shared/widgets/page_error.dart';
 import '../../../shared/widgets/shimmer_loading.dart';
 import '../providers/home_provider.dart';
@@ -18,6 +20,7 @@ class HomeScreen extends ConsumerWidget {
     final homeAsync = ref.watch(homeProvider);
 
     return Scaffold(
+      backgroundColor: AppColors.scaffoldBg,
       body: SafeArea(
         child: homeAsync.when(
           loading: () => const _HomeShimmer(),
@@ -32,98 +35,109 @@ class HomeScreen extends ConsumerWidget {
             color: Theme.of(context).colorScheme.primary,
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.only(bottom: 80),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AppSpacing.space8),
 
                   // Greeting banner
                   const GreetingBanner(),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: AppSpacing.space24),
 
-                  // Stat cards row
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Row(
+                  // Stat cards row — horizontal scroll
+                  SizedBox(
+                    height: 110,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.screenH,
+                      ),
                       children: [
-                        Expanded(
-                          child: StatCard(
-                            icon: Icons.school_rounded,
-                            count: data.totalBatches,
-                            label: 'Batches',
-                          ),
+                        StatCard(
+                          icon: Icons.school_rounded,
+                          count: data.totalBatches,
+                          label: 'Batches',
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: StatCard(
-                            icon: Icons.book_rounded,
-                            count: data.totalCourses,
-                            label: 'Courses',
-                          ),
+                        const SizedBox(width: AppSpacing.space12),
+                        StatCard(
+                          icon: Icons.book_rounded,
+                          count: data.totalCourses,
+                          label: 'Courses',
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: StatCard(
-                            icon: Icons.videocam_rounded,
-                            count: data.totalUpcomingClasses,
-                            label: 'Upcoming',
-                          ),
+                        const SizedBox(width: AppSpacing.space12),
+                        StatCard(
+                          icon: Icons.videocam_rounded,
+                          count: data.totalUpcomingClasses,
+                          label: 'Upcoming',
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: AppSpacing.space24),
 
                   // My Batches section
                   if (data.batches.isNotEmpty) ...[
-                    const _SectionHeader(title: 'My Batches'),
-                    const SizedBox(height: 12),
+                    _SectionHeader(title: 'My Batches'),
+                    const SizedBox(height: AppSpacing.space12),
                     SizedBox(
                       height: 150,
                       child: ListView.separated(
                         scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.screenH,
+                        ),
                         itemCount: data.batches.length,
-                        separatorBuilder: (_, __) => const SizedBox(width: 12),
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(width: AppSpacing.space12),
                         itemBuilder: (context, index) {
                           return BatchCard(batch: data.batches[index]);
                         },
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: AppSpacing.space24),
                   ],
 
-                  // Announcements section
-                  if (data.announcements.isNotEmpty) ...[
-                    const _SectionHeader(title: 'Announcements'),
-                    const SizedBox(height: 12),
+                  // Upcoming Classes section
+                  if (data.upcomingClasses.isNotEmpty) ...[
+                    _SectionHeader(title: 'Upcoming Classes'),
+                    const SizedBox(height: AppSpacing.space12),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.screenH,
+                      ),
                       child: Column(
-                        children: data.announcements
-                            .map((announcement) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 12),
-                                  child: AnnouncementPreview(
-                                    announcement: announcement,
+                        children: data.upcomingClasses
+                            .map((zoomClass) => Padding(
+                                  padding: const EdgeInsets.only(
+                                    bottom: AppSpacing.space12,
+                                  ),
+                                  child: UpcomingClassCard(
+                                    zoomClass: zoomClass,
                                   ),
                                 ))
                             .toList(),
                       ),
                     ),
+                    const SizedBox(height: AppSpacing.space24),
                   ],
 
-                  // Upcoming Classes section
-                  if (data.upcomingClasses.isNotEmpty) ...[
-                    const _SectionHeader(title: 'Upcoming Classes'),
-                    const SizedBox(height: 12),
+                  // Announcements section
+                  if (data.announcements.isNotEmpty) ...[
+                    _SectionHeader(title: 'Recent Announcements'),
+                    const SizedBox(height: AppSpacing.space12),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.screenH,
+                      ),
                       child: Column(
-                        children: data.upcomingClasses
-                            .map((zoomClass) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 12),
-                                  child: UpcomingClassCard(
-                                    zoomClass: zoomClass,
+                        children: data.announcements
+                            .map((announcement) => Padding(
+                                  padding: const EdgeInsets.only(
+                                    bottom: AppSpacing.space12,
+                                  ),
+                                  child: AnnouncementPreview(
+                                    announcement: announcement,
                                   ),
                                 ))
                             .toList(),
@@ -137,8 +151,8 @@ class HomeScreen extends ConsumerWidget {
                       data.upcomingClasses.isEmpty)
                     Padding(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 40,
+                        horizontal: AppSpacing.screenH,
+                        vertical: AppSpacing.space40,
                       ),
                       child: Center(
                         child: Column(
@@ -148,22 +162,15 @@ class HomeScreen extends ConsumerWidget {
                               size: 64,
                               color: AppColors.textTertiary,
                             ),
-                            const SizedBox(height: 16),
-                            const Text(
+                            const SizedBox(height: AppSpacing.space16),
+                            Text(
                               'Welcome to your dashboard',
-                              style: TextStyle(
-                                color: AppColors.textPrimary,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
-                              ),
+                              style: AppTextStyles.headline,
                             ),
-                            const SizedBox(height: 8),
-                            const Text(
+                            const SizedBox(height: AppSpacing.space8),
+                            Text(
                               'Your batches, courses, and classes will appear here',
-                              style: TextStyle(
-                                color: AppColors.textSecondary,
-                                fontSize: 14,
-                              ),
+                              style: AppTextStyles.subheadline,
                               textAlign: TextAlign.center,
                             ),
                           ],
@@ -171,7 +178,7 @@ class HomeScreen extends ConsumerWidget {
                       ),
                     ),
 
-                  const SizedBox(height: 24),
+                  const SizedBox(height: AppSpacing.space24),
                 ],
               ),
             ),
@@ -190,14 +197,10 @@ class _SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenH),
       child: Text(
         title,
-        style: const TextStyle(
-          color: AppColors.textPrimary,
-          fontSize: 18,
-          fontWeight: FontWeight.w600,
-        ),
+        style: AppTextStyles.title2,
       ),
     );
   }
@@ -212,23 +215,23 @@ class _HomeShimmer extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(height: 8),
+          SizedBox(height: AppSpacing.space8),
           ShimmerBanner(),
-          SizedBox(height: 20),
+          SizedBox(height: AppSpacing.space24),
           ShimmerStatRow(),
-          SizedBox(height: 24),
+          SizedBox(height: AppSpacing.space24),
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
+            padding: EdgeInsets.symmetric(horizontal: AppSpacing.screenH),
             child: ShimmerCard(height: 24, width: 120),
           ),
-          SizedBox(height: 12),
+          SizedBox(height: AppSpacing.space12),
           ShimmerHorizontalList(),
-          SizedBox(height: 24),
+          SizedBox(height: AppSpacing.space24),
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
+            padding: EdgeInsets.symmetric(horizontal: AppSpacing.screenH),
             child: ShimmerCard(height: 24, width: 140),
           ),
-          SizedBox(height: 12),
+          SizedBox(height: AppSpacing.space12),
           ShimmerList(itemCount: 3, itemHeight: 100),
         ],
       ),

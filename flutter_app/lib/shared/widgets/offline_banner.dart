@@ -48,34 +48,54 @@ class _OfflineBannerState extends State<OfflineBanner> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        if (_isOffline)
-          MaterialBanner(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            content: const Row(
-              children: [
-                Icon(Icons.wifi_off_rounded, color: AppColors.warning, size: 20),
-                SizedBox(width: 12),
-                Text(
-                  'No internet connection',
-                  style: TextStyle(
-                    color: AppColors.warning,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
+        AnimatedSize(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeInOut,
+          child: _isOffline
+              ? Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
                   ),
-                ),
-              ],
-            ),
-            backgroundColor: AppColors.warning.withValues(alpha: 0.1),
-            actions: [
-              TextButton(
-                onPressed: _checkConnectivity,
-                child: const Text(
-                  'Retry',
-                  style: TextStyle(color: AppColors.warning),
-                ),
-              ),
-            ],
-          ),
+                  color: AppColors.warning.withValues(alpha: 0.12),
+                  child: SafeArea(
+                    bottom: false,
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.wifi_off_rounded,
+                          color: AppColors.warning,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 10),
+                        const Expanded(
+                          child: Text(
+                            'No internet connection',
+                            style: TextStyle(
+                              color: AppColors.warning,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: _checkConnectivity,
+                          child: const Text(
+                            'Retry',
+                            style: TextStyle(
+                              color: AppColors.warning,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : const SizedBox.shrink(),
+        ),
         Expanded(child: widget.child),
       ],
     );

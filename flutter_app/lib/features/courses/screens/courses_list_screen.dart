@@ -1,7 +1,10 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
+import 'package:ict_lms_student/core/constants/app_spacing.dart';
+import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 import 'package:ict_lms_student/features/courses/providers/courses_list_provider.dart';
 import 'package:ict_lms_student/features/courses/widgets/batch_filter_chips.dart';
 import 'package:ict_lms_student/features/courses/widgets/course_card.dart';
@@ -56,6 +59,7 @@ class _CoursesListScreenState extends ConsumerState<CoursesListScreen> {
     final userBatchNames = authState.user?.batchNames ?? [];
 
     return Scaffold(
+      backgroundColor: AppColors.scaffoldBg,
       appBar: AppBar(
         title: const Text('Courses'),
       ),
@@ -80,7 +84,7 @@ class _CoursesListScreenState extends ConsumerState<CoursesListScreen> {
 
   Widget _buildBody(CoursesListState state) {
     if (state.isLoading && state.items.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: CupertinoActivityIndicator(radius: 14));
     }
 
     if (state.error != null && state.items.isEmpty) {
@@ -88,14 +92,14 @@ class _CoursesListScreenState extends ConsumerState<CoursesListScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline, color: AppColors.error, size: 48),
-            const SizedBox(height: 16),
+            const Icon(Icons.error_outline, color: AppColors.error, size: 48),
+            const SizedBox(height: AppSpacing.space16),
             Text(
               state.error!,
-              style: const TextStyle(color: AppColors.textSecondary),
+              style: AppTextStyles.subheadline,
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.space16),
             TextButton(
               onPressed: () =>
                   ref.read(coursesListProvider.notifier).refresh(),
@@ -111,13 +115,12 @@ class _CoursesListScreenState extends ConsumerState<CoursesListScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.book_outlined,
+            const Icon(Icons.book_outlined,
                 color: AppColors.textTertiary, size: 64),
-            const SizedBox(height: 16),
-            const Text(
+            const SizedBox(height: AppSpacing.space16),
+            Text(
               'No courses found',
-              style: TextStyle(
-                  color: AppColors.textSecondary, fontSize: 16),
+              style: AppTextStyles.subheadline,
             ),
           ],
         ),
@@ -128,21 +131,26 @@ class _CoursesListScreenState extends ConsumerState<CoursesListScreen> {
       onRefresh: () => ref.read(coursesListProvider.notifier).refresh(),
       child: ListView.builder(
         controller: _scrollController,
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.only(
+          left: AppSpacing.screenH,
+          right: AppSpacing.screenH,
+          top: AppSpacing.screenH,
+          bottom: 80,
+        ),
         itemCount: state.items.length + (state.isLoadingMore ? 1 : 0),
         itemBuilder: (context, index) {
           if (index == state.items.length) {
             return const Center(
               child: Padding(
-                padding: EdgeInsets.all(16),
-                child: CircularProgressIndicator(),
+                padding: EdgeInsets.all(AppSpacing.space16),
+                child: CupertinoActivityIndicator(radius: 12),
               ),
             );
           }
 
           final course = state.items[index];
           return Padding(
-            padding: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.only(bottom: AppSpacing.space12),
             child: CourseCard(
               course: course,
               onTap: () => context.push('/courses/${course.id}'),

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
+import 'package:ict_lms_student/core/constants/app_shadows.dart';
+import 'package:ict_lms_student/core/constants/app_spacing.dart';
+import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 import 'package:ict_lms_student/models/student_dashboard_course.dart';
 import 'package:ict_lms_student/shared/widgets/status_badge.dart';
 
@@ -19,14 +22,15 @@ class CertificateCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final accentColor = Theme.of(context).colorScheme.primary;
 
-    return Card(
-      color: AppColors.cardBg,
+    return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+      decoration: BoxDecoration(
+        color: AppColors.cardBg,
+        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+        boxShadow: AppShadows.sm,
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.cardPadding),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -40,20 +44,15 @@ class CertificateCard extends StatelessWidget {
                     children: [
                       Text(
                         course.courseTitle,
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 16,
-                        ),
+                        style: AppTextStyles.headline,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: AppSpacing.space4),
                       Text(
                         course.batchName,
-                        style: const TextStyle(
+                        style: AppTextStyles.footnote.copyWith(
                           color: AppColors.textTertiary,
-                          fontSize: 13,
                         ),
                       ),
                     ],
@@ -63,7 +62,7 @@ class CertificateCard extends StatelessWidget {
                 StatusBadge(status: course.status),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.space12),
             // Progress bar.
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -73,16 +72,14 @@ class CertificateCard extends StatelessWidget {
                   children: [
                     Text(
                       'Completion: ${course.completionPercentage}%',
-                      style: const TextStyle(
+                      style: AppTextStyles.caption1.copyWith(
                         color: AppColors.textSecondary,
-                        fontSize: 12,
                       ),
                     ),
                     Text(
                       'Threshold: ${course.threshold}%',
-                      style: const TextStyle(
+                      style: AppTextStyles.caption1.copyWith(
                         color: AppColors.textTertiary,
-                        fontSize: 12,
                       ),
                     ),
                   ],
@@ -93,7 +90,7 @@ class CertificateCard extends StatelessWidget {
                   child: LinearProgressIndicator(
                     value: course.completionPercentage / 100,
                     minHeight: 6,
-                    backgroundColor: AppColors.surfaceBg,
+                    backgroundColor: AppColors.scaffoldBg,
                     valueColor: AlwaysStoppedAnimation<Color>(
                       course.completionPercentage >= course.threshold
                           ? AppColors.success
@@ -103,7 +100,7 @@ class CertificateCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.space12),
             // Action button based on status.
             if (course.hasCertificate && onDownloadTap != null)
               SizedBox(
@@ -117,7 +114,8 @@ class CertificateCard extends StatelessWidget {
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius:
+                          BorderRadius.circular(AppSpacing.buttonRadius),
                     ),
                   ),
                 ),
@@ -135,21 +133,21 @@ class CertificateCard extends StatelessWidget {
                   label: const Text('Request Certificate'),
                   style: FilledButton.styleFrom(
                     backgroundColor: accentColor,
-                    foregroundColor: AppColors.scaffoldBg,
+                    foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius:
+                          BorderRadius.circular(AppSpacing.buttonRadius),
                     ),
                   ),
                 ),
               )
             else if (course.status == 'pending')
-              const Center(
+              Center(
                 child: Text(
                   'Certificate request pending approval',
-                  style: TextStyle(
+                  style: AppTextStyles.footnote.copyWith(
                     color: AppColors.warning,
-                    fontSize: 13,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -158,9 +156,8 @@ class CertificateCard extends StatelessWidget {
               Center(
                 child: Text(
                   'Complete ${course.threshold}% to request certificate',
-                  style: const TextStyle(
+                  style: AppTextStyles.footnote.copyWith(
                     color: AppColors.textTertiary,
-                    fontSize: 13,
                   ),
                 ),
               ),

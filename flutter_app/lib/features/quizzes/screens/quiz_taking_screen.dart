@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
+import 'package:ict_lms_student/core/constants/app_spacing.dart';
+import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 import 'package:ict_lms_student/features/quizzes/providers/quiz_attempt_provider.dart';
 import 'package:ict_lms_student/features/quizzes/providers/quiz_list_provider.dart';
 import 'package:ict_lms_student/features/quizzes/widgets/question_swipe_card.dart';
@@ -72,23 +74,40 @@ class _QuizTakingScreenState extends ConsumerState<QuizTakingScreen> {
 
     if (state.isLoading || state.quiz == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Quiz')),
+        backgroundColor: AppColors.scaffoldBg,
+        appBar: AppBar(
+          title: Text('Quiz', style: AppTextStyles.headline),
+          backgroundColor: AppColors.cardBg,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+        ),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     if (state.error != null && state.questions.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Quiz')),
+        backgroundColor: AppColors.scaffoldBg,
+        appBar: AppBar(
+          title: Text('Quiz', style: AppTextStyles.headline),
+          backgroundColor: AppColors.cardBg,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+        ),
         body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, color: AppColors.error, size: 48),
-              const SizedBox(height: 16),
-              Text(state.error!,
-                  style: const TextStyle(color: AppColors.textSecondary)),
-            ],
+          child: Padding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: AppSpacing.space24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline,
+                    color: AppColors.error, size: 48),
+                const SizedBox(height: AppSpacing.space16),
+                Text(state.error!, style: AppTextStyles.subheadline,
+                    textAlign: TextAlign.center),
+              ],
+            ),
           ),
         ),
       );
@@ -100,12 +119,19 @@ class _QuizTakingScreenState extends ConsumerState<QuizTakingScreen> {
         if (!didPop) _showExitConfirmation(context);
       },
       child: Scaffold(
+        backgroundColor: AppColors.scaffoldBg,
         appBar: AppBar(
-          title: Text(state.quiz!.title),
+          title: Text(
+            state.quiz!.title,
+            style: AppTextStyles.headline,
+          ),
+          backgroundColor: AppColors.cardBg,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
           actions: [
             if (state.remainingSeconds != null)
               Padding(
-                padding: const EdgeInsets.only(right: 16),
+                padding: const EdgeInsets.only(right: AppSpacing.screenH),
                 child: QuizTimer(
                   remainingSeconds: state.remainingSeconds!,
                   isWarning: state.isTimerWarning,
@@ -115,6 +141,15 @@ class _QuizTakingScreenState extends ConsumerState<QuizTakingScreen> {
         ),
         body: Column(
           children: [
+            // Progress bar.
+            LinearProgressIndicator(
+              value: state.questions.isNotEmpty
+                  ? notifier.answeredCount / state.questions.length
+                  : 0,
+              backgroundColor: AppColors.border,
+              valueColor: AlwaysStoppedAnimation<Color>(accent),
+              minHeight: 3,
+            ),
             // Questions PageView
             Expanded(
               child: PageView.builder(
@@ -136,11 +171,13 @@ class _QuizTakingScreenState extends ConsumerState<QuizTakingScreen> {
             ),
             // Bottom bar: dot indicators + progress + submit
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: const BoxDecoration(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.screenH,
+                  vertical: AppSpacing.space12),
+              decoration: BoxDecoration(
                 color: AppColors.cardBg,
-                border: Border(
-                  top: BorderSide(color: AppColors.surfaceBg),
+                border: const Border(
+                  top: BorderSide(color: AppColors.border),
                 ),
               ),
               child: SafeArea(
@@ -155,8 +192,8 @@ class _QuizTakingScreenState extends ConsumerState<QuizTakingScreen> {
                           children: List.generate(
                             state.questions.length,
                             (i) {
-                              final isAnswered =
-                                  state.answers.containsKey(state.questions[i].id);
+                              final isAnswered = state.answers
+                                  .containsKey(state.questions[i].id);
                               final isCurrent = i == state.currentPage;
                               return GestureDetector(
                                 onTap: () => _pageController.animateToPage(
@@ -167,15 +204,15 @@ class _QuizTakingScreenState extends ConsumerState<QuizTakingScreen> {
                                 child: Container(
                                   width: isCurrent ? 12 : 8,
                                   height: isCurrent ? 12 : 8,
-                                  margin:
-                                      const EdgeInsets.symmetric(horizontal: 3),
+                                  margin: const EdgeInsets.symmetric(
+                                      horizontal: 3),
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     color: isAnswered
                                         ? accent
                                         : isCurrent
                                             ? AppColors.textSecondary
-                                            : AppColors.surfaceBg,
+                                            : AppColors.border,
                                   ),
                                 ),
                               );
@@ -184,17 +221,15 @@ class _QuizTakingScreenState extends ConsumerState<QuizTakingScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: AppSpacing.space12),
                     // Progress text
                     Text(
                       '${notifier.answeredCount}/${state.questions.length}',
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 13,
+                      style: AppTextStyles.footnote.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: AppSpacing.space12),
                     // Submit button
                     ElevatedButton(
                       onPressed: state.isSubmitting
@@ -206,8 +241,10 @@ class _QuizTakingScreenState extends ConsumerState<QuizTakingScreen> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 20, vertical: 10),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius:
+                              BorderRadius.circular(AppSpacing.buttonRadius),
                         ),
+                        elevation: 0,
                       ),
                       child: state.isSubmitting
                           ? const SizedBox(
@@ -216,9 +253,12 @@ class _QuizTakingScreenState extends ConsumerState<QuizTakingScreen> {
                               child: CircularProgressIndicator(
                                   strokeWidth: 2, color: Colors.white),
                             )
-                          : const Text(
+                          : Text(
                               'Submit',
-                              style: TextStyle(fontWeight: FontWeight.w600),
+                              style: AppTextStyles.subheadline.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                     ),
                   ],
@@ -241,13 +281,15 @@ class _QuizTakingScreenState extends ConsumerState<QuizTakingScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.cardBg,
-        title: const Text('Submit Quiz?',
-            style: TextStyle(color: AppColors.textPrimary)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+        ),
+        title: Text('Submit Quiz?', style: AppTextStyles.headline),
         content: Text(
           unanswered > 0
               ? '$unanswered question${unanswered == 1 ? '' : 's'} unanswered. Submit anyway?'
               : 'Are you sure you want to submit?',
-          style: const TextStyle(color: AppColors.textSecondary),
+          style: AppTextStyles.subheadline,
         ),
         actions: [
           TextButton(
@@ -259,6 +301,7 @@ class _QuizTakingScreenState extends ConsumerState<QuizTakingScreen> {
               Navigator.pop(ctx);
               notifier.submitQuiz();
             },
+            style: ElevatedButton.styleFrom(elevation: 0),
             child: const Text('Submit'),
           ),
         ],
@@ -271,11 +314,13 @@ class _QuizTakingScreenState extends ConsumerState<QuizTakingScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.cardBg,
-        title: const Text('Leave Quiz?',
-            style: TextStyle(color: AppColors.textPrimary)),
-        content: const Text(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+        ),
+        title: Text('Leave Quiz?', style: AppTextStyles.headline),
+        content: Text(
           'Your progress will be lost. Are you sure?',
-          style: TextStyle(color: AppColors.textSecondary),
+          style: AppTextStyles.subheadline,
         ),
         actions: [
           TextButton(
@@ -289,6 +334,7 @@ class _QuizTakingScreenState extends ConsumerState<QuizTakingScreen> {
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.error,
+              elevation: 0,
             ),
             child: const Text('Leave'),
           ),
@@ -307,11 +353,14 @@ class _QuizTakingScreenState extends ConsumerState<QuizTakingScreen> {
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.cardBg,
-        title: const Text("Time's Up!",
-            style: TextStyle(color: AppColors.error)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+        ),
+        title: Text("Time's Up!",
+            style: AppTextStyles.headline.copyWith(color: AppColors.error)),
         content: Text(
           'Auto-submitting in ${state.gracePeriodSeconds} seconds...',
-          style: const TextStyle(color: AppColors.textSecondary),
+          style: AppTextStyles.subheadline,
         ),
         actions: [
           ElevatedButton(
@@ -319,6 +368,7 @@ class _QuizTakingScreenState extends ConsumerState<QuizTakingScreen> {
               Navigator.pop(ctx);
               notifier.submitQuiz();
             },
+            style: ElevatedButton.styleFrom(elevation: 0),
             child: const Text('Submit Now'),
           ),
         ],

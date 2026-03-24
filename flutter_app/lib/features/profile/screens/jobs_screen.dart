@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
+import 'package:ict_lms_student/core/constants/app_spacing.dart';
+import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 import 'package:ict_lms_student/features/profile/providers/jobs_provider.dart';
 import 'package:ict_lms_student/features/profile/widgets/application_card.dart';
 import 'package:ict_lms_student/features/profile/widgets/job_card.dart';
@@ -44,13 +46,23 @@ class _JobsScreenState extends ConsumerState<JobsScreen>
     final accentColor = Theme.of(context).colorScheme.primary;
 
     return Scaffold(
+      backgroundColor: AppColors.scaffoldBg,
       appBar: AppBar(
-        title: const Text('Jobs'),
+        title: Text('Jobs', style: AppTextStyles.headline),
+        backgroundColor: AppColors.cardBg,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: accentColor,
+          indicatorWeight: 2.5,
           labelColor: accentColor,
           unselectedLabelColor: AppColors.textTertiary,
+          labelStyle: AppTextStyles.subheadline.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+          unselectedLabelStyle: AppTextStyles.subheadline,
+          dividerColor: AppColors.border,
           tabs: const [
             Tab(text: 'Job Listings'),
             Tab(text: 'My Applications'),
@@ -78,28 +90,38 @@ class _JobsListTab extends ConsumerWidget {
     final state = ref.watch(jobsProvider);
 
     if (state.isLoading && state.items.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(
+        child: CircularProgressIndicator(
+          color: Theme.of(context).colorScheme.primary,
+        ),
+      );
     }
 
     if (state.error != null && state.items.isEmpty) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline,
-                color: AppColors.error, size: 48),
-            const SizedBox(height: 16),
-            Text(
-              state.error!,
-              style: const TextStyle(color: AppColors.textSecondary),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            TextButton(
-              onPressed: () => ref.read(jobsProvider.notifier).refresh(),
-              child: const Text('Retry'),
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.screenH),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline,
+                  color: AppColors.error, size: 48),
+              const SizedBox(height: AppSpacing.space16),
+              Text(
+                state.error!,
+                style: AppTextStyles.subheadline.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppSpacing.space16),
+              TextButton(
+                onPressed: () =>
+                    ref.read(jobsProvider.notifier).refresh(),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -111,12 +133,11 @@ class _JobsListTab extends ConsumerWidget {
           children: [
             Icon(Icons.work_off_outlined,
                 color: AppColors.textTertiary, size: 64),
-            const SizedBox(height: 16),
-            const Text(
+            const SizedBox(height: AppSpacing.space16),
+            Text(
               'No job listings available',
-              style: TextStyle(
+              style: AppTextStyles.headline.copyWith(
                 color: AppColors.textSecondary,
-                fontSize: 16,
               ),
             ),
           ],
@@ -128,14 +149,21 @@ class _JobsListTab extends ConsumerWidget {
       onRefresh: () => ref.read(jobsProvider.notifier).refresh(),
       child: ListView.builder(
         controller: scrollController,
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.screenH,
+          AppSpacing.screenH,
+          AppSpacing.screenH,
+          80,
+        ),
         itemCount: state.items.length + (state.isLoadingMore ? 1 : 0),
         itemBuilder: (context, index) {
           if (index == state.items.length) {
-            return const Center(
+            return Center(
               child: Padding(
-                padding: EdgeInsets.all(16),
-                child: CircularProgressIndicator(),
+                padding: const EdgeInsets.all(AppSpacing.space16),
+                child: CircularProgressIndicator(
+                  color: Theme.of(context).colorScheme.primary,
+                ),
               ),
             );
           }
@@ -159,25 +187,34 @@ class _ApplicationsTab extends ConsumerWidget {
     final asyncData = ref.watch(myApplicationsProvider);
 
     return asyncData.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => Center(
+        child: CircularProgressIndicator(
+          color: Theme.of(context).colorScheme.primary,
+        ),
+      ),
       error: (error, _) => Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline,
-                color: AppColors.error, size: 48),
-            const SizedBox(height: 16),
-            Text(
-              error.toString().replaceFirst('Exception: ', ''),
-              style: const TextStyle(color: AppColors.textSecondary),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            TextButton(
-              onPressed: () => ref.invalidate(myApplicationsProvider),
-              child: const Text('Retry'),
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.screenH),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline,
+                  color: AppColors.error, size: 48),
+              const SizedBox(height: AppSpacing.space16),
+              Text(
+                error.toString().replaceFirst('Exception: ', ''),
+                style: AppTextStyles.subheadline.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppSpacing.space16),
+              TextButton(
+                onPressed: () => ref.invalidate(myApplicationsProvider),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
         ),
       ),
       data: (applications) {
@@ -188,20 +225,18 @@ class _ApplicationsTab extends ConsumerWidget {
               children: [
                 Icon(Icons.assignment_outlined,
                     color: AppColors.textTertiary, size: 64),
-                const SizedBox(height: 16),
-                const Text(
+                const SizedBox(height: AppSpacing.space16),
+                Text(
                   'No applications yet',
-                  style: TextStyle(
+                  style: AppTextStyles.headline.copyWith(
                     color: AppColors.textSecondary,
-                    fontSize: 16,
                   ),
                 ),
-                const SizedBox(height: 8),
-                const Text(
+                const SizedBox(height: AppSpacing.space8),
+                Text(
                   'Apply to jobs and track your applications here',
-                  style: TextStyle(
+                  style: AppTextStyles.footnote.copyWith(
                     color: AppColors.textTertiary,
-                    fontSize: 13,
                   ),
                 ),
               ],
@@ -212,7 +247,12 @@ class _ApplicationsTab extends ConsumerWidget {
         return RefreshIndicator(
           onRefresh: () async => ref.invalidate(myApplicationsProvider),
           child: ListView.builder(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.screenH,
+              AppSpacing.screenH,
+              AppSpacing.screenH,
+              80,
+            ),
             itemCount: applications.length,
             itemBuilder: (context, index) {
               final application = applications[index];

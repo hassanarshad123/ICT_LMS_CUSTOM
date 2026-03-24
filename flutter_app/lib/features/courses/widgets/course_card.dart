@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
+import 'package:ict_lms_student/core/constants/app_spacing.dart';
+import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 import 'package:ict_lms_student/models/course_out.dart';
 import 'package:ict_lms_student/shared/widgets/accent_card.dart';
 import 'package:ict_lms_student/shared/widgets/status_badge.dart';
@@ -21,33 +23,28 @@ class CourseCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Title.
+          // Title
           Text(
             course.title,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
+            style: AppTextStyles.headline,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          // Description.
+          // Description
           if (course.description != null &&
               course.description!.isNotEmpty) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: AppSpacing.space4),
             Text(
               course.description!,
-              style: const TextStyle(
+              style: AppTextStyles.footnote.copyWith(
                 color: AppColors.textSecondary,
-                fontSize: 13,
               ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
           ],
-          const SizedBox(height: 12),
-          // Status badge + batch count.
+          const SizedBox(height: AppSpacing.space12),
+          // Status badge + batch count
           Row(
             children: [
               StatusBadge(status: course.status),
@@ -55,10 +52,7 @@ class CourseCard extends StatelessWidget {
               if (course.batchIds.isNotEmpty)
                 Text(
                   '${course.batchIds.length} batch${course.batchIds.length != 1 ? 'es' : ''}',
-                  style: const TextStyle(
-                    color: AppColors.textTertiary,
-                    fontSize: 12,
-                  ),
+                  style: AppTextStyles.caption1,
                 ),
             ],
           ),

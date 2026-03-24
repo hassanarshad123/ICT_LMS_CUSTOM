@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
+import 'package:ict_lms_student/core/constants/app_shadows.dart';
+import 'package:ict_lms_student/core/constants/app_spacing.dart';
+import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 import 'package:ict_lms_student/core/utils/error_utils.dart';
 import 'package:ict_lms_student/data/repositories/announcement_repository.dart';
 import 'package:ict_lms_student/models/announcement_out.dart';
@@ -146,8 +149,12 @@ class _AnnouncementsScreenState extends ConsumerState<AnnouncementsScreen> {
     final state = ref.watch(announcementsProvider);
 
     return Scaffold(
+      backgroundColor: AppColors.scaffoldBg,
       appBar: AppBar(
-        title: const Text('Announcements'),
+        title: Text('Announcements', style: AppTextStyles.headline),
+        backgroundColor: AppColors.cardBg,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
       ),
       body: _buildBody(state),
     );
@@ -155,29 +162,38 @@ class _AnnouncementsScreenState extends ConsumerState<AnnouncementsScreen> {
 
   Widget _buildBody(AnnouncementsState state) {
     if (state.isLoading && state.items.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(
+        child: CircularProgressIndicator(
+          color: Theme.of(context).colorScheme.primary,
+        ),
+      );
     }
 
     if (state.error != null && state.items.isEmpty) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline,
-                color: AppColors.error, size: 48),
-            const SizedBox(height: 16),
-            Text(
-              state.error!,
-              style: const TextStyle(color: AppColors.textSecondary),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            TextButton(
-              onPressed: () =>
-                  ref.read(announcementsProvider.notifier).refresh(),
-              child: const Text('Retry'),
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.screenH),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline,
+                  color: AppColors.error, size: 48),
+              const SizedBox(height: AppSpacing.space16),
+              Text(
+                state.error!,
+                style: AppTextStyles.subheadline.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppSpacing.space16),
+              TextButton(
+                onPressed: () =>
+                    ref.read(announcementsProvider.notifier).refresh(),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -189,12 +205,11 @@ class _AnnouncementsScreenState extends ConsumerState<AnnouncementsScreen> {
           children: [
             Icon(Icons.campaign_outlined,
                 color: AppColors.textTertiary, size: 64),
-            const SizedBox(height: 16),
-            const Text(
+            const SizedBox(height: AppSpacing.space16),
+            Text(
               'No announcements',
-              style: TextStyle(
+              style: AppTextStyles.headline.copyWith(
                 color: AppColors.textSecondary,
-                fontSize: 16,
               ),
             ),
           ],
@@ -206,14 +221,21 @@ class _AnnouncementsScreenState extends ConsumerState<AnnouncementsScreen> {
       onRefresh: () => ref.read(announcementsProvider.notifier).refresh(),
       child: ListView.builder(
         controller: _scrollController,
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.screenH,
+          AppSpacing.screenH,
+          AppSpacing.screenH,
+          80,
+        ),
         itemCount: state.items.length + (state.isLoadingMore ? 1 : 0),
         itemBuilder: (context, index) {
           if (index == state.items.length) {
-            return const Center(
+            return Center(
               child: Padding(
-                padding: EdgeInsets.all(16),
-                child: CircularProgressIndicator(),
+                padding: const EdgeInsets.all(AppSpacing.space16),
+                child: CircularProgressIndicator(
+                  color: Theme.of(context).colorScheme.primary,
+                ),
               ),
             );
           }
@@ -243,135 +265,140 @@ class _AnnouncementCardState extends State<_AnnouncementCard> {
     final announcement = widget.announcement;
     final accentColor = Theme.of(context).colorScheme.primary;
 
-    return Card(
-      color: AppColors.cardBg,
+    return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: announcement.isExpired
-            ? BorderSide(
-                color: AppColors.textTertiary.withValues(alpha: 0.2), width: 1)
-            : BorderSide.none,
+      decoration: BoxDecoration(
+        color: AppColors.cardBg,
+        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+        boxShadow: AppShadows.sm,
+        border: announcement.isExpired
+            ? Border.all(
+                color: AppColors.textTertiary.withValues(alpha: 0.15),
+                width: 1,
+              )
+            : null,
       ),
-      child: InkWell(
-        onTap: () => setState(() => _isExpanded = !_isExpanded),
-        borderRadius: BorderRadius.circular(16),
-        splashColor: accentColor.withValues(alpha: 0.1),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Title + scope badge.
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: AppColors.warning.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.campaign,
-                      color: AppColors.warning,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          announcement.title,
-                          style: TextStyle(
-                            color: announcement.isExpired
-                                ? AppColors.textTertiary
-                                : AppColors.textPrimary,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 15,
-                          ),
-                          maxLines: _isExpanded ? null : 2,
-                          overflow: _isExpanded ? null : TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            StatusBadge(
-                                status: announcement.scope, fontSize: 10),
-                            if (announcement.isExpired) ...[
-                              const SizedBox(width: 8),
-                              const StatusBadge(
-                                  status: 'expired', fontSize: 10),
-                            ],
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              // Content.
-              Text(
-                announcement.content,
-                style: TextStyle(
-                  color: announcement.isExpired
-                      ? AppColors.textTertiary
-                      : AppColors.textSecondary,
-                  fontSize: 14,
-                  height: 1.5,
-                ),
-                maxLines: _isExpanded ? null : 3,
-                overflow: _isExpanded ? null : TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 10),
-              // Footer: posted by + date.
-              Row(
-                children: [
-                  if (announcement.postedByName != null) ...[
-                    const Icon(Icons.person_outline,
-                        size: 13, color: AppColors.textTertiary),
-                    const SizedBox(width: 4),
-                    Flexible(
-                      child: Text(
-                        announcement.postedByName!,
-                        style: const TextStyle(
-                          color: AppColors.textTertiary,
-                          fontSize: 12,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => setState(() => _isExpanded = !_isExpanded),
+          borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+          splashColor: accentColor.withValues(alpha: 0.06),
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.cardPadding),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Title + scope badge.
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: AppColors.warning.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.campaign,
+                        color: AppColors.warning,
+                        size: 20,
                       ),
                     ),
                     const SizedBox(width: 12),
-                  ],
-                  if (announcement.createdAt != null) ...[
-                    const Icon(Icons.access_time,
-                        size: 13, color: AppColors.textTertiary),
-                    const SizedBox(width: 4),
-                    Text(
-                      DateFormat('MMM d, yyyy')
-                          .format(announcement.createdAt!),
-                      style: const TextStyle(
-                        color: AppColors.textTertiary,
-                        fontSize: 12,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            announcement.title,
+                            style: AppTextStyles.headline.copyWith(
+                              fontSize: 15,
+                              color: announcement.isExpired
+                                  ? AppColors.textTertiary
+                                  : AppColors.textPrimary,
+                            ),
+                            maxLines: _isExpanded ? null : 2,
+                            overflow:
+                                _isExpanded ? null : TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: AppSpacing.space4),
+                          Row(
+                            children: [
+                              StatusBadge(
+                                  status: announcement.scope,
+                                  fontSize: 10),
+                              if (announcement.isExpired) ...[
+                                const SizedBox(width: 8),
+                                const StatusBadge(
+                                    status: 'expired', fontSize: 10),
+                              ],
+                            ],
+                          ),
+                        ],
                       ),
                     ),
                   ],
-                  const Spacer(),
-                  Icon(
-                    _isExpanded
-                        ? Icons.keyboard_arrow_up
-                        : Icons.keyboard_arrow_down,
-                    color: AppColors.textTertiary,
-                    size: 20,
+                ),
+                const SizedBox(height: 10),
+                // Content.
+                Text(
+                  announcement.content,
+                  style: AppTextStyles.subheadline.copyWith(
+                    fontSize: 14,
+                    color: announcement.isExpired
+                        ? AppColors.textTertiary
+                        : AppColors.textSecondary,
+                    height: 1.5,
                   ),
-                ],
-              ),
-            ],
+                  maxLines: _isExpanded ? null : 3,
+                  overflow: _isExpanded ? null : TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 10),
+                // Footer: posted by + date.
+                Row(
+                  children: [
+                    if (announcement.postedByName != null) ...[
+                      const Icon(Icons.person_outline,
+                          size: 13, color: AppColors.textTertiary),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          announcement.postedByName!,
+                          style: AppTextStyles.caption1.copyWith(
+                            color: AppColors.textTertiary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                    ],
+                    if (announcement.createdAt != null) ...[
+                      const Icon(Icons.access_time,
+                          size: 13, color: AppColors.textTertiary),
+                      const SizedBox(width: 4),
+                      Text(
+                        DateFormat('MMM d, yyyy')
+                            .format(announcement.createdAt!),
+                        style: AppTextStyles.caption1.copyWith(
+                          color: AppColors.textTertiary,
+                        ),
+                      ),
+                    ],
+                    const Spacer(),
+                    Icon(
+                      _isExpanded
+                          ? Icons.keyboard_arrow_up
+                          : Icons.keyboard_arrow_down,
+                      color: AppColors.textTertiary,
+                      size: 20,
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),

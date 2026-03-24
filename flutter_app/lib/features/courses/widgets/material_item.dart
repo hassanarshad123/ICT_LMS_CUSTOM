@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
+import 'package:ict_lms_student/core/constants/app_spacing.dart';
+import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 import 'package:ict_lms_student/data/repositories/material_repository.dart';
 import 'package:ict_lms_student/models/material_out.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -123,7 +125,8 @@ class _MaterialItemState extends ConsumerState<MaterialItem> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Download failed: ${e.toString().replaceFirst("Exception: ", "")}'),
+            content: Text(
+                'Download failed: ${e.toString().replaceFirst("Exception: ", "")}'),
             backgroundColor: AppColors.error,
           ),
         );
@@ -145,13 +148,16 @@ class _MaterialItemState extends ConsumerState<MaterialItem> {
     final iconColor = _fileColor(material.fileType);
 
     return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.space4,
+        vertical: AppSpacing.space4,
+      ),
       leading: Container(
         width: 44,
         height: 44,
         decoration: BoxDecoration(
-          color: iconColor.withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(12),
+          color: iconColor.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
         ),
         child: Icon(
           _fileIcon(material.fileType),
@@ -161,10 +167,9 @@ class _MaterialItemState extends ConsumerState<MaterialItem> {
       ),
       title: Text(
         material.title,
-        style: const TextStyle(
+        style: AppTextStyles.subheadline.copyWith(
           color: AppColors.textPrimary,
           fontWeight: FontWeight.w500,
-          fontSize: 15,
         ),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
@@ -174,22 +179,16 @@ class _MaterialItemState extends ConsumerState<MaterialItem> {
           Flexible(
             child: Text(
               material.fileName,
-              style: const TextStyle(
-                color: AppColors.textTertiary,
-                fontSize: 12,
-              ),
+              style: AppTextStyles.caption1,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
           ),
           if (material.fileSize != null && material.fileSize!.isNotEmpty) ...[
-            const SizedBox(width: 8),
+            const SizedBox(width: AppSpacing.space8),
             Text(
               material.fileSize!,
-              style: const TextStyle(
-                color: AppColors.textTertiary,
-                fontSize: 12,
-              ),
+              style: AppTextStyles.caption1,
             ),
           ],
         ],

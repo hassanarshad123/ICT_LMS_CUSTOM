@@ -1,24 +1,15 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_spacing.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/branding_provider.dart';
+import '../../../providers/institute_slug_provider.dart';
+import 'forgot_password_screen.dart';
 
-/// Login screen where the user enters their email and password.
-///
-/// UI Spec:
-/// - Dark background
-/// - Top section: institute logo (from brandingProvider.logoUrl, or fallback
-///   School icon) + institute name + tagline
-/// - Email TextFormField (keyboard: email, validator: non-empty)
-/// - Password TextFormField (obscure, with visibility toggle)
-/// - "Login" ElevatedButton (full width, accent color)
-/// - Loading state on button during login
-/// - Error: SnackBar with error message
-/// - On success: authProvider.login() -> router auto-redirects to /home
-///
-/// The screen uses ConsumerStatefulWidget for Riverpod integration and
-/// local form state management.
+/// Login screen — Apple sign-in style with light theme.
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
@@ -65,14 +56,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
       // Extract a user-friendly error message
       final authState = ref.read(authProvider);
-      final errorMessage = authState.error ?? 'Login failed. Please try again.';
+      final errorMessage =
+          authState.error ?? 'Login failed. Please try again.';
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(errorMessage),
           backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.all(16),
+          margin: const EdgeInsets.all(AppSpacing.screenH),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
           ),
@@ -92,44 +84,42 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final accentColor = branding.accentColor;
 
     return Scaffold(
+      backgroundColor: AppColors.scaffoldBg,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space32),
             child: Form(
               key: _formKey,
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
+                  const SizedBox(height: AppSpacing.space32),
+
                   // Institute logo
                   _buildLogo(branding, accentColor),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: AppSpacing.space20),
 
                   // Institute name
                   Text(
                     branding.instituteName ?? 'LMS',
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.bold,
-                        ),
+                    style: AppTextStyles.title2,
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: AppSpacing.space4),
 
                   // Tagline
                   if (branding.tagline != null &&
                       branding.tagline!.isNotEmpty) ...[
                     Text(
                       branding.tagline!,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
+                      style: AppTextStyles.subheadline,
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 40),
+                    const SizedBox(height: AppSpacing.space40),
                   ] else
-                    const SizedBox(height: 40),
+                    const SizedBox(height: AppSpacing.space40),
 
                   // Email field
                   TextFormField(
@@ -139,17 +129,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     textInputAction: TextInputAction.next,
                     autocorrect: false,
                     enableSuggestions: true,
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       hintText: 'Email address',
                       prefixIcon: Icon(
                         Icons.email_outlined,
                         color: AppColors.textTertiary,
                       ),
                     ),
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 16,
-                    ),
+                    style: AppTextStyles.body,
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
                         return 'Please enter your email';
@@ -165,7 +152,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       _passwordFocusNode.requestFocus();
                     },
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppSpacing.space16),
 
                   // Password field
                   TextFormField(
@@ -175,7 +162,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     textInputAction: TextInputAction.done,
                     decoration: InputDecoration(
                       hintText: 'Password',
-                      prefixIcon: Icon(
+                      prefixIcon: const Icon(
                         Icons.lock_outline_rounded,
                         color: AppColors.textTertiary,
                       ),
@@ -193,10 +180,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         },
                       ),
                     ),
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 16,
-                    ),
+                    style: AppTextStyles.body,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Please enter your password';
@@ -205,41 +189,60 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     },
                     onFieldSubmitted: (_) => _onLogin(),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: AppSpacing.space32),
 
-                  // Login button
+                  // Sign In button
                   SizedBox(
                     width: double.infinity,
-                    height: 52,
+                    height: 50,
                     child: ElevatedButton(
                       onPressed: _isLoggingIn ? null : _onLogin,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: accentColor,
-                        foregroundColor: AppColors.scaffoldBg,
-                        disabledBackgroundColor: accentColor.withValues(alpha: 0.5),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
                       child: _isLoggingIn
-                          ? SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
-                                color: AppColors.scaffoldBg,
-                              ),
+                          ? const CupertinoActivityIndicator(
+                              color: Colors.white,
                             )
-                          : const Text(
-                              'Login',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
+                          : Text(
+                              'Sign In',
+                              style: AppTextStyles.bodyMedium.copyWith(
+                                color: Colors.white,
                               ),
                             ),
                     ),
                   ),
-                  const SizedBox(height: 48),
+                  const SizedBox(height: AppSpacing.space16),
+
+                  // Forgot password link
+                  TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ForgotPasswordScreen(),
+                        ),
+                      );
+                    },
+                    child: Text(
+                      'Forgot Password?',
+                      style: AppTextStyles.subheadline.copyWith(
+                        color: accentColor,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.space32),
+
+                  // Change institute link
+                  TextButton(
+                    onPressed: () {
+                      ref.read(instituteSlugProvider.notifier).clearSlug();
+                    },
+                    child: Text(
+                      'Change Institute',
+                      style: AppTextStyles.subheadline.copyWith(
+                        color: AppColors.textTertiary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.space16),
                 ],
               ),
             ),

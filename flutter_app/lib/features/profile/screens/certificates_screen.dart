@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
+import 'package:ict_lms_student/core/constants/app_spacing.dart';
+import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 import 'package:ict_lms_student/features/profile/providers/certificates_provider.dart';
 import 'package:ict_lms_student/features/profile/widgets/certificate_card.dart';
 import 'package:ict_lms_student/models/student_dashboard_course.dart';
@@ -120,30 +122,43 @@ class CertificatesScreen extends ConsumerWidget {
     final asyncData = ref.watch(certificatesDashboardProvider);
 
     return Scaffold(
+      backgroundColor: AppColors.scaffoldBg,
       appBar: AppBar(
-        title: const Text('Certificates'),
+        title: Text('Certificates', style: AppTextStyles.headline),
+        backgroundColor: AppColors.cardBg,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
       ),
       body: asyncData.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => Center(
+          child: CircularProgressIndicator(
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        ),
         error: (error, _) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline,
-                  color: AppColors.error, size: 48),
-              const SizedBox(height: 16),
-              Text(
-                error.toString().replaceFirst('Exception: ', ''),
-                style: const TextStyle(color: AppColors.textSecondary),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              TextButton(
-                onPressed: () =>
-                    ref.invalidate(certificatesDashboardProvider),
-                child: const Text('Retry'),
-              ),
-            ],
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.screenH),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline,
+                    color: AppColors.error, size: 48),
+                const SizedBox(height: AppSpacing.space16),
+                Text(
+                  error.toString().replaceFirst('Exception: ', ''),
+                  style: AppTextStyles.subheadline.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: AppSpacing.space16),
+                TextButton(
+                  onPressed: () =>
+                      ref.invalidate(certificatesDashboardProvider),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
           ),
         ),
         data: (courses) {
@@ -154,20 +169,18 @@ class CertificatesScreen extends ConsumerWidget {
                 children: [
                   Icon(Icons.workspace_premium_outlined,
                       color: AppColors.textTertiary, size: 64),
-                  const SizedBox(height: 16),
-                  const Text(
+                  const SizedBox(height: AppSpacing.space16),
+                  Text(
                     'No courses enrolled',
-                    style: TextStyle(
+                    style: AppTextStyles.headline.copyWith(
                       color: AppColors.textSecondary,
-                      fontSize: 16,
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  const Text(
+                  const SizedBox(height: AppSpacing.space8),
+                  Text(
                     'Certificates will appear here once you\nenroll in a course',
-                    style: TextStyle(
+                    style: AppTextStyles.footnote.copyWith(
                       color: AppColors.textTertiary,
-                      fontSize: 13,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -180,7 +193,12 @@ class CertificatesScreen extends ConsumerWidget {
             onRefresh: () async =>
                 ref.invalidate(certificatesDashboardProvider),
             child: ListView.builder(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.screenH,
+                AppSpacing.screenH,
+                AppSpacing.screenH,
+                80,
+              ),
               itemCount: courses.length,
               itemBuilder: (context, index) {
                 final course = courses[index];

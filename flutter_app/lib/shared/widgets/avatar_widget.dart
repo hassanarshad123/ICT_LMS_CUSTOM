@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../../core/constants/app_colors.dart';
 
 class AvatarWidget extends StatelessWidget {
   final String? imageUrl;
@@ -18,7 +19,7 @@ class AvatarWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accentColor = Theme.of(context).colorScheme.primary;
-    final bgColor = backgroundColor ?? accentColor.withValues(alpha: 0.2);
+    final bgColor = backgroundColor ?? AppColors.scaffoldBg;
     final initials = _getInitials(name);
 
     if (imageUrl != null && imageUrl!.isNotEmpty) {
@@ -35,13 +36,13 @@ class AvatarWidget extends StatelessWidget {
               initials: initials,
               radius: radius,
               backgroundColor: bgColor,
-              accentColor: accentColor,
+              textColor: accentColor,
             ),
             errorWidget: (context, url, error) => _InitialsAvatar(
               initials: initials,
               radius: radius,
               backgroundColor: bgColor,
-              accentColor: accentColor,
+              textColor: accentColor,
             ),
           ),
         ),
@@ -52,7 +53,7 @@ class AvatarWidget extends StatelessWidget {
       initials: initials,
       radius: radius,
       backgroundColor: bgColor,
-      accentColor: accentColor,
+      textColor: accentColor,
     );
   }
 
@@ -70,13 +71,13 @@ class _InitialsAvatar extends StatelessWidget {
   final String initials;
   final double radius;
   final Color backgroundColor;
-  final Color accentColor;
+  final Color textColor;
 
   const _InitialsAvatar({
     required this.initials,
     required this.radius,
     required this.backgroundColor,
-    required this.accentColor,
+    required this.textColor,
   });
 
   @override
@@ -87,7 +88,7 @@ class _InitialsAvatar extends StatelessWidget {
       child: Text(
         initials,
         style: TextStyle(
-          color: accentColor,
+          color: textColor,
           fontSize: radius * 0.7,
           fontWeight: FontWeight.w600,
         ),

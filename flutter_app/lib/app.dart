@@ -15,7 +15,7 @@ class App extends ConsumerWidget {
     return MaterialApp.router(
       title: branding.instituteName ?? 'Zensbot LMS',
       debugShowCheckedModeBanner: false,
-      theme: buildDarkTheme(branding.accentColor),
+      theme: buildTheme(branding.accentColor),
       routerConfig: router,
     );
   }

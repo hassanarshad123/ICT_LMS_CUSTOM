@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_spacing.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../models/announcement_out.dart';
 import '../../../shared/widgets/accent_card.dart';
 import '../../../shared/widgets/status_badge.dart';
@@ -28,34 +30,26 @@ class AnnouncementPreview extends StatelessWidget {
               if (announcement.createdAt != null)
                 Text(
                   announcement.createdAt!.toRelative,
-                  style: const TextStyle(
-                    color: AppColors.textTertiary,
-                    fontSize: 12,
-                  ),
+                  style: AppTextStyles.caption1,
                 ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: AppSpacing.space8),
 
           // Title
           Text(
             announcement.title,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-            ),
+            style: AppTextStyles.headline,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: AppSpacing.space4),
 
           // Content preview (2-line clamp)
           Text(
             announcement.content,
-            style: const TextStyle(
+            style: AppTextStyles.footnote.copyWith(
               color: AppColors.textSecondary,
-              fontSize: 13,
               height: 1.4,
             ),
             maxLines: 2,
@@ -65,12 +59,10 @@ class AnnouncementPreview extends StatelessWidget {
           // Posted by
           if (announcement.postedByName != null &&
               announcement.postedByName!.isNotEmpty) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpacing.space8),
             Text(
               'by ${announcement.postedByName}',
-              style: const TextStyle(
-                color: AppColors.textTertiary,
-                fontSize: 12,
+              style: AppTextStyles.caption1.copyWith(
                 fontStyle: FontStyle.italic,
               ),
             ),

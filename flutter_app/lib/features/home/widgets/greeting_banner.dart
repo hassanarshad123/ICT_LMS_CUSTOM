@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/constants/app_colors.dart';
+import 'package:intl/intl.dart';
+
+import '../../../core/constants/app_spacing.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../shared/widgets/avatar_widget.dart';
 
-/// Dark gradient card showing "Hi, {name}" with a greeting based on time of day.
-///
-/// Includes user avatar and a decorative search icon (placeholder for future search).
+/// Apple-style greeting banner — left-aligned large title with date below.
 class GreetingBanner extends ConsumerWidget {
   const GreetingBanner({super.key});
 
@@ -16,75 +17,45 @@ class GreetingBanner extends ConsumerWidget {
     final authState = ref.watch(authProvider);
     final userName = authState.user?.name ?? 'Student';
     final avatarUrl = authState.user?.avatarUrl;
-    final accentColor = Theme.of(context).colorScheme.primary;
     final greeting = getGreeting();
+    final today = DateFormat('EEEE, MMMM d').format(DateTime.now());
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              accentColor.withValues(alpha: 0.12),
-              AppColors.cardBg,
-            ],
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenH),
+      child: Row(
+        children: [
+          // Greeting text — left-aligned large title
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$greeting,',
+                  style: AppTextStyles.largeTitle,
+                ),
+                Text(
+                  userName,
+                  style: AppTextStyles.largeTitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: AppSpacing.space4),
+                Text(
+                  today,
+                  style: AppTextStyles.subheadline,
+                ),
+              ],
+            ),
           ),
-        ),
-        child: Row(
-          children: [
-            // Avatar
-            AvatarWidget(
-              imageUrl: avatarUrl,
-              name: userName,
-              radius: 24,
-            ),
-            const SizedBox(width: 16),
+          const SizedBox(width: AppSpacing.space12),
 
-            // Greeting text
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Hi, $userName',
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    greeting,
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Search icon (placeholder for future feature)
-            IconButton(
-              onPressed: () {
-                // Future: navigate to search screen
-              },
-              icon: Icon(
-                Icons.search_rounded,
-                color: AppColors.textSecondary,
-                size: 24,
-              ),
-            ),
-          ],
-        ),
+          // Avatar
+          AvatarWidget(
+            imageUrl: avatarUrl,
+            name: userName,
+            radius: 24,
+          ),
+        ],
       ),
     );
   }

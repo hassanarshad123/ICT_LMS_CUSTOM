@@ -1,6 +1,9 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
+import 'package:ict_lms_student/core/constants/app_spacing.dart';
+import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 import 'package:ict_lms_student/features/courses/providers/lecture_player_provider.dart';
 import 'package:ict_lms_student/providers/auth_provider.dart';
 import 'package:ict_lms_student/shared/widgets/progress_bar.dart';
@@ -32,6 +35,7 @@ class _LecturePlayerScreenState extends ConsumerState<LecturePlayerScreen> {
     final userEmail = ref.watch(authProvider).user?.email ?? '';
 
     return Scaffold(
+      backgroundColor: AppColors.scaffoldBg,
       appBar: AppBar(
         title: Text(
           state.lecture?.title ?? 'Lecture',
@@ -39,25 +43,26 @@ class _LecturePlayerScreenState extends ConsumerState<LecturePlayerScreen> {
         ),
       ),
       body: state.isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CupertinoActivityIndicator(radius: 14))
           : state.error != null
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.error_outline,
+                      const Icon(Icons.error_outline,
                           color: AppColors.error, size: 48),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: AppSpacing.space16),
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.space24,
+                        ),
                         child: Text(
                           state.error!,
-                          style: const TextStyle(
-                              color: AppColors.textSecondary),
+                          style: AppTextStyles.subheadline,
                           textAlign: TextAlign.center,
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: AppSpacing.space16),
                       TextButton(
                         onPressed: () => ref.invalidate(
                             lecturePlayerProvider(widget.lectureId)),
@@ -67,89 +72,89 @@ class _LecturePlayerScreenState extends ConsumerState<LecturePlayerScreen> {
                   ),
                 )
               : SingleChildScrollView(
+                  padding: const EdgeInsets.only(bottom: 80),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Video player.
+                      // Video player — full width with rounded corners
                       if (state.signedUrl != null)
-                        VideoPlayerWebView(
-                          signedUrl: state.signedUrl!,
-                          userEmail: userEmail,
-                          videoType: state.videoType ?? 'external',
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.screenH,
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(
+                              AppSpacing.cardRadius,
+                            ),
+                            child: VideoPlayerWebView(
+                              signedUrl: state.signedUrl!,
+                              userEmail: userEmail,
+                              videoType: state.videoType ?? 'external',
+                            ),
+                          ),
                         ),
-                      // Lecture info.
+                      // Lecture info
                       Padding(
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(AppSpacing.screenH),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               state.lecture?.title ?? '',
-                              style: const TextStyle(
-                                color: AppColors.textPrimary,
-                                fontSize: 20,
-                                fontWeight: FontWeight.w600,
-                              ),
+                              style: AppTextStyles.headline,
                             ),
                             if (state.lecture?.durationDisplay != null) ...[
-                              const SizedBox(height: 8),
+                              const SizedBox(height: AppSpacing.space8),
                               Row(
                                 children: [
-                                  Icon(
+                                  const Icon(
                                     Icons.access_time,
                                     size: 16,
                                     color: AppColors.textTertiary,
                                   ),
-                                  const SizedBox(width: 4),
+                                  const SizedBox(width: AppSpacing.space4),
                                   Text(
                                     state.lecture!.durationDisplay!,
-                                    style: const TextStyle(
-                                      color: AppColors.textTertiary,
-                                      fontSize: 14,
-                                    ),
+                                    style: AppTextStyles.footnote,
                                   ),
                                 ],
                               ),
                             ],
                             if (state.lecture?.description != null &&
                                 state.lecture!.description!.isNotEmpty) ...[
-                              const SizedBox(height: 12),
+                              const SizedBox(height: AppSpacing.space12),
                               Text(
                                 state.lecture!.description!,
-                                style: const TextStyle(
+                                style: AppTextStyles.body.copyWith(
                                   color: AppColors.textSecondary,
-                                  fontSize: 14,
                                 ),
                               ),
                             ],
-                            // Progress bar.
+                            // Progress bar
                             if (state.progress != null) ...[
-                              const SizedBox(height: 20),
+                              const SizedBox(height: AppSpacing.space24),
                               Row(
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Text(
+                                  Text(
                                     'Progress',
-                                    style: TextStyle(
-                                      color: AppColors.textSecondary,
-                                      fontSize: 14,
+                                    style: AppTextStyles.subheadline.copyWith(
                                       fontWeight: FontWeight.w500,
                                     ),
                                   ),
                                   Text(
                                     '${state.progress!.watchPercentage}%',
-                                    style: TextStyle(
+                                    style: AppTextStyles.subheadline.copyWith(
                                       color: Theme.of(context)
                                           .colorScheme
                                           .primary,
-                                      fontSize: 14,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 8),
+                              const SizedBox(height: AppSpacing.space8),
                               ProgressBar(
                                 percentage:
                                     state.progress!.watchPercentage.toDouble(),

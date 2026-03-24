@@ -1,6 +1,9 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_spacing.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../models/institute_item.dart';
 import '../../../providers/branding_provider.dart';
 import '../providers/onboarding_provider.dart';
@@ -24,7 +27,7 @@ class _InstituteSlugScreenState extends ConsumerState<InstituteSlugScreen> {
           content: const Text('Please select an institute'),
           backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.all(16),
+          margin: const EdgeInsets.all(AppSpacing.screenH),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
           ),
@@ -47,7 +50,7 @@ class _InstituteSlugScreenState extends ConsumerState<InstituteSlugScreen> {
             content: Text(error),
             backgroundColor: AppColors.error,
             behavior: SnackBarBehavior.floating,
-            margin: const EdgeInsets.all(16),
+            margin: const EdgeInsets.all(AppSpacing.screenH),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
             ),
@@ -65,15 +68,18 @@ class _InstituteSlugScreenState extends ConsumerState<InstituteSlugScreen> {
     final isBusy = onboardingState.isValidating;
 
     return Scaffold(
+      backgroundColor: AppColors.scaffoldBg,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space32),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Institute logo placeholder icon
+                const SizedBox(height: AppSpacing.space48),
+
+                // App icon
                 Container(
                   width: 80,
                   height: 80,
@@ -87,80 +93,72 @@ class _InstituteSlugScreenState extends ConsumerState<InstituteSlugScreen> {
                     color: accentColor,
                   ),
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: AppSpacing.space32),
 
-                // Title
+                // Welcome title
                 Text(
-                  'Select your institute',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w600,
-                      ),
+                  'Welcome',
+                  style: AppTextStyles.largeTitle,
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppSpacing.space8),
 
                 // Subtitle
                 Text(
-                  'Choose your institute to continue',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
+                  'Select your institute to continue',
+                  style: AppTextStyles.subheadline,
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 40),
+                const SizedBox(height: AppSpacing.space40),
 
                 // Institute dropdown or loading state
                 if (onboardingState.isLoadingInstitutes)
                   const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    child: CircularProgressIndicator(),
+                    padding: EdgeInsets.symmetric(vertical: AppSpacing.space16),
+                    child: CupertinoActivityIndicator(radius: 14),
                   )
                 else if (onboardingState.institutes.isEmpty)
                   _buildEmptyState(accentColor)
                 else
                   _buildDropdown(onboardingState, accentColor),
 
-                const SizedBox(height: 24),
+                // Error text
+                if (onboardingState.error != null) ...[
+                  const SizedBox(height: AppSpacing.space8),
+                  Text(
+                    onboardingState.error!,
+                    style: AppTextStyles.footnote.copyWith(
+                      color: AppColors.error,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+
+                const SizedBox(height: AppSpacing.space24),
 
                 // Continue button
                 SizedBox(
                   width: double.infinity,
-                  height: 52,
+                  height: 50,
                   child: ElevatedButton(
                     onPressed: isBusy ||
                             onboardingState.isLoadingInstitutes ||
                             onboardingState.institutes.isEmpty
                         ? null
                         : _onContinue,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: accentColor,
-                      foregroundColor: AppColors.scaffoldBg,
-                      disabledBackgroundColor:
-                          accentColor.withValues(alpha: 0.5),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
                     child: isBusy
-                        ? const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              color: AppColors.scaffoldBg,
-                            ),
+                        ? const CupertinoActivityIndicator(
+                            color: Colors.white,
                           )
-                        : const Text(
+                        : Text(
                             'Continue',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              color: Colors.white,
                             ),
                           ),
                   ),
                 ),
-                const SizedBox(height: 48),
+                const SizedBox(height: AppSpacing.space48),
               ],
             ),
           ),
@@ -170,67 +168,79 @@ class _InstituteSlugScreenState extends ConsumerState<InstituteSlugScreen> {
   }
 
   Widget _buildDropdown(OnboardingState onboardingState, Color accentColor) {
-    return DropdownButtonFormField<InstituteItem>(
-      initialValue: onboardingState.selectedInstitute,
-      isExpanded: true,
-      dropdownColor: AppColors.cardBg,
-      style: const TextStyle(
-        color: AppColors.textPrimary,
-        fontSize: 16,
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.cardBg,
+        borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+        border: Border.all(color: AppColors.border),
       ),
-      decoration: InputDecoration(
-        hintText: 'Select an institute',
-        hintStyle: const TextStyle(color: AppColors.textTertiary),
-        prefixIcon: const Icon(
-          Icons.business_rounded,
+      child: DropdownButtonFormField<InstituteItem>(
+        value: onboardingState.selectedInstitute,
+        isExpanded: true,
+        dropdownColor: AppColors.cardBg,
+        style: AppTextStyles.body,
+        icon: const Icon(
+          Icons.keyboard_arrow_down_rounded,
           color: AppColors.textTertiary,
         ),
-        filled: true,
-        fillColor: AppColors.inputBg,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: accentColor, width: 1.5),
-        ),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      ),
-      items: onboardingState.institutes.map((institute) {
-        return DropdownMenuItem<InstituteItem>(
-          value: institute,
-          child: Text(
-            institute.name,
-            style: const TextStyle(color: AppColors.textPrimary),
+        decoration: InputDecoration(
+          hintText: 'Select an institute',
+          hintStyle: AppTextStyles.body.copyWith(
+            color: AppColors.textTertiary,
           ),
-        );
-      }).toList(),
-      onChanged: (value) {
-        ref.read(onboardingProvider.notifier).selectInstitute(value);
-      },
+          prefixIcon: const Icon(
+            Icons.business_rounded,
+            color: AppColors.textTertiary,
+          ),
+          filled: true,
+          fillColor: AppColors.cardBg,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppSpacing.inputRadius),
+            borderSide: BorderSide.none,
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.space16,
+            vertical: 14,
+          ),
+        ),
+        items: onboardingState.institutes.map((institute) {
+          return DropdownMenuItem<InstituteItem>(
+            value: institute,
+            child: Text(
+              institute.name,
+              style: AppTextStyles.body,
+            ),
+          );
+        }).toList(),
+        onChanged: (value) {
+          ref.read(onboardingProvider.notifier).selectInstitute(value);
+        },
+      ),
     );
   }
 
   Widget _buildEmptyState(Color accentColor) {
     return Column(
       children: [
-        Icon(
+        const Icon(
           Icons.wifi_off_rounded,
           size: 48,
           color: AppColors.textTertiary,
         ),
-        const SizedBox(height: 12),
-        const Text(
+        const SizedBox(height: AppSpacing.space12),
+        Text(
           'Could not load institutes',
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+          style: AppTextStyles.subheadline,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpacing.space12),
         TextButton.icon(
           onPressed: () {
             ref.read(onboardingProvider.notifier).loadInstitutes();
