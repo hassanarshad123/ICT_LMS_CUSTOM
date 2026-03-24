@@ -30,7 +30,7 @@ class CacheService:
                 return None
             return orjson.loads(raw)
         except Exception as e:
-            logger.debug("cache.get error key=%s: %s", key, e)
+            logger.warning("cache.get error key=%s: %s", key, e)
             return None
 
     async def set(self, key: str, value: Any, ttl: int = 300) -> None:
@@ -42,7 +42,7 @@ class CacheService:
             raw = orjson.dumps(value, option=orjson.OPT_NON_STR_KEYS)
             await r.set(key, raw, ex=ttl)
         except Exception as e:
-            logger.debug("cache.set error key=%s: %s", key, e)
+            logger.warning("cache.set error key=%s: %s", key, e)
 
     async def delete(self, key: str) -> None:
         """Delete a key from cache. No-op on error."""
@@ -52,7 +52,7 @@ class CacheService:
         try:
             await r.delete(key)
         except Exception as e:
-            logger.debug("cache.delete error key=%s: %s", key, e)
+            logger.warning("cache.delete error key=%s: %s", key, e)
 
     async def delete_pattern(self, pattern: str) -> int:
         """Delete all keys matching a glob pattern (uses SCAN, not KEYS). Returns count deleted."""
@@ -65,10 +65,10 @@ class CacheService:
                 await r.delete(key)
                 count += 1
             if count:
-                logger.debug("cache.delete_pattern pattern=%s deleted=%d", pattern, count)
+                logger.info("cache.delete_pattern pattern=%s deleted=%d", pattern, count)
             return count
         except Exception as e:
-            logger.debug("cache.delete_pattern error pattern=%s: %s", pattern, e)
+            logger.warning("cache.delete_pattern error pattern=%s: %s", pattern, e)
             return 0
 
     async def get_or_set(

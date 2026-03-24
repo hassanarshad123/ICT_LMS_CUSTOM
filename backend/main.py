@@ -1,7 +1,8 @@
 import logging
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -11,40 +12,30 @@ from app.config import get_settings
 from app.routers import auth, users, batches, courses, curriculum, lectures, materials, jobs, announcements, zoom, admin, certificates, monitoring, branding, notifications, search, super_admin, api_keys, webhooks, public_api, quizzes, signup
 from app.websockets.routes import router as ws_router
 from app.middleware.error_tracking import ErrorTrackingMiddleware
+from app.exceptions import NotFoundError, DuplicateError, ForbiddenError, ValidationError
 
 settings = get_settings()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
 # ── Sentry ──────────────────────────────────────────────────────
-if settings.SENTRY_DSN:
-    import sentry_sdk
-    from sentry_sdk.integrations.starlette import StarletteIntegration
-    from sentry_sdk.integrations.fastapi import FastApiIntegration
-
-    sentry_sdk.init(
-        dsn=settings.SENTRY_DSN,
-        environment=settings.APP_ENV,
-        release="ict-lms@1.0.0",
-        send_default_pii=True,
-        traces_sample_rate=0.05,         # 5% of requests get performance tracing
-        profiles_sample_rate=0.1,         # 10% of traced requests get profiled
-        enable_db_query_source=False,     # disabled in production for performance
-        include_local_variables=True,     # capture local vars in stack traces
-        max_request_body_size="medium",   # capture request bodies up to 10KB
-        integrations=[
-            StarletteIntegration(transaction_style="endpoint"),
-            FastApiIntegration(transaction_style="endpoint"),
-        ],
-    )
-    logging.getLogger("ict_lms").info("Sentry initialized (env=%s)", settings.APP_ENV)
+from app.core.sentry import init_sentry
+init_sentry(settings)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from app.core.sentry import capture_exception_safe
+
     # Startup — Redis cache
     from app.core.redis import init_redis, close_redis
-    await init_redis()
+    redis_result = await init_redis()
+    if redis_result is None and settings.CACHE_ENABLED:
+        try:
+            import sentry_sdk
+            sentry_sdk.capture_message("Redis unavailable at startup — caching disabled", level="warning")
+        except Exception:
+            pass
 
     # Startup — WebSocket Pub/Sub listener (cross-worker notification delivery)
     from app.websockets.pubsub import start_pubsub_listener
@@ -66,6 +57,7 @@ async def lifespan(app: FastAPI):
         app.state.scheduler = scheduler
     except Exception as e:
         logging.getLogger("ict_lms").warning("Scheduler not started: %s", e)
+        capture_exception_safe(e)
 
     yield
 
@@ -82,6 +74,28 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+
+# ── Custom exception handlers ─────────────────────────────────
+@app.exception_handler(NotFoundError)
+async def not_found_handler(request: Request, exc: NotFoundError):
+    return JSONResponse(status_code=404, content={"detail": str(exc)})
+
+
+@app.exception_handler(DuplicateError)
+async def duplicate_handler(request: Request, exc: DuplicateError):
+    return JSONResponse(status_code=409, content={"detail": str(exc)})
+
+
+@app.exception_handler(ForbiddenError)
+async def forbidden_handler(request: Request, exc: ForbiddenError):
+    return JSONResponse(status_code=403, content={"detail": str(exc)})
+
+
+@app.exception_handler(ValidationError)
+async def validation_error_handler(request: Request, exc: ValidationError):
+    return JSONResponse(status_code=422, content={"detail": str(exc)})
+
 
 # Rate limiting
 app.state.limiter = limiter

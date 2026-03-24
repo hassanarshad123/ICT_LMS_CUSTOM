@@ -1,4 +1,5 @@
 """WebSocket route handlers with institute ownership verification."""
+import logging
 import uuid
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -11,7 +12,21 @@ from app.models.session import UserSession
 from app.utils.security import decode_token
 from app.websockets.manager import manager
 
+logger = logging.getLogger("ict_lms.websocket")
 router = APIRouter()
+
+
+def _set_ws_sentry_context(user: User, channel: str) -> None:
+    """Set Sentry user + tags for a WebSocket connection. Best-effort."""
+    try:
+        import sentry_sdk
+        sentry_sdk.set_user({"id": str(user.id), "email": user.email})
+        sentry_sdk.set_tag("ws_channel", channel)
+        if user.institute_id:
+            sentry_sdk.set_tag("institute_id", str(user.institute_id))
+        sentry_sdk.set_tag("user_role", user.role.value if hasattr(user.role, "value") else str(user.role))
+    except Exception:
+        pass
 
 
 async def _get_user_from_token(websocket: WebSocket) -> User | None:
@@ -61,11 +76,16 @@ async def class_status_ws(websocket: WebSocket, batch_id: uuid.UUID):
     connected = await manager.connect(websocket, channel)
     if not connected:
         return
+    _set_ws_sentry_context(user, channel)
 
     try:
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
+        manager.disconnect(websocket, channel)
+    except Exception as exc:
+        import sentry_sdk
+        sentry_sdk.capture_exception(exc)
         manager.disconnect(websocket, channel)
 
 
@@ -84,11 +104,16 @@ async def announcements_ws(websocket: WebSocket, user_id: uuid.UUID):
     connected = await manager.connect(websocket, channel)
     if not connected:
         return
+    _set_ws_sentry_context(user, channel)
 
     try:
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
+        manager.disconnect(websocket, channel)
+    except Exception as exc:
+        import sentry_sdk
+        sentry_sdk.capture_exception(exc)
         manager.disconnect(websocket, channel)
 
 
@@ -107,11 +132,16 @@ async def notifications_ws(websocket: WebSocket, user_id: uuid.UUID):
     connected = await manager.connect(websocket, channel)
     if not connected:
         return
+    _set_ws_sentry_context(user, channel)
 
     try:
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
+        manager.disconnect(websocket, channel)
+    except Exception as exc:
+        import sentry_sdk
+        sentry_sdk.capture_exception(exc)
         manager.disconnect(websocket, channel)
 
 
@@ -136,9 +166,14 @@ async def session_ws(websocket: WebSocket, session_id: uuid.UUID):
     connected = await manager.connect(websocket, channel)
     if not connected:
         return
+    _set_ws_sentry_context(user, channel)
 
     try:
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
+        manager.disconnect(websocket, channel)
+    except Exception as exc:
+        import sentry_sdk
+        sentry_sdk.capture_exception(exc)
         manager.disconnect(websocket, channel)
