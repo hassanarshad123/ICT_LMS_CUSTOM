@@ -46,7 +46,10 @@ class _VideoPlayerWebViewState extends State<VideoPlayerWebView> {
           },
         ),
       )
-      ..loadRequest(Uri.parse(widget.signedUrl));
+      ..loadRequest(
+        Uri.parse(widget.signedUrl),
+        headers: {'Referer': 'https://zensbot.online/'},
+      );
   }
 
   @override
