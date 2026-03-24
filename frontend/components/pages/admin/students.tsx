@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useBasePath } from '@/hooks/use-base-path';
 import { usePaginatedApi } from '@/hooks/use-paginated-api';
 import { useMutation, useApi } from '@/hooks/use-api';
-import { listUsers, createUser, updateUser } from '@/lib/api/users';
+import { listUsers, createUser, updateUser, UserOut } from '@/lib/api/users';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { listBatches } from '@/lib/api/batches';
 import { enrollStudent } from '@/lib/api/batches';
@@ -26,7 +26,7 @@ export default function AdminStudents() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', batchId: '' });
-  const [editingStudent, setEditingStudent] = useState<any>(null);
+  const [editingStudent, setEditingStudent] = useState<UserOut | null>(null);
   const [editForm, setEditForm] = useState({ name: '', email: '', phone: '' });
   const [editSaving, setEditSaving] = useState(false);
 
@@ -246,7 +246,7 @@ export default function AdminStudents() {
           </div>
         </div>
       )}
-      <Dialog open={!!editingStudent} onOpenChange={(open) => !open && setEditingStudent(null)}>
+      <Dialog open={!!editingStudent} onOpenChange={(open) => { if (!open) { setEditingStudent(null); setEditSaving(false); } }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Edit Student</DialogTitle>

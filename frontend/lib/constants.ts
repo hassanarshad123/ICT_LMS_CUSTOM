@@ -7,6 +7,7 @@ export const statusColors: Record<string, string> = {
 };
 
 export const roleBadgeColors: Record<string, string> = {
+  'super-admin': 'bg-indigo-100 text-indigo-700',
   admin: 'bg-red-100 text-red-700',
   student: 'bg-blue-100 text-blue-700',
   teacher: 'bg-purple-100 text-purple-700',
@@ -14,6 +15,7 @@ export const roleBadgeColors: Record<string, string> = {
 };
 
 export const roleLabels: Record<string, string> = {
+  'super-admin': 'Super Admin',
   admin: 'Admin',
   student: 'Student',
   teacher: 'Teacher',

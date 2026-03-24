@@ -10,7 +10,7 @@ import { useBasePath } from '@/hooks/use-base-path';
 import { usePaginatedApi } from '@/hooks/use-paginated-api';
 import { useMutation } from '@/hooks/use-api';
 import { useApi } from '@/hooks/use-api';
-import { listBatches, createBatch, deleteBatch, updateBatch } from '@/lib/api/batches';
+import { listBatches, createBatch, deleteBatch, updateBatch, BatchOut } from '@/lib/api/batches';
 import { listUsers } from '@/lib/api/users';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
@@ -35,7 +35,7 @@ export default function AdminBatches() {
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({ name: '', startDate: '', endDate: '', teacherId: '' });
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [editingBatch, setEditingBatch] = useState<any>(null);
+  const [editingBatch, setEditingBatch] = useState<BatchOut | null>(null);
   const [editForm, setEditForm] = useState({ name: '', startDate: '', endDate: '', teacherId: '' });
   const [editSaving, setEditSaving] = useState(false);
 
@@ -92,9 +92,9 @@ export default function AdminBatches() {
     try {
       await doUpdate(editingBatch.id, {
         name: editForm.name,
-        start_date: editForm.startDate || undefined,
-        end_date: editForm.endDate || undefined,
-        teacher_id: editForm.teacherId || undefined,
+        startDate: editForm.startDate || undefined,
+        endDate: editForm.endDate || undefined,
+        teacherId: editForm.teacherId || undefined,
       });
       toast.success('Batch updated');
       setEditingBatch(null);
@@ -253,7 +253,7 @@ export default function AdminBatches() {
           </div>
         </>
       )}
-      <Dialog open={!!editingBatch} onOpenChange={(open) => !open && setEditingBatch(null)}>
+      <Dialog open={!!editingBatch} onOpenChange={(open) => { if (!open) { setEditingBatch(null); setEditSaving(false); } }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Edit Batch</DialogTitle>

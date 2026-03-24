@@ -7,7 +7,7 @@ import DashboardHeader from '@/components/layout/dashboard-header';
 import { useAuth } from '@/lib/auth-context';
 import { usePaginatedApi } from '@/hooks/use-paginated-api';
 import { useMutation, useApi } from '@/hooks/use-api';
-import { listUsers, createUser, deleteUser, updateUser } from '@/lib/api/users';
+import { listUsers, createUser, deleteUser, updateUser, UserOut } from '@/lib/api/users';
 import { listBatches } from '@/lib/api/batches';
 import { enrollStudent } from '@/lib/api/batches';
 import { PageLoading, PageError } from '@/components/shared/page-states';
@@ -49,7 +49,7 @@ export default function UsersListView({ basePath: basePathProp }: UsersListViewP
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', batchId: '', specialization: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [editingUser, setEditingUser] = useState<any>(null);
+  const [editingUser, setEditingUser] = useState<UserOut | null>(null);
   const [editForm, setEditForm] = useState({ name: '', email: '', phone: '', specialization: '' });
   const [editSaving, setEditSaving] = useState(false);
 
@@ -411,7 +411,7 @@ export default function UsersListView({ basePath: basePathProp }: UsersListViewP
         </div>
       )}
 
-      <Dialog open={!!editingUser} onOpenChange={(open) => !open && setEditingUser(null)}>
+      <Dialog open={!!editingUser} onOpenChange={(open) => { if (!open) { setEditingUser(null); setEditSaving(false); } }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Edit User</DialogTitle>

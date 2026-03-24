@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useBasePath } from '@/hooks/use-base-path';
 import { usePaginatedApi } from '@/hooks/use-paginated-api';
 import { useMutation } from '@/hooks/use-api';
-import { listUsers, createUser, changeUserStatus, updateUser } from '@/lib/api/users';
+import { listUsers, createUser, changeUserStatus, updateUser, UserOut } from '@/lib/api/users';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
 import { Plus, X, GraduationCap, Loader2, Eye, EyeOff, Pencil } from 'lucide-react';
@@ -20,7 +20,7 @@ export default function AdminTeachers() {
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', specialization: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
-  const [editingTeacher, setEditingTeacher] = useState<any>(null);
+  const [editingTeacher, setEditingTeacher] = useState<UserOut | null>(null);
   const [editForm, setEditForm] = useState({ name: '', email: '', phone: '', specialization: '' });
   const [editSaving, setEditSaving] = useState(false);
 
@@ -206,7 +206,7 @@ export default function AdminTeachers() {
           <button onClick={() => setPage(page + 1)} disabled={page === totalPages} className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">Next</button>
         </div>
       )}
-      <Dialog open={!!editingTeacher} onOpenChange={(open) => !open && setEditingTeacher(null)}>
+      <Dialog open={!!editingTeacher} onOpenChange={(open) => { if (!open) { setEditingTeacher(null); setEditSaving(false); } }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Edit Teacher</DialogTitle>
