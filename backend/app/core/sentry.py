@@ -109,10 +109,13 @@ def init_sentry(settings: Any) -> bool:
         from sentry_sdk.integrations.logging import LoggingIntegration
         from sentry_sdk.integrations.httpx import HttpxIntegration
 
+        git_sha = getattr(settings, "GIT_SHA", "unknown")
+        deploy_slot = getattr(settings, "DEPLOY_SLOT", "standalone")
+
         sentry_sdk.init(
             dsn=settings.SENTRY_DSN,
             environment=settings.APP_ENV,
-            release="ict-lms@1.0.0",
+            release=f"ict-lms@{git_sha}",
             send_default_pii=True,
             traces_sample_rate=1.0,
             profiles_sample_rate=0.1,
@@ -131,7 +134,11 @@ def init_sentry(settings: Any) -> bool:
                 HttpxIntegration(),
             ],
         )
-        logger.info("Sentry initialized (env=%s)", settings.APP_ENV)
+        # Tag every event with deploy slot for blue-green visibility
+        sentry_sdk.set_tag("deploy_slot", deploy_slot)
+        sentry_sdk.set_tag("git_sha", git_sha)
+
+        logger.info("Sentry initialized (env=%s, release=ict-lms@%s, slot=%s)", settings.APP_ENV, git_sha, deploy_slot)
         return True
     except Exception as e:
         logger.warning("Sentry init failed: %s", e)

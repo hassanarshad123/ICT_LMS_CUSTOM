@@ -44,6 +44,12 @@ class Settings(BaseSettings):
 
     # Monitoring
     SENTRY_DSN: str = ""
+    DISCORD_WEBHOOK_URL: str = ""
+
+    # Deploy / Blue-Green
+    SCHEDULER_ENABLED: bool = True
+    DEPLOY_SLOT: str = "standalone"  # blue, green, or standalone
+    GIT_SHA: str = "unknown"
 
     # Redis Cache
     REDIS_URL: str = "redis://127.0.0.1:6379/0"
