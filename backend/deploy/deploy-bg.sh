@@ -69,7 +69,7 @@ else
     export GREEN_SCHEDULER=false
 fi
 
-docker compose -f deploy/docker-compose.yml up -d "lms-$DEPLOY_SLOT"
+docker compose -f deploy/docker-compose.yml up -d --force-recreate "lms-$DEPLOY_SLOT"
 log "$DEPLOY_SLOT container started"
 
 # ── Step 5: Migration safety checks ──
