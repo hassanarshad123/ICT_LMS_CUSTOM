@@ -95,9 +95,9 @@ class CacheService:
     # ── Helpers ──────────────────────────────────────────────────────
 
     @staticmethod
-    def user_key(institute_id: Optional[str], user_id: str) -> str:
+    def user_key(user_id: str) -> str:
         """Cache key for authenticated user data."""
-        return f"lms:{institute_id or 'global'}:user:{user_id}"
+        return f"lms:user_index:{user_id}"
 
     @staticmethod
     def notif_count_key(institute_id: Optional[str], user_id: str) -> str:

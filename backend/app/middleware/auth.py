@@ -77,25 +77,13 @@ async def get_current_user(
     imp_id = payload.get("imp")
 
     # ── Try cache first ──────────────────────────────────────────
-    # We try all possible institute_id values since we don't know it from the JWT
-    # The user_id is globally unique (UUID), so we can search by pattern or use 'global'
-    # But we actually know the user_id, so we can try to get from cache directly
-    cached = None
-    # Try a quick lookup — we build the key using the user's institute_id from JWT payload
-    # JWT doesn't carry institute_id, so we use a generic approach
-    # First, try the cache with the user_id (we store the institute_id in the value)
-    cache_key_attempt = f"lms:*:user:{user_id}"
-    # Since we can't do a pattern get, we need a consistent key. We'll use a fixed prefix.
-    # The key will always be set by _fetch_and_cache_user with the actual institute_id.
-    # For lookup, we use a secondary index: lms:user_index:{user_id}
-    secondary_key = f"lms:user_index:{user_id}"
-    cached = await cache.get(secondary_key)
+    cache_key = cache.user_key(user_id)
+    cached = await cache.get(cache_key)
 
     if cached is not None:
         # Validate token_version — reject stale cache
         if token_tv is not None and cached.get("token_version") != token_tv:
-            # Token version mismatch — cache is stale, delete and fall through to DB
-            await cache.delete(secondary_key)
+            await cache.delete(cache_key)
             cached = None
 
     if cached is not None:
@@ -123,30 +111,36 @@ async def get_current_user(
                 expires_dt = datetime.fromisoformat(inst_expires)
                 if expires_dt < datetime.now(timezone.utc):
                     # Institute expired — need to auto-suspend via DB, fall through
-                    await cache.delete(secondary_key)
+                    await cache.delete(cache_key)
                     cached = None
 
     if cached is not None:
         # Cache hit — reconstruct a minimal User object for downstream compatibility
-        user = User(
-            id=uuid.UUID(cached["id"]),
-            email=cached["email"],
-            name=cached["name"],
-            role=UserRole(cached["role"]),
-            status=UserStatus(cached["status"]),
-            institute_id=uuid.UUID(cached["institute_id"]) if cached.get("institute_id") else None,
-            token_version=cached["token_version"],
-        )
-        user._impersonator_id = uuid.UUID(imp_id) if imp_id else None
-
-        # Set Sentry context
         try:
-            import sentry_sdk
-            sentry_sdk.set_user({"id": cached["id"], "email": cached["email"], "username": cached["name"], "role": cached["role"]})
-        except Exception:
-            pass
+            user = User(
+                id=uuid.UUID(cached["id"]),
+                email=cached["email"],
+                name=cached["name"],
+                role=UserRole(cached["role"]),
+                status=UserStatus(cached["status"]),
+                institute_id=uuid.UUID(cached["institute_id"]) if cached.get("institute_id") else None,
+                token_version=cached["token_version"],
+            )
+            user._impersonator_id = uuid.UUID(imp_id) if imp_id else None
 
-        return user
+            # Set Sentry context
+            try:
+                import sentry_sdk
+                sentry_sdk.set_user({"id": cached["id"], "email": cached["email"], "username": cached["name"], "role": cached["role"]})
+            except Exception:
+                pass
+
+            return user
+        except (KeyError, ValueError, TypeError) as e:
+            # Corrupt cache entry — delete and fall through to DB
+            logger.warning("Corrupt user cache for %s, falling through to DB: %s", user_id, e)
+            await cache.delete(cache_key)
+            # Fall through to DB query below
 
     # ── Cache miss — query DB ────────────────────────────────────
     result = await session.execute(
@@ -201,7 +195,7 @@ async def get_current_user(
         "institute_status": inst.status.value if inst else None,
         "institute_expires_at": inst.expires_at.isoformat() if inst and inst.expires_at else None,
     }
-    await cache.set(f"lms:user_index:{user_id}", cache_data, ttl=_USER_CACHE_TTL)
+    await cache.set(cache.user_key(user_id), cache_data, ttl=_USER_CACHE_TTL)
 
     # Set Sentry context
     try:

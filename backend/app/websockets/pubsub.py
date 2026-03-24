@@ -37,6 +37,7 @@ async def publish_ws_event(channel: str, message: dict) -> None:
 async def start_pubsub_listener() -> asyncio.Task:
     """Start a background task that listens to Redis Pub/Sub and forwards to local WebSocket manager.
 
+    Automatically reconnects with exponential backoff if Redis connection drops.
     Returns the asyncio.Task so it can be cancelled on shutdown.
     """
     r = get_redis()
@@ -47,25 +48,41 @@ async def start_pubsub_listener() -> asyncio.Task:
     async def _listener():
         from app.websockets.manager import manager
 
-        try:
-            pubsub = r.pubsub()
-            await pubsub.subscribe(PUBSUB_CHANNEL)
-            logger.info("Pub/Sub listener started on channel: %s", PUBSUB_CHANNEL)
+        backoff = 1  # seconds
+        max_backoff = 30
 
-            async for raw_message in pubsub.listen():
-                if raw_message["type"] != "message":
+        while True:
+            try:
+                redis_conn = get_redis()
+                if redis_conn is None:
+                    logger.warning("Redis unavailable, retrying Pub/Sub in %ds", backoff)
+                    await asyncio.sleep(backoff)
+                    backoff = min(backoff * 2, max_backoff)
                     continue
-                try:
-                    data = json.loads(raw_message["data"])
-                    channel = data["channel"]
-                    message = data["message"]
-                    await manager.broadcast(channel, message)
-                except Exception as e:
-                    logger.debug("Pub/Sub message handling error: %s", e)
-        except asyncio.CancelledError:
-            logger.info("Pub/Sub listener stopped")
-        except Exception as e:
-            logger.warning("Pub/Sub listener error: %s", e)
+
+                pubsub = redis_conn.pubsub()
+                await pubsub.subscribe(PUBSUB_CHANNEL)
+                logger.info("Pub/Sub listener connected on channel: %s", PUBSUB_CHANNEL)
+                backoff = 1  # Reset backoff on successful connection
+
+                async for raw_message in pubsub.listen():
+                    if raw_message["type"] != "message":
+                        continue
+                    try:
+                        data = json.loads(raw_message["data"])
+                        channel = data["channel"]
+                        message = data["message"]
+                        await manager.broadcast(channel, message)
+                    except Exception as e:
+                        logger.debug("Pub/Sub message handling error: %s", e)
+
+            except asyncio.CancelledError:
+                logger.info("Pub/Sub listener stopped")
+                return
+            except Exception as e:
+                logger.warning("Pub/Sub listener disconnected: %s — reconnecting in %ds", e, backoff)
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, max_backoff)
 
     task = asyncio.create_task(_listener())
     return task
