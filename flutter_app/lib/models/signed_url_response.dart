@@ -28,7 +28,9 @@ class SignedUrlResponse {
   }
 
   /// Whether this is a Bunny Stream embed URL.
-  bool get isBunnyEmbed => type == 'bunny' || type == 'embed';
+  /// Backend sends 'bunny_embed' which case converter makes 'bunnyEmbed'.
+  bool get isBunnyEmbed =>
+      type == 'bunnyEmbed' || type == 'bunny_embed' || type == 'bunny' || type == 'embed';
 
   /// Whether this is a direct video URL.
   bool get isDirect => type == 'direct';

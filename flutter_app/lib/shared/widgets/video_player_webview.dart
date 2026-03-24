@@ -41,48 +41,12 @@ class _VideoPlayerWebViewState extends State<VideoPlayerWebView> {
               setState(() => _isLoading = false);
             }
           },
+          onWebResourceError: (error) {
+            debugPrint('WebView error: ${error.description}');
+          },
         ),
       )
-      ..loadHtmlString(_buildHtml());
-  }
-
-  String _buildHtml() {
-    final url = widget.signedUrl;
-    return '''
-<!DOCTYPE html>
-<html>
-<head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #0D0D0D; overflow: hidden; }
-    .video-container {
-      position: relative;
-      width: 100%;
-      height: 100vh;
-    }
-    iframe {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      border: none;
-    }
-  </style>
-</head>
-<body>
-  <div class="video-container">
-    <iframe
-      src="$url"
-      allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
-      allowfullscreen
-      loading="lazy"
-    ></iframe>
-  </div>
-</body>
-</html>
-''';
+      ..loadRequest(Uri.parse(widget.signedUrl));
   }
 
   @override
@@ -93,7 +57,7 @@ class _VideoPlayerWebViewState extends State<VideoPlayerWebView> {
         borderRadius: BorderRadius.circular(12),
         child: Stack(
           children: [
-            // WebView player
+            // WebView player — loads Bunny embed URL directly
             WebViewWidget(controller: _controller),
 
             // Loading overlay
@@ -133,7 +97,6 @@ class _WatermarkOverlay extends StatelessWidget {
         final width = constraints.maxWidth;
         final height = constraints.maxHeight;
 
-        // Calculate how many watermarks to show
         final cols = (width / 200).ceil();
         final rows = (height / 100).ceil();
 
