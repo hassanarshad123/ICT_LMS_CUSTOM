@@ -29,7 +29,7 @@ export function ContentProtection({ children }: ContentProtectionProps) {
     const handleKeyDown = (e: KeyboardEvent) => {
       const ctrl = e.ctrlKey || e.metaKey;
       const shift = e.shiftKey;
-      const key = e.key.toLowerCase();
+      const key = e.key?.toLowerCase() ?? '';
 
       if (
         // Save page
