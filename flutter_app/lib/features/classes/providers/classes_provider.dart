@@ -18,7 +18,7 @@ final classesProvider =
 
   // Fetch a large page of classes to split into upcoming/past locally.
   final result = await repo.listClasses(page: 1, perPage: 100);
-  final allClasses = result['data'] as List<ZoomClassOut>;
+  final allClasses = result.data;
 
   final upcoming = allClasses
       .where((c) => c.status == 'upcoming' || c.status == 'live')

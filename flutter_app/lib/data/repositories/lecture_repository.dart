@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ict_lms_student/core/constants/api_constants.dart';
 import 'package:ict_lms_student/core/network/api_client.dart';
 import 'package:ict_lms_student/models/lecture_out.dart';
+import 'package:ict_lms_student/models/paginated_response.dart';
 import 'package:ict_lms_student/models/progress_out.dart';
 import 'package:ict_lms_student/models/signed_url_response.dart';
 
@@ -12,7 +13,7 @@ class LectureRepository {
   LectureRepository(this._dio);
 
   /// GET /lectures?batch_id={batchId}&course_id={courseId}
-  Future<Map<String, dynamic>> listLectures({
+  Future<PaginatedResponse<LectureOut>> listLectures({
     required String batchId,
     String? courseId,
     int page = 1,
@@ -30,19 +31,10 @@ class LectureRepository {
       queryParameters: queryParams,
     );
 
-    final data = response.data as Map<String, dynamic>;
-    final items = (data['data'] as List<dynamic>?)
-            ?.map((e) => LectureOut.fromJson(e as Map<String, dynamic>))
-            .toList() ??
-        [];
-
-    return {
-      'data': items,
-      'total': data['total'] as int? ?? 0,
-      'page': data['page'] as int? ?? 1,
-      'perPage': data['perPage'] as int? ?? perPage,
-      'totalPages': data['totalPages'] as int? ?? 0,
-    };
+    return PaginatedResponse.fromJson(
+      response.data as Map<String, dynamic>,
+      (json) => LectureOut.fromJson(json),
+    );
   }
 
   /// GET /lectures/{lectureId}

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:ict_lms_student/core/utils/error_utils.dart';
 import 'package:ict_lms_student/data/repositories/lecture_repository.dart';
 import 'package:ict_lms_student/models/lecture_out.dart';
 import 'package:ict_lms_student/models/progress_out.dart';
@@ -81,7 +82,7 @@ class LecturePlayerNotifier extends StateNotifier<LecturePlayerState> {
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
-        error: e.toString().replaceFirst('Exception: ', ''),
+        error: extractErrorMessage(e),
       );
     }
   }

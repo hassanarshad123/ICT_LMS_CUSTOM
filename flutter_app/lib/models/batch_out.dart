@@ -28,7 +28,7 @@ class BatchOut {
 
   factory BatchOut.fromJson(Map<String, dynamic> json) {
     return BatchOut(
-      id: json['id']?.toString() ?? '',
+      id: json['id']?.toString() ?? (throw const FormatException('BatchOut: missing id')),
       name: json['name'] as String? ?? '',
       startDate: DateTime.tryParse(json['startDate']?.toString() ?? ''),
       endDate: DateTime.tryParse(json['endDate']?.toString() ?? ''),

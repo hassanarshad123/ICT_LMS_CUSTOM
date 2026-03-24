@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ict_lms_student/core/constants/api_constants.dart';
 import 'package:ict_lms_student/core/network/api_client.dart';
 import 'package:ict_lms_student/models/course_out.dart';
+import 'package:ict_lms_student/models/paginated_response.dart';
 
 class CourseRepository {
   final Dio _dio;
@@ -10,7 +11,7 @@ class CourseRepository {
   CourseRepository(this._dio);
 
   /// GET /courses with optional filters.
-  Future<Map<String, dynamic>> listCourses({
+  Future<PaginatedResponse<CourseOut>> listCourses({
     int page = 1,
     int perPage = 20,
     String? batchId,
@@ -30,19 +31,10 @@ class CourseRepository {
       queryParameters: queryParams,
     );
 
-    final data = response.data as Map<String, dynamic>;
-    final items = (data['data'] as List<dynamic>?)
-            ?.map((e) => CourseOut.fromJson(e as Map<String, dynamic>))
-            .toList() ??
-        [];
-
-    return {
-      'data': items,
-      'total': data['total'] as int? ?? 0,
-      'page': data['page'] as int? ?? 1,
-      'perPage': data['perPage'] as int? ?? perPage,
-      'totalPages': data['totalPages'] as int? ?? 0,
-    };
+    return PaginatedResponse.fromJson(
+      response.data as Map<String, dynamic>,
+      (json) => CourseOut.fromJson(json),
+    );
   }
 
   /// GET /courses/{courseId}

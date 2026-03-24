@@ -38,20 +38,23 @@ class LoginResponse {
       'LoginResponse(tokenType: $tokenType, user: ${user.email})';
 }
 
-/// Matches TokenResponse from backend/app/schemas/auth.py.
+/// Matches RefreshResponse from backend/app/schemas/auth.py.
 /// Returned by POST /auth/refresh.
 class TokenResponse {
   final String accessToken;
+  final String refreshToken;
   final String tokenType;
 
   const TokenResponse({
     required this.accessToken,
+    required this.refreshToken,
     this.tokenType = 'bearer',
   });
 
   factory TokenResponse.fromJson(Map<String, dynamic> json) {
     return TokenResponse(
       accessToken: json['accessToken'] as String? ?? '',
+      refreshToken: json['refreshToken'] as String? ?? '',
       tokenType: json['tokenType'] as String? ?? 'bearer',
     );
   }
@@ -59,6 +62,7 @@ class TokenResponse {
   Map<String, dynamic> toJson() {
     return {
       'accessToken': accessToken,
+      'refreshToken': refreshToken,
       'tokenType': tokenType,
     };
   }

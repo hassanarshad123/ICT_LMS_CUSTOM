@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
+import 'package:ict_lms_student/core/utils/error_utils.dart';
 import 'package:ict_lms_student/data/repositories/announcement_repository.dart';
 import 'package:ict_lms_student/models/announcement_out.dart';
 import 'package:ict_lms_student/shared/widgets/status_badge.dart';
@@ -60,15 +61,15 @@ class AnnouncementsNotifier extends StateNotifier<AnnouncementsState> {
     try {
       final result = await _repo.listAnnouncements(page: 1, perPage: 20);
       state = state.copyWith(
-        items: result['data'] as List<AnnouncementOut>,
-        page: result['page'] as int,
-        totalPages: result['totalPages'] as int,
+        items: result.data,
+        page: result.page,
+        totalPages: result.totalPages,
         isLoading: false,
       );
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
-        error: e.toString().replaceFirst('Exception: ', ''),
+        error: extractErrorMessage(e),
       );
     }
   }
@@ -83,17 +84,16 @@ class AnnouncementsNotifier extends StateNotifier<AnnouncementsState> {
       final result =
           await _repo.listAnnouncements(page: nextPage, perPage: 20);
 
-      final newItems = result['data'] as List<AnnouncementOut>;
       state = state.copyWith(
-        items: [...state.items, ...newItems],
-        page: result['page'] as int,
-        totalPages: result['totalPages'] as int,
+        items: [...state.items, ...result.data],
+        page: result.page,
+        totalPages: result.totalPages,
         isLoadingMore: false,
       );
     } catch (e) {
       state = state.copyWith(
         isLoadingMore: false,
-        error: e.toString().replaceFirst('Exception: ', ''),
+        error: extractErrorMessage(e),
       );
     }
   }

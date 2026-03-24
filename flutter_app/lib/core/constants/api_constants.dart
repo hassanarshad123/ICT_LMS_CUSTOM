@@ -11,6 +11,8 @@ class ApiConstants {
   static const String logout = '/auth/logout';
   static const String logoutAll = '/auth/logout-all';
   static const String changePassword = '/auth/change-password';
+  static const String forgotPassword = '/auth/forgot-password';
+  static const String resetPassword = '/auth/reset-password';
   static const String me = '/auth/me';
 
   // Branding (public, no auth)

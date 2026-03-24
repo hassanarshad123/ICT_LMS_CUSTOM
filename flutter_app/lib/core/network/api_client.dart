@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../main.dart';
+import '../../providers/auth_provider.dart';
 import '../constants/api_constants.dart';
 import '../errors/api_exception.dart';
 import 'auth_interceptor.dart';
@@ -14,19 +15,24 @@ import 'slug_interceptor.dart';
 ///
 /// Used by all authenticated repositories (batches, courses, zoom, etc.).
 /// Creates a Dio with slug, auth, case-convert, and error-mapping interceptors.
+/// On force logout (token refresh failure), resets auth state via AuthNotifier.
 final dioProvider = Provider<Dio>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
   const secureStorage = FlutterSecureStorage();
 
-  return createAuthenticatedDio(
+  // Use a late reference to break the circular dependency:
+  // dioProvider → authProvider.notifier (for forceLogout callback)
+  late final AuthNotifier authNotifier;
+
+  final dio = createAuthenticatedDio(
     prefs: prefs,
     secureStorage: secureStorage,
-    onForceLogout: () {
-      // Clear tokens directly — the auth provider's restoreSession()
-      // will detect the missing token on next check and reset state.
-      secureStorage.deleteAll();
-    },
+    onForceLogout: () => authNotifier.forceLogout(),
   );
+
+  authNotifier = ref.read(authProvider.notifier);
+
+  return dio;
 });
 
 /// Provider for a public Dio client (no auth, only slug + case conversion).
@@ -139,7 +145,11 @@ Dio createAuthenticatedDio({
     connectTimeout: ApiConstants.connectTimeout,
     receiveTimeout: ApiConstants.requestTimeout,
   ));
-  refreshDio.interceptors.add(SlugInterceptor(prefs));
+  refreshDio.interceptors.addAll([
+    SlugInterceptor(prefs),
+    _CaseConvertInterceptor(),
+    _ErrorMappingInterceptor(),
+  ]);
 
   dio.interceptors.addAll([
     SlugInterceptor(prefs),

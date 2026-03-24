@@ -16,6 +16,10 @@ class LectureOut {
   final String? thumbnailUrl;
   final DateTime? uploadDate;
   final DateTime? createdAt;
+  // Progress gating fields (populated for students when batch has gating enabled)
+  final int? watchPercentage;
+  final String? progressStatus;
+  final bool? isLocked;
 
   const LectureOut({
     required this.id,
@@ -34,11 +38,14 @@ class LectureOut {
     this.thumbnailUrl,
     this.uploadDate,
     this.createdAt,
+    this.watchPercentage,
+    this.progressStatus,
+    this.isLocked,
   });
 
   factory LectureOut.fromJson(Map<String, dynamic> json) {
     return LectureOut(
-      id: json['id']?.toString() ?? '',
+      id: json['id']?.toString() ?? (throw const FormatException('LectureOut: missing id')),
       title: json['title'] as String? ?? '',
       description: json['description'] as String?,
       videoType: json['videoType'] as String? ?? 'external',
@@ -54,6 +61,9 @@ class LectureOut {
       thumbnailUrl: json['thumbnailUrl'] as String?,
       uploadDate: DateTime.tryParse(json['uploadDate']?.toString() ?? ''),
       createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? ''),
+      watchPercentage: json['watchPercentage'] as int?,
+      progressStatus: json['progressStatus'] as String?,
+      isLocked: json['isLocked'] as bool?,
     );
   }
 
@@ -75,6 +85,9 @@ class LectureOut {
       'thumbnailUrl': thumbnailUrl,
       'uploadDate': uploadDate?.toIso8601String(),
       'createdAt': createdAt?.toIso8601String(),
+      'watchPercentage': watchPercentage,
+      'progressStatus': progressStatus,
+      'isLocked': isLocked,
     };
   }
 
@@ -95,6 +108,9 @@ class LectureOut {
     String? thumbnailUrl,
     DateTime? uploadDate,
     DateTime? createdAt,
+    int? watchPercentage,
+    String? progressStatus,
+    bool? isLocked,
   }) {
     return LectureOut(
       id: id ?? this.id,
@@ -113,13 +129,18 @@ class LectureOut {
       thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
       uploadDate: uploadDate ?? this.uploadDate,
       createdAt: createdAt ?? this.createdAt,
+      watchPercentage: watchPercentage ?? this.watchPercentage,
+      progressStatus: progressStatus ?? this.progressStatus,
+      isLocked: isLocked ?? this.isLocked,
     );
   }
 
   /// Whether this lecture has a playable video.
+  /// Locked lectures (from lecture gating) are not playable.
   bool get isPlayable =>
-      videoStatus == 'ready' ||
-      (videoType == 'external' && videoUrl != null && videoUrl!.isNotEmpty);
+      isLocked != true &&
+      (videoStatus == 'ready' ||
+       (videoType == 'external' && videoUrl != null && videoUrl!.isNotEmpty));
 
   @override
   String toString() =>

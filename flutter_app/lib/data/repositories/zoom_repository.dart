@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/network/api_client.dart';
+import '../../models/paginated_response.dart';
 import '../../models/zoom_class_out.dart';
 import '../../models/recording_list_out.dart';
 import '../../models/recording_signed_url.dart';
@@ -14,7 +15,7 @@ class ZoomRepository {
   /// GET /zoom/classes with optional filters.
   ///
   /// Students only see classes for batches they are enrolled in (backend filters).
-  Future<Map<String, dynamic>> listClasses({
+  Future<PaginatedResponse<ZoomClassOut>> listClasses({
     int page = 1,
     int perPage = 20,
     String? batchId,
@@ -32,19 +33,10 @@ class ZoomRepository {
       queryParameters: queryParams,
     );
 
-    final data = response.data as Map<String, dynamic>;
-    final items = (data['data'] as List<dynamic>?)
-            ?.map((e) => ZoomClassOut.fromJson(e as Map<String, dynamic>))
-            .toList() ??
-        [];
-
-    return {
-      'data': items,
-      'total': data['total'] as int? ?? 0,
-      'page': data['page'] as int? ?? 1,
-      'perPage': data['perPage'] as int? ?? perPage,
-      'totalPages': data['totalPages'] as int? ?? 0,
-    };
+    return PaginatedResponse.fromJson(
+      response.data as Map<String, dynamic>,
+      (json) => ZoomClassOut.fromJson(json),
+    );
   }
 
   /// GET /zoom/classes/{classId}/recordings
@@ -59,7 +51,7 @@ class ZoomRepository {
   }
 
   /// GET /zoom/recordings (paginated global list).
-  Future<Map<String, dynamic>> listRecordings({
+  Future<PaginatedResponse<RecordingListOut>> listRecordings({
     int page = 1,
     int perPage = 20,
   }) async {
@@ -71,20 +63,10 @@ class ZoomRepository {
       },
     );
 
-    final data = response.data as Map<String, dynamic>;
-    final items = (data['data'] as List<dynamic>?)
-            ?.map(
-                (e) => RecordingListOut.fromJson(e as Map<String, dynamic>))
-            .toList() ??
-        [];
-
-    return {
-      'data': items,
-      'total': data['total'] as int? ?? 0,
-      'page': data['page'] as int? ?? 1,
-      'perPage': data['perPage'] as int? ?? perPage,
-      'totalPages': data['totalPages'] as int? ?? 0,
-    };
+    return PaginatedResponse.fromJson(
+      response.data as Map<String, dynamic>,
+      (json) => RecordingListOut.fromJson(json),
+    );
   }
 
   /// POST /zoom/recordings/{recordingId}/signed-url

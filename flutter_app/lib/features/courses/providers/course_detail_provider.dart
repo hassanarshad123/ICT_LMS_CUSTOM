@@ -8,6 +8,7 @@ import 'package:ict_lms_student/models/course_out.dart';
 import 'package:ict_lms_student/models/lecture_out.dart';
 import 'package:ict_lms_student/models/curriculum_module_out.dart';
 import 'package:ict_lms_student/models/material_out.dart';
+import 'package:ict_lms_student/models/paginated_response.dart';
 import 'package:ict_lms_student/models/quiz_out.dart';
 import 'package:ict_lms_student/providers/auth_provider.dart';
 
@@ -57,12 +58,8 @@ final courseDetailProvider = FutureProvider.autoDispose
 
   // Fetch lectures, curriculum, and materials in parallel.
   // Each wrapped so a single failure doesn't break the whole page.
-  late final Map<String, dynamic> lectureResult;
-  late final List<CurriculumModuleOut> modules;
-  late final Map<String, dynamic> materialResult;
-
-  final emptyLectures = <String, dynamic>{'data': <LectureOut>[], 'total': 0};
-  final emptyMaterials = <String, dynamic>{'data': <MaterialOut>[], 'total': 0};
+  final emptyLectures = PaginatedResponse<LectureOut>(data: [], total: 0, page: 1, perPage: 50, totalPages: 0);
+  final emptyMaterials = PaginatedResponse<MaterialOut>(data: [], total: 0, page: 1, perPage: 50, totalPages: 0);
 
   final results = await Future.wait([
     (resolvedBatchId.isNotEmpty
@@ -77,16 +74,16 @@ final courseDetailProvider = FutureProvider.autoDispose
     quizRepo.listQuizzes(courseId: courseId).catchError((_) => <QuizOut>[]),
   ]);
 
-  lectureResult = results[0] as Map<String, dynamic>;
-  modules = results[1] as List<CurriculumModuleOut>;
-  materialResult = results[2] as Map<String, dynamic>;
+  final lectureResult = results[0] as PaginatedResponse<LectureOut>;
+  final modules = results[1] as List<CurriculumModuleOut>;
+  final materialResult = results[2] as PaginatedResponse<MaterialOut>;
   final quizzes = results[3] as List<QuizOut>;
 
   return CourseDetailData(
     course: course,
-    lectures: (lectureResult['data'] as List?)?.cast<LectureOut>() ?? [],
+    lectures: lectureResult.data,
     modules: modules,
-    materials: (materialResult['data'] as List?)?.cast<MaterialOut>() ?? [],
+    materials: materialResult.data,
     quizzes: quizzes,
     resolvedBatchId: resolvedBatchId,
   );

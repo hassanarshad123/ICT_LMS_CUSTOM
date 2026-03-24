@@ -94,4 +94,31 @@ class AuthRepository {
     final response = await _dio.get(ApiConstants.me);
     return AuthUser.fromJson(response.data as Map<String, dynamic>);
   }
+
+  /// POST /auth/forgot-password
+  ///
+  /// Body: { email }
+  /// Always returns 200 to prevent email enumeration.
+  /// Returns: detail message string.
+  Future<String> forgotPassword(String email) async {
+    final response = await _dio.post(
+      ApiConstants.forgotPassword,
+      data: {'email': email},
+    );
+    final data = response.data as Map<String, dynamic>;
+    return data['detail'] as String? ?? '';
+  }
+
+  /// POST /auth/reset-password
+  ///
+  /// Body: { token, newPassword }
+  /// Returns: detail message string.
+  Future<String> resetPassword(String token, String newPassword) async {
+    final response = await _dio.post(
+      ApiConstants.resetPassword,
+      data: {'token': token, 'newPassword': newPassword},
+    );
+    final data = response.data as Map<String, dynamic>;
+    return data['detail'] as String? ?? '';
+  }
 }

@@ -1,4 +1,6 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:ict_lms_student/core/utils/error_utils.dart';
 import 'package:ict_lms_student/data/repositories/search_repository.dart';
 import 'package:ict_lms_student/models/search_result.dart';
 
@@ -34,6 +36,7 @@ class SearchState {
 
 class SearchNotifier extends StateNotifier<SearchState> {
   final SearchRepository _repo;
+  CancelToken? _cancelToken;
 
   SearchNotifier(this._repo) : super(const SearchState());
 
@@ -41,9 +44,14 @@ class SearchNotifier extends StateNotifier<SearchState> {
     final trimmed = query.trim();
 
     if (trimmed.isEmpty) {
+      _cancelToken?.cancel('Search cleared');
       state = const SearchState();
       return;
     }
+
+    // Cancel any in-flight request before starting a new one.
+    _cancelToken?.cancel('New search started');
+    _cancelToken = CancelToken();
 
     state = state.copyWith(
       query: trimmed,
@@ -52,7 +60,11 @@ class SearchNotifier extends StateNotifier<SearchState> {
     );
 
     try {
-      final results = await _repo.search(trimmed, limit: 10);
+      final results = await _repo.search(
+        trimmed,
+        limit: 10,
+        cancelToken: _cancelToken,
+      );
       // Only update if the query hasn't changed while we were fetching.
       if (state.query == trimmed) {
         state = state.copyWith(
@@ -60,18 +72,34 @@ class SearchNotifier extends StateNotifier<SearchState> {
           isLoading: false,
         );
       }
+    } on DioException catch (e) {
+      // Ignore intentionally cancelled requests.
+      if (e.type == DioExceptionType.cancel) return;
+      if (state.query == trimmed) {
+        state = state.copyWith(
+          isLoading: false,
+          error: extractErrorMessage(e),
+        );
+      }
     } catch (e) {
       if (state.query == trimmed) {
         state = state.copyWith(
           isLoading: false,
-          error: e.toString().replaceFirst('Exception: ', ''),
+          error: extractErrorMessage(e),
         );
       }
     }
   }
 
   void clear() {
+    _cancelToken?.cancel('Search cleared');
     state = const SearchState();
+  }
+
+  @override
+  void dispose() {
+    _cancelToken?.cancel();
+    super.dispose();
   }
 }
 

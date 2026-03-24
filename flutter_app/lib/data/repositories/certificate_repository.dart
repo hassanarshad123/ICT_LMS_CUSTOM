@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ict_lms_student/core/constants/api_constants.dart';
 import 'package:ict_lms_student/core/network/api_client.dart';
 import 'package:ict_lms_student/models/certificate_out.dart';
+import 'package:ict_lms_student/models/paginated_response.dart';
 import 'package:ict_lms_student/models/student_dashboard_course.dart';
 
 class CertificateRepository {
@@ -38,7 +39,7 @@ class CertificateRepository {
   }
 
   /// GET /certificates
-  Future<Map<String, dynamic>> listCertificates({
+  Future<PaginatedResponse<CertificateOut>> listCertificates({
     int page = 1,
     int perPage = 20,
     String? status,
@@ -54,20 +55,10 @@ class CertificateRepository {
       queryParameters: queryParams,
     );
 
-    final data = response.data as Map<String, dynamic>;
-    final items = (data['data'] as List<dynamic>?)
-            ?.map(
-                (e) => CertificateOut.fromJson(e as Map<String, dynamic>))
-            .toList() ??
-        [];
-
-    return {
-      'data': items,
-      'total': data['total'] as int? ?? 0,
-      'page': data['page'] as int? ?? 1,
-      'perPage': data['perPage'] as int? ?? perPage,
-      'totalPages': data['totalPages'] as int? ?? 0,
-    };
+    return PaginatedResponse.fromJson(
+      response.data as Map<String, dynamic>,
+      (json) => CertificateOut.fromJson(json),
+    );
   }
 
   /// GET /certificates/{certUuid}

@@ -46,7 +46,7 @@ class CertificateOut {
 
   factory CertificateOut.fromJson(Map<String, dynamic> json) {
     return CertificateOut(
-      id: json['id']?.toString() ?? '',
+      id: json['id']?.toString() ?? (throw const FormatException('CertificateOut: missing id')),
       studentId: json['studentId']?.toString() ?? '',
       studentName: json['studentName'] as String? ?? '',
       studentEmail: json['studentEmail'] as String? ?? '',

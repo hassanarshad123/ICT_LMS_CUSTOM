@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/network/api_client.dart';
 import '../../models/announcement_out.dart';
+import '../../models/paginated_response.dart';
 
 class AnnouncementRepository {
   final Dio _dio;
@@ -13,7 +14,7 @@ class AnnouncementRepository {
   ///
   /// Students see announcements scoped to their institute, batches, and courses.
   /// Supports filtering by scope (institute/batch/course), batchId, and courseId.
-  Future<Map<String, dynamic>> listAnnouncements({
+  Future<PaginatedResponse<AnnouncementOut>> listAnnouncements({
     int page = 1,
     int perPage = 20,
     String? scope,
@@ -33,20 +34,10 @@ class AnnouncementRepository {
       queryParameters: queryParams,
     );
 
-    final data = response.data as Map<String, dynamic>;
-    final items = (data['data'] as List<dynamic>?)
-            ?.map(
-                (e) => AnnouncementOut.fromJson(e as Map<String, dynamic>))
-            .toList() ??
-        [];
-
-    return {
-      'data': items,
-      'total': data['total'] as int? ?? 0,
-      'page': data['page'] as int? ?? 1,
-      'perPage': data['perPage'] as int? ?? perPage,
-      'totalPages': data['totalPages'] as int? ?? 0,
-    };
+    return PaginatedResponse.fromJson(
+      response.data as Map<String, dynamic>,
+      (json) => AnnouncementOut.fromJson(json),
+    );
   }
 }
 

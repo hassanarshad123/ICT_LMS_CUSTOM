@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:ict_lms_student/core/utils/error_utils.dart';
 import 'package:ict_lms_student/data/repositories/zoom_repository.dart';
 import 'package:ict_lms_student/models/recording_list_out.dart';
 
@@ -64,15 +65,15 @@ class RecordingsNotifier extends StateNotifier<RecordingsState> {
     try {
       final result = await _repo.listRecordings(page: 1, perPage: 20);
       state = state.copyWith(
-        items: result['data'] as List<RecordingListOut>,
-        page: result['page'] as int,
-        totalPages: result['totalPages'] as int,
+        items: result.data,
+        page: result.page,
+        totalPages: result.totalPages,
         isLoading: false,
       );
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
-        error: e.toString().replaceFirst('Exception: ', ''),
+        error: extractErrorMessage(e),
       );
     }
   }
@@ -86,17 +87,16 @@ class RecordingsNotifier extends StateNotifier<RecordingsState> {
       final nextPage = state.page + 1;
       final result = await _repo.listRecordings(page: nextPage, perPage: 20);
 
-      final newItems = result['data'] as List<RecordingListOut>;
       state = state.copyWith(
-        items: [...state.items, ...newItems],
-        page: result['page'] as int,
-        totalPages: result['totalPages'] as int,
+        items: [...state.items, ...result.data],
+        page: result.page,
+        totalPages: result.totalPages,
         isLoadingMore: false,
       );
     } catch (e) {
       state = state.copyWith(
         isLoadingMore: false,
-        error: e.toString().replaceFirst('Exception: ', ''),
+        error: extractErrorMessage(e),
       );
     }
   }
@@ -116,7 +116,7 @@ class RecordingsNotifier extends StateNotifier<RecordingsState> {
       );
     } catch (e) {
       state = state.copyWith(
-        error: e.toString().replaceFirst('Exception: ', ''),
+        error: extractErrorMessage(e),
       );
     }
   }

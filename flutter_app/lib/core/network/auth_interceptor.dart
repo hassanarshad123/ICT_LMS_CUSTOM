@@ -85,17 +85,25 @@ class AuthInterceptor extends Interceptor {
 
       final response = await _refreshDio.post(
         '${ApiConstants.baseUrl}${ApiConstants.refresh}',
-        data: {'refresh_token': refreshToken},
+        data: {'refreshToken': refreshToken},
       );
 
-      final newToken = response.data['access_token'] as String?;
-      if (newToken != null) {
+      final newAccessToken = response.data['accessToken'] as String?;
+      final newRefreshToken = response.data['refreshToken'] as String?;
+      if (newAccessToken != null) {
         await _secureStorage.write(
           key: StorageKeys.accessToken,
-          value: newToken,
+          value: newAccessToken,
         );
-        _refreshCompleter!.complete(newToken);
-        return newToken;
+        // Rotate refresh token — backend invalidates the old one
+        if (newRefreshToken != null) {
+          await _secureStorage.write(
+            key: StorageKeys.refreshToken,
+            value: newRefreshToken,
+          );
+        }
+        _refreshCompleter!.complete(newAccessToken);
+        return newAccessToken;
       }
 
       _refreshCompleter!.complete(null);

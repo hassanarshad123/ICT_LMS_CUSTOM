@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:ict_lms_student/core/utils/error_utils.dart';
 import 'package:ict_lms_student/data/repositories/notification_repository.dart';
 import 'package:ict_lms_student/models/notification_out.dart';
 
@@ -54,15 +55,15 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
     try {
       final result = await _repo.listNotifications(page: 1, perPage: 20);
       state = state.copyWith(
-        items: result['data'] as List<NotificationOut>,
-        page: result['page'] as int,
-        totalPages: result['totalPages'] as int,
+        items: result.data,
+        page: result.page,
+        totalPages: result.totalPages,
         isLoading: false,
       );
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
-        error: e.toString().replaceFirst('Exception: ', ''),
+        error: extractErrorMessage(e),
       );
     }
   }
@@ -77,17 +78,16 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
       final result =
           await _repo.listNotifications(page: nextPage, perPage: 20);
 
-      final newItems = result['data'] as List<NotificationOut>;
       state = state.copyWith(
-        items: [...state.items, ...newItems],
-        page: result['page'] as int,
-        totalPages: result['totalPages'] as int,
+        items: [...state.items, ...result.data],
+        page: result.page,
+        totalPages: result.totalPages,
         isLoadingMore: false,
       );
     } catch (e) {
       state = state.copyWith(
         isLoadingMore: false,
-        error: e.toString().replaceFirst('Exception: ', ''),
+        error: extractErrorMessage(e),
       );
     }
   }

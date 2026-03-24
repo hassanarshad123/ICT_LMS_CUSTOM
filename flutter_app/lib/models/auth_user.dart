@@ -29,7 +29,7 @@ class AuthUser {
 
   factory AuthUser.fromJson(Map<String, dynamic> json) {
     return AuthUser(
-      id: json['id']?.toString() ?? '',
+      id: json['id']?.toString() ?? (throw const FormatException('AuthUser: missing id')),
       email: json['email'] as String? ?? '',
       name: json['name'] as String? ?? '',
       phone: json['phone'] as String?,

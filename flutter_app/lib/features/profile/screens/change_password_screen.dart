@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
+import 'package:ict_lms_student/core/network/api_client.dart';
+import 'package:ict_lms_student/data/repositories/auth_repository.dart';
 import 'package:ict_lms_student/providers/auth_provider.dart';
 
 class ChangePasswordScreen extends ConsumerStatefulWidget {
@@ -35,7 +37,7 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
     setState(() => _isSaving = true);
 
     try {
-      final repo = ref.read(authRepositoryProvider);
+      final repo = AuthRepository(ref.read(dioProvider));
       await repo.changePassword(
         _currentPasswordController.text,
         _newPasswordController.text,

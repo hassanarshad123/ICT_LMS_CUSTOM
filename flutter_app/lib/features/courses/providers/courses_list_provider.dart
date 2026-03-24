@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:ict_lms_student/core/utils/error_utils.dart';
 import 'package:ict_lms_student/data/repositories/course_repository.dart';
 import 'package:ict_lms_student/models/course_out.dart';
+import 'package:ict_lms_student/models/paginated_response.dart';
 
 class CoursesListState {
   final List<CourseOut> items;
@@ -74,16 +76,16 @@ class CoursesListNotifier extends StateNotifier<CoursesListState> {
       );
 
       state = state.copyWith(
-        items: result['data'] as List<CourseOut>,
-        page: result['page'] as int,
-        totalPages: result['totalPages'] as int,
+        items: result.data,
+        page: result.page,
+        totalPages: result.totalPages,
         isLoading: false,
         clearError: true,
       );
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
-        error: _extractErrorMessage(e),
+        error: extractErrorMessage(e),
       );
     }
   }
@@ -102,18 +104,17 @@ class CoursesListNotifier extends StateNotifier<CoursesListState> {
         batchId: state.batchId,
       );
 
-      final newItems = result['data'] as List<CourseOut>;
       state = state.copyWith(
-        items: [...state.items, ...newItems],
-        page: result['page'] as int,
-        totalPages: result['totalPages'] as int,
+        items: [...state.items, ...result.data],
+        page: result.page,
+        totalPages: result.totalPages,
         isLoadingMore: false,
         clearError: true,
       );
     } catch (e) {
       state = state.copyWith(
         isLoadingMore: false,
-        error: _extractErrorMessage(e),
+        error: extractErrorMessage(e),
       );
     }
   }
@@ -123,12 +124,6 @@ class CoursesListNotifier extends StateNotifier<CoursesListState> {
     await load(batchId: state.batchId);
   }
 
-  String _extractErrorMessage(dynamic e) {
-    if (e is Exception) {
-      return e.toString().replaceFirst('Exception: ', '');
-    }
-    return 'Something went wrong';
-  }
 }
 
 final coursesListProvider =

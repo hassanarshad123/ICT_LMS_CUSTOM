@@ -202,39 +202,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 }
 
-/// Provider for the authenticated Dio instance.
-///
-/// Creates a Dio with all interceptors (slug, auth, case convert, error mapping).
-/// The auth interceptor's forceLogout callback triggers the auth notifier.
-final authenticatedDioProvider = Provider<Dio>((ref) {
-  final prefs = ref.watch(sharedPreferencesProvider);
-  const secureStorage = FlutterSecureStorage();
-
-  // We need a reference to the auth notifier for force logout.
-  // Use a late callback to break the circular dependency.
-  late final AuthNotifier authNotifier;
-
-  final dio = createAuthenticatedDio(
-    prefs: prefs,
-    secureStorage: secureStorage,
-    onForceLogout: () {
-      authNotifier.forceLogout();
-    },
-  );
-
-  // Wire up the auth notifier after Dio is created
-
-  authNotifier = ref.read(authProvider.notifier);
-
-  return dio;
-});
-
-/// Provider for [AuthRepository] using the authenticated Dio client.
-final authRepositoryProvider = Provider<AuthRepository>((ref) {
-  final dio = ref.watch(authenticatedDioProvider);
-  return AuthRepository(dio);
-});
-
 /// Provider for auth state.
 ///
 /// Creates the AuthNotifier with all required dependencies

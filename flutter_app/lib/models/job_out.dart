@@ -29,7 +29,7 @@ class JobOut {
 
   factory JobOut.fromJson(Map<String, dynamic> json) {
     return JobOut(
-      id: json['id']?.toString() ?? '',
+      id: json['id']?.toString() ?? (throw const FormatException('JobOut: missing id')),
       title: json['title'] as String? ?? '',
       company: json['company'] as String? ?? '',
       location: json['location'] as String?,

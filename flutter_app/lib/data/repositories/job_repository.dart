@@ -4,6 +4,7 @@ import 'package:ict_lms_student/core/constants/api_constants.dart';
 import 'package:ict_lms_student/core/network/api_client.dart';
 import 'package:ict_lms_student/models/application_out.dart';
 import 'package:ict_lms_student/models/job_out.dart';
+import 'package:ict_lms_student/models/paginated_response.dart';
 
 class JobRepository {
   final Dio _dio;
@@ -11,7 +12,7 @@ class JobRepository {
   JobRepository(this._dio);
 
   /// GET /jobs
-  Future<Map<String, dynamic>> listJobs({
+  Future<PaginatedResponse<JobOut>> listJobs({
     int page = 1,
     int perPage = 20,
     String? type,
@@ -29,19 +30,10 @@ class JobRepository {
       queryParameters: queryParams,
     );
 
-    final data = response.data as Map<String, dynamic>;
-    final items = (data['data'] as List<dynamic>?)
-            ?.map((e) => JobOut.fromJson(e as Map<String, dynamic>))
-            .toList() ??
-        [];
-
-    return {
-      'data': items,
-      'total': data['total'] as int? ?? 0,
-      'page': data['page'] as int? ?? 1,
-      'perPage': data['perPage'] as int? ?? perPage,
-      'totalPages': data['totalPages'] as int? ?? 0,
-    };
+    return PaginatedResponse.fromJson(
+      response.data as Map<String, dynamic>,
+      (json) => JobOut.fromJson(json),
+    );
   }
 
   /// GET /jobs/{jobId}

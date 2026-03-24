@@ -12,13 +12,18 @@ class SearchRepository {
   /// GET /search?q=query&limit=limit
   ///
   /// Returns unified search results across courses, batches, and announcements.
-  Future<SearchResult> search(String query, {int limit = 10}) async {
+  Future<SearchResult> search(
+    String query, {
+    int limit = 10,
+    CancelToken? cancelToken,
+  }) async {
     final response = await _dio.get(
       ApiConstants.search,
       queryParameters: <String, dynamic>{
         'q': query,
         'limit': limit,
       },
+      cancelToken: cancelToken,
     );
 
     return SearchResult.fromJson(response.data as Map<String, dynamic>);

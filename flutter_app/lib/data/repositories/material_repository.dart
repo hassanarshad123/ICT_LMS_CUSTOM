@@ -4,6 +4,7 @@ import 'package:ict_lms_student/core/constants/api_constants.dart';
 import 'package:ict_lms_student/core/network/api_client.dart';
 import 'package:ict_lms_student/models/material_download_url.dart';
 import 'package:ict_lms_student/models/material_out.dart';
+import 'package:ict_lms_student/models/paginated_response.dart';
 
 class MaterialRepository {
   final Dio _dio;
@@ -11,7 +12,7 @@ class MaterialRepository {
   MaterialRepository(this._dio);
 
   /// GET /materials?batch_id={batchId}&course_id={courseId}
-  Future<Map<String, dynamic>> listMaterials({
+  Future<PaginatedResponse<MaterialOut>> listMaterials({
     required String batchId,
     String? courseId,
     int page = 1,
@@ -29,19 +30,10 @@ class MaterialRepository {
       queryParameters: queryParams,
     );
 
-    final data = response.data as Map<String, dynamic>;
-    final items = (data['data'] as List<dynamic>?)
-            ?.map((e) => MaterialOut.fromJson(e as Map<String, dynamic>))
-            .toList() ??
-        [];
-
-    return {
-      'data': items,
-      'total': data['total'] as int? ?? 0,
-      'page': data['page'] as int? ?? 1,
-      'perPage': data['perPage'] as int? ?? perPage,
-      'totalPages': data['totalPages'] as int? ?? 0,
-    };
+    return PaginatedResponse.fromJson(
+      response.data as Map<String, dynamic>,
+      (json) => MaterialOut.fromJson(json),
+    );
   }
 
   /// GET /materials/{materialId}/download-url

@@ -22,7 +22,7 @@ class CourseOut {
 
   factory CourseOut.fromJson(Map<String, dynamic> json) {
     return CourseOut(
-      id: json['id']?.toString() ?? '',
+      id: json['id']?.toString() ?? (throw const FormatException('CourseOut: missing id')),
       title: json['title'] as String? ?? '',
       description: json['description'] as String?,
       status: json['status'] as String? ?? '',

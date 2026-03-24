@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ict_lms_student/core/constants/api_constants.dart';
 import 'package:ict_lms_student/core/network/api_client.dart';
 import 'package:ict_lms_student/models/notification_out.dart';
+import 'package:ict_lms_student/models/paginated_response.dart';
 
 class NotificationRepository {
   final Dio _dio;
@@ -10,7 +11,7 @@ class NotificationRepository {
   NotificationRepository(this._dio);
 
   /// GET /notifications
-  Future<Map<String, dynamic>> listNotifications({
+  Future<PaginatedResponse<NotificationOut>> listNotifications({
     int page = 1,
     int perPage = 20,
   }) async {
@@ -22,20 +23,10 @@ class NotificationRepository {
       },
     );
 
-    final data = response.data as Map<String, dynamic>;
-    final items = (data['data'] as List<dynamic>?)
-            ?.map(
-                (e) => NotificationOut.fromJson(e as Map<String, dynamic>))
-            .toList() ??
-        [];
-
-    return {
-      'data': items,
-      'total': data['total'] as int? ?? 0,
-      'page': data['page'] as int? ?? 1,
-      'perPage': data['perPage'] as int? ?? perPage,
-      'totalPages': data['totalPages'] as int? ?? 0,
-    };
+    return PaginatedResponse.fromJson(
+      response.data as Map<String, dynamic>,
+      (json) => NotificationOut.fromJson(json),
+    );
   }
 
   /// GET /notifications/unread-count

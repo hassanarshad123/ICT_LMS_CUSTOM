@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:ict_lms_student/core/utils/error_utils.dart';
 import 'package:ict_lms_student/data/repositories/quiz_repository.dart';
 import 'package:ict_lms_student/models/quiz_out.dart';
 import 'package:ict_lms_student/models/quiz_question_out.dart';
@@ -91,13 +92,11 @@ class QuizTakingNotifier extends StateNotifier<QuizTakingState> {
     state = state.copyWith(isLoading: true, clearError: true, quiz: quiz);
 
     try {
-      final results = await Future.wait([
-        _repo.getQuestions(quiz.id),
-        _repo.startAttempt(quiz.id),
-      ]);
-
-      final questions = results[0] as List<QuizQuestionOut>;
-      final attempt = results[1] as QuizAttemptOut;
+      // Load questions first (read-only, safe to retry).
+      // Only then start the attempt (creates state on server, not safe to retry).
+      // Sequential order prevents leaked attempts when questions fail to load.
+      final questions = await _repo.getQuestions(quiz.id);
+      final attempt = await _repo.startAttempt(quiz.id);
 
       state = state.copyWith(
         questions: questions,
@@ -111,7 +110,7 @@ class QuizTakingNotifier extends StateNotifier<QuizTakingState> {
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
-        error: e.toString(),
+        error: extractErrorMessage(e),
       );
     }
   }
@@ -202,7 +201,7 @@ class QuizTakingNotifier extends StateNotifier<QuizTakingState> {
     } catch (e) {
       state = state.copyWith(
         isSubmitting: false,
-        error: e.toString(),
+        error: extractErrorMessage(e),
       );
     }
   }

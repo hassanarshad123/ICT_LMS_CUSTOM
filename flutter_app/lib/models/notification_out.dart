@@ -20,7 +20,7 @@ class NotificationOut {
 
   factory NotificationOut.fromJson(Map<String, dynamic> json) {
     return NotificationOut(
-      id: json['id']?.toString() ?? '',
+      id: json['id']?.toString() ?? (throw const FormatException('NotificationOut: missing id')),
       type: json['type'] as String? ?? '',
       title: json['title'] as String? ?? '',
       message: json['message'] as String? ?? '',

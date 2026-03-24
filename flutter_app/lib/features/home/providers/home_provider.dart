@@ -4,6 +4,7 @@ import '../../../data/repositories/announcement_repository.dart';
 import '../../../data/repositories/zoom_repository.dart';
 import '../../../models/batch_out.dart';
 import '../../../models/announcement_out.dart';
+import '../../../models/paginated_response.dart';
 import '../../../models/zoom_class_out.dart';
 
 /// Holds all data displayed on the home dashboard.
@@ -36,27 +37,23 @@ final homeProvider = FutureProvider.autoDispose<HomeDashboardData>((ref) async {
 
   // Fetch all three in parallel — each wrapped in try-catch so a single
   // failure (e.g. zoom not configured) doesn't break the entire home screen.
+  final emptyBatches = PaginatedResponse<BatchOut>(data: [], total: 0, page: 1, perPage: 10, totalPages: 0);
+  final emptyAnnouncements = PaginatedResponse<AnnouncementOut>(data: [], total: 0, page: 1, perPage: 5, totalPages: 0);
+  final emptyClasses = PaginatedResponse<ZoomClassOut>(data: [], total: 0, page: 1, perPage: 5, totalPages: 0);
+
   final futures = await Future.wait([
-    batchRepo.listBatches(page: 1, perPage: 10).catchError((_) => <String, dynamic>{
-      'data': <BatchOut>[], 'total': 0,
-    }),
-    announcementRepo.listAnnouncements(page: 1, perPage: 5).catchError((_) => <String, dynamic>{
-      'data': <AnnouncementOut>[], 'total': 0,
-    }),
-    zoomRepo.listClasses(page: 1, perPage: 5, status: 'upcoming').catchError((_) => <String, dynamic>{
-      'data': <ZoomClassOut>[], 'total': 0,
-    }),
+    batchRepo.listBatches(page: 1, perPage: 10).catchError((_) => emptyBatches),
+    announcementRepo.listAnnouncements(page: 1, perPage: 5).catchError((_) => emptyAnnouncements),
+    zoomRepo.listClasses(page: 1, perPage: 5, status: 'upcoming').catchError((_) => emptyClasses),
   ]);
 
-  final batchResult = futures[0];
-  final announcementResult = futures[1];
-  final classResult = futures[2];
+  final batchResult = futures[0] as PaginatedResponse<BatchOut>;
+  final announcementResult = futures[1] as PaginatedResponse<AnnouncementOut>;
+  final classResult = futures[2] as PaginatedResponse<ZoomClassOut>;
 
-  final batches = (batchResult['data'] as List?)?.cast<BatchOut>() ?? [];
-  final announcements =
-      (announcementResult['data'] as List?)?.cast<AnnouncementOut>() ?? [];
-  final upcomingClasses =
-      (classResult['data'] as List?)?.cast<ZoomClassOut>() ?? [];
+  final batches = batchResult.data;
+  final announcements = announcementResult.data;
+  final upcomingClasses = classResult.data;
 
   final totalCourses =
       batches.fold<int>(0, (sum, batch) => sum + batch.courseCount);
@@ -65,8 +62,8 @@ final homeProvider = FutureProvider.autoDispose<HomeDashboardData>((ref) async {
     batches: batches,
     announcements: announcements,
     upcomingClasses: upcomingClasses,
-    totalBatches: batchResult['total'] as int? ?? batches.length,
+    totalBatches: batchResult.total,
     totalCourses: totalCourses,
-    totalUpcomingClasses: classResult['total'] as int? ?? upcomingClasses.length,
+    totalUpcomingClasses: classResult.total,
   );
 });

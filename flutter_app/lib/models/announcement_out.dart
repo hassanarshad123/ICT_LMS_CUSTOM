@@ -26,7 +26,7 @@ class AnnouncementOut {
 
   factory AnnouncementOut.fromJson(Map<String, dynamic> json) {
     return AnnouncementOut(
-      id: json['id']?.toString() ?? '',
+      id: json['id']?.toString() ?? (throw const FormatException('AnnouncementOut: missing id')),
       title: json['title'] as String? ?? '',
       content: json['content'] as String? ?? '',
       scope: json['scope'] as String? ?? 'institute',
