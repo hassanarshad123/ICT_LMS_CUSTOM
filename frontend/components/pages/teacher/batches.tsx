@@ -8,6 +8,7 @@ import { useBasePath } from '@/hooks/use-base-path';
 import { useApi } from '@/hooks/use-api';
 import { listBatches, listBatchStudents } from '@/lib/api/batches';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
+import { toast } from 'sonner';
 import { Users, ChevronDown, ChevronUp, Layers, Loader2 } from 'lucide-react';
 
 export default function TeacherBatches() {
@@ -35,7 +36,8 @@ export default function TeacherBatches() {
       try {
         const students = await listBatchStudents(batchId);
         setBatchStudents((prev) => ({ ...prev, [batchId]: Array.isArray(students) ? students : [] }));
-      } catch {
+      } catch (err: any) {
+        toast.error(err.message || 'Unable to load students for this batch');
         setBatchStudents((prev) => ({ ...prev, [batchId]: [] }));
       } finally {
         setLoadingStudents(null);
