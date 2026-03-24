@@ -247,3 +247,38 @@ async def enhanced_health_check(
 
     status_code = 200 if checks["status"] == "ok" else 503
     return JSONResponse(status_code=status_code, content=checks)
+
+
+@router.get("/cache-stats")
+async def get_cache_stats(current_user: AdminOrSA):
+    """Admin-only — returns Redis cache health metrics."""
+    from app.core.redis import get_redis
+
+    r = get_redis()
+    if r is None:
+        return {"redis_connected": False, "message": "Redis is not configured or unavailable"}
+
+    try:
+        info_memory = await r.info("memory")
+        info_stats = await r.info("stats")
+        info_keyspace = await r.info("keyspace")
+        db_size = await r.dbsize()
+
+        return {
+            "redis_connected": True,
+            "memory_used_mb": round(info_memory.get("used_memory", 0) / 1024 / 1024, 2),
+            "memory_max_mb": round(info_memory.get("maxmemory", 0) / 1024 / 1024, 2),
+            "total_keys": db_size,
+            "hits": info_stats.get("keyspace_hits", 0),
+            "misses": info_stats.get("keyspace_misses", 0),
+            "hit_rate_percent": round(
+                info_stats.get("keyspace_hits", 0)
+                / max(info_stats.get("keyspace_hits", 0) + info_stats.get("keyspace_misses", 0), 1)
+                * 100,
+                1,
+            ),
+            "evictions": info_stats.get("evicted_keys", 0),
+            "connected_clients": info_memory.get("connected_clients", 0),
+        }
+    except Exception as e:
+        return {"redis_connected": False, "error": str(e)}

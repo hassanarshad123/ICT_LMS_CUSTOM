@@ -1,10 +1,13 @@
 import uuid
+import logging
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, func
 
 from app.models.notification import Notification
+
+logger = logging.getLogger("ict_lms.notifications")
 
 
 async def create_notification(
@@ -27,6 +30,10 @@ async def create_notification(
     session.add(notification)
     await session.commit()
     await session.refresh(notification)
+
+    # Push real-time notification count via WebSocket
+    await _push_notification_count(session, user_id, institute_id)
+
     return notification
 
 
@@ -56,6 +63,11 @@ async def create_bulk_notifications(
     ]
     session.add_all(notifications)
     await session.commit()
+
+    # Push real-time notification counts via WebSocket for each affected user
+    for uid in user_ids:
+        await _push_notification_count(session, uid, institute_id)
+
     return len(notifications)
 
 
@@ -120,6 +132,10 @@ async def mark_as_read(
     session.add(notif)
     await session.commit()
     await session.refresh(notif)
+
+    # Push updated count via WebSocket
+    await _push_notification_count(session, user_id, institute_id)
+
     return notif
 
 
@@ -141,4 +157,26 @@ async def mark_all_read(session: AsyncSession, user_id: uuid.UUID, institute_id:
     )
     result = await session.execute(stmt)
     await session.commit()
+
+    # Push updated count (0) via WebSocket
+    await _push_notification_count(session, user_id, institute_id)
+
     return result.rowcount
+
+
+async def _push_notification_count(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    institute_id: Optional[uuid.UUID] = None,
+) -> None:
+    """Push updated unread notification count via WebSocket (best-effort)."""
+    try:
+        from app.websockets.pubsub import publish_ws_event
+
+        count = await get_unread_count(session, user_id, institute_id)
+        await publish_ws_event(
+            f"notifications:{user_id}",
+            {"type": "notification_count_changed", "count": count},
+        )
+    except Exception as e:
+        logger.debug("Failed to push notification count: %s", e)

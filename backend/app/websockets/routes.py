@@ -92,6 +92,29 @@ async def announcements_ws(websocket: WebSocket, user_id: uuid.UUID):
         manager.disconnect(websocket, channel)
 
 
+@router.websocket("/ws/notifications/{user_id}")
+async def notifications_ws(websocket: WebSocket, user_id: uuid.UUID):
+    """Real-time notification count updates. Replaces frontend polling."""
+    user = await _get_user_from_token(websocket)
+    if user is None:
+        await websocket.close(code=4001, reason="Authentication failed")
+        return
+    if user.id != user_id:
+        await websocket.close(code=4003, reason="Cannot subscribe to another user's notifications")
+        return
+
+    channel = f"notifications:{user_id}"
+    connected = await manager.connect(websocket, channel)
+    if not connected:
+        return
+
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, channel)
+
+
 @router.websocket("/ws/session/{session_id}")
 async def session_ws(websocket: WebSocket, session_id: uuid.UUID):
     # Verify the session belongs to the same institute as the connecting user

@@ -37,6 +37,27 @@ export function useAnnouncements(userId: string, onAnnouncement: (data: any) => 
   }, [userId, onAnnouncement]);
 }
 
+export function useNotificationCount(userId: string, onCountChange: (count: number) => void) {
+  const wsRef = useRef<WebSocketClient | null>(null);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    const ws = new WebSocketClient(`/ws/notifications/${userId}`);
+    ws.on('notification_count_changed', (data: any) => {
+      if (typeof data.count === 'number') {
+        onCountChange(data.count);
+      }
+    });
+    ws.connect();
+    wsRef.current = ws;
+
+    return () => {
+      ws.disconnect();
+    };
+  }, [userId, onCountChange]);
+}
+
 export function useSessionMonitor(sessionId: string, onTerminated: () => void) {
   const wsRef = useRef<WebSocketClient | null>(null);
 

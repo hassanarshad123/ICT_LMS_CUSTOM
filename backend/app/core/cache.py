@@ -125,5 +125,11 @@ class CacheService:
         return f"lms:global:institute:{slug}"
 
 
+    async def invalidate_dashboard(self, institute_id: str) -> None:
+        """Invalidate dashboard + insights caches for an institute."""
+        await self.delete(self.dashboard_key(institute_id))
+        await self.delete(self.insights_key(institute_id))
+
+
 # Singleton instance — import this everywhere
 cache = CacheService()
