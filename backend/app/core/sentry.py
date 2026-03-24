@@ -125,8 +125,8 @@ def init_sentry(settings: Any) -> bool:
                 StarletteIntegration(transaction_style="endpoint"),
                 FastApiIntegration(transaction_style="endpoint"),
                 LoggingIntegration(
-                    level=logging.WARNING,
-                    event_level=logging.ERROR,
+                    level=logging.WARNING,      # breadcrumbs for WARNING+
+                    event_level=logging.ERROR,   # Sentry events for ERROR+
                 ),
                 HttpxIntegration(),
             ],
@@ -156,6 +156,7 @@ def sentry_job_wrapper(job_name: str):
             try:
                 import sentry_sdk
             except ImportError:
+                # sentry_sdk not installed — run job without instrumentation
                 return await func(*args, **kwargs)
 
             with sentry_sdk.new_scope() as scope:
@@ -167,6 +168,7 @@ def sentry_job_wrapper(job_name: str):
                 try:
                     return await func(*args, **kwargs)
                 except Exception as exc:
+                    # Capture inside scope so job tags are attached to the event
                     sentry_sdk.capture_exception(exc)
                     raise
 

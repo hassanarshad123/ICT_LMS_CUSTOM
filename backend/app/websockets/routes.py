@@ -84,9 +84,12 @@ async def class_status_ws(websocket: WebSocket, batch_id: uuid.UUID):
     except WebSocketDisconnect:
         manager.disconnect(websocket, channel)
     except Exception as exc:
-        import sentry_sdk
-        sentry_sdk.capture_exception(exc)
         manager.disconnect(websocket, channel)
+        try:
+            import sentry_sdk
+            sentry_sdk.capture_exception(exc)
+        except Exception:
+            pass
 
 
 @router.websocket("/ws/announcements/{user_id}")
@@ -112,9 +115,12 @@ async def announcements_ws(websocket: WebSocket, user_id: uuid.UUID):
     except WebSocketDisconnect:
         manager.disconnect(websocket, channel)
     except Exception as exc:
-        import sentry_sdk
-        sentry_sdk.capture_exception(exc)
         manager.disconnect(websocket, channel)
+        try:
+            import sentry_sdk
+            sentry_sdk.capture_exception(exc)
+        except Exception:
+            pass
 
 
 @router.websocket("/ws/notifications/{user_id}")
@@ -140,9 +146,12 @@ async def notifications_ws(websocket: WebSocket, user_id: uuid.UUID):
     except WebSocketDisconnect:
         manager.disconnect(websocket, channel)
     except Exception as exc:
-        import sentry_sdk
-        sentry_sdk.capture_exception(exc)
         manager.disconnect(websocket, channel)
+        try:
+            import sentry_sdk
+            sentry_sdk.capture_exception(exc)
+        except Exception:
+            pass
 
 
 @router.websocket("/ws/session/{session_id}")
@@ -174,6 +183,9 @@ async def session_ws(websocket: WebSocket, session_id: uuid.UUID):
     except WebSocketDisconnect:
         manager.disconnect(websocket, channel)
     except Exception as exc:
-        import sentry_sdk
-        sentry_sdk.capture_exception(exc)
         manager.disconnect(websocket, channel)
+        try:
+            import sentry_sdk
+            sentry_sdk.capture_exception(exc)
+        except Exception:
+            pass

@@ -31,13 +31,15 @@ def _sentry_set_context(request: Request, request_id: str, exc: Exception | None
             "ip_address": request.client.host if request.client else None,
         })
 
-    # Attach tenant / role / impersonation tags for filtering in Sentry
+    # Attach tenant / role / impersonation context
     institute_id = getattr(request.state, "institute_id", None)
     if institute_id:
         sentry_sdk.set_tag("institute_id", str(institute_id))
+
     user_role = getattr(request.state, "user_role", None)
     if user_role:
-        sentry_sdk.set_tag("user_role", user_role)
+        sentry_sdk.set_tag("user.role", user_role)
+
     impersonator_id = getattr(request.state, "impersonator_id", None)
     if impersonator_id:
         sentry_sdk.set_tag("impersonator_id", str(impersonator_id))
@@ -158,13 +160,14 @@ class ErrorTrackingMiddleware(BaseHTTPMiddleware):
         if response.status_code >= 500:
             _sentry_set_context(request, request_id)
             await _store_error(request, request_id, response.status_code)
+            # Capture handled 5xx to Sentry as a message (no exception object available)
             try:
                 import sentry_sdk
                 sentry_sdk.capture_message(
-                    f"Handled {response.status_code} on {request.method} {request.url.path}",
+                    f"HTTP {response.status_code} on {request.method} {request.url.path}",
                     level="error",
                 )
-            except Exception:
+            except ImportError:
                 pass
 
         response.headers["X-Request-ID"] = request_id

@@ -4,7 +4,9 @@ Fail-open: every operation silently degrades if Redis is unavailable.
 All keys are namespaced per institute for multi-tenant isolation.
 """
 
+import asyncio
 import logging
+import time
 from typing import Any, Callable, Awaitable, Optional
 
 import orjson
@@ -90,6 +92,47 @@ class CacheService:
         value = await factory()
         if value is not None:
             await self.set(key, value, ttl)
+        return value
+
+    async def get_or_set_swr(
+        self,
+        key: str,
+        factory: Callable[[], Awaitable[Any]],
+        fresh_ttl: int = 120,
+        stale_ttl: int = 600,
+    ) -> Any:
+        """Stale-While-Revalidate: serve stale data instantly, refresh in background.
+
+        - Within fresh_ttl: return cached data (fresh)
+        - Between fresh_ttl and stale_ttl: return stale data instantly + trigger background refresh
+        - After stale_ttl (or no data): call factory synchronously (cold miss)
+        """
+        meta_key = f"{key}:swr_meta"
+
+        cached = await self.get(key)
+        if cached is not None:
+            meta = await self.get(meta_key)
+            if meta and meta.get("fresh_until", 0) > time.time():
+                return cached  # Fresh — return immediately
+
+            # Stale but available — return instantly, refresh in background
+            async def _bg_refresh():
+                try:
+                    value = await factory()
+                    if value is not None:
+                        await self.set(key, value, stale_ttl)
+                        await self.set(meta_key, {"fresh_until": time.time() + fresh_ttl}, stale_ttl)
+                except Exception as e:
+                    logger.debug("SWR background refresh failed for %s: %s", key, e)
+
+            asyncio.create_task(_bg_refresh())
+            return cached  # Return stale data instantly
+
+        # Complete miss — must wait for factory
+        value = await factory()
+        if value is not None:
+            await self.set(key, value, stale_ttl)
+            await self.set(meta_key, {"fresh_until": time.time() + fresh_ttl}, stale_ttl)
         return value
 
     # ── Helpers ──────────────────────────────────────────────────────
