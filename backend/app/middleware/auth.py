@@ -1,4 +1,5 @@
 import uuid
+import logging
 from datetime import datetime, timezone
 from typing import Annotated
 
@@ -13,15 +14,54 @@ from app.models.user import User
 from app.models.institute import Institute, InstituteStatus
 from app.models.enums import UserStatus, UserRole
 from app.utils.security import decode_token
+from app.core.cache import cache
 
+logger = logging.getLogger("ict_lms.auth")
 bearer_scheme = HTTPBearer()
+
+# ── TTL for user auth cache (seconds) ──
+_USER_CACHE_TTL = 300  # 5 minutes
+
+
+async def _fetch_and_cache_user(session: AsyncSession, user_id: str) -> User | None:
+    """Fetch user+institute from DB and populate the cache."""
+    result = await session.execute(
+        select(User)
+        .options(selectinload(User.institute))
+        .where(User.id == uuid.UUID(user_id), User.deleted_at.is_(None))
+    )
+    user = result.scalar_one_or_none()
+    if not user:
+        return None
+
+    # Build serializable dict for cache (no ORM objects)
+    inst = user.institute
+    cache_data = {
+        "id": str(user.id),
+        "email": user.email,
+        "name": user.name,
+        "role": user.role.value,
+        "status": user.status.value,
+        "institute_id": str(user.institute_id) if user.institute_id else None,
+        "token_version": user.token_version,
+        "institute_status": inst.status.value if inst else None,
+        "institute_expires_at": inst.expires_at.isoformat() if inst and inst.expires_at else None,
+    }
+    key = cache.user_key(cache_data["institute_id"], cache_data["id"])
+    await cache.set(key, cache_data, ttl=_USER_CACHE_TTL)
+
+    return user
 
 
 async def get_current_user(
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(bearer_scheme)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> User:
-    """Extract and validate the JWT access token, return the User."""
+    """Extract and validate the JWT access token, return the User.
+
+    Uses Redis cache to avoid 2 DB queries on every request. Cache is keyed
+    by (institute_id, user_id) with a 5-minute TTL.
+    """
     payload = decode_token(credentials.credentials)
     if not payload or payload.get("type") != "access":
         raise HTTPException(
@@ -33,6 +73,82 @@ async def get_current_user(
     if not user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
 
+    token_tv = payload.get("tv")
+    imp_id = payload.get("imp")
+
+    # ── Try cache first ──────────────────────────────────────────
+    # We try all possible institute_id values since we don't know it from the JWT
+    # The user_id is globally unique (UUID), so we can search by pattern or use 'global'
+    # But we actually know the user_id, so we can try to get from cache directly
+    cached = None
+    # Try a quick lookup — we build the key using the user's institute_id from JWT payload
+    # JWT doesn't carry institute_id, so we use a generic approach
+    # First, try the cache with the user_id (we store the institute_id in the value)
+    cache_key_attempt = f"lms:*:user:{user_id}"
+    # Since we can't do a pattern get, we need a consistent key. We'll use a fixed prefix.
+    # The key will always be set by _fetch_and_cache_user with the actual institute_id.
+    # For lookup, we use a secondary index: lms:user_index:{user_id}
+    secondary_key = f"lms:user_index:{user_id}"
+    cached = await cache.get(secondary_key)
+
+    if cached is not None:
+        # Validate token_version — reject stale cache
+        if token_tv is not None and cached.get("token_version") != token_tv:
+            # Token version mismatch — cache is stale, delete and fall through to DB
+            await cache.delete(secondary_key)
+            cached = None
+
+    if cached is not None:
+        # Validate user status from cache
+        if cached.get("status") != "active":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is deactivated")
+
+        user_role = cached.get("role", "")
+        inst_id = cached.get("institute_id")
+
+        # Defensive guard: non-SA users MUST have an institute
+        if user_role != "super_admin" and inst_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User account configuration error: missing institute assignment",
+            )
+
+        # Check institute suspension/expiry from cached data
+        if user_role != "super_admin" and inst_id is not None:
+            inst_status = cached.get("institute_status")
+            if inst_status == "suspended":
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Institute account is suspended")
+            inst_expires = cached.get("institute_expires_at")
+            if inst_expires:
+                expires_dt = datetime.fromisoformat(inst_expires)
+                if expires_dt < datetime.now(timezone.utc):
+                    # Institute expired — need to auto-suspend via DB, fall through
+                    await cache.delete(secondary_key)
+                    cached = None
+
+    if cached is not None:
+        # Cache hit — reconstruct a minimal User object for downstream compatibility
+        user = User(
+            id=uuid.UUID(cached["id"]),
+            email=cached["email"],
+            name=cached["name"],
+            role=UserRole(cached["role"]),
+            status=UserStatus(cached["status"]),
+            institute_id=uuid.UUID(cached["institute_id"]) if cached.get("institute_id") else None,
+            token_version=cached["token_version"],
+        )
+        user._impersonator_id = uuid.UUID(imp_id) if imp_id else None
+
+        # Set Sentry context
+        try:
+            import sentry_sdk
+            sentry_sdk.set_user({"id": cached["id"], "email": cached["email"], "username": cached["name"], "role": cached["role"]})
+        except Exception:
+            pass
+
+        return user
+
+    # ── Cache miss — query DB ────────────────────────────────────
     result = await session.execute(
         select(User)
         .options(selectinload(User.institute))
@@ -45,52 +161,52 @@ async def get_current_user(
     if user.status != UserStatus.active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is deactivated")
 
-    # Verify token_version — reject tokens issued before logout/password change
-    token_tv = payload.get("tv")
+    # Verify token_version
     if token_tv is None or token_tv != user.token_version:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked")
 
-    # Attach impersonator info if this is an impersonation token
-    imp_id = payload.get("imp")
+    # Attach impersonator info
     user._impersonator_id = uuid.UUID(imp_id) if imp_id else None
 
-    # Defensive guard: non-SA users MUST have an institute assignment.
-    # This prevents all downstream institute_id checks from being bypassed.
+    # Defensive guard: non-SA users MUST have an institute
     if user.role != UserRole.super_admin and user.institute_id is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account configuration error: missing institute assignment",
         )
 
-    # Check institute suspension/expiry (skip for super_admin who has no institute)
+    # Check institute suspension/expiry
     if user.role != UserRole.super_admin and user.institute_id is not None:
         institute = user.institute
         if institute:
             if institute.status == InstituteStatus.suspended:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Institute account is suspended",
-                )
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Institute account is suspended")
             if institute.expires_at and institute.expires_at < datetime.now(timezone.utc):
-                # Auto-suspend the institute (guard against concurrent requests)
                 if institute.status != InstituteStatus.suspended:
                     institute.status = InstituteStatus.suspended
                     session.add(institute)
                     await session.commit()
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Institute subscription has expired",
-                )
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Institute subscription has expired")
 
-    # Set Sentry user context for all subsequent error reports in this request
+    # ── Populate cache ──────────────────────────────────────────
+    inst = user.institute
+    cache_data = {
+        "id": str(user.id),
+        "email": user.email,
+        "name": user.name,
+        "role": user.role.value,
+        "status": user.status.value,
+        "institute_id": str(user.institute_id) if user.institute_id else None,
+        "token_version": user.token_version,
+        "institute_status": inst.status.value if inst else None,
+        "institute_expires_at": inst.expires_at.isoformat() if inst and inst.expires_at else None,
+    }
+    await cache.set(f"lms:user_index:{user_id}", cache_data, ttl=_USER_CACHE_TTL)
+
+    # Set Sentry context
     try:
         import sentry_sdk
-        sentry_sdk.set_user({
-            "id": str(user.id),
-            "email": user.email,
-            "username": user.name,
-            "role": user.role.value,
-        })
+        sentry_sdk.set_user({"id": str(user.id), "email": user.email, "username": user.name, "role": user.role.value})
     except Exception:
         pass
 

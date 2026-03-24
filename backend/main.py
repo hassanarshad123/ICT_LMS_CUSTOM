@@ -42,6 +42,10 @@ if settings.SENTRY_DSN:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Startup — Redis cache
+    from app.core.redis import init_redis, close_redis
+    await init_redis()
+
     # Startup — start scheduler
     try:
         from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -64,6 +68,7 @@ async def lifespan(app: FastAPI):
     # Shutdown
     if hasattr(app.state, "scheduler"):
         app.state.scheduler.shutdown()
+    await close_redis()
 
 
 app = FastAPI(
@@ -143,15 +148,30 @@ app.include_router(ws_router)
 @app.get("/api/health")
 async def health_check():
     from app.database import async_session
+    from app.core.redis import get_redis
     from sqlalchemy import text
+
+    result = {"status": "ok", "version": "1.0.0"}
 
     try:
         async with async_session() as session:
             await session.execute(text("SELECT 1"))
-        return {"status": "ok", "version": "1.0.0", "database": "connected"}
+        result["database"] = "connected"
     except Exception:
+        result["database"] = "unreachable"
+        result["status"] = "degraded"
+
+    r = get_redis()
+    if r is not None:
+        try:
+            await r.ping()
+            result["cache"] = "connected"
+        except Exception:
+            result["cache"] = "unreachable"
+    else:
+        result["cache"] = "disabled"
+
+    if result["status"] == "degraded":
         from fastapi.responses import JSONResponse
-        return JSONResponse(
-            status_code=503,
-            content={"status": "degraded", "version": "1.0.0", "database": "unreachable"},
-        )
+        return JSONResponse(status_code=503, content=result)
+    return result

@@ -46,6 +46,11 @@ class Settings(BaseSettings):
     SENTRY_DSN: str = ""
     DISCORD_WEBHOOK_URL: str = ""
 
+    # Redis Cache
+    REDIS_URL: str = "redis://127.0.0.1:6379/0"
+    CACHE_ENABLED: bool = True
+    CACHE_DEFAULT_TTL: int = 300  # 5 minutes
+
     # App
     APP_ENV: str = "development"
     APP_DEBUG: bool = False

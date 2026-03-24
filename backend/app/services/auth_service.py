@@ -135,6 +135,8 @@ async def refresh_access_token(session: AsyncSession, refresh_token: str) -> tup
 
 async def logout(session: AsyncSession, refresh_token: str) -> None:
     """Revoke the refresh token session and increment token_version (Fix 1)."""
+    from app.core.cache import cache
+
     payload = decode_token(refresh_token)
     if not payload or payload.get("type") != "refresh":
         return  # silently ignore invalid tokens on logout
@@ -165,9 +167,15 @@ async def logout(session: AsyncSession, refresh_token: str) -> None:
 
     await session.commit()
 
+    # Invalidate user cache
+    if user_id:
+        await cache.delete(f"lms:user_index:{user_id}")
+
 
 async def logout_all(session: AsyncSession, user_id: uuid.UUID) -> int:
     """Revoke all active sessions for a user and increment token_version. Returns count terminated."""
+    from app.core.cache import cache
+
     result = await session.execute(
         select(UserSession).where(
             UserSession.user_id == user_id, UserSession.is_active.is_(True)
@@ -189,6 +197,10 @@ async def logout_all(session: AsyncSession, user_id: uuid.UUID) -> int:
         session.add(user)
 
     await session.commit()
+
+    # Invalidate user cache
+    await cache.delete(f"lms:user_index:{user_id}")
+
     return count
 
 
