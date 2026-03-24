@@ -20,6 +20,7 @@ from app.schemas.lecture import (
 from app.schemas.common import PaginatedResponse
 from app.services import lecture_service
 from app.middleware.auth import require_roles, get_current_user
+from app.middleware.access_control import verify_batch_access
 from app.models.user import User
 from app.models.batch import StudentBatch
 from app.utils.formatters import format_duration
@@ -59,17 +60,8 @@ async def list_lectures(
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=1, le=100),
 ):
-    # Students can only list lectures from batches they're enrolled in
-    if current_user.role.value == "student":
-        enrolled = await session.execute(
-            select(StudentBatch).where(
-                StudentBatch.student_id == current_user.id,
-                StudentBatch.batch_id == batch_id,
-                StudentBatch.removed_at.is_(None),
-            )
-        )
-        if not enrolled.scalar_one_or_none():
-            raise HTTPException(status_code=403, detail="Not enrolled in this batch")
+    # Verify user has access to this batch (enrollment, assignment, or admin)
+    await verify_batch_access(session, current_user, batch_id)
 
     student_id = current_user.id if current_user.role.value == "student" else None
     items, total = await lecture_service.list_lectures(

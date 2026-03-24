@@ -10,6 +10,7 @@ from app.schemas.batch import BatchCreate, BatchUpdate, BatchOut, BatchStudentEn
 from app.schemas.common import PaginatedResponse
 from app.services import batch_service, webhook_event_service
 from app.middleware.auth import require_roles, get_current_user
+from app.middleware.access_control import verify_batch_access
 from app.models.user import User
 
 router = APIRouter()
@@ -68,6 +69,7 @@ async def get_batch(
     current_user: AllRoles,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
+    await verify_batch_access(session, current_user, batch_id)
     data = await batch_service.get_batch(session, batch_id, institute_id=current_user.institute_id)
     if not data:
         raise HTTPException(status_code=404, detail="Batch not found")
@@ -112,6 +114,7 @@ async def list_batch_students(
     current_user: AllRoles,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
+    await verify_batch_access(session, current_user, batch_id)
     return await batch_service.list_batch_students(session, batch_id, institute_id=current_user.institute_id)
 
 
@@ -169,6 +172,7 @@ async def list_batch_courses(
     current_user: AllRoles,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
+    await verify_batch_access(session, current_user, batch_id)
     return await batch_service.list_batch_courses(session, batch_id, institute_id=current_user.institute_id)
 
 
