@@ -81,7 +81,7 @@ export default function CourseCreatorDashboard() {
               {(coursesData?.data || []).length === 0 ? (
                 <p className="text-sm text-gray-500 py-4 text-center">No courses yet</p>
               ) : (
-                coursesData!.data.map((course) => (
+                (coursesData?.data ?? []).map((course) => (
                   <Link key={course.id} href={`${basePath}/courses/${course.id}`}>
                     <div className="flex items-center justify-between p-4 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer group">
                       <div className="flex items-center gap-4">

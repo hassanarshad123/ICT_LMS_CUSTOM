@@ -4,6 +4,25 @@ from typing import Optional
 from pydantic import BaseModel
 
 
+# ── Dashboard sub-models ─────────────────────────────────────
+
+class RecentBatchOut(BaseModel):
+    id: str
+    name: str
+    start_date: str
+    teacher_name: str
+    student_count: int
+    status: str
+
+
+class RecentStudentOut(BaseModel):
+    id: str
+    name: str
+    email: str
+    status: str
+    batch_names: list[str] = []
+
+
 class DashboardResponse(BaseModel):
     total_batches: int
     active_batches: int
@@ -12,19 +31,45 @@ class DashboardResponse(BaseModel):
     total_teachers: int
     total_course_creators: int
     total_courses: int
-    recent_batches: list[dict]
-    recent_students: list[dict]
+    recent_batches: list[RecentBatchOut]
+    recent_students: list[RecentStudentOut]
+
+
+# ── Insights sub-models ──────────────────────────────────────
+
+class MonthlyStatOut(BaseModel):
+    month: str
+    count: int = 0
+
+
+class BatchEnrollmentOut(BaseModel):
+    batch_id: str
+    name: str
+    student_count: int
+
+
+class TeacherWorkloadOut(BaseModel):
+    teacher_id: str
+    name: str
+    batch_count: int
+    student_count: int = 0
+
+
+class LecturesPerCourseOut(BaseModel):
+    course_id: str
+    title: str
+    lecture_count: int
 
 
 class InsightsResponse(BaseModel):
-    monthly: list[dict]
-    students_by_status: dict
-    batches_by_status: dict
-    enrollment_per_batch: list[dict]
-    teacher_workload: list[dict]
-    materials_by_type: dict
-    lectures_per_course: list[dict]
-    device_overview: dict
+    monthly: list[MonthlyStatOut]
+    students_by_status: dict[str, int]
+    batches_by_status: dict[str, int]
+    enrollment_per_batch: list[BatchEnrollmentOut]
+    teacher_workload: list[TeacherWorkloadOut]
+    materials_by_type: dict[str, int]
+    lectures_per_course: list[LecturesPerCourseOut]
+    device_overview: dict[str, int]
 
 
 class SessionOut(BaseModel):

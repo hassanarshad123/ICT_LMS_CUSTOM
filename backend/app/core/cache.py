@@ -2,11 +2,14 @@
 
 Fail-open: every operation silently degrades if Redis is unavailable.
 All keys are namespaced per institute for multi-tenant isolation.
+Cache keys for dashboard/insights/branding include a deploy version prefix
+so blue-green deployments automatically use fresh cache (no stale schema).
 """
 
 import asyncio
 import logging
 import time
+from functools import lru_cache
 from typing import Any, Callable, Awaitable, Optional
 
 import orjson
@@ -14,6 +17,18 @@ import orjson
 from app.core.redis import get_redis
 
 logger = logging.getLogger("ict_lms.cache")
+
+
+@lru_cache(maxsize=1)
+def _version_prefix() -> str:
+    """Short version prefix for cache key namespacing across deploys.
+
+    Uses first 8 chars of GIT_SHA so new deploys get fresh cache keys.
+    Old keys expire naturally via TTL.
+    """
+    from app.config import get_settings
+    sha = get_settings().GIT_SHA
+    return sha[:8] if sha and sha != "unknown" else "dev"
 
 
 class CacheService:
@@ -149,23 +164,23 @@ class CacheService:
 
     @staticmethod
     def dashboard_key(institute_id: str) -> str:
-        """Cache key for admin dashboard aggregations."""
-        return f"lms:{institute_id}:dashboard"
+        """Cache key for admin dashboard aggregations (versioned)."""
+        return f"lms:{_version_prefix()}:{institute_id}:dashboard"
 
     @staticmethod
     def insights_key(institute_id: str) -> str:
-        """Cache key for admin insights aggregations."""
-        return f"lms:{institute_id}:insights"
+        """Cache key for admin insights aggregations (versioned)."""
+        return f"lms:{_version_prefix()}:{institute_id}:insights"
 
     @staticmethod
     def branding_key(institute_id: Optional[str]) -> str:
-        """Cache key for institute branding settings."""
-        return f"lms:{institute_id or 'global'}:branding"
+        """Cache key for institute branding settings (versioned)."""
+        return f"lms:{_version_prefix()}:{institute_id or 'global'}:branding"
 
     @staticmethod
     def slug_key(slug: str) -> str:
-        """Cache key for slug-to-institute-ID resolution."""
-        return f"lms:global:institute:{slug}"
+        """Cache key for slug-to-institute-ID resolution (versioned)."""
+        return f"lms:{_version_prefix()}:global:institute:{slug}"
 
 
     async def invalidate_dashboard(self, institute_id: str) -> None:

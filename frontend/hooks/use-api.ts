@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useId } from 'react';
 
 interface UseApiResult<T> {
   data: T | null;
@@ -14,13 +14,14 @@ export function useApi<T>(
   fetcher: () => Promise<T>,
   deps: any[] = [],
 ): UseApiResult<T> {
+  const hookId = useId();
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
 
   // Don't fire queries until auth token is available
   const hasToken = typeof window !== 'undefined' && !!localStorage.getItem('access_token');
 
-  const queryKey = ['api', ...deps];
+  const queryKey = ['api', hookId, ...deps];
 
   const { data, isFetching, error, refetch: rqRefetch } = useQuery({
     queryKey,

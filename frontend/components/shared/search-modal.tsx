@@ -40,10 +40,10 @@ export default function SearchModal() {
   // Build flat list of results for keyboard navigation
   const flatResults = results
     ? ([
-        ...results.users.map((r) => ({ ...r, category: 'users' as Category })),
-        ...results.batches.map((r) => ({ ...r, category: 'batches' as Category })),
-        ...results.courses.map((r) => ({ ...r, category: 'courses' as Category })),
-        ...results.announcements.map((r) => ({ ...r, category: 'announcements' as Category })),
+        ...(results.users ?? []).map((r) => ({ ...r, category: 'users' as Category })),
+        ...(results.batches ?? []).map((r) => ({ ...r, category: 'batches' as Category })),
+        ...(results.courses ?? []).map((r) => ({ ...r, category: 'courses' as Category })),
+        ...(results.announcements ?? []).map((r) => ({ ...r, category: 'announcements' as Category })),
       ])
     : [];
 

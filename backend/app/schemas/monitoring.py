@@ -27,11 +27,21 @@ class ErrorLogOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ErrorsByHourOut(BaseModel):
+    hour: str
+    count: int
+
+
+class TopPathOut(BaseModel):
+    path: str
+    count: int
+
+
 class ErrorStatsResponse(BaseModel):
     total_errors_24h: int
     unresolved_count: int
-    errors_by_hour: list[dict]
-    top_paths: list[dict]
+    errors_by_hour: list[ErrorsByHourOut]
+    top_paths: list[TopPathOut]
     errors_by_source: dict[str, int]
     errors_by_level: dict[str, int]
 

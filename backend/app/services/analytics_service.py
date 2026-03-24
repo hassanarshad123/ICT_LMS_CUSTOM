@@ -24,13 +24,24 @@ async def get_dashboard(session: AsyncSession, institute_id: uuid.UUID, use_cach
     if use_cache:
         cached = await cache.get(cache_key)
         if cached is not None:
-            # SWR: check if data is still fresh
-            meta = await cache.get(f"{cache_key}:swr_meta")
-            if meta and meta.get("fresh_until", 0) > _time.time():
-                return cached  # Fresh — return immediately
-            # Stale — return instantly, but also let the caller know it's stale
-            # (The cache will be refreshed by the next call that finds it stale)
-            return cached
+            # Validate cached shape before returning
+            try:
+                from app.schemas.admin import DashboardResponse
+                DashboardResponse(**cached)
+            except Exception:
+                import logging
+                logging.getLogger("ict_lms.cache").warning(
+                    "Corrupt dashboard cache for %s, falling through to DB", institute_id
+                )
+                await cache.delete(cache_key)
+                cached = None
+
+            if cached is not None:
+                # SWR: check if data is still fresh
+                meta = await cache.get(f"{cache_key}:swr_meta")
+                if meta and meta.get("fresh_until", 0) > _time.time():
+                    return cached  # Fresh — return immediately
+                return cached
     today = date.today()
 
     # ── Combined user counts (4 counts in 1 query instead of 4 separate queries) ──
@@ -140,8 +151,19 @@ async def get_insights(session: AsyncSession, institute_id: uuid.UUID, use_cache
     if use_cache:
         cached = await cache.get(cache_key)
         if cached is not None:
-            # SWR: return stale data instantly (background refresh handled by TTL overlap)
-            return cached
+            # Validate cached shape before returning
+            try:
+                from app.schemas.admin import InsightsResponse
+                InsightsResponse(**cached)
+            except Exception:
+                import logging
+                logging.getLogger("ict_lms.cache").warning(
+                    "Corrupt insights cache for %s, falling through to DB", institute_id
+                )
+                await cache.delete(cache_key)
+                cached = None
+            if cached is not None:
+                return cached
 
     # Students by status
     r = await session.execute(

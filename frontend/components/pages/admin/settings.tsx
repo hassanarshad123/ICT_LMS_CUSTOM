@@ -54,7 +54,7 @@ export default function AdminSettings() {
     }
   }, [settingsData]);
 
-  const accounts: ZoomAccountOut[] = accountsData || [];
+  const accounts: ZoomAccountOut[] = Array.isArray(accountsData) ? accountsData : [];
 
   const decrease = () => {
     if (deviceLimit > 1) setDeviceLimit(deviceLimit - 1);

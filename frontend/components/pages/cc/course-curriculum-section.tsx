@@ -234,7 +234,7 @@ export function CourseCurriculumSection({
                         <div className="px-4 pb-4">
                           <div className="ml-11 border-t border-gray-100 pt-3">
                             <ul className="space-y-1.5">
-                              {mod.topics!.map((topic, i) => (
+                              {(mod.topics ?? []).map((topic, i) => (
                                 <li key={i} className="flex items-center gap-2 text-sm text-gray-600">
                                   <div className="w-1.5 h-1.5 rounded-full bg-accent" />
                                   {topic}

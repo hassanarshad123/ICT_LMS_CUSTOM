@@ -91,10 +91,13 @@ async def get_branding(
     institute_id = await _resolve_institute_id(request, session)
     cache_key = cache.branding_key(str(institute_id) if institute_id else None)
 
-    # Try cache first
+    # Try cache first (with validation — corrupt cache falls through to DB)
     cached = await cache.get(cache_key)
     if cached is not None:
-        return BrandingResponse(**cached)
+        try:
+            return BrandingResponse(**cached)
+        except Exception:
+            await cache.delete(cache_key)
 
     query = select(SystemSetting).where(
         SystemSetting.setting_key.in_(list(BRANDING_KEYS.keys()))

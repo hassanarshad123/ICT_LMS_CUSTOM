@@ -16,7 +16,7 @@ from app.schemas.monitoring import (
     ClientErrorReport,
     ResolveRequest,
 )
-from app.schemas.common import PaginatedResponse
+from app.schemas.common import PaginatedResponse, CountResponse, StatusResponse, CacheStatsResponse
 from app.services import monitoring_service
 
 router = APIRouter()
@@ -127,7 +127,7 @@ async def resolve_error(
     return ErrorLogOut.model_validate(error)
 
 
-@router.post("/errors/resolve-all", status_code=status.HTTP_200_OK)
+@router.post("/errors/resolve-all", status_code=status.HTTP_200_OK, response_model=CountResponse)
 async def resolve_all_errors(
     current_user: AdminOrSA,
     session: Annotated[AsyncSession, Depends(get_session)],
@@ -140,10 +140,10 @@ async def resolve_all_errors(
         institute_id=current_user.institute_id,
         is_super_admin=is_sa,
     )
-    return {"resolved_count": count}
+    return {"count": count}
 
 
-@router.delete("/errors/clear-resolved", status_code=status.HTTP_200_OK)
+@router.delete("/errors/clear-resolved", status_code=status.HTTP_200_OK, response_model=CountResponse)
 async def clear_resolved_errors(
     current_user: AdminOrSA,
     session: Annotated[AsyncSession, Depends(get_session)],
@@ -157,10 +157,10 @@ async def clear_resolved_errors(
         is_super_admin=is_sa,
         older_than_days=older_than_days,
     )
-    return {"deleted_count": count}
+    return {"count": count}
 
 
-@router.post("/client-errors", status_code=status.HTTP_201_CREATED)
+@router.post("/client-errors", status_code=status.HTTP_201_CREATED, response_model=StatusResponse)
 async def report_client_error(
     request: Request,
     body: ClientErrorReport,
@@ -259,14 +259,14 @@ async def enhanced_health_check(
     return JSONResponse(status_code=status_code, content=checks)
 
 
-@router.get("/cache-stats")
+@router.get("/cache-stats", response_model=CacheStatsResponse)
 async def get_cache_stats(current_user: AdminOrSA):
     """Admin-only — returns Redis cache health metrics."""
     from app.core.redis import get_redis
 
     r = get_redis()
     if r is None:
-        return {"redis_connected": False, "message": "Redis is not configured or unavailable"}
+        return CacheStatsResponse(redis_connected=False, message="Redis is not configured or unavailable")
 
     try:
         info_memory = await r.info("memory")
@@ -274,21 +274,21 @@ async def get_cache_stats(current_user: AdminOrSA):
         info_keyspace = await r.info("keyspace")
         db_size = await r.dbsize()
 
-        return {
-            "redis_connected": True,
-            "memory_used_mb": round(info_memory.get("used_memory", 0) / 1024 / 1024, 2),
-            "memory_max_mb": round(info_memory.get("maxmemory", 0) / 1024 / 1024, 2),
-            "total_keys": db_size,
-            "hits": info_stats.get("keyspace_hits", 0),
-            "misses": info_stats.get("keyspace_misses", 0),
-            "hit_rate_percent": round(
+        return CacheStatsResponse(
+            redis_connected=True,
+            memory_used_mb=round(info_memory.get("used_memory", 0) / 1024 / 1024, 2),
+            memory_max_mb=round(info_memory.get("maxmemory", 0) / 1024 / 1024, 2),
+            total_keys=db_size,
+            hits=info_stats.get("keyspace_hits", 0),
+            misses=info_stats.get("keyspace_misses", 0),
+            hit_rate_percent=round(
                 info_stats.get("keyspace_hits", 0)
                 / max(info_stats.get("keyspace_hits", 0) + info_stats.get("keyspace_misses", 0), 1)
                 * 100,
                 1,
             ),
-            "evictions": info_stats.get("evicted_keys", 0),
-            "connected_clients": info_memory.get("connected_clients", 0),
-        }
+            evictions=info_stats.get("evicted_keys", 0),
+            connected_clients=info_memory.get("connected_clients", 0),
+        )
     except Exception as e:
-        return {"redis_connected": False, "error": str(e)}
+        return CacheStatsResponse(redis_connected=False, error=str(e))
