@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   lms-blue:
     image: lms-backend:${DEPLOY_IMAGE_TAG:-latest}

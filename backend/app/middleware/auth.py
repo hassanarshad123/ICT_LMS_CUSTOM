@@ -23,35 +23,6 @@ bearer_scheme = HTTPBearer()
 _USER_CACHE_TTL = 300  # 5 minutes
 
 
-async def _fetch_and_cache_user(session: AsyncSession, user_id: str) -> User | None:
-    """Fetch user+institute from DB and populate the cache."""
-    result = await session.execute(
-        select(User)
-        .options(selectinload(User.institute))
-        .where(User.id == uuid.UUID(user_id), User.deleted_at.is_(None))
-    )
-    user = result.scalar_one_or_none()
-    if not user:
-        return None
-
-    # Build serializable dict for cache (no ORM objects)
-    inst = user.institute
-    cache_data = {
-        "id": str(user.id),
-        "email": user.email,
-        "name": user.name,
-        "role": user.role.value,
-        "status": user.status.value,
-        "institute_id": str(user.institute_id) if user.institute_id else None,
-        "token_version": user.token_version,
-        "institute_status": inst.status.value if inst else None,
-        "institute_expires_at": inst.expires_at.isoformat() if inst and inst.expires_at else None,
-    }
-    key = cache.user_key(cache_data["institute_id"], cache_data["id"])
-    await cache.set(key, cache_data, ttl=_USER_CACHE_TTL)
-
-    return user
-
 
 async def get_current_user(
     request: Request,
