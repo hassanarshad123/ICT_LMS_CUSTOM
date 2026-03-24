@@ -189,7 +189,7 @@ async def create_class(
     r = await session.execute(select(Batch).where(
         Batch.id == body.batch_id,
         Batch.deleted_at.is_(None),
-        Batch.institute_id == current_user.institute_id,
+        *([Batch.institute_id == current_user.institute_id] if current_user.institute_id else []),
     ))
     batch = r.scalar_one_or_none()
     if not batch or batch.created_by != current_user.id:

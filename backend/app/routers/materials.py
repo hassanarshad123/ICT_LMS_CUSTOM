@@ -13,6 +13,7 @@ from app.schemas.material import (
 from app.schemas.common import PaginatedResponse
 from app.services import material_service
 from app.middleware.auth import require_roles, get_current_user
+from app.middleware.access_control import verify_batch_access
 from app.models.user import User
 from app.utils.tenant import check_institute_ownership
 
@@ -31,6 +32,7 @@ async def list_materials(
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=1, le=100),
 ):
+    await verify_batch_access(session, current_user, batch_id)
     items, total = await material_service.list_materials(
         session, batch_id, course_id=course_id, page=page, per_page=per_page,
         institute_id=current_user.institute_id,

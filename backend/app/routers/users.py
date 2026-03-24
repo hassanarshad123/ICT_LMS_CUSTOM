@@ -3,7 +3,7 @@ import io
 import csv
 import secrets
 import math
-from typing import Annotated, Optional
+from typing import Annotated, Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -259,7 +259,7 @@ async def create_user_endpoint(
     }
 
 
-@router.get("/{user_id}")
+@router.get("/{user_id}", response_model=Union[UserOut, UserPublicOut])
 async def get_user_endpoint(
     user_id: uuid.UUID,
     current_user: AllRoles,
