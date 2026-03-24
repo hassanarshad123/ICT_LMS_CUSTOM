@@ -119,8 +119,8 @@ if [ "$HEALTHY" != "true" ]; then
 fi
 
 # ── Step 8: Switch traffic ──
-log "[8/10] Switching Nginx upstream to $DEPLOY_SLOT (port $DEPLOY_PORT)..."
-sudo sed -i "s|server 127.0.0.1:[0-9]*;|server 127.0.0.1:$DEPLOY_PORT;|" "$NGINX_CONF"
+log "[8/10] Switching Nginx to $DEPLOY_SLOT (port $DEPLOY_PORT)..."
+sudo sed -i "s|proxy_pass http://127.0.0.1:[0-9]*;|proxy_pass http://127.0.0.1:$DEPLOY_PORT;|g" "$NGINX_CONF"
 sudo nginx -t || die "Nginx config test failed!"
 sudo nginx -s reload
 log "Nginx reloaded — traffic now on $DEPLOY_SLOT"

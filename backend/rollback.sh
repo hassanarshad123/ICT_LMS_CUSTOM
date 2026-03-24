@@ -46,7 +46,7 @@ for i in $(seq 1 10); do
 done
 
 # Switch Nginx
-sudo sed -i "s|server 127.0.0.1:[0-9]*;|server 127.0.0.1:$ROLLBACK_PORT;|" "$NGINX_CONF"
+sudo sed -i "s|proxy_pass http://127.0.0.1:[0-9]*;|proxy_pass http://127.0.0.1:$ROLLBACK_PORT;|g" "$NGINX_CONF"
 sudo nginx -t && sudo nginx -s reload
 
 # Transfer scheduler
