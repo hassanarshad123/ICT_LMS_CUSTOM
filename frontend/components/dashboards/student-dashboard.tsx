@@ -109,7 +109,7 @@ export default function StudentDashboard() {
                           <div>
                             <p className="font-medium text-sm text-primary">{course.title}</p>
                             <p className="text-xs text-gray-500 mt-0.5">
-                              {course.status?.charAt(0).toUpperCase() + course.status?.slice(1)}
+                              {course.status ? course.status.charAt(0).toUpperCase() + course.status.slice(1) : ''}
                             </p>
                           </div>
                         </div>

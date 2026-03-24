@@ -54,10 +54,20 @@ export default function AdminMonitoring() {
     [page, source, level, resolvedFilter, search],
   );
 
-  const { data: stats, refetch: refetchStats } = useApi<ErrorStats>(
+  const { data: rawStats, refetch: refetchStats } = useApi<ErrorStats>(
     () => getErrorStats(),
     [],
   );
+
+  // Normalize stats to guarantee all nested properties exist (prevents "cannot read properties of undefined")
+  const stats: ErrorStats | null = rawStats ? {
+    totalErrors24h: rawStats.totalErrors24h ?? 0,
+    unresolvedCount: rawStats.unresolvedCount ?? 0,
+    errorsByHour: rawStats.errorsByHour ?? [],
+    topPaths: rawStats.topPaths ?? [],
+    errorsBySource: rawStats.errorsBySource ?? {},
+    errorsByLevel: rawStats.errorsByLevel ?? {},
+  } : null;
 
   const { execute: doResolve, loading: resolving } = useMutation(resolveError);
   const { execute: doResolveAll, loading: resolvingAll } = useMutation(resolveAllErrors);

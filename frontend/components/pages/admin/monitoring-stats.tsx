@@ -43,7 +43,7 @@ export function MonitoringStats({ stats }: MonitoringStatsProps) {
             </div>
             <span className="text-sm text-gray-500">Backend</span>
           </div>
-          <p className="text-2xl font-bold text-primary">{stats.errorsBySource.backend || 0}</p>
+          <p className="text-2xl font-bold text-primary">{stats.errorsBySource?.backend ?? 0}</p>
         </div>
         <div className="bg-white rounded-2xl p-5 card-shadow">
           <div className="flex items-center gap-3 mb-3">
@@ -52,19 +52,19 @@ export function MonitoringStats({ stats }: MonitoringStatsProps) {
             </div>
             <span className="text-sm text-gray-500">Frontend</span>
           </div>
-          <p className="text-2xl font-bold text-primary">{stats.errorsBySource.frontend || 0}</p>
+          <p className="text-2xl font-bold text-primary">{stats.errorsBySource?.frontend ?? 0}</p>
         </div>
       </div>
 
       {/* Top Error Paths */}
-      {stats.topPaths.length > 0 && (
+      {(stats.topPaths ?? []).length > 0 && (
         <div className="bg-white rounded-2xl card-shadow p-6">
           <h3 className="text-sm font-semibold text-primary mb-3 flex items-center gap-2">
             <Zap size={16} className="text-orange-500" />
             Most Affected Endpoints (24h)
           </h3>
           <div className="flex flex-wrap gap-2">
-            {stats.topPaths.map((p) => (
+            {(stats.topPaths ?? []).map((p) => (
               <span
                 key={p.path}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 rounded-lg text-xs font-mono text-gray-700"

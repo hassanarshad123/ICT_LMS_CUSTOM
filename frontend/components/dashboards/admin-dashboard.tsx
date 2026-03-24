@@ -58,7 +58,7 @@ export default function AdminDashboard() {
                 {(data.recentBatches || []).length === 0 ? (
                   <p className="text-sm text-gray-500 py-4 text-center">No batches yet</p>
                 ) : (
-                  data.recentBatches.slice(0, 4).map((batch: any) => (
+                  (data.recentBatches ?? []).slice(0, 4).map((batch: any) => (
                     <div key={batch.id} className="flex items-center justify-between p-4 rounded-xl bg-gray-50">
                       <div>
                         <p className="font-medium text-sm text-primary">{batch.name}</p>
@@ -86,7 +86,7 @@ export default function AdminDashboard() {
                 {(data.recentStudents || []).length === 0 ? (
                   <p className="text-sm text-gray-500 py-4 text-center">No students yet</p>
                 ) : (
-                  data.recentStudents.slice(0, 5).map((student: any) => (
+                  (data.recentStudents ?? []).slice(0, 5).map((student: any) => (
                     <div key={student.id} className="flex items-center justify-between p-4 rounded-xl bg-gray-50">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-xs font-semibold text-primary">

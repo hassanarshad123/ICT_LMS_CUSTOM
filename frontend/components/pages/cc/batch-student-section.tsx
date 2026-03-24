@@ -119,7 +119,7 @@ export function BatchStudentSection({
               {students.map((student: any) => (
                 <div key={student.id} className="bg-white rounded-xl p-4 border border-gray-100">
                   <div className="flex items-center gap-3 mb-2">
-                    <div className="w-9 h-9 rounded-full bg-accent flex items-center justify-center text-xs font-semibold text-primary">{student.name.charAt(0)}</div>
+                    <div className="w-9 h-9 rounded-full bg-accent flex items-center justify-center text-xs font-semibold text-primary">{student.name?.charAt(0) || '?'}</div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-primary truncate">{student.name}</p>
                       <p className="text-xs text-gray-500 truncate">{student.email}</p>
