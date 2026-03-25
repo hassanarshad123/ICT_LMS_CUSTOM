@@ -12,11 +12,11 @@ const CSP_DIRECTIVES = [
   // Keep unsafe-inline for styles — Tailwind, Radix, chart.tsx dynamic CSS, branding system
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com",
-  "img-src 'self' data: blob: https://*.bunny.net https://*.b-cdn.net https://*.amazonaws.com",
-  "media-src 'self' blob: https://*.bunny.net https://*.b-cdn.net",
-  "frame-src 'self' https://*.bunny.net https://www.youtube.com https://player.vimeo.com https://*.zoom.us",
+  "img-src 'self' data: blob: https://*.bunny.net https://*.bunnycdn.com https://*.b-cdn.net https://*.mediadelivery.net https://*.amazonaws.com",
+  "media-src 'self' blob: https://*.bunny.net https://*.bunnycdn.com https://*.b-cdn.net https://*.mediadelivery.net",
+  "frame-src 'self' https://*.bunny.net https://*.mediadelivery.net https://www.youtube.com https://player.vimeo.com https://*.zoom.us",
   // Restrict WebSocket to specific domains (was bare wss:/ws: before)
-  "connect-src 'self' https://*.bunny.net https://*.b-cdn.net wss://*.zensbot.site wss://*.zensbot.online ws://localhost:*",
+  "connect-src 'self' https://*.bunny.net https://*.bunnycdn.com https://*.b-cdn.net https://*.mediadelivery.net https://*.amazonaws.com wss://*.zensbot.site wss://*.zensbot.online ws://localhost:*",
   "frame-ancestors 'none'",
 ].join('; ');
 
