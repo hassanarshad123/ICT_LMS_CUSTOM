@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 settings = get_settings()
 
-CC = Annotated[User, Depends(require_roles("course_creator"))]
+CC = Annotated[User, Depends(require_roles("admin", "course_creator"))]
 Student = Annotated[User, Depends(require_roles("student"))]
 AllRoles = Annotated[User, Depends(get_current_user)]
 

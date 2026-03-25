@@ -31,7 +31,7 @@ logger = logging.getLogger("ict_lms.zoom")
 
 Admin = Annotated[User, Depends(require_roles("admin"))]
 AdminOrCourseCreator = Annotated[User, Depends(require_roles("admin", "course_creator"))]
-CourseCreator = Annotated[User, Depends(require_roles("course_creator"))]
+CourseCreator = Annotated[User, Depends(require_roles("admin", "course_creator"))]
 AllRoles = Annotated[User, Depends(get_current_user)]
 
 

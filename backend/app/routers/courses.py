@@ -14,7 +14,7 @@ from app.models.user import User
 
 router = APIRouter()
 
-CC = Annotated[User, Depends(require_roles("course_creator"))]
+CC = Annotated[User, Depends(require_roles("admin", "course_creator"))]
 AdminOrCC = Annotated[User, Depends(require_roles("admin", "course_creator"))]
 AllRoles = Annotated[User, Depends(get_current_user)]
 

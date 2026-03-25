@@ -48,7 +48,10 @@ const navConfig: Record<UserRole, NavItem[]> = {
   admin: [
     { label: 'Dashboard', path: '', icon: 'home', navId: 'nav-dashboard' },
     { label: 'Users', path: '/users', icon: 'user-cog', navId: 'nav-users' },
+    { label: 'Courses', path: '/courses', icon: 'book-open', navId: 'nav-courses' },
     { label: 'Batches', path: '/batches', icon: 'layers', navId: 'nav-batches' },
+    { label: 'Upload Videos', path: '/upload', icon: 'upload', navId: 'nav-upload' },
+    { label: 'Schedule Class', path: '/schedule', icon: 'calendar', navId: 'nav-schedule' },
     { label: 'Students', path: '/students', icon: 'users', navId: 'nav-students' },
     { label: 'Teachers', path: '/teachers', icon: 'graduation-cap', navId: 'nav-teachers' },
     { label: 'Course Creators', path: '/course-creators', icon: 'pen-tool', navId: 'nav-course-creators' },
@@ -57,6 +60,7 @@ const navConfig: Record<UserRole, NavItem[]> = {
     { label: 'Recordings', path: '/recordings', icon: 'play-circle', navId: 'nav-recordings' },
     { label: 'Certificates', path: '/certificates', icon: 'award', navId: 'nav-certificates' },
     { label: 'Announcements', path: '/announcements', icon: 'megaphone', navId: 'nav-announcements' },
+    { label: 'Jobs', path: '/jobs', icon: 'briefcase', navId: 'nav-jobs' },
     { label: 'Monitoring', path: '/monitoring', icon: 'activity', navId: 'nav-monitoring' },
     { label: 'Branding', path: '/branding', icon: 'palette', navId: 'nav-branding' },
     { label: 'Integrations', path: '/integrations', icon: 'plug', navId: 'nav-integrations' },

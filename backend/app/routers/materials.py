@@ -19,7 +19,7 @@ from app.utils.tenant import check_institute_ownership
 
 router = APIRouter()
 
-CCOrTeacher = Annotated[User, Depends(require_roles("course_creator", "teacher"))]
+CCOrTeacher = Annotated[User, Depends(require_roles("admin", "course_creator", "teacher"))]
 AllRoles = Annotated[User, Depends(get_current_user)]
 
 
