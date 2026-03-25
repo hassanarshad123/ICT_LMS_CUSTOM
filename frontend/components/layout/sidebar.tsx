@@ -203,7 +203,7 @@ export default function Sidebar({ role, userName, onLogout }: SidebarProps) {
           </div>
         </div>
 
-        <nav id="sidebar-nav" className="flex-1 p-4 space-y-1">
+        <nav id="sidebar-nav" className="flex-1 overflow-y-auto min-h-0 p-4 space-y-1">
           {items.map((item) => {
             const href = item.path === '' ? basePath : `${basePath}${item.path}`;
             const isActive = item.path === ''
