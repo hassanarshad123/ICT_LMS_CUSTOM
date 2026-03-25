@@ -71,6 +71,21 @@
   }
 }
 
+/* Sidebar nav scrollbar — thin and subtle */
+#sidebar-nav::-webkit-scrollbar {
+  width: 4px;
+}
+#sidebar-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+#sidebar-nav::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+}
+#sidebar-nav::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.2);
+}
+
 /* Content protection — block text selection on protected pages */
 .content-protected {
   -webkit-user-select: none;
