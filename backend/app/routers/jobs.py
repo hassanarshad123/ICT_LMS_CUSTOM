@@ -14,9 +14,9 @@ from app.models.user import User
 
 router = APIRouter()
 
-CC = Annotated[User, Depends(require_roles("course_creator"))]
+CC = Annotated[User, Depends(require_roles("admin", "course_creator"))]
 Student = Annotated[User, Depends(require_roles("student"))]
-CCOrStudent = Annotated[User, Depends(require_roles("course_creator", "student"))]
+CCOrStudent = Annotated[User, Depends(require_roles("admin", "course_creator", "student"))]
 
 
 # /my-applications MUST be before /{job_id} to avoid route collision

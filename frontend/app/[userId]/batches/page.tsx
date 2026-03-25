@@ -8,6 +8,7 @@ import TeacherBatches from '@/components/pages/teacher/batches';
 
 function BatchesForRole({ role }: { role: string }) {
   switch (role) {
+    case 'admin': return <CCBatches />;
     case 'course-creator': return <CCBatches />;
     case 'teacher': return <TeacherBatches />;
     default: return <AdminBatches />;

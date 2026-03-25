@@ -20,8 +20,8 @@ from app.models.enums import UserRole
 
 router = APIRouter()
 
-CC = Annotated[User, Depends(require_roles("course_creator"))]
-CCTeacher = Annotated[User, Depends(require_roles("course_creator", "teacher"))]
+CC = Annotated[User, Depends(require_roles("admin", "course_creator"))]
+CCTeacher = Annotated[User, Depends(require_roles("admin", "course_creator", "teacher"))]
 Student = Annotated[User, Depends(require_roles("student"))]
 AllRoles = Annotated[User, Depends(get_current_user)]
 

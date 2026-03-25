@@ -9,7 +9,7 @@ export default function BatchDetailPage() {
   const { role } = useAuth();
   return (
     <RoleGuard allowed={['admin', 'course-creator']}>
-      {role === 'course-creator' ? <CCBatchDetail /> : <AdminBatchDetail />}
+      {(role === 'course-creator' || role === 'admin') ? <CCBatchDetail /> : <AdminBatchDetail />}
     </RoleGuard>
   );
 }

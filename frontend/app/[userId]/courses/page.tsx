@@ -9,6 +9,7 @@ import StudentCourses from '@/components/pages/student/courses';
 
 function CoursesForRole({ role }: { role: string }) {
   switch (role) {
+    case 'admin': return <CCCourses />;
     case 'course-creator': return <CCCourses />;
     case 'teacher': return <TeacherCourses />;
     case 'student': return <StudentCourses />;
