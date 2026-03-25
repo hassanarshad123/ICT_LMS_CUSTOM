@@ -6,7 +6,9 @@ const nextConfig = {
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '**.bunny.net' },
+      { protocol: 'https', hostname: '**.bunnycdn.com' },
       { protocol: 'https', hostname: '**.b-cdn.net' },
+      { protocol: 'https', hostname: '**.mediadelivery.net' },
       { protocol: 'https', hostname: '**.amazonaws.com' },
     ],
   },
