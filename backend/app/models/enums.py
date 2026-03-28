@@ -53,6 +53,8 @@ class VideoType(str, enum.Enum):
 class BatchHistoryAction(str, enum.Enum):
     assigned = "assigned"
     removed = "removed"
+    deactivated = "deactivated"
+    activated = "activated"
 
 
 class MaterialFileType(str, enum.Enum):

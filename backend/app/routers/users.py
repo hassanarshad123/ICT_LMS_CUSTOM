@@ -70,11 +70,12 @@ async def _enrich_user(session: AsyncSession, user: User) -> dict:
         "updated_at": user.updated_at,
         "batch_ids": [],
         "batch_names": [],
+        "batch_active_statuses": [],
         "join_date": user.created_at,
     }
     if user.role == UserRole.student:
         result = await session.execute(
-            select(StudentBatch.batch_id, Batch.name)
+            select(StudentBatch.batch_id, Batch.name, StudentBatch.is_active)
             .join(Batch, StudentBatch.batch_id == Batch.id)
             .where(
                 StudentBatch.student_id == user.id,
@@ -85,6 +86,7 @@ async def _enrich_user(session: AsyncSession, user: User) -> dict:
         for row in result.all():
             data["batch_ids"].append(str(row[0]))
             data["batch_names"].append(row[1])
+            data["batch_active_statuses"].append(row[2])
 
     return data
 
@@ -153,10 +155,10 @@ async def list_users_endpoint(
 
     # Batch-load batch data for all students on this page (single query)
     student_ids = [u.id for u in users if u.role == UserRole.student]
-    batch_data: dict = {uid: {"ids": [], "names": []} for uid in student_ids}
+    batch_data: dict = {uid: {"ids": [], "names": [], "active_statuses": []} for uid in student_ids}
     if student_ids:
         r = await session.execute(
-            select(StudentBatch.student_id, StudentBatch.batch_id, Batch.name)
+            select(StudentBatch.student_id, StudentBatch.batch_id, Batch.name, StudentBatch.is_active)
             .join(Batch, StudentBatch.batch_id == Batch.id)
             .where(
                 StudentBatch.student_id.in_(student_ids),
@@ -164,13 +166,14 @@ async def list_users_endpoint(
                 Batch.deleted_at.is_(None),
             )
         )
-        for sid, bid, bname in r.all():
+        for sid, bid, bname, is_active in r.all():
             batch_data[sid]["ids"].append(str(bid))
             batch_data[sid]["names"].append(bname)
+            batch_data[sid]["active_statuses"].append(is_active)
 
     enriched = []
     for u in users:
-        bd = batch_data.get(u.id, {"ids": [], "names": []})
+        bd = batch_data.get(u.id, {"ids": [], "names": [], "active_statuses": []})
         enriched.append(UserOut(
             id=u.id,
             email=u.email,
@@ -184,6 +187,7 @@ async def list_users_endpoint(
             updated_at=u.updated_at,
             batch_ids=bd["ids"],
             batch_names=bd["names"],
+            batch_active_statuses=bd["active_statuses"],
             join_date=u.created_at,
         ))
 

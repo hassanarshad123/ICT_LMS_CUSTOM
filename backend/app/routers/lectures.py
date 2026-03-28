@@ -61,7 +61,7 @@ async def list_lectures(
     per_page: int = Query(50, ge=1, le=100),
 ):
     # Verify user has access to this batch (enrollment, assignment, or admin)
-    await verify_batch_access(session, current_user, batch_id)
+    await verify_batch_access(session, current_user, batch_id, check_active=True)
 
     student_id = current_user.id if current_user.role.value == "student" else None
     items, total = await lecture_service.list_lectures(
@@ -393,8 +393,11 @@ async def get_signed_url(
                 StudentBatch.removed_at.is_(None),
             )
         )
-        if not enrolled.scalar_one_or_none():
+        sb = enrolled.scalar_one_or_none()
+        if not sb:
             raise HTTPException(status_code=403, detail="Not enrolled in this batch")
+        if not sb.is_active:
+            raise HTTPException(status_code=403, detail="Your enrollment in this batch is currently inactive")
 
         # Progress gating check — enforce sequential video access
         from app.models.batch import Batch

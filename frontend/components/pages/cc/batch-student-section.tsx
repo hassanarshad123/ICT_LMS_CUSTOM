@@ -5,7 +5,6 @@ import { EmptyState } from '@/components/shared/page-states';
 import CsvImportPanel from '@/components/shared/csv-import-panel';
 import { SearchableCombobox } from '@/components/ui/searchable-combobox';
 import {
-  Trash2,
   Users,
   UserPlus,
   Upload,
@@ -24,8 +23,8 @@ export interface BatchStudentSectionProps {
   /** Enrolled students for the table */
   students: any[] | null | undefined;
   studentsLoading: boolean;
-  /** Called when user clicks the remove button on a student row */
-  onRemoveStudentConfirm: (studentId: string) => void;
+  /** Called when user toggles the active state of a student enrollment */
+  onToggleActive: (studentId: string, isActive: boolean) => void;
   /** Batch info for import */
   batchId?: string;
   batchName?: string;
@@ -40,7 +39,7 @@ export function BatchStudentSection({
   onEnrollStudent,
   students,
   studentsLoading,
-  onRemoveStudentConfirm,
+  onToggleActive,
   batchId,
   batchName,
   onImportComplete,
@@ -116,29 +115,36 @@ export function BatchStudentSection({
           <>
             {/* Mobile card view */}
             <div className="md:hidden space-y-3 p-4">
-              {students.map((student: any) => (
-                <div key={student.id} className="bg-white rounded-xl p-4 border border-gray-100">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-9 h-9 rounded-full bg-accent flex items-center justify-center text-xs font-semibold text-primary">{student.name?.charAt(0) || '?'}</div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-primary truncate">{student.name}</p>
-                      <p className="text-xs text-gray-500 truncate">{student.email}</p>
+              {students.map((student: any) => {
+                const isActive = student.isActive ?? true;
+                return (
+                  <div key={student.id} className="bg-white rounded-xl p-4 border border-gray-100">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-9 h-9 rounded-full bg-accent flex items-center justify-center text-xs font-semibold text-primary">{student.name?.charAt(0) || '?'}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-semibold text-primary truncate">{student.name}</p>
+                          {!isActive && <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-yellow-100 text-yellow-700">Inactive</span>}
+                        </div>
+                        <p className="text-xs text-gray-500 truncate">{student.email}</p>
+                      </div>
+                      <button
+                        onClick={() => onToggleActive(student.studentId, !isActive)}
+                        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${isActive ? 'bg-green-500' : 'bg-gray-300'}`}
+                        title={isActive ? 'Deactivate enrollment' : 'Activate enrollment'}
+                      >
+                        <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${isActive ? 'translate-x-[18px]' : 'translate-x-[2px]'}`} />
+                      </button>
                     </div>
-                    <button
-                      onClick={() => onRemoveStudentConfirm(student.id)}
-                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    <div className="flex items-center justify-between text-xs text-gray-500 mt-2">
+                      <span>{student.phone || 'No phone'}</span>
+                      <span>
+                        {student.enrolledAt ? new Date(student.enrolledAt).toLocaleDateString() : student.createdAt ? new Date(student.createdAt).toLocaleDateString() : '—'}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between text-xs text-gray-500 mt-2">
-                    <span>{student.phone || 'No phone'}</span>
-                    <span>
-                      {student.enrolledAt ? new Date(student.enrolledAt).toLocaleDateString() : student.createdAt ? new Date(student.createdAt).toLocaleDateString() : '—'}
-                    </span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Desktop table view */}
@@ -150,28 +156,32 @@ export function BatchStudentSection({
                     <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Email</th>
                     <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Phone</th>
                     <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Enrolled Date</th>
-                    <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Actions</th>
+                    <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {students.map((student: any) => (
-                    <tr key={student.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm font-medium text-primary">{student.name}</td>
-                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{student.email}</td>
-                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{student.phone || '—'}</td>
-                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">
-                        {student.enrolledAt ? new Date(student.enrolledAt).toLocaleDateString() : student.createdAt ? new Date(student.createdAt).toLocaleDateString() : '—'}
-                      </td>
-                      <td className="px-3 sm:px-6 py-3 sm:py-4">
-                        <button
-                          onClick={() => onRemoveStudentConfirm(student.id)}
-                          className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {students.map((student: any) => {
+                    const isActive = student.isActive ?? true;
+                    return (
+                      <tr key={student.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm font-medium text-primary">{student.name}</td>
+                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{student.email}</td>
+                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{student.phone || '—'}</td>
+                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">
+                          {student.enrolledAt ? new Date(student.enrolledAt).toLocaleDateString() : student.createdAt ? new Date(student.createdAt).toLocaleDateString() : '—'}
+                        </td>
+                        <td className="px-3 sm:px-6 py-3 sm:py-4">
+                          <button
+                            onClick={() => onToggleActive(student.studentId, !isActive)}
+                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isActive ? 'bg-green-500' : 'bg-gray-300'}`}
+                            title={isActive ? 'Deactivate enrollment' : 'Activate enrollment'}
+                          >
+                            <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${isActive ? 'translate-x-[18px]' : 'translate-x-[2px]'}`} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

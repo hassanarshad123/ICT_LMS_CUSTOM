@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
-from app.schemas.batch import BatchCreate, BatchUpdate, BatchOut, BatchStudentEnroll, BatchCourseLink
+from app.schemas.batch import BatchCreate, BatchUpdate, BatchOut, BatchStudentEnroll, BatchCourseLink, EnrollmentToggle
 from app.schemas.common import PaginatedResponse
 from app.services import batch_service, webhook_event_service
 from app.middleware.auth import require_roles, get_current_user
@@ -164,6 +164,33 @@ async def remove_student(
             {"student_id": str(student_id), "batch_id": str(batch_id)},
         )
         await session.commit()
+
+
+@router.patch("/{batch_id}/students/{student_id}/active")
+async def toggle_enrollment_status(
+    batch_id: uuid.UUID,
+    student_id: uuid.UUID,
+    body: EnrollmentToggle,
+    current_user: AdminOrCC,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    try:
+        sb = await batch_service.toggle_enrollment_active(
+            session, batch_id, student_id, body.is_active, current_user.id,
+            institute_id=current_user.institute_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    if current_user.institute_id:
+        event_type = "enrollment.activated" if body.is_active else "enrollment.deactivated"
+        await webhook_event_service.queue_webhook_event(
+            session, current_user.institute_id, event_type,
+            {"student_id": str(student_id), "batch_id": str(batch_id), "is_active": body.is_active},
+        )
+        await session.commit()
+
+    return {"student_id": str(student_id), "batch_id": str(batch_id), "is_active": sb.is_active}
 
 
 @router.get("/{batch_id}/courses")

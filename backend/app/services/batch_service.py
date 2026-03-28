@@ -322,6 +322,7 @@ async def list_batch_students(
             "phone": u.phone,
             "status": u.status.value,
             "enrolled_at": sb.enrolled_at,
+            "is_active": sb.is_active,
         }
         for sb, u in rows
     ]
@@ -416,6 +417,45 @@ async def remove_student(
     session.add(history)
 
     await session.commit()
+
+
+async def toggle_enrollment_active(
+    session: AsyncSession,
+    batch_id: uuid.UUID,
+    student_id: uuid.UUID,
+    is_active: bool,
+    changed_by: uuid.UUID,
+    institute_id: Optional[uuid.UUID] = None,
+) -> StudentBatch:
+    """Toggle the is_active flag on an enrollment."""
+    query = select(StudentBatch).where(
+        StudentBatch.batch_id == batch_id,
+        StudentBatch.student_id == student_id,
+        StudentBatch.removed_at.is_(None),
+    )
+    if institute_id is not None:
+        query = query.where(StudentBatch.institute_id == institute_id)
+    r = await session.execute(query)
+    sb = r.scalar_one_or_none()
+    if not sb:
+        raise ValueError("Enrollment not found")
+
+    sb.is_active = is_active
+    sb.updated_at = datetime.now(timezone.utc)
+    session.add(sb)
+
+    history = StudentBatchHistory(
+        student_id=student_id,
+        batch_id=batch_id,
+        action=BatchHistoryAction.activated if is_active else BatchHistoryAction.deactivated,
+        changed_by=changed_by,
+        institute_id=institute_id,
+    )
+    session.add(history)
+
+    await session.commit()
+    await session.refresh(sb)
+    return sb
 
 
 async def list_batch_courses(

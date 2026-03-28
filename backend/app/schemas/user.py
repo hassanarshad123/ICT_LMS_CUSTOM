@@ -36,6 +36,7 @@ class UserOut(BaseModel):
     status: str
     batch_ids: Optional[list[str]] = None
     batch_names: Optional[list[str]] = None
+    batch_active_statuses: Optional[list[bool]] = None
     join_date: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime

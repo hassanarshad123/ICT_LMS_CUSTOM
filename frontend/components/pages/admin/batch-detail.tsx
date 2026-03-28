@@ -8,30 +8,18 @@ import DashboardHeader from '@/components/layout/dashboard-header';
 import { useAuth } from '@/lib/auth-context';
 import { useBasePath } from '@/hooks/use-base-path';
 import { useApi, useMutation } from '@/hooks/use-api';
-import { getBatch, listBatchStudents, enrollStudent, removeStudent, updateBatch } from '@/lib/api/batches';
+import { getBatch, listBatchStudents, enrollStudent, updateBatch, toggleEnrollmentActive } from '@/lib/api/batches';
 import CsvImportPanel from '@/components/shared/csv-import-panel';
 import { SearchableCombobox } from '@/components/ui/searchable-combobox';
 import { listUsers } from '@/lib/api/users';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
-import { ArrowLeft, UserPlus, Trash2, Loader2, Users, Calendar, GraduationCap, BookOpen, Upload, Pencil, X } from 'lucide-react';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-
+import { ArrowLeft, UserPlus, Loader2, Users, Calendar, GraduationCap, BookOpen, Upload, Pencil, X } from 'lucide-react';
 export default function AdminBatchDetail() {
   const { batchId } = useParams<{ batchId: string }>();
   const { name } = useAuth();
   const basePath = useBasePath();
   const [selectedStudentId, setSelectedStudentId] = useState('');
-  const [removeConfirmId, setRemoveConfirmId] = useState<string | null>(null);
   const [showImport, setShowImport] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', start_date: '', end_date: '', teacher_id: '' });
@@ -60,9 +48,15 @@ export default function AdminBatchDetail() {
     (studentId: string) => enrollStudent(batchId, studentId),
   );
 
-  const { execute: doRemove } = useMutation(
-    (studentId: string) => removeStudent(batchId, studentId),
-  );
+  const handleToggleActive = async (studentId: string, isActive: boolean) => {
+    try {
+      await toggleEnrollmentActive(batchId, studentId, isActive);
+      toast.success(isActive ? 'Enrollment activated' : 'Enrollment deactivated');
+      refetchStudents();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update');
+    }
+  };
 
   const enrolledIds = useMemo(() => {
     if (!students || !Array.isArray(students)) return new Set<string>();
@@ -87,18 +81,6 @@ export default function AdminBatchDetail() {
     }
   };
 
-  const handleRemove = async (studentId: string) => {
-    try {
-      await doRemove(studentId);
-      toast.success('Student removed');
-      setRemoveConfirmId(null);
-      refetchStudents();
-      refetchBatch();
-    } catch (err: any) {
-      toast.error(err.message);
-      setRemoveConfirmId(null);
-    }
-  };
 
   const loading = batchLoading || studentsLoading;
   const error = batchError || studentsError;
@@ -357,23 +339,30 @@ export default function AdminBatchDetail() {
               <>
                 {/* Mobile card view */}
                 <div className="md:hidden space-y-3 p-4">
-                  {students.map((student: any) => (
-                    <div key={student.id} className="bg-white rounded-xl p-4 border border-gray-100">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-primary">{student.name}</span>
-                        <button
-                          onClick={() => setRemoveConfirmId(student.id)}
-                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                  {students.map((student: any) => {
+                    const isActive = student.isActive ?? true;
+                    return (
+                      <div key={student.id} className="bg-white rounded-xl p-4 border border-gray-100">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-medium text-primary">{student.name}</span>
+                            {!isActive && <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-yellow-100 text-yellow-700">Inactive</span>}
+                          </div>
+                          <button
+                            onClick={() => handleToggleActive(student.studentId, !isActive)}
+                            className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${isActive ? 'bg-green-500' : 'bg-gray-300'}`}
+                            title={isActive ? 'Deactivate enrollment' : 'Activate enrollment'}
+                          >
+                            <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${isActive ? 'translate-x-[18px]' : 'translate-x-[2px]'}`} />
+                          </button>
+                        </div>
+                        <div className="text-xs text-gray-600 space-y-1">
+                          <p>{student.email} {student.phone ? `\u00B7 ${student.phone}` : ''}</p>
+                          <p className="text-gray-500">Enrolled: {student.enrolledAt ? new Date(student.enrolledAt).toLocaleDateString() : student.createdAt ? new Date(student.createdAt).toLocaleDateString() : '—'}</p>
+                        </div>
                       </div>
-                      <div className="text-xs text-gray-600 space-y-1">
-                        <p>{student.email} {student.phone ? `\u00B7 ${student.phone}` : ''}</p>
-                        <p className="text-gray-500">Enrolled: {student.enrolledAt ? new Date(student.enrolledAt).toLocaleDateString() : student.createdAt ? new Date(student.createdAt).toLocaleDateString() : '—'}</p>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {/* Desktop table view */}
@@ -385,47 +374,38 @@ export default function AdminBatchDetail() {
                         <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Email</th>
                         <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Phone</th>
                         <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Enrolled Date</th>
-                        <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Actions</th>
+                        <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Status</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {students.map((student: any) => (
-                        <tr key={student.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                          <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm font-medium text-primary">{student.name}</td>
-                          <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{student.email}</td>
-                          <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{student.phone || '—'}</td>
-                          <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">
-                            {student.enrolledAt ? new Date(student.enrolledAt).toLocaleDateString() : student.createdAt ? new Date(student.createdAt).toLocaleDateString() : '—'}
-                          </td>
-                          <td className="px-3 sm:px-6 py-3 sm:py-4">
-                            <button
-                              onClick={() => setRemoveConfirmId(student.id)}
-                              className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                      {students.map((student: any) => {
+                        const isActive = student.isActive ?? true;
+                        return (
+                          <tr key={student.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                            <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm font-medium text-primary">{student.name}</td>
+                            <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{student.email}</td>
+                            <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{student.phone || '—'}</td>
+                            <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">
+                              {student.enrolledAt ? new Date(student.enrolledAt).toLocaleDateString() : student.createdAt ? new Date(student.createdAt).toLocaleDateString() : '—'}
+                            </td>
+                            <td className="px-3 sm:px-6 py-3 sm:py-4">
+                              <button
+                                onClick={() => handleToggleActive(student.studentId, !isActive)}
+                                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isActive ? 'bg-green-500' : 'bg-gray-300'}`}
+                                title={isActive ? 'Deactivate enrollment' : 'Activate enrollment'}
+                              >
+                                <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${isActive ? 'translate-x-[18px]' : 'translate-x-[2px]'}`} />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
               </>
             )}
           </div>
-
-          <AlertDialog open={!!removeConfirmId} onOpenChange={(open) => !open && setRemoveConfirmId(null)}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Remove Student</AlertDialogTitle>
-                <AlertDialogDescription>Are you sure you want to remove this student from the batch? They will lose access to all batch courses and materials.</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => removeConfirmId && handleRemove(removeConfirmId)} className="bg-red-600 hover:bg-red-700 text-white">Remove</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
         </>
       )}
     </DashboardLayout>

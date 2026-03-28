@@ -76,6 +76,17 @@ export async function removeStudent(batchId: string, studentId: string): Promise
   return apiClient(`/batches/${batchId}/students/${studentId}`, { method: 'DELETE' });
 }
 
+export async function toggleEnrollmentActive(
+  batchId: string,
+  studentId: string,
+  isActive: boolean,
+): Promise<{ studentId: string; batchId: string; isActive: boolean }> {
+  return apiClient(`/batches/${batchId}/students/${studentId}/active`, {
+    method: 'PATCH',
+    body: JSON.stringify({ is_active: isActive }),
+  });
+}
+
 export async function listBatchCourses(batchId: string) {
   return apiClient(`/batches/${batchId}/courses`);
 }

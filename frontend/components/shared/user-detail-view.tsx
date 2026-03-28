@@ -7,7 +7,7 @@ import DashboardLayout from '@/components/layout/dashboard-layout';
 import { useAuth } from '@/lib/auth-context';
 import { useApi, useMutation } from '@/hooks/use-api';
 import { getUser, updateUser, changeUserStatus, resetPassword, deleteUser } from '@/lib/api/users';
-import { listBatches, enrollStudent, removeStudent } from '@/lib/api/batches';
+import { listBatches, enrollStudent, removeStudent, toggleEnrollmentActive } from '@/lib/api/batches';
 import { PageLoading, PageError } from '@/components/shared/page-states';
 import { toast } from 'sonner';
 import { ArrowLeft, Edit3, Save, BookOpen, Video, Briefcase, Users, Calendar, Shield, Loader2, KeyRound, Trash2, Eye, EyeOff } from 'lucide-react';
@@ -232,23 +232,32 @@ export default function UserDetailView({ backHref: backHrefProp }: UserDetailVie
               </div>
               {user.batchIds && user.batchIds.length > 0 ? (
                 <div className="space-y-2 mb-4">
-                  {user.batchIds.map((bid: string, i: number) => (
-                    <div key={bid} className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg">
-                      <span className="text-sm text-gray-700">{user.batchNames?.[i] || bid}</span>
-                      <button
-                        onClick={async () => {
-                          try {
-                            await removeStudent(bid, userId);
-                            refetch();
-                            toast.success('Removed from batch');
-                          } catch (err: any) { toast.error(err.message || 'Failed to remove'); }
-                        }}
-                        className="text-xs text-red-500 hover:text-red-700"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
+                  {user.batchIds.map((bid: string, i: number) => {
+                    const isActive = user.batchActiveStatuses?.[i] ?? true;
+                    return (
+                      <div key={bid} className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-gray-700">{user.batchNames?.[i] || bid}</span>
+                          {!isActive && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-yellow-100 text-yellow-700">Inactive</span>
+                          )}
+                        </div>
+                        <button
+                          onClick={async () => {
+                            try {
+                              await toggleEnrollmentActive(bid, userId, !isActive);
+                              refetch();
+                              toast.success(isActive ? 'Enrollment deactivated' : 'Enrollment activated');
+                            } catch (err: any) { toast.error(err.message || 'Failed to update'); }
+                          }}
+                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isActive ? 'bg-green-500' : 'bg-gray-300'}`}
+                          title={isActive ? 'Deactivate enrollment' : 'Activate enrollment'}
+                        >
+                          <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${isActive ? 'translate-x-[18px]' : 'translate-x-[2px]'}`} />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="text-sm text-gray-400 mb-4">Not enrolled in any batch</p>

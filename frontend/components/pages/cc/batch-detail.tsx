@@ -6,7 +6,7 @@ import DashboardLayout from '@/components/layout/dashboard-layout';
 import { useAuth } from '@/lib/auth-context';
 import { useBasePath } from '@/hooks/use-base-path';
 import { useApi, useMutation } from '@/hooks/use-api';
-import { getBatch, listBatchCourses, listBatchStudents, enrollStudent, removeStudent, updateBatch } from '@/lib/api/batches';
+import { getBatch, listBatchCourses, listBatchStudents, enrollStudent, updateBatch, toggleEnrollmentActive } from '@/lib/api/batches';
 import { listUsers } from '@/lib/api/users';
 import { listLectures, createLecture, deleteLecture, bulkReorderLectures, LectureOut } from '@/lib/api/lectures';
 import { listMaterials, getUploadUrl, createMaterial, deleteMaterial } from '@/lib/api/materials';
@@ -101,7 +101,6 @@ export default function BatchContentPage() {
 
   // Student management
   const [selectedStudentId, setSelectedStudentId] = useState('');
-  const [removeStudentConfirm, setRemoveStudentConfirm] = useState<string | null>(null);
 
   const { data: students, loading: studentsLoading, refetch: refetchStudents } = useApi(
     () => listBatchStudents(batchId),
@@ -116,9 +115,15 @@ export default function BatchContentPage() {
     (studentId: string) => enrollStudent(batchId, studentId),
   );
 
-  const { execute: doRemoveStudent } = useMutation(
-    (studentId: string) => removeStudent(batchId, studentId),
-  );
+  const handleToggleActive = async (studentId: string, isActive: boolean) => {
+    try {
+      await toggleEnrollmentActive(batchId, studentId, isActive);
+      toast.success(isActive ? 'Enrollment activated' : 'Enrollment deactivated');
+      refetchStudents();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update');
+    }
+  };
 
   const enrolledIds = useMemo(() => {
     if (!students || !Array.isArray(students)) return new Set<string>();
@@ -143,18 +148,6 @@ export default function BatchContentPage() {
     }
   };
 
-  const handleRemoveStudent = async (studentId: string) => {
-    try {
-      await doRemoveStudent(studentId);
-      toast.success('Student removed');
-      setRemoveStudentConfirm(null);
-      refetchStudents();
-      refetchBatch();
-    } catch (err: any) {
-      toast.error(err.message);
-      setRemoveStudentConfirm(null);
-    }
-  };
 
   const { execute: doCreateLecture, loading: creatingLecture } = useMutation(createLecture);
   const { execute: doDeleteMaterial } = useMutation(deleteMaterial);
@@ -510,7 +503,7 @@ export default function BatchContentPage() {
         onEnrollStudent={handleEnrollStudent}
         students={students}
         studentsLoading={studentsLoading}
-        onRemoveStudentConfirm={setRemoveStudentConfirm}
+        onToggleActive={handleToggleActive}
         batchId={batchId}
         batchName={batch?.name}
         onImportComplete={() => { refetchStudents(); refetchBatch(); }}
@@ -571,18 +564,6 @@ export default function BatchContentPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={!!removeStudentConfirm} onOpenChange={(open) => !open && setRemoveStudentConfirm(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove Student</AlertDialogTitle>
-            <AlertDialogDescription>Are you sure you want to remove this student from the batch? They will lose access to all batch courses and materials.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => removeStudentConfirm && handleRemoveStudent(removeStudentConfirm)} className="bg-red-600 hover:bg-red-700 text-white">Remove</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </DashboardLayout>
   );
 }

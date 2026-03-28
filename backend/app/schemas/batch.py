@@ -46,3 +46,7 @@ class BatchStudentEnroll(BaseModel):
 
 class BatchCourseLink(BaseModel):
     course_id: uuid.UUID
+
+
+class EnrollmentToggle(BaseModel):
+    is_active: bool

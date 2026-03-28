@@ -95,10 +95,10 @@ async def list_users(
     if search:
         pattern = f"%{search}%"
         query = query.where(
-            (col(User.name).ilike(pattern)) | (col(User.email).ilike(pattern))
+            (col(User.name).ilike(pattern)) | (col(User.email).ilike(pattern)) | (col(User.phone).ilike(pattern))
         )
         count_query = count_query.where(
-            (col(User.name).ilike(pattern)) | (col(User.email).ilike(pattern))
+            (col(User.name).ilike(pattern)) | (col(User.email).ilike(pattern)) | (col(User.phone).ilike(pattern))
         )
 
     if batch_id:

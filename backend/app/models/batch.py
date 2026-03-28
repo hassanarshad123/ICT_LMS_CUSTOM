@@ -72,6 +72,7 @@ class StudentBatch(SQLModel, table=True):
         sa_column=Column(TIMESTAMP(timezone=True), nullable=True),
     )
     removed_by: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id")
+    is_active: bool = Field(default=True, nullable=False)
     updated_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(TIMESTAMP(timezone=True), nullable=False, server_default="now()"),

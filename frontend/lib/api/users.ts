@@ -13,6 +13,7 @@ export interface UserOut {
   updatedAt: string;
   batchIds?: string[];
   batchNames?: string[];
+  batchActiveStatuses?: boolean[];
   joinDate?: string;
 }
 

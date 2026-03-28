@@ -33,6 +33,7 @@ async def verify_batch_access(
     session: AsyncSession,
     current_user: User,
     batch_id: uuid.UUID,
+    check_active: bool = False,
 ) -> Batch:
     """Verify current_user can access this batch. Returns the Batch or raises.
 
@@ -41,6 +42,9 @@ async def verify_batch_access(
     - course_creator: any batch in their institute (they manage all content)
     - teacher: only batches assigned to them (Batch.teacher_id)
     - student: only batches they are enrolled in (StudentBatch)
+
+    If check_active=True and user is a student, also verifies the enrollment
+    is active (is_active=True). Used for content access (lectures, materials).
     """
     result = await session.execute(
         select(Batch).where(
@@ -80,16 +84,22 @@ async def verify_batch_access(
     # Students must be enrolled in the batch
     if role == "student":
         enrolled = await session.execute(
-            select(StudentBatch.id).where(
+            select(StudentBatch.id, StudentBatch.is_active).where(
                 StudentBatch.student_id == current_user.id,
                 StudentBatch.batch_id == batch_id,
                 StudentBatch.removed_at.is_(None),
             )
         )
-        if not enrolled.scalar_one_or_none():
+        row = enrolled.one_or_none()
+        if not row:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not enrolled in this batch",
+            )
+        if check_active and not row.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Your enrollment in this batch is currently inactive",
             )
         return batch
 

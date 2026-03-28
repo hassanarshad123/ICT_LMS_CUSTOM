@@ -325,6 +325,7 @@ async def start_attempt(
             BatchCourse.deleted_at.is_(None),
             StudentBatch.student_id == student_id,
             StudentBatch.removed_at.is_(None),
+            StudentBatch.is_active.is_(True),
         )
     )
     enrolled_result = await session.execute(enrolled_q)
