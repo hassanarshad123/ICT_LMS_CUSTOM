@@ -3,7 +3,7 @@
 import { ZoomParallax } from '@/components/landing/ui/zoom-parallax';
 
 const FEATURE_IMAGES = [
-  { src: '/features/dashboard.svg', alt: 'Admin Dashboard' },
+  { src: '/features/dashboard.png', alt: 'Admin Dashboard' },
   { src: '/features/branding.svg', alt: 'White-Label Branding' },
   { src: '/features/live-class.svg', alt: 'Live Classes' },
   { src: '/features/certificate.svg', alt: 'Certificates & Jobs' },
