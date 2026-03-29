@@ -3,7 +3,6 @@
 import { useState, useCallback } from "react";
 import { Menu, X, CreditCard, HelpCircle } from "lucide-react";
 import { useActiveSection } from "@/hooks/use-active-section";
-import { useLenis } from "@/components/landing/smooth-scroll-provider";
 import { LimelightNav, type NavItem } from "@/components/landing/ui/limelight-nav";
 import { LOGIN_URL, REGISTER_URL } from "@/lib/landing-constants";
 
@@ -17,19 +16,11 @@ const NAV_LINKS = [
 export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const activeSection = useActiveSection();
-  const lenis = useLenis();
 
-  const scrollToSection = useCallback(
-    (id: string) => {
-      if (lenis) {
-        lenis.scrollTo(`#${id}`, { offset: -80 });
-      } else {
-        const el = document.getElementById(id);
-        if (el) el.scrollIntoView({ behavior: "smooth" });
-      }
-    },
-    [lenis]
-  );
+  const scrollToSection = useCallback((id: string) => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: "smooth" });
+  }, []);
 
   const navItems: NavItem[] = [
     {

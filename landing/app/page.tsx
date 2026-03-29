@@ -1,5 +1,5 @@
 import { Navbar } from '@/components/landing/navbar';
-import { Hero } from '@/components/landing/hero';
+import { CinematicHero } from '@/components/ui/cinematic-landing-hero';
 import { SocialProof } from '@/components/landing/social-proof';
 import { AiShowcase } from '@/components/landing/ai-showcase';
 import { PricingSection } from '@/components/landing/pricing-section';
@@ -7,7 +7,6 @@ import { TestimonialsSection } from '@/components/landing/testimonials-section';
 import { FaqSection } from '@/components/landing/faq-section';
 import { CtaSection } from '@/components/landing/cta-section';
 import { Footer } from '@/components/landing/footer';
-import { SmoothScrollProvider } from '@/components/landing/smooth-scroll-provider';
 import { FAQS } from '@/lib/landing-constants';
 
 const faqJsonLd = {
@@ -25,7 +24,7 @@ const faqJsonLd = {
 
 export default function LandingPage() {
   return (
-    <SmoothScrollProvider>
+    <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
@@ -40,7 +39,9 @@ export default function LandingPage() {
 
       <Navbar />
       <main id="main">
-        <Hero />
+        <div className="overflow-x-hidden w-full">
+          <CinematicHero />
+        </div>
         <SocialProof />
         <AiShowcase />
         <PricingSection />
@@ -49,6 +50,6 @@ export default function LandingPage() {
         <CtaSection />
       </main>
       <Footer />
-    </SmoothScrollProvider>
+    </>
   );
 }
