@@ -22,17 +22,6 @@ export function FeaturesParallax() {
 
   return (
     <section id="features">
-      <div className="text-center py-24 px-6">
-        <span className="text-xs font-semibold tracking-[0.2em] text-zen-purple uppercase mb-4 block">
-          FEATURES
-        </span>
-        <h2 className="font-serif text-[32px] sm:text-[44px] md:text-[52px] leading-[1.1] text-zen-dark mb-5">
-          Everything you need to run<br />your institute.
-        </h2>
-        <p className="text-[16px] sm:text-[17px] text-zen-dark-80 max-w-[560px] mx-auto leading-relaxed">
-          Scroll to explore the platform. Every screen you see is real.
-        </p>
-      </div>
       <ZoomParallax items={items} />
     </section>
   );
