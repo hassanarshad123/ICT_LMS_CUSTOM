@@ -44,7 +44,7 @@ export function ZoomParallax({ items }: ZoomParallaxProps) {
               style={{ scale, willChange: 'transform' }}
               className={`absolute top-0 flex h-full w-full items-center justify-center ${positionClasses[index]}`}
             >
-              <div className="relative h-[25vh] w-[25vw] overflow-hidden rounded-2xl shadow-2xl [transform:translateZ(0)]">
+              <div className="relative h-[25vh] w-[25vw] overflow-hidden rounded-2xl shadow-2xl">
                 {item}
               </div>
             </motion.div>

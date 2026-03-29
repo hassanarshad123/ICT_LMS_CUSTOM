@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { ZoomParallax } from '@/components/landing/ui/zoom-parallax';
 
 const FEATURE_IMAGES = [
@@ -14,8 +15,8 @@ const FEATURE_IMAGES = [
 
 export function FeaturesParallax() {
   const items = FEATURE_IMAGES.map(({ src, alt }) => (
-    <div key={alt} className="w-full h-full overflow-hidden rounded-2xl border border-zen-border/40 bg-white shadow-2xl">
-      <img src={src} alt={alt} className="w-full h-full object-cover" />
+    <div key={alt} className="relative w-full h-full overflow-hidden rounded-2xl border border-zen-border/40 bg-white shadow-2xl">
+      <Image src={src} alt={alt} fill className="object-cover" quality={100} priority unoptimized />
     </div>
   ));
 
