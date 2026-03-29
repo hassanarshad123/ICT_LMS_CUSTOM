@@ -1,5 +1,6 @@
 'use client';
 
+import { useRef, useState, useEffect, useLayoutEffect } from 'react';
 import { ZoomParallax } from '@/components/landing/ui/zoom-parallax';
 import { DashboardMockup } from './mockups/dashboard-mockup';
 import { BrandingMockup } from './mockups/branding-mockup';
@@ -9,10 +10,51 @@ import { VideoQuizMockup } from './mockups/video-quiz-mockup';
 import { MultiTenantMockup } from './mockups/multi-tenant-mockup';
 import { AiToolsMockup } from './mockups/ai-tools-mockup';
 
-function MockupCard({ children, width = 640 }: { children: React.ReactNode; width?: number }) {
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
+
+function ScaledMockupCard({ children, designWidth = 640 }: { children: React.ReactNode; designWidth?: number }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [scaleFactor, setScaleFactor] = useState(1);
+  const [measured, setMeasured] = useState(false);
+
+  useIsomorphicLayoutEffect(() => {
+    const container = containerRef.current;
+    const content = contentRef.current;
+    if (!container || !content) return;
+
+    const measure = () => {
+      const containerW = container.clientWidth;
+      const containerH = container.clientHeight;
+      const contentH = content.scrollHeight;
+      if (containerW === 0 || containerH === 0) return;
+      const s = Math.min(containerW / designWidth, containerH / contentH, 1);
+      setScaleFactor(s);
+      setMeasured(true);
+    };
+
+    measure();
+
+    const ro = new ResizeObserver(measure);
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, [designWidth]);
+
   return (
-    <div className="pointer-events-none w-full h-full overflow-hidden rounded-2xl border border-zen-border/40 bg-white shadow-2xl">
-      <div style={{ width: `${width}px` }}>
+    <div
+      ref={containerRef}
+      className="pointer-events-none w-full h-full overflow-hidden rounded-2xl border border-zen-border/40 bg-white shadow-2xl"
+    >
+      <div
+        ref={contentRef}
+        style={{
+          width: `${designWidth}px`,
+          transform: `scale(${scaleFactor})`,
+          transformOrigin: 'top center',
+          opacity: measured ? 1 : 0,
+          transition: 'opacity 0.15s ease-out',
+        }}
+      >
         {children}
       </div>
     </div>
@@ -21,13 +63,13 @@ function MockupCard({ children, width = 640 }: { children: React.ReactNode; widt
 
 export function FeaturesParallax() {
   const items = [
-    <MockupCard key="dashboard" width={720}><DashboardMockup /></MockupCard>,
-    <MockupCard key="branding" width={560}><BrandingMockup /></MockupCard>,
-    <MockupCard key="live-class" width={480}><LiveClassMockup /></MockupCard>,
-    <MockupCard key="certificate" width={560}><CertificateMockup /></MockupCard>,
-    <MockupCard key="video-quiz" width={480}><VideoQuizMockup /></MockupCard>,
-    <MockupCard key="multi-tenant" width={560}><MultiTenantMockup /></MockupCard>,
-    <MockupCard key="ai-tools" width={420}><AiToolsMockup /></MockupCard>,
+    <ScaledMockupCard key="dashboard" designWidth={720}><DashboardMockup /></ScaledMockupCard>,
+    <ScaledMockupCard key="branding" designWidth={560}><BrandingMockup /></ScaledMockupCard>,
+    <ScaledMockupCard key="live-class" designWidth={480}><LiveClassMockup /></ScaledMockupCard>,
+    <ScaledMockupCard key="certificate" designWidth={560}><CertificateMockup /></ScaledMockupCard>,
+    <ScaledMockupCard key="video-quiz" designWidth={480}><VideoQuizMockup /></ScaledMockupCard>,
+    <ScaledMockupCard key="multi-tenant" designWidth={560}><MultiTenantMockup /></ScaledMockupCard>,
+    <ScaledMockupCard key="ai-tools" designWidth={420}><AiToolsMockup /></ScaledMockupCard>,
   ];
 
   return (

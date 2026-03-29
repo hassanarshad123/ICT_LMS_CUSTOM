@@ -23,13 +23,13 @@ export function ZoomParallax({ items }: ZoomParallaxProps) {
   const scales = [scale3, scale4, scale5, scale4, scale5, scale6, scale7];
 
   const positionClasses = [
-    '', // index 0: center (25vh × 25vw default)
+    '[&>div]:!h-[30vh] [&>div]:!w-[30vw]', // index 0: center (Dashboard) — bumped from default 25vh × 25vw
     '[&>div]:!-top-[30vh] [&>div]:!left-[5vw] [&>div]:!h-[30vh] [&>div]:!w-[35vw]',
     '[&>div]:!-top-[10vh] [&>div]:!-left-[25vw] [&>div]:!h-[45vh] [&>div]:!w-[20vw]',
     '[&>div]:!left-[27.5vw] [&>div]:!h-[25vh] [&>div]:!w-[25vw]',
     '[&>div]:!top-[27.5vh] [&>div]:!left-[5vw] [&>div]:!h-[25vh] [&>div]:!w-[20vw]',
     '[&>div]:!top-[27.5vh] [&>div]:!-left-[22.5vw] [&>div]:!h-[25vh] [&>div]:!w-[30vw]',
-    '[&>div]:!top-[22.5vh] [&>div]:!left-[25vw] [&>div]:!h-[15vh] [&>div]:!w-[15vw]',
+    '[&>div]:!top-[22.5vh] [&>div]:!left-[25vw] [&>div]:!h-[22vh] [&>div]:!w-[20vw]', // AI Tools — bumped from 15vh × 15vw
   ];
 
   return (
