@@ -2,7 +2,6 @@ import { Navbar } from '@/components/landing/navbar';
 import { Hero } from '@/components/landing/hero';
 import { SocialProof } from '@/components/landing/social-proof';
 import { AiShowcase } from '@/components/landing/ai-showcase';
-import { FeaturesParallax } from '@/components/landing/features-parallax';
 import { PricingSection } from '@/components/landing/pricing-section';
 import { TestimonialsSection } from '@/components/landing/testimonials-section';
 import { FaqSection } from '@/components/landing/faq-section';
@@ -44,7 +43,6 @@ export default function LandingPage() {
         <Hero />
         <SocialProof />
         <AiShowcase />
-        <FeaturesParallax />
         <PricingSection />
         <TestimonialsSection />
         <FaqSection />

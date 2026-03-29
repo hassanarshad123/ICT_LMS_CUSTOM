@@ -1,16 +1,15 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Menu, X, Layers, CreditCard, HelpCircle } from "lucide-react";
+import { Menu, X, CreditCard, HelpCircle } from "lucide-react";
 import { useActiveSection } from "@/hooks/use-active-section";
 import { useLenis } from "@/components/landing/smooth-scroll-provider";
 import { LimelightNav, type NavItem } from "@/components/landing/ui/limelight-nav";
 import { LOGIN_URL, REGISTER_URL } from "@/lib/landing-constants";
 
-const SECTION_IDS = ["features", "pricing", "faq"] as const;
+const SECTION_IDS = ["pricing", "faq"] as const;
 
 const NAV_LINKS = [
-  { label: "Features", href: "#features", id: "features" },
   { label: "Pricing", href: "#pricing", id: "pricing" },
   { label: "FAQ", href: "#faq", id: "faq" },
 ];
@@ -33,12 +32,6 @@ export function Navbar() {
   );
 
   const navItems: NavItem[] = [
-    {
-      id: "features",
-      icon: <Layers />,
-      label: "Features",
-      onClick: () => scrollToSection("features"),
-    },
     {
       id: "pricing",
       icon: <CreditCard />,

@@ -11,7 +11,7 @@ export function Hero() {
   const handleFeaturesClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
     if (lenis) {
-      lenis.scrollTo("#features", { offset: -80 });
+      lenis.scrollTo("#pricing", { offset: -80 });
     } else {
       document.getElementById("features")?.scrollIntoView({ behavior: "smooth" });
     }
@@ -42,7 +42,7 @@ export function Hero() {
                   Start Free — No Card Required
                 </a>
                 <a
-                  href="#features"
+                  href="#pricing"
                   onClick={handleFeaturesClick}
                   className="border border-zen-border text-zen-dark text-sm font-medium px-7 py-3 rounded-full hover:bg-white/60 transition-colors"
                 >
