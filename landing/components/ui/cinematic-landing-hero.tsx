@@ -326,15 +326,21 @@ export function CinematicHero({ className, ...props }: React.HTMLAttributes<HTML
         .to(".text-track", { duration: 1.8, autoAlpha: 1, y: 0, scale: 1, filter: "blur(0px)", rotationX: 0, ease: "expo.out" })
         .to(".text-days", { duration: 1.4, clipPath: "inset(0 0% 0 0)", ease: "power4.inOut" }, "-=1.0");
 
+      // Navbar element for show/hide
+      const navbar = document.querySelector("nav");
+
       // Scroll timeline
       const scrollTl = gsap.timeline({
-        scrollTrigger: { trigger: containerRef.current, start: "top top", end: "+=9000", pin: true, scrub: 1, anticipatePin: 1 },
+        scrollTrigger: { trigger: containerRef.current, start: "top top", end: "+=8000", pin: true, scrub: 1, anticipatePin: 1 },
       });
 
       scrollTl
         // Phase 1-2: Hero text blurs, card flies up
         .to([".hero-text-wrapper", ".bg-grid-theme"], { scale: 1.15, filter: "blur(20px)", opacity: 0.2, ease: "power2.inOut", duration: 2 }, 0)
         .to(".main-card", { y: 0, ease: "power3.inOut", duration: 2 }, 0)
+
+        // Hide navbar as card expands
+        .to(navbar, { y: -80, autoAlpha: 0, ease: "power2.in", duration: 0.8 }, 0.5)
 
         // Phase 3: Card expands fullscreen
         .to(".main-card", { width: "100%", height: "100%", borderRadius: "0px", ease: "power3.inOut", duration: 1.5 })
@@ -354,19 +360,19 @@ export function CinematicHero({ className, ...props }: React.HTMLAttributes<HTML
         .fromTo(".floating-badge", { y: 60, autoAlpha: 0, scale: 0.8 }, { y: 0, autoAlpha: 1, scale: 1, ease: "back.out(1.5)", duration: 1.5 }, "-=1.5")
 
         // Pause on dashboard
-        .to({}, { duration: 1.5 })
+        .to({}, { duration: 0.8 })
 
-        // Phase 5a: Swipe to Branding
-        .to(".screen-strip", { xPercent: -33.33, ease: "power2.inOut", duration: 1.5 })
-        .to(".caption-dashboard", { autoAlpha: 0.3, duration: 0.5 }, "<")
-        .to(".caption-branding", { autoAlpha: 1, duration: 0.5 }, "<0.3")
-        .to({}, { duration: 1 })
+        // Phase 5a: Swipe to Branding (2x faster)
+        .to(".screen-strip", { xPercent: -33.33, ease: "power2.inOut", duration: 0.8 })
+        .to(".caption-dashboard", { autoAlpha: 0.3, duration: 0.3 }, "<")
+        .to(".caption-branding", { autoAlpha: 1, duration: 0.3 }, "<0.2")
+        .to({}, { duration: 0.5 })
 
-        // Phase 5b: Swipe to Live Class
-        .to(".screen-strip", { xPercent: -66.66, ease: "power2.inOut", duration: 1.5 })
-        .to(".caption-branding", { autoAlpha: 0.3, duration: 0.5 }, "<")
-        .to(".caption-live", { autoAlpha: 1, duration: 0.5 }, "<0.3")
-        .to({}, { duration: 1.5 })
+        // Phase 5b: Swipe to Live Class (2x faster)
+        .to(".screen-strip", { xPercent: -66.66, ease: "power2.inOut", duration: 0.8 })
+        .to(".caption-branding", { autoAlpha: 0.3, duration: 0.3 }, "<")
+        .to(".caption-live", { autoAlpha: 1, duration: 0.3 }, "<0.2")
+        .to({}, { duration: 0.8 })
 
         // Phase 6: Everything fades, CTA appears
         .set(".hero-text-wrapper", { autoAlpha: 0 })
@@ -383,8 +389,9 @@ export function CinematicHero({ className, ...props }: React.HTMLAttributes<HTML
         }, "pullback")
         .to(".cta-wrapper", { scale: 1, filter: "blur(0px)", ease: "expo.inOut", duration: 1.8 }, "pullback")
 
-        // Card flies away
-        .to(".main-card", { y: -window.innerHeight - 300, ease: "power3.in", duration: 1.5 });
+        // Card flies away + navbar reappears
+        .to(".main-card", { y: -window.innerHeight - 300, ease: "power3.in", duration: 1.5 })
+        .to(navbar, { y: 0, autoAlpha: 1, ease: "power2.out", duration: 0.8 }, "-=0.5");
     }, containerRef);
 
     return () => ctx.revert();
