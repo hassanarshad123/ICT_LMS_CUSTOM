@@ -1,76 +1,23 @@
 'use client';
 
-import { useRef, useState, useEffect, useLayoutEffect } from 'react';
 import { ZoomParallax } from '@/components/landing/ui/zoom-parallax';
-import { DashboardMockup } from './mockups/dashboard-mockup';
-import { BrandingMockup } from './mockups/branding-mockup';
-import { LiveClassMockup } from './mockups/live-class-mockup';
-import { CertificateMockup } from './mockups/certificate-mockup';
-import { VideoQuizMockup } from './mockups/video-quiz-mockup';
-import { MultiTenantMockup } from './mockups/multi-tenant-mockup';
-import { AiToolsMockup } from './mockups/ai-tools-mockup';
 
-const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
-
-function ScaledMockupCard({ children, designWidth = 640 }: { children: React.ReactNode; designWidth?: number }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const [scaleFactor, setScaleFactor] = useState(1);
-  const [measured, setMeasured] = useState(false);
-
-  useIsomorphicLayoutEffect(() => {
-    const container = containerRef.current;
-    const content = contentRef.current;
-    if (!container || !content) return;
-
-    const measure = () => {
-      const containerW = container.clientWidth;
-      const containerH = container.clientHeight;
-      const contentH = content.scrollHeight;
-      if (containerW === 0 || containerH === 0) return;
-      const s = Math.min(containerW / designWidth, containerH / contentH, 1);
-      setScaleFactor(s);
-      setMeasured(true);
-    };
-
-    measure();
-
-    const ro = new ResizeObserver(measure);
-    ro.observe(container);
-    return () => ro.disconnect();
-  }, [designWidth]);
-
-  return (
-    <div
-      ref={containerRef}
-      className="pointer-events-none w-full h-full overflow-hidden rounded-2xl border border-zen-border/40 bg-white shadow-2xl"
-    >
-      <div
-        ref={contentRef}
-        style={{
-          width: `${designWidth}px`,
-          transform: `scale(${scaleFactor})`,
-          transformOrigin: 'top center',
-          opacity: measured ? 1 : 0,
-          transition: 'opacity 0.15s ease-out',
-        }}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
+const FEATURE_IMAGES = [
+  { src: '/features/dashboard.svg', alt: 'Admin Dashboard' },
+  { src: '/features/branding.svg', alt: 'White-Label Branding' },
+  { src: '/features/live-class.svg', alt: 'Live Classes' },
+  { src: '/features/certificate.svg', alt: 'Certificates & Jobs' },
+  { src: '/features/video-quiz.svg', alt: 'Video & Quizzes' },
+  { src: '/features/multi-tenant.svg', alt: 'Multi-Tenant Management' },
+  { src: '/features/ai-tools.svg', alt: 'AI Tools' },
+];
 
 export function FeaturesParallax() {
-  const items = [
-    <ScaledMockupCard key="dashboard" designWidth={720}><DashboardMockup /></ScaledMockupCard>,
-    <ScaledMockupCard key="branding" designWidth={560}><BrandingMockup /></ScaledMockupCard>,
-    <ScaledMockupCard key="live-class" designWidth={480}><LiveClassMockup /></ScaledMockupCard>,
-    <ScaledMockupCard key="certificate" designWidth={560}><CertificateMockup /></ScaledMockupCard>,
-    <ScaledMockupCard key="video-quiz" designWidth={480}><VideoQuizMockup /></ScaledMockupCard>,
-    <ScaledMockupCard key="multi-tenant" designWidth={560}><MultiTenantMockup /></ScaledMockupCard>,
-    <ScaledMockupCard key="ai-tools" designWidth={420}><AiToolsMockup /></ScaledMockupCard>,
-  ];
+  const items = FEATURE_IMAGES.map(({ src, alt }) => (
+    <div key={alt} className="w-full h-full overflow-hidden rounded-2xl border border-zen-border/40 bg-white shadow-2xl">
+      <img src={src} alt={alt} className="w-full h-full object-cover" />
+    </div>
+  ));
 
   return (
     <section id="features">
