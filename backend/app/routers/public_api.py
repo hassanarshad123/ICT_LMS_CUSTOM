@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
-from app.middleware.api_key_auth import PublicAuth, api_key_rate_key
+from app.middleware.api_key_auth import PublicAuth, ApiKeyContext, api_key_rate_key, require_scope
 from app.utils.rate_limit import limiter
 from app.schemas.common import PaginatedResponse
 from app.schemas.public_api import (
@@ -21,9 +21,12 @@ from app.schemas.public_api import (
     PublicJobOut,
 )
 from app.services import user_service, webhook_event_service, public_service
-from app.services.institute_service import check_user_quota, increment_usage
+from app.services.institute_service import check_and_increment_user_quota
 
 router = APIRouter()
+
+# Write endpoints require "write" scope on the API key
+PublicAuthWrite = Annotated[ApiKeyContext, Depends(require_scope("write"))]
 
 
 # ── Students ──────────────────────────────────────────────────
@@ -82,14 +85,14 @@ async def get_student(
 async def create_student(
     request: Request,
     body: PublicStudentCreate,
-    auth: PublicAuth,
+    auth: PublicAuthWrite,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     password = body.password or secrets.token_urlsafe(12)
 
-    # Enforce user quota before creation (Fix 5)
+    # Atomically check quota and pre-increment before create (locked with FOR UPDATE)
     try:
-        await check_user_quota(session, auth.institute_id)
+        await check_and_increment_user_quota(session, auth.institute_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -105,9 +108,6 @@ async def create_student(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-
-    # Increment usage counter (Fix 5)
-    await increment_usage(session, auth.institute_id, users=1)
 
     await webhook_event_service.queue_webhook_event(
         session, auth.institute_id, "user.created",
@@ -127,7 +127,7 @@ async def update_student(
     request: Request,
     student_id: uuid.UUID,
     body: PublicStudentUpdate,
-    auth: PublicAuth,
+    auth: PublicAuthWrite,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     # Verify student belongs to this institute
@@ -308,7 +308,7 @@ async def list_enrollments(
 async def create_enrollment(
     request: Request,
     body: PublicEnrollmentCreate,
-    auth: PublicAuth,
+    auth: PublicAuthWrite,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     from app.services import batch_service
@@ -346,7 +346,7 @@ async def create_enrollment(
 async def remove_enrollment(
     request: Request,
     body: PublicEnrollmentRemove,
-    auth: PublicAuth,
+    auth: PublicAuthWrite,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     from app.services import batch_service
@@ -409,7 +409,7 @@ async def list_certificates(
 async def approve_certificate(
     request: Request,
     cert_id: uuid.UUID,
-    auth: PublicAuth,
+    auth: PublicAuthWrite,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     from app.services import certificate_service
@@ -446,7 +446,7 @@ async def approve_certificate(
 async def revoke_certificate(
     request: Request,
     cert_id: uuid.UUID,
-    auth: PublicAuth,
+    auth: PublicAuthWrite,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -570,7 +570,7 @@ async def list_announcements(
 async def create_announcement(
     request: Request,
     body: PublicAnnouncementCreate,
-    auth: PublicAuth,
+    auth: PublicAuthWrite,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     from app.services import announcement_service

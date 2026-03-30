@@ -5,6 +5,7 @@ from typing import Optional
 from sqlmodel import SQLModel, Field, Column
 from sqlalchemy import Index, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import TIMESTAMP, UUID as PG_UUID, JSONB, ARRAY
+from sqlalchemy import text as sa_text
 
 
 class ApiKey(SQLModel, table=True):
@@ -34,6 +35,11 @@ class ApiKey(SQLModel, table=True):
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
+    )
+    scopes: list[str] = Field(
+        sa_column=Column(
+            ARRAY(Text), nullable=False, server_default=sa_text("ARRAY['read']::text[]"),
+        )
     )
     revoked_at: Optional[datetime] = Field(
         default=None, sa_column=Column(TIMESTAMP(timezone=True), nullable=True)

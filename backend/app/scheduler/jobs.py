@@ -213,3 +213,33 @@ async def cleanup_stale_uploads():
         if stale:
             await session.commit()
             logger.info("Cleaned up %d stale pending uploads", len(stale))
+
+
+@sentry_job_wrapper("recalculate_all_usage")
+async def recalculate_all_usage():
+    """Recalculate usage counters from actual DB rows for all institutes (daily).
+
+    Safety net for any drift between incremental tracking and reality.
+    Counts users, storage bytes, and video bytes from live tables.
+    """
+    from sqlmodel import select
+    from app.models.institute import Institute
+    from app.services.institute_service import recalculate_usage
+
+    async with async_session() as session:
+        result = await session.execute(
+            select(Institute.id).where(Institute.deleted_at.is_(None))
+        )
+        institute_ids = [row[0] for row in result.all()]
+
+        recalculated = 0
+        for iid in institute_ids:
+            try:
+                await recalculate_usage(session, iid)
+                recalculated += 1
+            except Exception as e:
+                logger.error("Failed to recalculate usage for institute %s: %s", iid, e)
+                await session.rollback()
+
+        if recalculated:
+            logger.info("Recalculated usage for %d/%d institutes", recalculated, len(institute_ids))

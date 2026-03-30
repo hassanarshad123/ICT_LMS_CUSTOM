@@ -16,6 +16,7 @@ async def create_api_key(
     name: str,
     created_by: uuid.UUID,
     expires_at: Optional[datetime] = None,
+    scopes: Optional[list[str]] = None,
 ) -> tuple[ApiKey, str]:
     """Create a new API key. Returns (ApiKey, plaintext_key). The plaintext key is shown once only."""
     # Check limit: max 5 active keys per institute
@@ -42,6 +43,7 @@ async def create_api_key(
         key_hash=key_hash,
         created_by=created_by,
         expires_at=expires_at,
+        scopes=scopes or ["read"],
     )
     session.add(api_key)
     await session.commit()

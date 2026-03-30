@@ -18,6 +18,7 @@ class ApiKeyContext:
     institute_id: uuid.UUID
     api_key_id: uuid.UUID
     institute: Institute
+    scopes: list[str]
 
 
 async def get_api_key_context(
@@ -84,7 +85,20 @@ async def get_api_key_context(
         institute_id=db_key.institute_id,
         api_key_id=db_key.id,
         institute=institute,
+        scopes=db_key.scopes or ["read"],
     )
+
+
+def require_scope(*required_scopes: str):
+    """Dependency factory that checks the API key has at least one of the required scopes."""
+    async def _check(auth: ApiKeyContext = Depends(get_api_key_context)) -> ApiKeyContext:
+        if not any(s in auth.scopes for s in required_scopes):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"API key lacks required scope. Needs one of: {', '.join(required_scopes)}",
+            )
+        return auth
+    return _check
 
 
 def api_key_rate_key(request: Request) -> str:

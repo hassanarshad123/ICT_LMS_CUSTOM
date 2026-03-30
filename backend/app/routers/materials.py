@@ -53,11 +53,11 @@ async def get_upload_url(
     import logging as _logging
     from app.utils.s3 import generate_upload_url
 
-    # Quota check for storage uploads
+    # Atomically check storage quota and pre-increment (locked with FOR UPDATE)
     if current_user.institute_id:
-        from app.services.institute_service import check_storage_quota
+        from app.services.institute_service import check_and_increment_storage_quota
         try:
-            await check_storage_quota(session, current_user.institute_id, body.file_size or 0)
+            await check_and_increment_storage_quota(session, current_user.institute_id, body.file_size or 0)
         except ValueError as e:
             raise HTTPException(status_code=402, detail=str(e))
 
@@ -110,8 +110,8 @@ async def get_download_url(
 ):
     from app.utils.s3 import generate_download_url
 
-    material = await material_service.get_material(session, material_id)
-    if not material or not check_institute_ownership(current_user.institute_id, material.institute_id):
+    material = await material_service.get_material(session, material_id, institute_id=current_user.institute_id)
+    if not material:
         raise HTTPException(status_code=404, detail="Material not found")
 
     try:
@@ -129,8 +129,8 @@ async def delete_material(
     current_user: CCOrTeacher,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    material = await material_service.get_material(session, material_id)
-    if not material or not check_institute_ownership(current_user.institute_id, material.institute_id):
+    material = await material_service.get_material(session, material_id, institute_id=current_user.institute_id)
+    if not material:
         raise HTTPException(status_code=404, detail="Material not found")
 
     # Teachers can only delete own uploads
@@ -142,7 +142,9 @@ async def delete_material(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-    # Decrement storage usage
+    # Decrement storage usage and commit (soft_delete_material commits internally,
+    # so decrement needs its own commit to persist)
     if current_user.institute_id and material.file_size:
         from app.services.institute_service import decrement_usage
         await decrement_usage(session, current_user.institute_id, storage_bytes=material.file_size)
+        await session.commit()

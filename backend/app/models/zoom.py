@@ -89,6 +89,9 @@ class ZoomClass(SQLModel, table=True):
 
 class ClassRecording(SQLModel, table=True):
     __tablename__ = "class_recordings"
+    __table_args__ = (
+        Index("ix_class_recordings_zoom_class_id", "zoom_class_id"),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     zoom_class_id: uuid.UUID = Field(nullable=False, foreign_key="zoom_classes.id")

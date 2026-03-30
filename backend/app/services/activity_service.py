@@ -15,6 +15,7 @@ async def log_activity(
     details: Optional[dict] = None,
     ip_address: Optional[str] = None,
     institute_id: Optional[uuid.UUID] = None,
+    impersonated_by: Optional[uuid.UUID] = None,
 ) -> None:
     entry = ActivityLog(
         user_id=user_id,
@@ -24,6 +25,7 @@ async def log_activity(
         details=details,
         ip_address=ip_address,
         institute_id=institute_id,
+        impersonated_by=impersonated_by,
     )
     session.add(entry)
     await session.flush()

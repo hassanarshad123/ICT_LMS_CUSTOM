@@ -29,7 +29,7 @@ from app.models.enums import UserRole, UserStatus
 from app.utils.security import hash_password
 from app.utils.transformers import to_db
 from app.services import webhook_event_service
-from app.services.institute_service import check_user_quota, increment_usage, decrement_usage
+from app.services.institute_service import check_and_increment_user_quota, decrement_usage
 from app.services.batch_service import enroll_student, get_batch
 from app.models.settings import SystemSetting
 from pydantic import BaseModel as PydanticBaseModel
@@ -219,10 +219,10 @@ async def create_user_endpoint(
             raise HTTPException(status_code=400, detail="Password is required for non-student roles")
         password = body.password
 
-    # Enforce user quota before creation (Fix 5)
+    # Atomically check quota and pre-increment before create (locked with FOR UPDATE)
     if current_user.institute_id:
         try:
-            await check_user_quota(session, current_user.institute_id)
+            await check_and_increment_user_quota(session, current_user.institute_id)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
@@ -239,10 +239,6 @@ async def create_user_endpoint(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-
-    # Increment usage counter (Fix 5)
-    if current_user.institute_id:
-        await increment_usage(session, current_user.institute_id, users=1)
 
     # Auto-enroll in batch if batch_id provided and role is student
     batch_id = getattr(body, 'batch_id', None)
@@ -495,14 +491,6 @@ async def bulk_import(
             errors.append({"row": row_num, "error": f"Invalid role: {role}. Must be student, teacher, admin, or course-creator"})
             continue
 
-        # Enforce user quota per row
-        if current_user.institute_id:
-            try:
-                await check_user_quota(session, current_user.institute_id)
-            except ValueError as e:
-                errors.append({"row": row_num, "error": str(e)})
-                continue
-
         # Password logic: students use default, other roles require password column
         if db_role == "student":
             password = default_student_password
@@ -510,6 +498,17 @@ async def bulk_import(
             password = row.get("password", "").strip()
             if not password:
                 errors.append({"row": row_num, "error": f"Password required for {role} role (add a 'password' column)"})
+                continue
+
+        # Atomically check quota and pre-increment before create (locked with FOR UPDATE).
+        # Done after password validation to avoid orphaned increments on validation failures.
+        quota_incremented = False
+        if current_user.institute_id:
+            try:
+                await check_and_increment_user_quota(session, current_user.institute_id)
+                quota_incremented = True
+            except ValueError as e:
+                errors.append({"row": row_num, "error": str(e)})
                 continue
 
         try:
@@ -525,8 +524,6 @@ async def bulk_import(
                 "email": email,
                 "temporary_password": "(default password)" if db_role == "student" else password,
             })
-            if current_user.institute_id:
-                await increment_usage(session, current_user.institute_id, users=1)
 
             # Auto-enroll in selected batches (students only)
             if batch_id_list and db_role == "student":
@@ -537,6 +534,9 @@ async def bulk_import(
                     except ValueError as enroll_err:
                         errors.append({"row": row_num, "error": f"Enrollment failed for batch {bid}: {enroll_err}"})
         except ValueError as e:
+            # Roll back the quota increment since user creation failed
+            if quota_incremented:
+                await decrement_usage(session, current_user.institute_id, users=1)
             if "already in use" in str(e):
                 skipped += 1
                 errors.append({"row": row_num, "error": f"Duplicate email (skipped): {email}"})
