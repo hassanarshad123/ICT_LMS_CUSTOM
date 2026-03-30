@@ -3,12 +3,14 @@
 import { useState } from 'react';
 import { EmptyState } from '@/components/shared/page-states';
 import CsvImportPanel from '@/components/shared/csv-import-panel';
+import { ExtendAccessModal } from '@/components/shared/extend-access-modal';
 import { SearchableCombobox } from '@/components/ui/searchable-combobox';
 import {
   Users,
   UserPlus,
   Upload,
   Loader2,
+  CalendarPlus,
 } from 'lucide-react';
 
 export interface BatchStudentSectionProps {
@@ -28,6 +30,7 @@ export interface BatchStudentSectionProps {
   /** Batch info for import */
   batchId?: string;
   batchName?: string;
+  batchEndDate?: string;
   onImportComplete?: () => void;
 }
 
@@ -42,12 +45,39 @@ export function BatchStudentSection({
   onToggleActive,
   batchId,
   batchName,
+  batchEndDate,
   onImportComplete,
 }: BatchStudentSectionProps) {
   const [showImport, setShowImport] = useState(false);
+  const [extendingStudent, setExtendingStudent] = useState<{ id: string; name: string; effectiveEndDate?: string } | null>(null);
+
+  const getAccessStatus = (student: any) => {
+    const effectiveEnd = student.extendedEndDate || batchEndDate;
+    if (!effectiveEnd) return { label: '—', color: 'text-gray-400' };
+    const end = new Date(effectiveEnd);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const daysLeft = Math.ceil((end.getTime() - today.getTime()) / 86400000);
+    if (daysLeft < 0) return { label: `Expired`, color: 'text-red-600' };
+    if (daysLeft <= 7) return { label: `${daysLeft}d left`, color: 'text-yellow-600' };
+    return { label: end.toLocaleDateString(), color: student.extendedEndDate ? 'text-blue-600' : 'text-gray-600' };
+  };
 
   return (
     <>
+      {/* Extension Modal */}
+      {extendingStudent && batchId && batchEndDate && (
+        <ExtendAccessModal
+          batchId={batchId}
+          batchEndDate={batchEndDate}
+          studentId={extendingStudent.id}
+          studentName={extendingStudent.name}
+          currentEffectiveEndDate={extendingStudent.effectiveEndDate}
+          onClose={() => setExtendingStudent(null)}
+          onSuccess={() => onImportComplete?.()}
+        />
+      )}
+
       {/* Bulk Import Panel */}
       {showImport && batchId && (
         <CsvImportPanel
@@ -137,10 +167,16 @@ export function BatchStudentSection({
                       </button>
                     </div>
                     <div className="flex items-center justify-between text-xs text-gray-500 mt-2">
-                      <span>{student.phone || 'No phone'}</span>
                       <span>
-                        {student.enrolledAt ? new Date(student.enrolledAt).toLocaleDateString() : student.createdAt ? new Date(student.createdAt).toLocaleDateString() : '—'}
+                        Access: {(() => { const s = getAccessStatus(student); return <span className={s.color}>{s.label}</span>; })()}
                       </span>
+                      <button
+                        onClick={() => setExtendingStudent({ id: student.studentId, name: student.name, effectiveEndDate: student.extendedEndDate || batchEndDate })}
+                        className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-primary border border-primary/20 rounded-md hover:bg-primary/5"
+                      >
+                        <CalendarPlus size={10} />
+                        Extend
+                      </button>
                     </div>
                   </div>
                 );
@@ -154,9 +190,9 @@ export function BatchStudentSection({
                   <tr className="border-b border-gray-100">
                     <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Name</th>
                     <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Email</th>
-                    <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Phone</th>
-                    <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Enrolled Date</th>
+                    <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Access Until</th>
                     <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Status</th>
+                    <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -166,9 +202,11 @@ export function BatchStudentSection({
                       <tr key={student.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                         <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm font-medium text-primary">{student.name}</td>
                         <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{student.email}</td>
-                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{student.phone || '—'}</td>
-                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">
-                          {student.enrolledAt ? new Date(student.enrolledAt).toLocaleDateString() : student.createdAt ? new Date(student.createdAt).toLocaleDateString() : '—'}
+                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm">
+                          {(() => {
+                            const status = getAccessStatus(student);
+                            return <span className={`font-medium ${status.color}`}>{status.label}</span>;
+                          })()}
                         </td>
                         <td className="px-3 sm:px-6 py-3 sm:py-4">
                           <button
@@ -177,6 +215,16 @@ export function BatchStudentSection({
                             title={isActive ? 'Deactivate enrollment' : 'Activate enrollment'}
                           >
                             <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${isActive ? 'translate-x-[18px]' : 'translate-x-[2px]'}`} />
+                          </button>
+                        </td>
+                        <td className="px-3 sm:px-6 py-3 sm:py-4">
+                          <button
+                            onClick={() => setExtendingStudent({ id: student.studentId, name: student.name, effectiveEndDate: student.extendedEndDate || batchEndDate })}
+                            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-primary border border-primary/20 rounded-lg hover:bg-primary/5 transition-colors"
+                            title="Extend access"
+                          >
+                            <CalendarPlus size={12} />
+                            Extend
                           </button>
                         </td>
                       </tr>

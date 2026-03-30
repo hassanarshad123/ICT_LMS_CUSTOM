@@ -3,7 +3,7 @@ from datetime import date, datetime
 from typing import Optional
 
 from sqlmodel import SQLModel, Field, Column
-from sqlalchemy import ForeignKey, Index, Enum as SAEnum
+from sqlalchemy import ForeignKey, Index, Text, Integer, String, Enum as SAEnum
 from sqlalchemy.dialects.postgresql import TIMESTAMP, UUID as PG_UUID
 
 from app.models.enums import BatchHistoryAction
@@ -73,6 +73,7 @@ class StudentBatch(SQLModel, table=True):
     )
     removed_by: Optional[uuid.UUID] = Field(default=None, foreign_key="users.id")
     is_active: bool = Field(default=True, nullable=False)
+    extended_end_date: Optional[date] = Field(default=None)
     updated_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
@@ -107,4 +108,34 @@ class StudentBatchHistory(SQLModel, table=True):
     institute_id: Optional[uuid.UUID] = Field(
         default=None,
         sa_column=Column(PG_UUID(as_uuid=True), ForeignKey("institutes.id"), nullable=True),
+    )
+
+
+class BatchExtensionLog(SQLModel, table=True):
+    __tablename__ = "batch_extension_logs"
+    __table_args__ = (
+        Index("ix_batch_extension_logs_student_batch", "student_batch_id"),
+        Index("ix_batch_extension_logs_batch_id", "batch_id"),
+        Index("ix_batch_extension_logs_institute_id", "institute_id"),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    student_batch_id: uuid.UUID = Field(nullable=False, foreign_key="student_batches.id")
+    student_id: uuid.UUID = Field(nullable=False, foreign_key="users.id")
+    batch_id: uuid.UUID = Field(nullable=False, foreign_key="batches.id")
+    previous_end_date: Optional[date] = Field(default=None)
+    new_end_date: date = Field(nullable=False)
+    extension_type: str = Field(sa_column=Column(String, nullable=False))
+    duration_days: Optional[int] = Field(default=None, sa_column=Column(Integer, nullable=True))
+    reason: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
+    extended_by: uuid.UUID = Field(
+        sa_column=Column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    )
+    institute_id: Optional[uuid.UUID] = Field(
+        default=None,
+        sa_column=Column(PG_UUID(as_uuid=True), ForeignKey("institutes.id"), nullable=True),
+    )
+    created_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
     )

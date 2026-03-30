@@ -243,3 +243,120 @@ async def recalculate_all_usage():
 
         if recalculated:
             logger.info("Recalculated usage for %d/%d institutes", recalculated, len(institute_ids))
+
+
+@sentry_job_wrapper("send_batch_expiry_notifications")
+async def send_batch_expiry_notifications():
+    """Send notifications for students whose batch access is about to expire (daily).
+
+    Sends three types:
+    - 7-day warning: effective_end_date is exactly 7 days from today
+    - 1-day warning: effective_end_date is tomorrow
+    - Expired: effective_end_date was yesterday (just expired)
+
+    Deduplicates by checking if a notification of the same type was already
+    sent for the same batch within the relevant window.
+    """
+    from sqlmodel import select
+    from app.models.batch import Batch, StudentBatch
+    from app.models.notification import Notification
+    from app.services import notification_service
+
+    async with async_session() as session:
+        today = datetime.now(timezone.utc).date()
+
+        # Define the three notification windows
+        windows = [
+            {
+                "offset_days": 7,
+                "type": "batch_expiry_warning_7d",
+                "title": "Access Expiring Soon",
+                "msg_template": "Your access to {batch} expires in 7 days ({date}).",
+            },
+            {
+                "offset_days": 1,
+                "type": "batch_expiry_warning_1d",
+                "title": "Access Expires Tomorrow",
+                "msg_template": "Your access to {batch} expires tomorrow ({date}).",
+            },
+            {
+                "offset_days": -1,
+                "type": "batch_expired",
+                "title": "Access Expired",
+                "msg_template": "Your access to {batch} has expired.",
+            },
+        ]
+
+        total_sent = 0
+
+        for window in windows:
+            target_date = today + timedelta(days=window["offset_days"])
+
+            # Find enrollments where effective_end_date matches the target
+            # Case 1: extended_end_date is set and matches
+            result = await session.execute(
+                select(StudentBatch, Batch).join(
+                    Batch, Batch.id == StudentBatch.batch_id,
+                ).where(
+                    StudentBatch.removed_at.is_(None),
+                    StudentBatch.is_active.is_(True),
+                    Batch.deleted_at.is_(None),
+                    StudentBatch.extended_end_date == target_date,
+                )
+            )
+            extended_rows = result.all()
+
+            # Case 2: no extension and batch.end_date matches
+            result2 = await session.execute(
+                select(StudentBatch, Batch).join(
+                    Batch, Batch.id == StudentBatch.batch_id,
+                ).where(
+                    StudentBatch.removed_at.is_(None),
+                    StudentBatch.is_active.is_(True),
+                    Batch.deleted_at.is_(None),
+                    StudentBatch.extended_end_date.is_(None),
+                    Batch.end_date == target_date,
+                )
+            )
+            batch_rows = result2.all()
+
+            all_rows = extended_rows + batch_rows
+
+            for sb, batch in all_rows:
+                # Dedup: check if we already sent this notification type for this batch
+                existing = await session.execute(
+                    select(Notification.id).where(
+                        Notification.user_id == sb.student_id,
+                        Notification.type == window["type"],
+                        Notification.title == window["title"],
+                    ).limit(1)
+                )
+                if existing.scalar_one_or_none():
+                    continue
+
+                effective_end = sb.extended_end_date or batch.end_date
+                msg = window["msg_template"].format(
+                    batch=batch.name,
+                    date=effective_end.strftime("%b %d, %Y"),
+                )
+
+                try:
+                    await notification_service.create_notification(
+                        session,
+                        user_id=sb.student_id,
+                        type=window["type"],
+                        title=window["title"],
+                        message=msg,
+                        link=f"/batches/{batch.id}",
+                        institute_id=sb.institute_id,
+                    )
+                    total_sent += 1
+                except Exception as e:
+                    logger.error(
+                        "Failed to send %s notification to student %s: %s",
+                        window["type"], sb.student_id, e,
+                    )
+                    await session.rollback()
+
+        if total_sent:
+            logger.info("Sent %d batch expiry notifications", total_sent)

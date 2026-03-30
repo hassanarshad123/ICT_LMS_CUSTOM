@@ -14,6 +14,47 @@ export interface BatchOut {
   createdAt?: string;
   enableLectureGating: boolean;
   lectureGatingThreshold: number;
+  // Per-student access status (populated for students only)
+  accessExpired?: boolean;
+  effectiveEndDate?: string;
+  extendedEndDate?: string;
+}
+
+export interface ExtensionOut {
+  studentId: string;
+  batchId: string;
+  previousEndDate?: string;
+  newEndDate: string;
+  extensionType: string;
+  durationDays?: number;
+  reason?: string;
+}
+
+export interface ExtensionHistoryItem {
+  id: string;
+  previousEndDate?: string;
+  newEndDate: string;
+  extensionType: string;
+  durationDays?: number;
+  reason?: string;
+  extendedBy: string;
+  extendedByName: string;
+  createdAt: string;
+}
+
+export interface StudentExpiryInfo {
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  batchEndDate: string;
+  extendedEndDate?: string;
+  effectiveEndDate: string;
+}
+
+export interface ExpirySummary {
+  expiringSoon: StudentExpiryInfo[];
+  expired: StudentExpiryInfo[];
+  extended: StudentExpiryInfo[];
 }
 
 export interface PaginatedBatches {
@@ -100,4 +141,28 @@ export async function linkCourse(batchId: string, courseId: string) {
 
 export async function unlinkCourse(batchId: string, courseId: string): Promise<void> {
   return apiClient(`/batches/${batchId}/courses/${courseId}`, { method: 'DELETE' });
+}
+
+// ── Per-student batch time extensions ──────────────────────────
+
+export async function extendStudentAccess(
+  batchId: string,
+  studentId: string,
+  data: { end_date?: string; duration_days?: number; reason?: string },
+): Promise<ExtensionOut> {
+  return apiClient(`/batches/${batchId}/students/${studentId}/extend`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getExtensionHistory(
+  batchId: string,
+  studentId: string,
+): Promise<ExtensionHistoryItem[]> {
+  return apiClient(`/batches/${batchId}/students/${studentId}/extensions`);
+}
+
+export async function getExpirySummary(batchId: string): Promise<ExpirySummary> {
+  return apiClient(`/batches/${batchId}/expiry-summary`);
 }

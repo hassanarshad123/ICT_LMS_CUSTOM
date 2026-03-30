@@ -74,6 +74,10 @@ async def request_certificate(
     session: AsyncSession = Depends(get_session),
 ):
     """Student requests a certificate with their preferred name."""
+    # Check batch expiry before allowing certificate request
+    from app.middleware.access_control import verify_batch_access
+    await verify_batch_access(session, current_user, body.batch_id, check_active=True, check_expiry=True)
+
     try:
         cert = await certificate_service.request_certificate(
             session, current_user.id, body.batch_id, body.course_id, body.certificate_name,
