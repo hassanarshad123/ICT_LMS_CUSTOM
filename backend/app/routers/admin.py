@@ -37,6 +37,58 @@ async def insights(
     return await analytics_service.get_insights(session, current_user.institute_id)
 
 
+# ── 10x Insights — Tab-based analytics ─────────────────────────
+
+from app.schemas.analytics import (
+    OverviewResponse, StudentsResponse, StaffResponse, CoursesResponse, EngagementResponse,
+)
+
+
+@router.get("/insights/overview", response_model=OverviewResponse)
+async def insights_overview(
+    current_user: Admin,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    period: int = Query(30, ge=0, le=365),
+):
+    return await analytics_service.get_overview_metrics(session, current_user.institute_id, period)
+
+
+@router.get("/insights/students", response_model=StudentsResponse)
+async def insights_students(
+    current_user: Admin,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    period: int = Query(30, ge=0, le=365),
+):
+    return await analytics_service.get_student_analytics(session, current_user.institute_id, period)
+
+
+@router.get("/insights/staff", response_model=StaffResponse)
+async def insights_staff(
+    current_user: Admin,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    period: int = Query(30, ge=0, le=365),
+):
+    return await analytics_service.get_staff_analytics(session, current_user.institute_id, period)
+
+
+@router.get("/insights/courses", response_model=CoursesResponse)
+async def insights_courses(
+    current_user: Admin,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    period: int = Query(30, ge=0, le=365),
+):
+    return await analytics_service.get_course_analytics(session, current_user.institute_id, period)
+
+
+@router.get("/insights/engagement", response_model=EngagementResponse)
+async def insights_engagement(
+    current_user: Admin,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    period: int = Query(30, ge=0, le=365),
+):
+    return await analytics_service.get_engagement_analytics(session, current_user.institute_id, period)
+
+
 @router.get("/devices", response_model=PaginatedResponse[UserDeviceSummary])
 async def list_devices(
     current_user: Admin,
