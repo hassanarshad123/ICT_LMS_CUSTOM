@@ -5,7 +5,7 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, func, col
 
-from app.models.batch import Batch, StudentBatch, StudentBatchHistory
+from app.models.batch import Batch, StudentBatch, StudentBatchHistory, BatchExtensionLog
 from app.models.course import BatchCourse, Course, Lecture, BatchMaterial, CurriculumModule
 from app.models.zoom import ZoomClass
 from app.models.announcement import Announcement
@@ -550,3 +550,212 @@ async def unlink_course(
     bc.deleted_at = datetime.now(timezone.utc)
     session.add(bc)
     await session.commit()
+
+
+# ── Per-student batch time extensions ────────────────────────────
+
+
+async def extend_student_access(
+    session: AsyncSession,
+    batch_id: uuid.UUID,
+    student_id: uuid.UUID,
+    *,
+    end_date: Optional[date] = None,
+    duration_days: Optional[int] = None,
+    reason: Optional[str] = None,
+    extended_by: uuid.UUID,
+    institute_id: Optional[uuid.UUID] = None,
+) -> dict:
+    """Extend a student's access to a batch beyond the batch end_date.
+
+    Provide either end_date (specific date) or duration_days (number of days),
+    not both. If duration_days, the new end date is calculated as
+    max(batch.end_date, today) + duration_days.
+
+    Returns dict with extension details.
+    """
+    if end_date and duration_days:
+        raise ValueError("Provide either end_date or duration_days, not both")
+    if not end_date and not duration_days:
+        raise ValueError("Provide either end_date or duration_days")
+    if duration_days is not None and (duration_days < 1 or duration_days > 365):
+        raise ValueError("duration_days must be between 1 and 365")
+
+    # Load batch
+    batch = (await session.execute(
+        select(Batch).where(Batch.id == batch_id, Batch.deleted_at.is_(None))
+    )).scalar_one_or_none()
+    if not batch:
+        raise ValueError("Batch not found")
+
+    # Load enrollment
+    enrollment = (await session.execute(
+        select(StudentBatch).where(
+            StudentBatch.student_id == student_id,
+            StudentBatch.batch_id == batch_id,
+            StudentBatch.removed_at.is_(None),
+        )
+    )).scalar_one_or_none()
+    if not enrollment:
+        raise ValueError("Student is not enrolled in this batch")
+
+    # Calculate new end date
+    from datetime import timedelta
+    if duration_days:
+        base = max(batch.end_date, date.today())
+        new_end_date = base + timedelta(days=duration_days)
+        extension_type = "duration_days"
+    else:
+        new_end_date = end_date
+        extension_type = "specific_date"
+
+    if new_end_date <= date.today():
+        raise ValueError("New end date must be in the future")
+    if new_end_date <= batch.end_date:
+        raise ValueError("New end date must be after the batch end date")
+
+    # Previous effective end date
+    previous_end = enrollment.extended_end_date or batch.end_date
+
+    # Update enrollment
+    enrollment.extended_end_date = new_end_date
+    session.add(enrollment)
+
+    # Create audit log
+    log = BatchExtensionLog(
+        student_batch_id=enrollment.id,
+        student_id=student_id,
+        batch_id=batch_id,
+        previous_end_date=previous_end,
+        new_end_date=new_end_date,
+        extension_type=extension_type,
+        duration_days=duration_days,
+        reason=reason,
+        extended_by=extended_by,
+        institute_id=institute_id,
+    )
+    session.add(log)
+    await session.commit()
+
+    # Notify the student about the extension
+    from app.services import notification_service
+    try:
+        await notification_service.create_notification(
+            session,
+            user_id=student_id,
+            type="batch_extension",
+            title="Access Extended",
+            message=f"Your access to {batch.name} has been extended until {new_end_date.strftime('%b %d, %Y')}.",
+            link=f"/batches/{batch_id}",
+            institute_id=institute_id,
+        )
+    except Exception:
+        pass  # Don't fail the extension if notification fails
+
+    return {
+        "student_id": student_id,
+        "batch_id": batch_id,
+        "previous_end_date": previous_end,
+        "new_end_date": new_end_date,
+        "extension_type": extension_type,
+        "duration_days": duration_days,
+        "reason": reason,
+    }
+
+
+async def get_extension_history(
+    session: AsyncSession,
+    batch_id: uuid.UUID,
+    student_id: uuid.UUID,
+    institute_id: Optional[uuid.UUID] = None,
+) -> list[dict]:
+    """Get the extension history for a student in a batch."""
+    filters = [
+        BatchExtensionLog.batch_id == batch_id,
+        BatchExtensionLog.student_id == student_id,
+    ]
+    if institute_id is not None:
+        filters.append(BatchExtensionLog.institute_id == institute_id)
+
+    result = await session.execute(
+        select(BatchExtensionLog, User.name).join(
+            User, User.id == BatchExtensionLog.extended_by
+        ).where(*filters).order_by(BatchExtensionLog.created_at.desc())
+    )
+
+    return [
+        {
+            "id": log.id,
+            "previous_end_date": log.previous_end_date,
+            "new_end_date": log.new_end_date,
+            "extension_type": log.extension_type,
+            "duration_days": log.duration_days,
+            "reason": log.reason,
+            "extended_by": log.extended_by,
+            "extended_by_name": name,
+            "created_at": log.created_at,
+        }
+        for log, name in result.all()
+    ]
+
+
+async def get_expiry_summary(
+    session: AsyncSession,
+    batch_id: uuid.UUID,
+    institute_id: Optional[uuid.UUID] = None,
+) -> dict:
+    """Get expiry summary for all students in a batch.
+
+    Returns: { expiring_soon: [...], expired: [...], extended: [...] }
+    """
+    # Load batch
+    batch = (await session.execute(
+        select(Batch).where(Batch.id == batch_id, Batch.deleted_at.is_(None))
+    )).scalar_one_or_none()
+    if not batch:
+        raise ValueError("Batch not found")
+
+    # Load all active enrollments with student names
+    result = await session.execute(
+        select(StudentBatch, User.name, User.email).join(
+            User, User.id == StudentBatch.student_id
+        ).where(
+            StudentBatch.batch_id == batch_id,
+            StudentBatch.removed_at.is_(None),
+            StudentBatch.is_active.is_(True),
+        )
+    )
+    rows = result.all()
+
+    today = date.today()
+    from datetime import timedelta
+    soon_threshold = today + timedelta(days=7)
+
+    expiring_soon = []
+    expired = []
+    extended = []
+
+    for sb, name, email in rows:
+        effective_end = sb.extended_end_date or batch.end_date
+        info = {
+            "student_id": sb.student_id,
+            "student_name": name,
+            "student_email": email,
+            "batch_end_date": batch.end_date,
+            "extended_end_date": sb.extended_end_date,
+            "effective_end_date": effective_end,
+        }
+
+        if sb.extended_end_date and sb.extended_end_date > batch.end_date:
+            extended.append(info)
+
+        if today > effective_end:
+            expired.append(info)
+        elif today <= effective_end <= soon_threshold:
+            expiring_soon.append(info)
+
+    return {
+        "expiring_soon": expiring_soon,
+        "expired": expired,
+        "extended": extended,
+    }

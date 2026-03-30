@@ -506,6 +506,7 @@ export default function BatchContentPage() {
         onToggleActive={handleToggleActive}
         batchId={batchId}
         batchName={batch?.name}
+        batchEndDate={batch?.endDate}
         onImportComplete={() => { refetchStudents(); refetchBatch(); }}
       />
 

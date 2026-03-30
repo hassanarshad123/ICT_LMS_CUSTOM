@@ -4,9 +4,13 @@ from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select
 
 from app.database import get_session
-from app.schemas.batch import BatchCreate, BatchUpdate, BatchOut, BatchStudentEnroll, BatchCourseLink, EnrollmentToggle
+from app.schemas.batch import (
+    BatchCreate, BatchUpdate, BatchOut, BatchStudentEnroll, BatchCourseLink,
+    EnrollmentToggle, ExtendAccessRequest, ExtensionOut, ExtensionHistoryItem, ExpirySummary,
+)
 from app.schemas.common import PaginatedResponse
 from app.services import batch_service, webhook_event_service
 from app.middleware.auth import require_roles, get_current_user
@@ -73,6 +77,28 @@ async def get_batch(
     data = await batch_service.get_batch(session, batch_id, institute_id=current_user.institute_id)
     if not data:
         raise HTTPException(status_code=404, detail="Batch not found")
+
+    # For students, include their personal access status
+    if current_user.role.value == "student":
+        from app.models.batch import StudentBatch as SBModel
+        from app.middleware.access_control import get_effective_end_date
+        from app.models.batch import Batch as BatchModel
+        from datetime import date as _date
+        sb_result = await session.execute(
+            select(SBModel).where(
+                SBModel.student_id == current_user.id,
+                SBModel.batch_id == batch_id,
+                SBModel.removed_at.is_(None),
+            )
+        )
+        sb = sb_result.scalar_one_or_none()
+        batch_obj = await session.get(BatchModel, batch_id)
+        if sb and batch_obj:
+            eff = get_effective_end_date(batch_obj, sb)
+            data["access_expired"] = _date.today() > eff
+            data["effective_end_date"] = eff.isoformat()
+            data["extended_end_date"] = sb.extended_end_date.isoformat() if sb.extended_end_date else None
+
     return BatchOut(**data)
 
 
@@ -231,3 +257,74 @@ async def unlink_course(
         await batch_service.unlink_course(session, batch_id, course_id, institute_id=current_user.institute_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+# ── Per-student batch time extensions ────────────────────────────
+
+
+@router.post("/{batch_id}/students/{student_id}/extend", response_model=ExtensionOut)
+async def extend_student_access(
+    batch_id: uuid.UUID,
+    student_id: uuid.UUID,
+    body: ExtendAccessRequest,
+    current_user: AdminOrCC,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """Extend a student's access to this batch beyond the batch end_date."""
+    try:
+        result = await batch_service.extend_student_access(
+            session, batch_id, student_id,
+            end_date=body.end_date,
+            duration_days=body.duration_days,
+            reason=body.reason,
+            extended_by=current_user.id,
+            institute_id=current_user.institute_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    if current_user.institute_id:
+        await webhook_event_service.queue_webhook_event(
+            session, current_user.institute_id, "batch.student_extended",
+            {
+                "batch_id": str(batch_id),
+                "student_id": str(student_id),
+                "new_end_date": str(result["new_end_date"]),
+                "extended_by": str(current_user.id),
+            },
+        )
+        await session.commit()
+
+    return ExtensionOut(**result)
+
+
+@router.get("/{batch_id}/students/{student_id}/extensions", response_model=list[ExtensionHistoryItem])
+async def get_extension_history(
+    batch_id: uuid.UUID,
+    student_id: uuid.UUID,
+    current_user: AdminOrCC,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """Get extension history for a student in this batch."""
+    history = await batch_service.get_extension_history(
+        session, batch_id, student_id,
+        institute_id=current_user.institute_id,
+    )
+    return [ExtensionHistoryItem(**item) for item in history]
+
+
+@router.get("/{batch_id}/expiry-summary", response_model=ExpirySummary)
+async def get_expiry_summary(
+    batch_id: uuid.UUID,
+    current_user: AdminOrCC,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """Get expiry summary for all students in this batch."""
+    try:
+        summary = await batch_service.get_expiry_summary(
+            session, batch_id,
+            institute_id=current_user.institute_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return ExpirySummary(**summary)

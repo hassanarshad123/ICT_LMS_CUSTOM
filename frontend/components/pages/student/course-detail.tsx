@@ -12,7 +12,9 @@ import { listLectures } from '@/lib/api/lectures';
 import { listMaterials, getDownloadUrl } from '@/lib/api/materials';
 import { listClasses } from '@/lib/api/zoom';
 import { listQuizzes, listMyAttempts } from '@/lib/api/quizzes';
+import { getBatch } from '@/lib/api/batches';
 import { PageLoading, PageError } from '@/components/shared/page-states';
+import { AccessExpiredBanner } from '@/components/shared/access-expired-banner';
 import { statusColors } from '@/lib/constants';
 import { toast } from 'sonner';
 import {
@@ -53,6 +55,13 @@ export default function CourseDetailPage() {
     if (!course?.batchIds?.length || !batchIds?.length) return batchIds?.[0];
     return batchIds.find((b) => course.batchIds.includes(b)) || batchIds[0];
   }, [course, batchIds]);
+
+  // Fetch batch details for access status
+  const { data: batchInfo } = useApi(
+    () => studentBatchId ? getBatch(studentBatchId) : Promise.resolve(null),
+    [studentBatchId],
+  );
+  const accessExpired = batchInfo?.accessExpired === true;
 
   // Fetch curriculum modules
   const { data: modules, loading: modulesLoading } = useApi(
@@ -179,6 +188,11 @@ export default function CourseDetailPage() {
 
   return (
     <DashboardLayout>
+      {/* Access Expired Banner */}
+      {accessExpired && (
+        <AccessExpiredBanner effectiveEndDate={batchInfo?.effectiveEndDate} className="mb-6" />
+      )}
+
       {/* Header Banner */}
       <div className="bg-primary rounded-2xl p-4 sm:p-6 mb-6 sm:mb-8">
         <Link href={`${basePath}/courses`} className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors mb-4">

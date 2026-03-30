@@ -17,6 +17,7 @@ Usage in routers:
 
 import uuid
 import logging
+from datetime import date as date_type
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,11 +30,20 @@ from app.models.zoom import ZoomClass
 logger = logging.getLogger("ict_lms.access_control")
 
 
+def get_effective_end_date(batch: Batch, student_batch: StudentBatch) -> date_type:
+    """Return the student's effective access end date.
+
+    Uses the per-student extended_end_date if set, otherwise the batch end_date.
+    """
+    return student_batch.extended_end_date or batch.end_date
+
+
 async def verify_batch_access(
     session: AsyncSession,
     current_user: User,
     batch_id: uuid.UUID,
     check_active: bool = False,
+    check_expiry: bool = False,
 ) -> Batch:
     """Verify current_user can access this batch. Returns the Batch or raises.
 
@@ -45,6 +55,11 @@ async def verify_batch_access(
 
     If check_active=True and user is a student, also verifies the enrollment
     is active (is_active=True). Used for content access (lectures, materials).
+
+    If check_expiry=True and user is a student, also verifies the student's
+    effective end date has not passed. Used for interactive endpoints (play video,
+    download material, take quiz, request certificate). Students with expired
+    access get 403 with a specific message so the frontend can show locked UI.
     """
     result = await session.execute(
         select(Batch).where(
@@ -84,23 +99,30 @@ async def verify_batch_access(
     # Students must be enrolled in the batch
     if role == "student":
         enrolled = await session.execute(
-            select(StudentBatch.id, StudentBatch.is_active).where(
+            select(StudentBatch).where(
                 StudentBatch.student_id == current_user.id,
                 StudentBatch.batch_id == batch_id,
                 StudentBatch.removed_at.is_(None),
             )
         )
-        row = enrolled.one_or_none()
-        if not row:
+        student_batch = enrolled.scalar_one_or_none()
+        if not student_batch:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not enrolled in this batch",
             )
-        if check_active and not row.is_active:
+        if check_active and not student_batch.is_active:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Your enrollment in this batch is currently inactive",
             )
+        if check_expiry:
+            effective_end = get_effective_end_date(batch, student_batch)
+            if date_type.today() > effective_end:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Your access to this batch has expired",
+                )
         return batch
 
     # Unknown role — deny by default
@@ -140,3 +162,43 @@ async def verify_zoom_class_access(
     await verify_batch_access(session, current_user, zoom_class.batch_id)
 
     return zoom_class
+
+
+async def check_student_batch_expiry(
+    session: AsyncSession,
+    student_id: uuid.UUID,
+    course_id: uuid.UUID,
+) -> None:
+    """Check if the student's batch access for a given course has expired.
+
+    Finds the student's active enrollment in a batch that contains this course,
+    then checks the effective end date. Raises 403 if expired.
+    Used for quiz and certificate endpoints where batch_id isn't directly available.
+    """
+    from app.models.course import BatchCourse
+
+    result = await session.execute(
+        select(StudentBatch, Batch).join(
+            BatchCourse, BatchCourse.batch_id == StudentBatch.batch_id,
+        ).join(
+            Batch, Batch.id == StudentBatch.batch_id,
+        ).where(
+            StudentBatch.student_id == student_id,
+            BatchCourse.course_id == course_id,
+            BatchCourse.deleted_at.is_(None),
+            StudentBatch.removed_at.is_(None),
+            StudentBatch.is_active.is_(True),
+            Batch.deleted_at.is_(None),
+        ).limit(1)
+    )
+    row = result.one_or_none()
+    if not row:
+        return  # No enrollment found — let the service layer handle the 403
+
+    student_batch, batch = row
+    effective_end = get_effective_end_date(batch, student_batch)
+    if date_type.today() > effective_end:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your access to this batch has expired",
+        )

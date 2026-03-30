@@ -406,6 +406,16 @@ async def get_signed_url(
         if not sb.is_active:
             raise HTTPException(status_code=403, detail="Your enrollment in this batch is currently inactive")
 
+        # Date-based expiry check
+        from app.middleware.access_control import get_effective_end_date
+        from app.models.batch import Batch as BatchModel
+        from datetime import date as _date
+        _batch = await session.get(BatchModel, lecture.batch_id)
+        if _batch:
+            effective_end = get_effective_end_date(_batch, sb)
+            if _date.today() > effective_end:
+                raise HTTPException(status_code=403, detail="Your access to this batch has expired")
+
         # Progress gating check — enforce sequential video access
         from app.models.batch import Batch
         from app.models.progress import LectureProgress
@@ -462,6 +472,27 @@ async def update_progress(
     current_user: Student,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
+    # Check batch expiry before allowing progress updates
+    lecture = await lecture_service.get_lecture(session, lecture_id)
+    if lecture:
+        from app.middleware.access_control import get_effective_end_date
+        from app.models.batch import Batch as BatchModel
+        from datetime import date as _date
+        _batch = await session.get(BatchModel, lecture.batch_id)
+        if _batch:
+            sb_result = await session.execute(
+                select(StudentBatch).where(
+                    StudentBatch.student_id == current_user.id,
+                    StudentBatch.batch_id == lecture.batch_id,
+                    StudentBatch.removed_at.is_(None),
+                )
+            )
+            sb = sb_result.scalar_one_or_none()
+            if sb:
+                effective_end = get_effective_end_date(_batch, sb)
+                if _date.today() > effective_end:
+                    raise HTTPException(status_code=403, detail="Your access to this batch has expired")
+
     try:
         progress = await lecture_service.upsert_progress(
             session, student_id=current_user.id, lecture_id=lecture_id,
