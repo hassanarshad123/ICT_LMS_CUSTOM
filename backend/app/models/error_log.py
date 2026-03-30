@@ -3,12 +3,15 @@ from datetime import datetime
 from typing import Optional
 
 from sqlmodel import SQLModel, Field, Column
-from sqlalchemy import Text, Boolean, Integer, ForeignKey
+from sqlalchemy import Text, Boolean, Integer, ForeignKey, Index
 from sqlalchemy.dialects.postgresql import TIMESTAMP, JSONB, UUID as PG_UUID
 
 
 class ErrorLog(SQLModel, table=True):
     __tablename__ = "error_logs"
+    __table_args__ = (
+        Index("ix_error_logs_institute_level_created", "institute_id", "level", "created_at"),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     level: str = Field(nullable=False)  # error, warning, critical

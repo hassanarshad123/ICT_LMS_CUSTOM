@@ -123,6 +123,9 @@ class Lecture(SQLModel, table=True):
 
 class CurriculumModule(SQLModel, table=True):
     __tablename__ = "curriculum_modules"
+    __table_args__ = (
+        Index("ix_curriculum_modules_course_id", "course_id"),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     course_id: uuid.UUID = Field(nullable=False, foreign_key="courses.id")
@@ -150,6 +153,10 @@ class CurriculumModule(SQLModel, table=True):
 
 class BatchMaterial(SQLModel, table=True):
     __tablename__ = "batch_materials"
+    __table_args__ = (
+        Index("ix_batch_materials_batch_id", "batch_id"),
+        Index("ix_batch_materials_course_id", "course_id"),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     batch_id: uuid.UUID = Field(nullable=False, foreign_key="batches.id")

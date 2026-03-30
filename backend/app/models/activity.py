@@ -11,6 +11,7 @@ class ActivityLog(SQLModel, table=True):
     __tablename__ = "activity_log"
     __table_args__ = (
         Index("ix_activity_log_user_id_created_at", "user_id", "created_at"),
+        Index("ix_activity_log_institute_id", "institute_id"),
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -23,6 +24,10 @@ class ActivityLog(SQLModel, table=True):
     institute_id: Optional[uuid.UUID] = Field(
         default=None,
         sa_column=Column(PG_UUID(as_uuid=True), ForeignKey("institutes.id"), nullable=True),
+    )
+    impersonated_by: Optional[uuid.UUID] = Field(
+        default=None,
+        sa_column=Column(PG_UUID(as_uuid=True), nullable=True),
     )
     created_at: Optional[datetime] = Field(
         default=None,

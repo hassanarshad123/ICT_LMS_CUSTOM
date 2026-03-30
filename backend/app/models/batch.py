@@ -85,6 +85,10 @@ class StudentBatch(SQLModel, table=True):
 
 class StudentBatchHistory(SQLModel, table=True):
     __tablename__ = "student_batch_history"
+    __table_args__ = (
+        Index("ix_student_batch_history_student_id", "student_id"),
+        Index("ix_student_batch_history_batch_id", "batch_id"),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     student_id: uuid.UUID = Field(nullable=False, foreign_key="users.id")
