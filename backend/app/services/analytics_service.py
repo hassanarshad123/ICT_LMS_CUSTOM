@@ -529,6 +529,81 @@ async def get_overview_metrics(
     if idle:
         alerts.append({"type": "idle_teachers", "count": idle, "label": f"{idle} teachers with no classes", "link": "staff"})
 
+    # ── Chart data for Overview ──
+
+    # 1. Enrollment trend (weekly new enrollments)
+    r = await session.execute(text("""
+        SELECT date_trunc('week', enrolled_at)::date AS week, COUNT(*)
+        FROM student_batches
+        WHERE removed_at IS NULL AND institute_id = :iid AND enrolled_at >= :start
+        GROUP BY week ORDER BY week
+    """), {"iid": iid, "start": start})
+    enrollment_trend = [{"date": str(row[0]), "value": row[1]} for row in r.all()]
+
+    # 2. Batch status breakdown
+    r = await session.execute(text("""
+        SELECT
+            COUNT(*) FILTER (WHERE start_date > :today) AS upcoming,
+            COUNT(*) FILTER (WHERE start_date <= :today AND end_date >= :today) AS active,
+            COUNT(*) FILTER (WHERE end_date < :today) AS completed
+        FROM batches WHERE deleted_at IS NULL AND institute_id = :iid
+    """), {"iid": iid, "today": today})
+    bs = r.one()
+    batch_status = {"upcoming": bs[0] or 0, "active": bs[1] or 0, "completed": bs[2] or 0}
+
+    # 3. Top 5 batches by enrollment
+    r = await session.execute(text("""
+        SELECT b.name, COUNT(sb.id) AS cnt
+        FROM batches b
+        LEFT JOIN student_batches sb ON sb.batch_id = b.id AND sb.removed_at IS NULL
+        WHERE b.deleted_at IS NULL AND b.institute_id = :iid
+        GROUP BY b.id, b.name ORDER BY cnt DESC LIMIT 5
+    """), {"iid": iid})
+    top_batches = [{"name": row[0], "student_count": row[1]} for row in r.all()]
+
+    # 4. Quiz pass rate trend (weekly)
+    r = await session.execute(text("""
+        SELECT date_trunc('week', submitted_at)::date AS week,
+               ROUND(COUNT(*) FILTER (WHERE passed) * 100.0 / NULLIF(COUNT(*), 0), 1) AS rate
+        FROM quiz_attempts
+        WHERE institute_id = :iid AND status = 'graded' AND submitted_at >= :start
+        GROUP BY week ORDER BY week
+    """), {"iid": iid, "start": start})
+    quiz_trend = [{"date": str(row[0]), "value": float(row[1]) if row[1] else 0} for row in r.all()]
+
+    # 5. Batch health: watch completion + attendance rate per active batch
+    r = await session.execute(text("""
+        SELECT b.name,
+               COALESCE(ROUND(AVG(lp.watch_percentage), 1), 0) AS watch_pct
+        FROM batches b
+        LEFT JOIN lectures l ON l.batch_id = b.id AND l.deleted_at IS NULL
+        LEFT JOIN lecture_progress lp ON lp.lecture_id = l.id
+        WHERE b.deleted_at IS NULL AND b.institute_id = :iid
+          AND b.start_date <= :today AND b.end_date >= :today
+        GROUP BY b.id, b.name
+    """), {"iid": iid, "today": today})
+    batch_health_rows = r.all()
+
+    batch_health = []
+    for row in batch_health_rows:
+        batch_health.append({"name": row[0], "watch_completion": float(row[1]), "attendance_rate": None})
+
+    # Batch-fetch attendance rates for active batches
+    if batch_health:
+        r = await session.execute(text("""
+            SELECT b.name,
+                   ROUND(COUNT(*) FILTER (WHERE za.attended) * 100.0 / NULLIF(COUNT(*), 0), 1)
+            FROM zoom_attendance za
+            JOIN zoom_classes zc ON zc.id = za.zoom_class_id
+            JOIN batches b ON b.id = zc.batch_id
+            WHERE zc.institute_id = :iid AND zc.deleted_at IS NULL
+              AND b.start_date <= :today AND b.end_date >= :today
+            GROUP BY b.id, b.name
+        """), {"iid": iid, "today": today})
+        att_map = {row[0]: float(row[1]) if row[1] else None for row in r.all()}
+        for bh in batch_health:
+            bh["attendance_rate"] = att_map.get(bh["name"])
+
     return {
         "active_students": _kpi(active_students_curr, active_students_prev),
         "active_batches": _kpi(active_batches_curr, active_batches_prev),
@@ -539,6 +614,11 @@ async def get_overview_metrics(
         "avg_attendance": _kpi(attendance_curr, attendance_prev),
         "content_created": _kpi(content_curr, content_prev),
         "alerts": alerts,
+        "enrollment_trend": enrollment_trend,
+        "batch_status": batch_status,
+        "top_batches": top_batches,
+        "quiz_trend": quiz_trend,
+        "batch_health": batch_health,
         "last_updated": now_str,
     }
 

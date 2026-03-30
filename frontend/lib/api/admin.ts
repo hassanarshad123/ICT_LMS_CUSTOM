@@ -137,6 +137,17 @@ export interface AlertItem {
   link?: string;
 }
 
+export interface TrendPoint {
+  date: string;
+  value: number;
+}
+
+export interface BatchHealthItem {
+  name: string;
+  watchCompletion: number;
+  attendanceRate: number | null;
+}
+
 export interface OverviewData {
   activeStudents: KpiCard;
   activeBatches: KpiCard;
@@ -147,6 +158,11 @@ export interface OverviewData {
   avgAttendance: KpiCard;
   contentCreated: KpiCard;
   alerts: AlertItem[];
+  enrollmentTrend: TrendPoint[];
+  batchStatus: { upcoming: number; active: number; completed: number };
+  topBatches: { name: string; studentCount: number }[];
+  quizTrend: TrendPoint[];
+  batchHealth: BatchHealthItem[];
   lastUpdated: string;
 }
 
