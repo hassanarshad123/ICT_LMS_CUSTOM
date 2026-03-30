@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import {
   BookOpen,
   CheckCircle2,
@@ -19,6 +20,90 @@ interface NowPlayingInfo {
   subtitle: string;
   duration: string;
   date: string;
+}
+
+/* ─── Lecture Thumbnail ─────────────────────────────────────────── */
+
+function LectureThumbnail({
+  thumbnailUrl,
+  index,
+  isLocked,
+  isCompleted,
+  isActive,
+  watchPercentage,
+  durationDisplay,
+}: {
+  thumbnailUrl: string;
+  index: number;
+  isLocked: boolean;
+  isCompleted: boolean;
+  isActive: boolean;
+  watchPercentage?: number;
+  durationDisplay?: string;
+}) {
+  const [imgError, setImgError] = useState(false);
+
+  return (
+    <div className="w-[120px] h-[68px] rounded-lg overflow-hidden flex-shrink-0 relative bg-gray-100">
+      {!imgError ? (
+        <img
+          src={thumbnailUrl}
+          alt=""
+          className={`w-full h-full object-cover ${isLocked ? 'grayscale opacity-60' : ''}`}
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center bg-gray-100">
+          <Video size={20} className="text-gray-300" />
+        </div>
+      )}
+
+      {/* Sequence number — top left */}
+      <span className="absolute top-1 left-1 bg-black/60 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
+        {index + 1}
+      </span>
+
+      {/* Duration — bottom right */}
+      {durationDisplay && !isLocked && (
+        <span className="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded">
+          {durationDisplay}
+        </span>
+      )}
+
+      {/* Lock overlay */}
+      {isLocked && (
+        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+          <Lock size={18} className="text-white/80" />
+        </div>
+      )}
+
+      {/* Completed badge — bottom right */}
+      {isCompleted && !isActive && !isLocked && (
+        <div className="absolute bottom-1 right-1 bg-green-500 text-white rounded-full p-0.5">
+          <CheckCircle2 size={10} />
+        </div>
+      )}
+
+      {/* Now playing indicator — bottom left */}
+      {isActive && !isLocked && (
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/50 to-transparent h-6 flex items-end px-1.5 pb-1">
+          <span className="text-white text-[9px] font-semibold flex items-center gap-0.5">
+            <PlayCircle size={9} /> Playing
+          </span>
+        </div>
+      )}
+
+      {/* Watch progress bar — bottom edge */}
+      {watchPercentage != null && watchPercentage > 0 && !isCompleted && !isLocked && (
+        <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-black/20">
+          <div
+            className="h-full bg-blue-500 rounded-r-full"
+            style={{ width: `${Math.min(watchPercentage, 100)}%` }}
+          />
+        </div>
+      )}
+    </div>
+  );
 }
 
 export interface CourseVideoPlayerProps {
@@ -60,8 +145,15 @@ export function CourseVideoPlayer({
         <div className="flex-1 min-w-0">
           {playlistTab === 'lectures' && activeLecture ? (
             activeLecture.isLocked ? (
-              <div className="aspect-video bg-gray-800 rounded-2xl flex items-center justify-center">
-                <div className="text-center px-6">
+              <div className="aspect-video bg-gray-800 rounded-2xl flex items-center justify-center relative overflow-hidden">
+                {activeLecture.thumbnailUrl && (
+                  <img
+                    src={activeLecture.thumbnailUrl}
+                    alt=""
+                    className="absolute inset-0 w-full h-full object-cover opacity-20 blur-sm"
+                  />
+                )}
+                <div className="text-center px-6 relative z-10">
                   <Lock size={48} className="text-gray-400 mx-auto mb-3" />
                   <p className="text-white text-sm font-medium mb-1">This lecture is locked</p>
                   <p className="text-gray-400 text-xs mb-4">
@@ -94,11 +186,18 @@ export function CourseVideoPlayer({
               />
             )
           ) : (
-            <div className="aspect-video bg-gray-800 rounded-2xl flex items-center justify-center">
-              <div className="text-center">
+            <div className="aspect-video bg-gray-800 rounded-2xl flex items-center justify-center relative overflow-hidden">
+              {sortedLectures[0]?.thumbnailUrl && (
+                <img
+                  src={sortedLectures[0].thumbnailUrl}
+                  alt=""
+                  className="absolute inset-0 w-full h-full object-cover opacity-30 blur-sm"
+                />
+              )}
+              <div className="text-center relative z-10">
                 <PlayCircle size={64} className="text-accent mx-auto mb-3" />
                 <p className="text-white text-sm">
-                  {nowPlaying ? nowPlaying.title : 'Select a video'}
+                  {nowPlaying ? nowPlaying.title : 'Select a video to start watching'}
                 </p>
               </div>
             </div>
@@ -155,6 +254,7 @@ export function CourseVideoPlayer({
                       const isLocked = lecture.isLocked === true;
                       const isCompleted = lecture.progressStatus === 'completed';
                       const isInProgress = lecture.progressStatus === 'in_progress';
+                      const hasThumbnail = !!lecture.thumbnailUrl;
                       return (
                         <button
                           key={lecture.id}
@@ -163,42 +263,74 @@ export function CourseVideoPlayer({
                             onSelectLecture(lecture.id);
                           }}
                           disabled={isLocked}
-                          className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
+                          className={`w-full flex items-center gap-3 text-left transition-colors ${
+                            hasThumbnail ? 'px-3 py-2.5' : 'px-4 py-3'
+                          } ${
                             isLocked
                               ? 'opacity-50 cursor-not-allowed bg-gray-50'
                               : isActive
-                                ? 'bg-primary text-white'
+                                ? hasThumbnail
+                                  ? 'bg-primary/5 border-l-[3px] border-l-primary'
+                                  : 'bg-primary text-white'
                                 : 'hover:bg-gray-50 text-primary'
                           }`}
                         >
-                          <div
-                            className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold ${
-                              isLocked
-                                ? 'bg-gray-200 text-gray-400'
-                                : isActive
-                                  ? 'bg-accent text-primary'
-                                  : isCompleted
-                                    ? 'bg-green-100 text-green-600'
-                                    : 'bg-gray-100 text-gray-500'
-                            }`}
-                          >
-                            {isLocked ? <Lock size={12} /> : isCompleted ? <CheckCircle2 size={12} /> : index + 1}
-                          </div>
+                          {hasThumbnail ? (
+                            <LectureThumbnail
+                              thumbnailUrl={lecture.thumbnailUrl!}
+                              index={index}
+                              isLocked={isLocked}
+                              isCompleted={isCompleted}
+                              isActive={isActive}
+                              watchPercentage={lecture.watchPercentage ?? undefined}
+                              durationDisplay={lecture.durationDisplay || undefined}
+                            />
+                          ) : (
+                            <div
+                              className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold ${
+                                isLocked
+                                  ? 'bg-gray-200 text-gray-400'
+                                  : isActive
+                                    ? 'bg-accent text-primary'
+                                    : isCompleted
+                                      ? 'bg-green-100 text-green-600'
+                                      : 'bg-gray-100 text-gray-500'
+                              }`}
+                            >
+                              {isLocked ? <Lock size={12} /> : isCompleted ? <CheckCircle2 size={12} /> : index + 1}
+                            </div>
+                          )}
                           <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-medium truncate ${isLocked ? 'text-gray-400' : isActive ? 'text-white' : 'text-primary'}`}>
+                            <p className={`text-sm font-medium truncate ${
+                              isLocked ? 'text-gray-400'
+                                : isActive
+                                  ? hasThumbnail ? 'text-primary font-semibold' : 'text-white'
+                                  : 'text-primary'
+                            }`}>
                               {lecture.title}
                             </p>
-                            <div className={`flex items-center gap-1 text-xs mt-0.5 ${isActive ? 'text-gray-300' : 'text-gray-400'}`}>
-                              <Clock size={10} />
-                              {lecture.durationDisplay || `${lecture.duration || 0}s`}
-                              {isInProgress && lecture.watchPercentage != null && (
+                            <div className={`flex items-center gap-1 text-xs mt-0.5 ${
+                              isActive
+                                ? hasThumbnail ? 'text-gray-500' : 'text-gray-300'
+                                : 'text-gray-400'
+                            }`}>
+                              {!hasThumbnail && <Clock size={10} />}
+                              {!hasThumbnail && (lecture.durationDisplay || `${lecture.duration || 0}s`)}
+                              {hasThumbnail && isInProgress && lecture.watchPercentage != null && (
+                                <span className="text-blue-500 font-medium">{lecture.watchPercentage}% watched</span>
+                              )}
+                              {!hasThumbnail && isInProgress && lecture.watchPercentage != null && (
                                 <span className="ml-1 text-blue-500 font-medium">{lecture.watchPercentage}%</span>
                               )}
                             </div>
                           </div>
-                          {isLocked && <Lock size={14} className="text-gray-300 flex-shrink-0" />}
-                          {!isLocked && isActive && <PlayCircle size={16} className="text-accent flex-shrink-0" />}
-                          {!isLocked && !isActive && isCompleted && <CheckCircle2 size={14} className="text-green-500 flex-shrink-0" />}
+                          {!hasThumbnail && (
+                            <>
+                              {isLocked && <Lock size={14} className="text-gray-300 flex-shrink-0" />}
+                              {!isLocked && isActive && <PlayCircle size={16} className="text-accent flex-shrink-0" />}
+                              {!isLocked && !isActive && isCompleted && <CheckCircle2 size={14} className="text-green-500 flex-shrink-0" />}
+                            </>
+                          )}
                         </button>
                       );
                     })}
