@@ -72,9 +72,18 @@ function KpiCardComponent({ label, kpi, format = 'number' }: { label: string; kp
 // ── Overview Tab ────────────────────────────────────────────────
 
 function OverviewTab({ data }: { data: OverviewData }) {
+  const batchStatusData = [
+    { name: 'Active', value: data.batchStatus.active, fill: 'hsl(var(--primary))' },
+    { name: 'Upcoming', value: data.batchStatus.upcoming, fill: '#f59e0b' },
+    { name: 'Completed', value: data.batchStatus.completed, fill: '#94a3b8' },
+  ].filter(d => d.value > 0);
+
+  const totalBatches = batchStatusData.reduce((s, d) => s + d.value, 0);
+
   return (
-    <div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div className="space-y-6">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCardComponent label="Active Students" kpi={data.activeStudents} />
         <KpiCardComponent label="Active Batches" kpi={data.activeBatches} />
         <KpiCardComponent label="Lecture Completion" kpi={data.lectureCompletion} format="percent" />
@@ -85,18 +94,138 @@ function OverviewTab({ data }: { data: OverviewData }) {
         <KpiCardComponent label="Content Created" kpi={data.contentCreated} />
       </div>
 
+      {/* Alerts */}
       {data.alerts.length > 0 && (
         <div className="bg-white rounded-2xl p-5 card-shadow">
           <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
             <AlertTriangle size={16} className="text-amber-500" /> Attention Required
           </h3>
-          <div className="space-y-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {data.alerts.map((a, i) => (
-              <div key={i} className="flex items-center justify-between py-2 px-3 bg-amber-50 rounded-xl">
-                <span className="text-sm text-amber-800">{a.label}</span>
-                <span className="text-xs font-semibold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">{a.count}</span>
+              <div key={i} className="flex items-center gap-3 py-3 px-4 bg-amber-50 rounded-xl border border-amber-100">
+                <span className="text-2xl font-bold text-amber-600">{a.count}</span>
+                <span className="text-xs text-amber-800 leading-tight">{a.label}</span>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Row 1: Enrollment Trend + Batch Status */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Enrollment trend (takes 2 cols) */}
+        <div className="lg:col-span-2 bg-white rounded-2xl p-5 card-shadow">
+          <h3 className="text-sm font-semibold text-gray-700 mb-4">Enrollment Trend</h3>
+          {data.enrollmentTrend.length > 0 ? (
+            <ResponsiveContainer width="100%" height={240}>
+              <AreaChart data={data.enrollmentTrend}>
+                <defs>
+                  <linearGradient id="enrollGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.15} />
+                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#94a3b8" />
+                <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" />
+                <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0' }} />
+                <Area type="monotone" dataKey="value" name="Enrollments" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#enrollGrad)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-sm text-gray-400 text-center py-16">No enrollment data for this period</p>
+          )}
+        </div>
+
+        {/* Batch status donut */}
+        <div className="bg-white rounded-2xl p-5 card-shadow">
+          <h3 className="text-sm font-semibold text-gray-700 mb-4">Batch Status</h3>
+          {totalBatches > 0 ? (
+            <div className="flex flex-col items-center">
+              <ResponsiveContainer width="100%" height={180}>
+                <PieChart>
+                  <Pie data={batchStatusData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={75} paddingAngle={2}>
+                    {batchStatusData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
+                  </Pie>
+                  <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0' }} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex gap-4 mt-2">
+                {batchStatusData.map((d, i) => (
+                  <div key={i} className="flex items-center gap-1.5 text-xs text-gray-600">
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ background: d.fill }} />
+                    {d.name}: {d.value}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400 text-center py-16">No batches</p>
+          )}
+        </div>
+      </div>
+
+      {/* Row 2: Top Batches + Quiz Pass Rate Trend */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Top batches by enrollment */}
+        <div className="bg-white rounded-2xl p-5 card-shadow">
+          <h3 className="text-sm font-semibold text-gray-700 mb-4">Top Batches by Enrollment</h3>
+          {data.topBatches.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={data.topBatches} layout="vertical" margin={{ left: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 11 }} stroke="#94a3b8" />
+                <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} stroke="#94a3b8" width={100} />
+                <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0' }} />
+                <Bar dataKey="studentCount" name="Students" fill="hsl(var(--primary))" radius={[0, 6, 6, 0]} barSize={20} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-sm text-gray-400 text-center py-16">No batch data</p>
+          )}
+        </div>
+
+        {/* Quiz pass rate trend */}
+        <div className="bg-white rounded-2xl p-5 card-shadow">
+          <h3 className="text-sm font-semibold text-gray-700 mb-4">Quiz Pass Rate Trend</h3>
+          {data.quizTrend.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={data.quizTrend}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#94a3b8" />
+                <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" domain={[0, 100]} />
+                <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0' }} formatter={(v: number) => `${v}%`} />
+                <Line type="monotone" dataKey="value" name="Pass Rate" stroke="#10b981" strokeWidth={2.5} dot={{ fill: '#10b981', r: 3 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-sm text-gray-400 text-center py-16">No quiz data for this period</p>
+          )}
+        </div>
+      </div>
+
+      {/* Row 3: Batch Health — Watch Completion vs Attendance */}
+      {data.batchHealth.length > 0 && (
+        <div className="bg-white rounded-2xl p-5 card-shadow">
+          <h3 className="text-sm font-semibold text-gray-700 mb-1">Active Batch Health</h3>
+          <p className="text-xs text-gray-400 mb-4">Lecture completion vs zoom attendance per active batch</p>
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={data.batchHealth} margin={{ bottom: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <XAxis dataKey="name" tick={{ fontSize: 10 }} stroke="#94a3b8" angle={-15} textAnchor="end" />
+              <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" domain={[0, 100]} />
+              <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0' }} formatter={(v: number) => `${v}%`} />
+              <Bar dataKey="watchCompletion" name="Watch %" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} barSize={24} />
+              <Bar dataKey="attendanceRate" name="Attendance %" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} barSize={24} />
+            </BarChart>
+          </ResponsiveContainer>
+          <div className="flex gap-6 justify-center mt-2">
+            <div className="flex items-center gap-1.5 text-xs text-gray-600">
+              <div className="w-3 h-3 rounded" style={{ background: 'hsl(var(--primary))' }} /> Watch Completion
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-gray-600">
+              <div className="w-3 h-3 rounded" style={{ background: 'hsl(var(--accent))' }} /> Attendance Rate
+            </div>
           </div>
         </div>
       )}

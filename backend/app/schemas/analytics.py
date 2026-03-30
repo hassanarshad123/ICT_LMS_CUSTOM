@@ -28,6 +28,28 @@ class AlertItem(BaseModel):
     link: Optional[str] = None
 
 
+class TrendPoint(BaseModel):
+    date: str
+    value: float
+
+
+class BatchStatusBreakdown(BaseModel):
+    upcoming: int
+    active: int
+    completed: int
+
+
+class TopBatch(BaseModel):
+    name: str
+    student_count: int
+
+
+class BatchHealthItem(BaseModel):
+    name: str
+    watch_completion: float
+    attendance_rate: Optional[float] = None
+
+
 class OverviewResponse(BaseModel):
     active_students: KpiCard
     active_batches: KpiCard
@@ -38,6 +60,12 @@ class OverviewResponse(BaseModel):
     avg_attendance: KpiCard
     content_created: KpiCard
     alerts: list[AlertItem] = []
+    # Charts
+    enrollment_trend: list[TrendPoint] = []
+    batch_status: BatchStatusBreakdown
+    top_batches: list[TopBatch] = []
+    quiz_trend: list[TrendPoint] = []
+    batch_health: list[BatchHealthItem] = []
     last_updated: str
 
 
