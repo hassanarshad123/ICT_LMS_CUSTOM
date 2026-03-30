@@ -87,6 +87,92 @@ async def check_video_quota(
         raise ValueError(f"Video storage limit reached ({institute.max_video_gb}GB). Upgrade your plan.")
 
 
+# ── Atomic check-and-increment functions ─────────────────────────
+# These use FOR UPDATE to prevent concurrent requests from bypassing
+# quotas. Must be called BEFORE the service's create function so
+# that the service's internal commit also persists the increment.
+
+
+async def _lock_usage(session: AsyncSession, institute_id: uuid.UUID) -> InstituteUsage:
+    """Acquire a row-level lock on the usage row for atomic quota operations."""
+    result = await session.execute(
+        select(InstituteUsage)
+        .where(InstituteUsage.institute_id == institute_id)
+        .with_for_update()
+    )
+    usage = result.scalar_one_or_none()
+    if not usage:
+        usage = InstituteUsage(
+            institute_id=institute_id,
+            last_calculated_at=datetime.now(timezone.utc),
+        )
+        session.add(usage)
+        await session.flush()
+    return usage
+
+
+async def check_and_increment_user_quota(
+    session: AsyncSession, institute_id: uuid.UUID,
+) -> None:
+    """Atomically lock, check, and increment user count.
+
+    Call BEFORE create_user() so the service's internal commit
+    also persists this increment.
+    """
+    usage = await _lock_usage(session, institute_id)
+    institute = await session.get(Institute, institute_id)
+    if not institute:
+        return
+    if usage.current_users >= institute.max_users:
+        raise ValueError(
+            f"User limit reached ({institute.max_users}). Upgrade your plan to add more users."
+        )
+    usage.current_users += 1
+    session.add(usage)
+
+
+async def check_and_increment_storage_quota(
+    session: AsyncSession, institute_id: uuid.UUID, file_size_bytes: int,
+) -> None:
+    """Atomically lock, check, and increment storage bytes.
+
+    Call BEFORE create_material() so the service's internal commit
+    also persists this increment.
+    """
+    usage = await _lock_usage(session, institute_id)
+    institute = await session.get(Institute, institute_id)
+    if not institute:
+        return
+    max_bytes = int(institute.max_storage_gb * 1024 ** 3)
+    if (usage.current_storage_bytes + file_size_bytes) > max_bytes:
+        raise ValueError(
+            f"Storage limit reached ({institute.max_storage_gb}GB). Upgrade your plan."
+        )
+    usage.current_storage_bytes += file_size_bytes
+    session.add(usage)
+
+
+async def check_and_increment_video_quota(
+    session: AsyncSession, institute_id: uuid.UUID, estimated_bytes: int,
+) -> None:
+    """Atomically lock, check, and increment video bytes.
+
+    Call BEFORE create_lecture() so the service's internal commit
+    also persists this increment.
+    """
+    usage = await _lock_usage(session, institute_id)
+    institute = await session.get(Institute, institute_id)
+    if not institute:
+        return
+    max_bytes = int(institute.max_video_gb * 1024 ** 3)
+    if (usage.current_video_bytes + estimated_bytes) > max_bytes:
+        raise ValueError(
+            f"Video storage limit reached ({institute.max_video_gb}GB). Upgrade your plan."
+        )
+    usage.current_video_bytes += estimated_bytes
+    session.add(usage)
+
+
 async def recalculate_usage(session: AsyncSession, institute_id: uuid.UUID) -> InstituteUsage:
     """Recalculate usage from actual DB rows (for daily scheduler job)."""
     from app.models.course import BatchMaterial

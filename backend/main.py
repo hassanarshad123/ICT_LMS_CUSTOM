@@ -45,7 +45,7 @@ async def lifespan(app: FastAPI):
     if settings.SCHEDULER_ENABLED:
         try:
             from apscheduler.schedulers.asyncio import AsyncIOScheduler
-            from app.scheduler.jobs import cleanup_expired_sessions, send_zoom_reminders, retry_failed_recordings, cleanup_stale_uploads, auto_suspend_expired_institutes, process_webhook_deliveries
+            from app.scheduler.jobs import cleanup_expired_sessions, send_zoom_reminders, retry_failed_recordings, cleanup_stale_uploads, auto_suspend_expired_institutes, process_webhook_deliveries, recalculate_all_usage
 
             scheduler = AsyncIOScheduler()
             scheduler.add_job(cleanup_expired_sessions, "interval", hours=1, id="cleanup_sessions")
@@ -54,6 +54,7 @@ async def lifespan(app: FastAPI):
             scheduler.add_job(cleanup_stale_uploads, "interval", hours=24, id="cleanup_stale_uploads")
             scheduler.add_job(auto_suspend_expired_institutes, "interval", hours=24, id="auto_suspend_institutes")
             scheduler.add_job(process_webhook_deliveries, "interval", minutes=1, id="webhook_deliveries")
+            scheduler.add_job(recalculate_all_usage, "interval", hours=24, id="recalculate_usage")
             scheduler.start()
             app.state.scheduler = scheduler
             logging.getLogger("ict_lms").info("Scheduler started (slot=%s)", settings.DEPLOY_SLOT)

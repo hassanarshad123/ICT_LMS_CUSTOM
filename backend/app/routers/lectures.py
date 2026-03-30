@@ -111,11 +111,11 @@ async def upload_init(
             detail="Video upload service is not configured. Please contact the administrator to set up Bunny.net credentials.",
         )
 
-    # 0b. Quota check for video uploads
+    # 0b. Atomically check video quota and pre-increment (locked with FOR UPDATE)
     if current_user.institute_id:
-        from app.services.institute_service import check_video_quota
+        from app.services.institute_service import check_and_increment_video_quota
         try:
-            await check_video_quota(session, current_user.institute_id, body.file_size or 0)
+            await check_and_increment_video_quota(session, current_user.institute_id, body.file_size or 0)
         except ValueError as e:
             raise HTTPException(status_code=402, detail=str(e))
 
@@ -351,6 +351,13 @@ async def delete_lecture(
         await lecture_service.soft_delete_lecture(session, lecture_id, institute_id=current_user.institute_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+    # Decrement video usage and commit (soft_delete commits internally,
+    # so decrement needs its own commit to persist)
+    if current_user.institute_id and existing.file_size:
+        from app.services.institute_service import decrement_usage
+        await decrement_usage(session, current_user.institute_id, video_bytes=existing.file_size)
+        await session.commit()
 
 
 @router.post("/{lecture_id}/reorder", response_model=LectureOut)

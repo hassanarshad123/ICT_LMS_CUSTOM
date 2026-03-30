@@ -19,7 +19,7 @@ from app.schemas.common import PaginatedResponse
 from app.services.institute_service import (
     create_institute, create_admin_for_institute, get_platform_stats,
     recalculate_usage, get_or_create_usage,
-    check_user_quota, increment_usage,
+    check_and_increment_user_quota,
 )
 from app.utils.security import create_impersonation_token
 from app.utils.rate_limit import limiter
@@ -220,9 +220,9 @@ async def create_admin(
     if existing.scalar_one_or_none():
         raise HTTPException(400, "Email already in use in this institute")
 
-    # Enforce user quota before creation (Fix 5)
+    # Atomically check quota and pre-increment before create (locked with FOR UPDATE)
     try:
-        await check_user_quota(session, institute_id)
+        await check_and_increment_user_quota(session, institute_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -234,9 +234,6 @@ async def create_admin(
         password=body.password,
         phone=body.phone,
     )
-
-    # Increment usage counter (Fix 5)
-    await increment_usage(session, institute_id, users=1)
 
     return {"id": str(user.id), "email": user.email, "name": user.name, "role": user.role.value}
 
@@ -403,6 +400,7 @@ async def impersonate_user(
         entity_id=target.id,
         details={"target_email": target.email, "institute_name": institute.name},
         ip_address=request.client.host if request.client else None,
+        impersonated_by=sa.id,
     )
     session.add(log)
     await session.commit()
