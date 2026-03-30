@@ -25,6 +25,45 @@ Admin = Annotated[User, Depends(require_roles("admin"))]
 AdminOrSA = Annotated[User, Depends(require_roles("admin", "super_admin"))]
 
 
+def _redact_error_for_admin(error: "ErrorLog") -> ErrorLogOut:
+    """Redact sensitive fields from error logs for non-super-admin users.
+
+    Hides: full traceback (show first + last line only), IP addresses
+    (mask to /24), user_agent, extra JSONB, and other users' emails.
+    """
+    tb = error.traceback
+    if tb:
+        lines = tb.strip().splitlines()
+        if len(lines) > 2:
+            tb = f"{lines[0]}\n  ... ({len(lines) - 2} lines redacted) ...\n{lines[-1]}"
+
+    ip = error.ip_address
+    if ip and "." in ip:
+        parts = ip.split(".")
+        ip = f"{parts[0]}.{parts[1]}.{parts[2]}.xxx"
+
+    return ErrorLogOut(
+        id=error.id,
+        level=error.level,
+        message=error.message,
+        traceback=tb,
+        request_id=error.request_id,
+        request_method=error.request_method,
+        request_path=error.request_path,
+        status_code=error.status_code,
+        user_id=error.user_id,
+        user_email=None,
+        ip_address=ip,
+        user_agent=None,
+        source=error.source,
+        resolved=error.resolved,
+        resolved_at=error.resolved_at,
+        resolved_by=error.resolved_by,
+        extra=None,
+        created_at=error.created_at,
+    )
+
+
 @router.get("/errors", response_model=PaginatedResponse[ErrorLogOut])
 async def list_errors(
     current_user: AdminOrSA,
@@ -54,8 +93,13 @@ async def list_errors(
         per_page=per_page,
     )
 
+    if is_sa:
+        data = [ErrorLogOut.model_validate(e) for e in errors]
+    else:
+        data = [_redact_error_for_admin(e) for e in errors]
+
     return PaginatedResponse(
-        data=[ErrorLogOut.model_validate(e) for e in errors],
+        data=data,
         total=total,
         page=page,
         per_page=per_page,
@@ -102,7 +146,9 @@ async def get_error(
     )
     if not error:
         raise HTTPException(status_code=404, detail="Error log not found")
-    return ErrorLogOut.model_validate(error)
+    if is_sa:
+        return ErrorLogOut.model_validate(error)
+    return _redact_error_for_admin(error)
 
 
 @router.patch("/errors/{error_id}", response_model=ErrorLogOut)
