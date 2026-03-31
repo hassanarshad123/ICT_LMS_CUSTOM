@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import SettingsView from '@/components/shared/settings-view';
-import { Minus, Plus, Save, Monitor, Video, Award, Edit3, Trash2, Star, Eye, EyeOff, X, Loader2, KeyRound } from 'lucide-react';
+import { Minus, Plus, Save, Monitor, Video, Award, Edit3, Trash2, Star, Eye, EyeOff, X, Loader2, KeyRound, Mail } from 'lucide-react';
 import { useBasePath } from '@/hooks/use-base-path';
 import { useApi, useMutation } from '@/hooks/use-api';
 import { getSettings, updateSettings } from '@/lib/api/admin';
@@ -348,6 +348,50 @@ export default function AdminSettings() {
                 </button>
               </>
             )}
+          </div>
+
+          {/* Email Notifications Card */}
+          <div className="bg-white rounded-2xl p-4 sm:p-6 card-shadow">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center">
+                <Mail size={20} className="text-primary" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-primary">Email Notifications</h3>
+                <p className="text-xs text-gray-500">Control which emails are sent to students</p>
+              </div>
+            </div>
+            <div className="space-y-3">
+              {[
+                { key: 'email_welcome', label: 'Welcome Email', desc: 'Sent when a new student account is created' },
+                { key: 'email_enrollment', label: 'Enrollment Confirmation', desc: 'Sent when a student is added to a batch' },
+                { key: 'email_batch_expiry_7d', label: 'Batch Expiry Warning (7 days)', desc: 'Sent 7 days before batch access expires' },
+                { key: 'email_batch_expiry_1d', label: 'Batch Expiry Warning (1 day)', desc: 'Sent 1 day before batch access expires' },
+                { key: 'email_batch_expired', label: 'Batch Expired', desc: 'Sent when batch access has expired' },
+                { key: 'email_certificate', label: 'Certificate Issued', desc: 'Sent when a certificate is approved' },
+                { key: 'email_announcement', label: 'Announcement Emails', desc: 'Sent when an announcement is posted with email toggle' },
+                { key: 'email_quiz_graded', label: 'Quiz Graded', desc: 'Sent when all quiz answers have been graded' },
+                { key: 'email_zoom_reminder', label: 'Zoom Class Reminder', desc: 'Sent 15 minutes before a scheduled class' },
+              ].map((item) => (
+                <label key={item.key} className="flex items-start gap-3 p-3 rounded-xl hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={(settingsData?.settings?.[item.key] ?? 'true') !== 'false'}
+                    onChange={async (e) => {
+                      try {
+                        await saveSettings({ [item.key]: e.target.checked ? 'true' : 'false' });
+                        toast.success(`${item.label} ${e.target.checked ? 'enabled' : 'disabled'}`);
+                      } catch { toast.error('Failed to update'); }
+                    }}
+                    className="mt-0.5 w-4 h-4 rounded border-gray-300 text-primary"
+                  />
+                  <div>
+                    <div className="text-sm font-medium text-gray-900">{item.label}</div>
+                    <div className="text-xs text-gray-500">{item.desc}</div>
+                  </div>
+                </label>
+              ))}
+            </div>
           </div>
 
           {/* Zoom Integration Card */}

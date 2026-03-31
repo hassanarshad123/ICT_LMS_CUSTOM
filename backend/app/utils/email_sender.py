@@ -68,6 +68,63 @@ async def get_institute_branding(session, institute_id: uuid.UUID) -> dict:
     return result
 
 
+# ── Email preference checks ─────────────────────────────────────
+
+_CRITICAL_EMAILS = {"email_welcome", "email_certificate"}
+
+
+async def is_email_enabled(session, institute_id: uuid.UUID, email_type: str) -> bool:
+    """Check if admin has this email type enabled at institute level.
+    Default: True (all enabled if no setting exists).
+    """
+    from sqlmodel import select
+    from app.models.settings import SystemSetting
+
+    try:
+        r = await session.execute(
+            select(SystemSetting.value).where(
+                SystemSetting.setting_key == email_type,
+                SystemSetting.institute_id == institute_id,
+            )
+        )
+        val = r.scalar_one_or_none()
+        if val is not None:
+            return val.lower() != "false"
+    except Exception:
+        pass
+    return True  # Default enabled
+
+
+async def is_user_subscribed(session, user_id: uuid.UUID, email_type: str) -> bool:
+    """Check if user has opted out of this email type.
+    Default: True (subscribed if no preference row exists).
+    """
+    from sqlalchemy import text
+
+    try:
+        r = await session.execute(
+            text("SELECT subscribed FROM user_email_preferences WHERE user_id = :uid AND email_type = :et"),
+            {"uid": str(user_id), "et": email_type},
+        )
+        row = r.one_or_none()
+        if row is not None:
+            return bool(row[0])
+    except Exception:
+        pass
+    return True  # Default subscribed
+
+
+async def should_send_email(
+    session, institute_id: uuid.UUID, user_id: uuid.UUID, email_type: str
+) -> bool:
+    """Combined check: admin enabled AND (critical OR user subscribed)."""
+    if not await is_email_enabled(session, institute_id, email_type):
+        return False
+    if email_type in _CRITICAL_EMAILS:
+        return True
+    return await is_user_subscribed(session, user_id, email_type)
+
+
 def build_login_url(slug: str) -> str:
     return f"https://{slug}.zensbot.online/login"
 

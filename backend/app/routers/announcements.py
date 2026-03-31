@@ -107,8 +107,12 @@ async def _send_announcement_emails(
     from app.models.batch import Batch, StudentBatch
     from app.models.course import BatchCourse
     from app.models.enums import AnnouncementScope, UserStatus
-    from app.utils.email_sender import send_email_background, get_institute_branding, build_login_url
+    from app.utils.email_sender import send_email_background, get_institute_branding, build_login_url, should_send_email, is_email_enabled
     from app.utils.email_templates import announcement_email
+
+    # Check admin-level toggle first
+    if institute_id and not await is_email_enabled(session, institute_id, "email_announcement"):
+        return
 
     branding = await get_institute_branding(session, institute_id) if institute_id else {"name": "", "slug": "", "logo_url": None, "accent_color": "#C5D86D"}
     login_url = build_login_url(branding["slug"]) if branding["slug"] else ""
@@ -148,6 +152,8 @@ async def _send_announcement_emails(
         try:
             user = await session.get(UserModel, uid)
             if user and user.email:
+                if not await should_send_email(session, institute_id, uid, "email_announcement"):
+                    continue
                 subj, html = announcement_email(
                     student_name=user.name, title=ann.title, content=ann.content,
                     posted_by=poster_name, scope_label=scope_label, login_url=login_url,

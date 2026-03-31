@@ -352,11 +352,15 @@ async def send_batch_expiry_notifications():
                     )
                     total_sent += 1
 
-                    # Also send email
+                    # Also send email (respects admin + student preferences)
                     try:
-                        from app.utils.email_sender import send_email_background, get_institute_branding, build_login_url
+                        from app.utils.email_sender import send_email_background, get_institute_branding, build_login_url, should_send_email
                         from app.utils.email_templates import batch_expiry_warning_email, batch_expired_email
+
+                        email_type = f"email_batch_expiry_{window['offset_days']}d" if window["offset_days"] > 0 else "email_batch_expired"
                         from app.models.user import User as UserModel
+                        if not await should_send_email(session, sb.institute_id, sb.student_id, email_type):
+                            raise Exception("skip")
 
                         student = await session.get(UserModel, sb.student_id)
                         if student and student.email:

@@ -411,8 +411,10 @@ async def approve_existing_certificate(
 
     # Send certificate issued email
     try:
-        from app.utils.email_sender import send_email_background, get_institute_branding, build_portal_url
+        from app.utils.email_sender import send_email_background, get_institute_branding, build_portal_url, should_send_email
         from app.utils.email_templates import certificate_issued_email
+        if not await should_send_email(session, cert.institute_id, cert.student_id, "email_certificate"):
+            return cert
 
         student = await session.get(User, cert.student_id)
         course = None

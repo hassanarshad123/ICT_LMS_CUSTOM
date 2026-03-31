@@ -253,19 +253,20 @@ async def create_user_endpoint(
     # Send welcome email for students
     if db_role == "student" and current_user.institute_id:
         try:
-            from app.utils.email_sender import send_email_background, get_institute_branding, build_login_url, build_reset_url
+            from app.utils.email_sender import send_email_background, get_institute_branding, build_login_url, build_reset_url, should_send_email
             from app.utils.email_templates import welcome_email
-            branding = await get_institute_branding(session, current_user.institute_id)
-            subject, html = welcome_email(
-                student_name=user.name, email=user.email, default_password=password,
-                login_url=build_login_url(branding["slug"]),
-                reset_url=build_reset_url(branding["slug"]),
-                institute_name=branding["name"], logo_url=branding.get("logo_url"),
-                accent_color=branding.get("accent_color", "#C5D86D"),
-            )
-            send_email_background(user.email, subject, html, from_name=branding["name"])
+            if await should_send_email(session, current_user.institute_id, user.id, "email_welcome"):
+                branding = await get_institute_branding(session, current_user.institute_id)
+                subject, html = welcome_email(
+                    student_name=user.name, email=user.email, default_password=password,
+                    login_url=build_login_url(branding["slug"]),
+                    reset_url=build_reset_url(branding["slug"]),
+                    institute_name=branding["name"], logo_url=branding.get("logo_url"),
+                    accent_color=branding.get("accent_color", "#C5D86D"),
+                )
+                send_email_background(user.email, subject, html, from_name=branding["name"])
         except Exception:
-            pass  # Best-effort, don't fail user creation
+            pass
 
     return {
         "id": user.id,
@@ -545,19 +546,20 @@ async def bulk_import(
             # Send welcome email for students (bulk import)
             if db_role == "student" and current_user.institute_id:
                 try:
-                    from app.utils.email_sender import send_email_background, get_institute_branding, build_login_url, build_reset_url
+                    from app.utils.email_sender import send_email_background, get_institute_branding, build_login_url, build_reset_url, should_send_email
                     from app.utils.email_templates import welcome_email as _welcome_tpl
-                    if not hasattr(create_user_endpoint, '_branding_cache'):
-                        create_user_endpoint._branding_cache = await get_institute_branding(session, current_user.institute_id)
-                    br = create_user_endpoint._branding_cache
-                    subj, html = _welcome_tpl(
-                        student_name=name, email=email, default_password=password,
-                        login_url=build_login_url(br["slug"]),
-                        reset_url=build_reset_url(br["slug"]),
-                        institute_name=br["name"], logo_url=br.get("logo_url"),
-                        accent_color=br.get("accent_color", "#C5D86D"),
-                    )
-                    send_email_background(email, subj, html, from_name=br["name"])
+                    if await should_send_email(session, current_user.institute_id, user.id, "email_welcome"):
+                        if not hasattr(create_user_endpoint, '_branding_cache'):
+                            create_user_endpoint._branding_cache = await get_institute_branding(session, current_user.institute_id)
+                        br = create_user_endpoint._branding_cache
+                        subj, html = _welcome_tpl(
+                            student_name=name, email=email, default_password=password,
+                            login_url=build_login_url(br["slug"]),
+                            reset_url=build_reset_url(br["slug"]),
+                            institute_name=br["name"], logo_url=br.get("logo_url"),
+                            accent_color=br.get("accent_color", "#C5D86D"),
+                        )
+                        send_email_background(email, subj, html, from_name=br["name"])
                 except Exception:
                     pass
 
@@ -588,3 +590,83 @@ async def bulk_import(
         "truncated": truncated,
         "total_rows": total_rows,
     }
+
+
+# ── Email Preferences ──────────────────────────────────────────
+
+_SUBSCRIBABLE_TYPES = [
+    {"email_type": "email_enrollment", "label": "Enrollment Confirmation", "description": "When you're added to a new batch"},
+    {"email_type": "email_batch_expiry_7d", "label": "Batch Expiry Warning (7 days)", "description": "Reminder 7 days before access ends"},
+    {"email_type": "email_batch_expiry_1d", "label": "Batch Expiry Warning (1 day)", "description": "Urgent reminder 1 day before access ends"},
+    {"email_type": "email_batch_expired", "label": "Batch Expired", "description": "Notification when batch access has expired"},
+    {"email_type": "email_announcement", "label": "Announcements", "description": "Institute and batch announcements"},
+    {"email_type": "email_quiz_graded", "label": "Quiz Results", "description": "When your quiz has been graded"},
+    {"email_type": "email_zoom_reminder", "label": "Class Reminders", "description": "Zoom class reminders 15 minutes before"},
+]
+
+
+@router.get("/me/email-preferences")
+async def get_email_preferences(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    from sqlalchemy import text
+
+    result = []
+    for item in _SUBSCRIBABLE_TYPES:
+        r = await session.execute(
+            text("SELECT subscribed FROM user_email_preferences WHERE user_id = :uid AND email_type = :et"),
+            {"uid": str(current_user.id), "et": item["email_type"]},
+        )
+        row = r.one_or_none()
+        subscribed = bool(row[0]) if row else True
+        result.append({**item, "subscribed": subscribed})
+
+    return {"preferences": result}
+
+
+class EmailPreferenceUpdate(PydanticBaseModel):
+    email_type: str
+    subscribed: bool
+
+
+class EmailPreferencesUpdateBody(PydanticBaseModel):
+    preferences: list[EmailPreferenceUpdate]
+
+
+@router.patch("/me/email-preferences")
+async def update_email_preferences(
+    body: EmailPreferencesUpdateBody,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    from sqlalchemy import text
+    from datetime import datetime, timezone
+
+    valid_types = {t["email_type"] for t in _SUBSCRIBABLE_TYPES}
+
+    for pref in body.preferences:
+        if pref.email_type not in valid_types:
+            continue
+
+        # Upsert
+        r = await session.execute(
+            text("SELECT id FROM user_email_preferences WHERE user_id = :uid AND email_type = :et"),
+            {"uid": str(current_user.id), "et": pref.email_type},
+        )
+        existing = r.scalar_one_or_none()
+
+        if existing:
+            await session.execute(
+                text("UPDATE user_email_preferences SET subscribed = :sub, updated_at = :now WHERE id = :id"),
+                {"sub": pref.subscribed, "now": datetime.now(timezone.utc), "id": str(existing)},
+            )
+        else:
+            import uuid as _uuid
+            await session.execute(
+                text("INSERT INTO user_email_preferences (id, user_id, email_type, subscribed) VALUES (:id, :uid, :et, :sub)"),
+                {"id": str(_uuid.uuid4()), "uid": str(current_user.id), "et": pref.email_type, "sub": pref.subscribed},
+            )
+
+    await session.commit()
+    return {"detail": "Preferences updated"}

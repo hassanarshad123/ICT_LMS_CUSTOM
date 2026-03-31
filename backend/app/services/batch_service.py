@@ -384,8 +384,10 @@ async def enroll_student(
 
     # Send enrollment confirmation email
     try:
-        from app.utils.email_sender import send_email_background, get_institute_branding, build_login_url
+        from app.utils.email_sender import send_email_background, get_institute_branding, build_login_url, should_send_email
         from app.utils.email_templates import enrollment_email
+        if not await should_send_email(session, institute_id, student_id, "email_enrollment"):
+            return sb
 
         batch = await session.get(Batch, batch_id)
         branding = await get_institute_branding(session, institute_id) if institute_id else {"name": "", "slug": "", "logo_url": None, "accent_color": "#C5D86D"}

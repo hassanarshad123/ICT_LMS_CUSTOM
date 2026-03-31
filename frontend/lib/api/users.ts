@@ -99,3 +99,25 @@ export async function bulkImportUsers(file: File, batchIds?: string[]): Promise<
     timeout: 120000,
   });
 }
+
+// ── Email Preferences ──────────────────────────────────────────
+
+export interface EmailPreferenceItem {
+  emailType: string;
+  label: string;
+  description: string;
+  subscribed: boolean;
+}
+
+export async function getEmailPreferences(): Promise<{ preferences: EmailPreferenceItem[] }> {
+  return apiClient('/users/me/email-preferences');
+}
+
+export async function updateEmailPreferences(
+  preferences: Array<{ emailType: string; subscribed: boolean }>
+): Promise<void> {
+  await apiClient('/users/me/email-preferences', {
+    method: 'PATCH',
+    body: JSON.stringify({ preferences }),
+  });
+}
