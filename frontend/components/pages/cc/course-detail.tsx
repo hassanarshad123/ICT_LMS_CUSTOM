@@ -6,7 +6,7 @@ import DashboardLayout from '@/components/layout/dashboard-layout';
 import { useAuth } from '@/lib/auth-context';
 import { useBasePath } from '@/hooks/use-base-path';
 import { useApi, useMutation } from '@/hooks/use-api';
-import { getCourse, updateCourse } from '@/lib/api/courses';
+import { getCourse, updateCourse, uploadCourseCover, deleteCourseCover } from '@/lib/api/courses';
 import { listModules, createModule, updateModule, deleteModule } from '@/lib/api/curriculum';
 import { listBatches, linkCourse, unlinkCourse } from '@/lib/api/batches';
 import { listQuizzes, createQuiz, deleteQuiz } from '@/lib/api/quizzes';
@@ -19,6 +19,7 @@ import {
   Pencil,
   X,
   Loader2,
+  ImagePlus,
 } from 'lucide-react';
 import Link from 'next/link';
 import { StyledSelect } from '@/components/ui/styled-select';
@@ -60,6 +61,9 @@ export default function CourseCreatorCourseDetail() {
   const [showCourseEditModal, setShowCourseEditModal] = useState(false);
   const [courseEditForm, setCourseEditForm] = useState({ title: '', description: '', status: '' });
   const [courseEditSaving, setCourseEditSaving] = useState(false);
+  const [editCoverFile, setEditCoverFile] = useState<File | null>(null);
+  const [editCoverPreview, setEditCoverPreview] = useState<string | null>(null);
+  const [removeCover, setRemoveCover] = useState(false);
 
   const [showBatchDropdown, setShowBatchDropdown] = useState(false);
   const [showModuleForm, setShowModuleForm] = useState(false);
@@ -209,7 +213,14 @@ export default function CourseCreatorCourseDetail() {
   return (
     <DashboardLayout>
       {/* Dark Header Banner */}
-      <div className="bg-primary rounded-2xl p-4 sm:p-6 mb-6 sm:mb-8">
+      <div className="bg-primary rounded-2xl p-4 sm:p-6 mb-6 sm:mb-8 relative overflow-hidden">
+        {course.coverImageUrl && (
+          <>
+            <img src={course.coverImageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-black/60" />
+          </>
+        )}
+        <div className="relative z-10">
         <Link
           href={`${basePath}/courses`}
           className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors mb-4"
@@ -244,6 +255,7 @@ export default function CourseCreatorCourseDetail() {
             {linkedBatches.length} batches
           </div>
         </div>
+        </div>
       </div>
 
       {/* Course Edit Modal */}
@@ -276,6 +288,40 @@ export default function CourseCreatorCourseDetail() {
                   placeholder="Select status"
                 />
               </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Cover Image</label>
+                {editCoverPreview || (!removeCover && course.coverImageUrl) ? (
+                  <div className="relative w-full h-28 rounded-xl overflow-hidden border border-gray-200">
+                    <img src={editCoverPreview || course.coverImageUrl!} alt="Cover" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => { setEditCoverFile(null); setEditCoverPreview(null); setRemoveCover(true); }}
+                      className="absolute top-2 right-2 p-1 bg-black/50 hover:bg-black/70 rounded-lg transition-colors"
+                    >
+                      <X size={14} className="text-white" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex items-center justify-center gap-2 w-full h-20 border-2 border-dashed border-gray-200 rounded-xl cursor-pointer hover:border-gray-300 transition-colors">
+                    <ImagePlus size={18} className="text-gray-400" />
+                    <span className="text-sm text-gray-500">Upload cover image</span>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        if (f.size > 5 * 1024 * 1024) { toast.error('Image too large. Max 5MB.'); return; }
+                        if (!['image/png', 'image/jpeg', 'image/webp'].includes(f.type)) { toast.error('Only PNG, JPG, WebP.'); return; }
+                        setEditCoverFile(f);
+                        setEditCoverPreview(URL.createObjectURL(f));
+                        setRemoveCover(false);
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
               <div className="flex gap-3 pt-2">
                 <button
                   onClick={async () => {
@@ -283,8 +329,16 @@ export default function CourseCreatorCourseDetail() {
                     setCourseEditSaving(true);
                     try {
                       await updateCourse(courseId, courseEditForm);
+                      if (editCoverFile) {
+                        await uploadCourseCover(courseId, editCoverFile);
+                      } else if (removeCover && course.coverImageUrl) {
+                        await deleteCourseCover(courseId);
+                      }
                       refetchCourse();
                       setShowCourseEditModal(false);
+                      setEditCoverFile(null);
+                      setEditCoverPreview(null);
+                      setRemoveCover(false);
                       toast.success('Course updated');
                     } catch (err: any) { toast.error(err.message || 'Failed to update'); }
                     finally { setCourseEditSaving(false); }

@@ -81,6 +81,34 @@ def generate_download_url(object_key: str, file_name: str, expires_in: int = 360
     )
 
 
+def generate_view_url(object_key: str, expires_in: int = 3600) -> str:
+    """Generate a presigned URL for inline viewing (no download header).
+
+    Unlike generate_download_url, this does NOT set Content-Disposition,
+    so browsers will display the image inline in <img> tags.
+    """
+    client = _get_client()
+    return client.generate_presigned_url(
+        "get_object",
+        Params={
+            "Bucket": settings.S3_BUCKET_NAME,
+            "Key": object_key,
+        },
+        ExpiresIn=expires_in,
+    )
+
+
+def upload_object(file_bytes: bytes, object_key: str, content_type: str) -> None:
+    """Upload bytes directly to S3."""
+    client = _get_client()
+    client.put_object(
+        Bucket=settings.S3_BUCKET_NAME,
+        Key=object_key,
+        Body=file_bytes,
+        ContentType=content_type,
+    )
+
+
 def delete_object(object_key: str) -> None:
     """Delete an S3 object. The object_key is already fully qualified."""
     client = _get_client()

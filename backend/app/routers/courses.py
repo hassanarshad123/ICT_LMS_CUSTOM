@@ -2,8 +2,9 @@ import uuid
 import math
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select
 
 from app.database import get_session
 from app.schemas.course import CourseCreate, CourseUpdate, CourseOut
@@ -11,6 +12,8 @@ from app.schemas.common import PaginatedResponse
 from app.services import course_service
 from app.middleware.auth import require_roles, get_current_user
 from app.models.user import User
+from app.models.course import Course
+from app.utils.s3 import upload_object, delete_object, generate_view_url, _prefix
 
 router = APIRouter()
 
@@ -108,3 +111,87 @@ async def clone_course(
         raise HTTPException(status_code=404, detail=str(e))
     data = await course_service.get_course(session, course.id, institute_id=current_user.institute_id)
     return CourseOut(**data)
+
+
+_ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/webp"}
+_MAX_COVER_SIZE = 5 * 1024 * 1024  # 5MB
+
+
+@router.post("/{course_id}/cover")
+async def upload_course_cover(
+    course_id: uuid.UUID,
+    file: UploadFile = File(...),
+    current_user: AdminOrCC = None,
+    session: AsyncSession = Depends(get_session),
+):
+    # Validate content type
+    if file.content_type not in _ALLOWED_IMAGE_TYPES:
+        raise HTTPException(status_code=400, detail="File must be PNG, JPG, or WebP")
+
+    content = await file.read()
+    if len(content) > _MAX_COVER_SIZE:
+        raise HTTPException(status_code=400, detail="File too large. Maximum size is 5MB")
+
+    # Fetch course
+    result = await session.execute(
+        select(Course).where(
+            Course.id == course_id,
+            Course.deleted_at.is_(None),
+            Course.institute_id == current_user.institute_id,
+        )
+    )
+    course = result.scalar_one_or_none()
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+
+    # Delete old cover if exists
+    if course.cover_image_key:
+        try:
+            delete_object(course.cover_image_key)
+        except Exception:
+            pass  # Best-effort cleanup
+
+    # Determine file extension from content type
+    ext_map = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp"}
+    ext = ext_map.get(file.content_type, "jpg")
+
+    # Upload to S3
+    object_key = _prefix(
+        current_user.institute_id,
+        f"courses/{course_id}/cover_{uuid.uuid4()}.{ext}",
+    )
+    upload_object(content, object_key, file.content_type)
+
+    # Save key in model
+    course.cover_image_key = object_key
+    session.add(course)
+    await session.commit()
+
+    return {"cover_image_url": generate_view_url(object_key)}
+
+
+@router.delete("/{course_id}/cover", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_course_cover(
+    course_id: uuid.UUID,
+    current_user: AdminOrCC = None,
+    session: AsyncSession = Depends(get_session),
+):
+    result = await session.execute(
+        select(Course).where(
+            Course.id == course_id,
+            Course.deleted_at.is_(None),
+            Course.institute_id == current_user.institute_id,
+        )
+    )
+    course = result.scalar_one_or_none()
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+
+    if course.cover_image_key:
+        try:
+            delete_object(course.cover_image_key)
+        except Exception:
+            pass  # Best-effort cleanup
+        course.cover_image_key = None
+        session.add(course)
+        await session.commit()

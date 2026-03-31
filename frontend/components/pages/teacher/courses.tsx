@@ -40,8 +40,12 @@ export default function TeacherCourses() {
           {courses.map((course) => (
             <Link key={course.id} href={`${basePath}/courses/${course.id}`}>
               <div className="bg-white rounded-2xl card-shadow hover:card-shadow-hover transition-all duration-200 cursor-pointer group overflow-hidden">
-                <div className="h-32 bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center">
-                  <BookOpen size={40} className="text-accent" />
+                <div className="h-32 bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center relative overflow-hidden">
+                  {course.coverImageUrl ? (
+                    <img src={course.coverImageUrl} alt={course.title} className="absolute inset-0 w-full h-full object-cover" />
+                  ) : (
+                    <BookOpen size={40} className="text-accent" />
+                  )}
                 </div>
                 <div className="p-6">
                   <div className="flex items-center justify-between mb-3">

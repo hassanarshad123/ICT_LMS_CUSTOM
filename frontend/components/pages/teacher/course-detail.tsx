@@ -181,7 +181,14 @@ export default function TeacherCourseDetailPage() {
   return (
     <DashboardLayout>
       {/* Header Banner */}
-      <div className="bg-primary rounded-2xl p-4 sm:p-6 mb-6 sm:mb-8">
+      <div className="bg-primary rounded-2xl p-4 sm:p-6 mb-6 sm:mb-8 relative overflow-hidden">
+        {course.coverImageUrl && (
+          <>
+            <img src={course.coverImageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-black/60" />
+          </>
+        )}
+        <div className="relative z-10">
         <Link href={`${basePath}/courses`} className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors mb-4">
           <ArrowLeft size={16} />
           Back to My Courses
@@ -202,6 +209,7 @@ export default function TeacherCourseDetailPage() {
               {(course.batchIds || []).length} batch(es)
             </div>
           </div>
+        </div>
         </div>
       </div>
 

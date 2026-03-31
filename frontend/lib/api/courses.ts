@@ -9,6 +9,7 @@ export interface CourseOut {
   clonedFromId?: string;
   createdBy?: string;
   createdAt?: string;
+  coverImageUrl?: string;
 }
 
 export interface PaginatedCourses {
@@ -53,4 +54,17 @@ export async function deleteCourse(courseId: string): Promise<void> {
 
 export async function cloneCourse(courseId: string): Promise<CourseOut> {
   return apiClient(`/courses/${courseId}/clone`, { method: 'POST' });
+}
+
+export async function uploadCourseCover(courseId: string, file: File): Promise<{ coverImageUrl: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  return apiClient(`/courses/${courseId}/cover`, {
+    method: 'POST',
+    body: formData,
+  });
+}
+
+export async function deleteCourseCover(courseId: string): Promise<void> {
+  return apiClient(`/courses/${courseId}/cover`, { method: 'DELETE' });
 }

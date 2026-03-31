@@ -7,10 +7,10 @@ import { useAuth } from '@/lib/auth-context';
 import { useBasePath } from '@/hooks/use-base-path';
 import { usePaginatedApi } from '@/hooks/use-paginated-api';
 import { useMutation } from '@/hooks/use-api';
-import { listCourses, createCourse, updateCourse, deleteCourse } from '@/lib/api/courses';
+import { listCourses, createCourse, updateCourse, deleteCourse, uploadCourseCover } from '@/lib/api/courses';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
-import { BookOpen, Plus, X, Layers, Trash2, Loader2 } from 'lucide-react';
+import { BookOpen, Plus, X, Layers, Trash2, Loader2, ImagePlus } from 'lucide-react';
 import { StyledSelect } from '@/components/ui/styled-select';
 import Link from 'next/link';
 import {
@@ -30,6 +30,8 @@ export default function CourseCreatorCourses() {
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [coverPreview, setCoverPreview] = useState<string | null>(null);
 
   const { data: courseList, total, page, totalPages, loading, error, setPage, refetch } = usePaginatedApi(
     (params) => listCourses({ ...params }),
@@ -45,15 +47,37 @@ export default function CourseCreatorCourses() {
     e.preventDefault();
     if (!title.trim()) return;
     try {
-      await doCreate({ title: title.trim(), description: description.trim() || undefined });
+      const course = await doCreate({ title: title.trim(), description: description.trim() || undefined });
+      if (coverFile) {
+        try {
+          await uploadCourseCover(course.id, coverFile);
+        } catch {
+          toast.error('Course created but cover image upload failed');
+        }
+      }
       toast.success('Course created');
       setTitle('');
       setDescription('');
+      setCoverFile(null);
+      setCoverPreview(null);
       setShowForm(false);
       refetch();
     } catch (err: any) {
       toast.error(err.message);
     }
+  };
+
+  const handleCoverSelect = (file: File) => {
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image too large. Maximum 5MB.');
+      return;
+    }
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      toast.error('Only PNG, JPG, and WebP images are allowed.');
+      return;
+    }
+    setCoverFile(file);
+    setCoverPreview(URL.createObjectURL(file));
   };
 
   const handleDelete = async (courseId: string) => {
@@ -107,6 +131,36 @@ export default function CourseCreatorCourses() {
                 placeholder="Course description"
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Cover Image <span className="text-gray-400 font-normal">(optional)</span></label>
+              {coverPreview ? (
+                <div className="relative w-full h-32 rounded-xl overflow-hidden border border-gray-200">
+                  <img src={coverPreview} alt="Cover preview" className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => { setCoverFile(null); setCoverPreview(null); }}
+                    className="absolute top-2 right-2 p-1 bg-black/50 hover:bg-black/70 rounded-lg transition-colors"
+                  >
+                    <X size={14} className="text-white" />
+                  </button>
+                </div>
+              ) : (
+                <label className="flex items-center justify-center gap-2 w-full h-24 border-2 border-dashed border-gray-200 rounded-xl cursor-pointer hover:border-gray-300 transition-colors">
+                  <ImagePlus size={20} className="text-gray-400" />
+                  <span className="text-sm text-gray-500">Upload cover image</span>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handleCoverSelect(f);
+                    }}
+                  />
+                </label>
+              )}
+              <p className="text-xs text-gray-400 mt-1">PNG, JPG, or WebP. Max 5MB. 16:9 recommended.</p>
+            </div>
             <button
               type="submit"
               disabled={creating}
@@ -135,8 +189,12 @@ export default function CourseCreatorCourses() {
             {courseList.map((course) => (
               <div key={course.id} className="bg-white rounded-2xl card-shadow hover:card-shadow-hover transition-all duration-200 overflow-hidden group relative">
                 <Link href={`${basePath}/courses/${course.id}`}>
-                  <div className="h-32 bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center">
-                    <BookOpen size={40} className="text-accent" />
+                  <div className="h-32 bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center relative overflow-hidden">
+                    {course.coverImageUrl ? (
+                      <img src={course.coverImageUrl} alt={course.title} className="absolute inset-0 w-full h-full object-cover" />
+                    ) : (
+                      <BookOpen size={40} className="text-accent" />
+                    )}
                   </div>
                   <div className="p-6">
                     <div className="flex items-center justify-between mb-3">

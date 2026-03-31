@@ -10,6 +10,7 @@ from app.models.batch import Batch, StudentBatch
 from app.models.user import User
 from app.models.enums import CourseStatus, UserRole
 from app.utils.transformers import to_db
+from app.utils.s3 import generate_view_url
 
 
 async def list_courses(
@@ -98,6 +99,7 @@ async def list_courses(
             "cloned_from_id": c.cloned_from_id,
             "created_by": c.created_by,
             "created_at": c.created_at,
+            "cover_image_url": generate_view_url(c.cover_image_key) if c.cover_image_key else None,
         })
 
     return items, total
@@ -130,6 +132,7 @@ async def get_course(
         "cloned_from_id": c.cloned_from_id,
         "created_by": c.created_by,
         "created_at": c.created_at,
+        "cover_image_url": generate_view_url(c.cover_image_key) if c.cover_image_key else None,
     }
 
 
@@ -233,6 +236,7 @@ async def clone_course(
     new_course = Course(
         title=f"{original.title} (Copy)",
         description=original.description,
+        cover_image_key=original.cover_image_key,
         status=CourseStatus.upcoming,
         cloned_from_id=original.id,
         created_by=created_by,

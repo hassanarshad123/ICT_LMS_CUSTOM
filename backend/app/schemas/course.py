@@ -24,5 +24,6 @@ class CourseOut(BaseModel):
     cloned_from_id: Optional[uuid.UUID] = None
     created_by: Optional[uuid.UUID] = None
     created_at: Optional[datetime] = None
+    cover_image_url: Optional[str] = None
 
     model_config = {"from_attributes": True}

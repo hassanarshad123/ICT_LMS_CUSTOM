@@ -19,6 +19,7 @@ class Course(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     title: str = Field(nullable=False)
     description: Optional[str] = Field(default=None)
+    cover_image_key: Optional[str] = Field(default=None)
     status: CourseStatus = Field(
         sa_column=Column(
             SAEnum(CourseStatus, name="course_status", create_type=False),
