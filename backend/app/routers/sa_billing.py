@@ -7,19 +7,78 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_session
 from app.middleware.auth import require_roles
 from app.models.user import User
+from app.models.institute import Institute
 from app.schemas.common import PaginatedResponse
 from app.schemas.sa_billing import (
     BillingConfigOut, BillingConfigUpdate,
+    InvoicePreviewRequest, InvoicePreviewResponse,
     InvoiceGenerateRequest, InvoiceOut, InvoiceStatusUpdate,
     PaymentRecordRequest, PaymentOut,
     RevenueDashboard,
     SAAnnouncementCreate, SAAnnouncementOut,
 )
-from app.services import sa_billing_service, sa_notification_service
+from app.services import sa_billing_service, sa_notification_service, sa_settings_service
+from app.schemas.sa_settings import (
+    SAProfileOut, SAProfileUpdate, SALogoUpload,
+    SAPaymentMethodsOut, SAPaymentMethodsUpdate,
+)
 
 router = APIRouter()
 
 SA = Annotated[User, Depends(require_roles("super_admin"))]
+
+
+# ── SA Settings ─────────────────────────────────────────────────
+
+@router.get("/settings/profile", response_model=SAProfileOut)
+async def get_sa_profile(
+    sa: SA,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    data = await sa_settings_service.get_sa_profile(session)
+    return SAProfileOut(**data)
+
+
+@router.put("/settings/profile", response_model=SAProfileOut)
+async def update_sa_profile(
+    body: SAProfileUpdate,
+    sa: SA,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    updates = body.model_dump(exclude_none=True)
+    data = await sa_settings_service.update_sa_profile(session, updates)
+    return SAProfileOut(**data)
+
+
+@router.post("/settings/logo", response_model=SAProfileOut)
+async def upload_sa_logo(
+    body: SALogoUpload,
+    sa: SA,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    data = await sa_settings_service.update_sa_logo(session, body.logo)
+    return SAProfileOut(**data)
+
+
+@router.get("/settings/payment-methods", response_model=SAPaymentMethodsOut)
+async def get_payment_methods(
+    sa: SA,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    methods = await sa_settings_service.get_payment_methods(session)
+    return SAPaymentMethodsOut(methods=methods)
+
+
+@router.put("/settings/payment-methods", response_model=SAPaymentMethodsOut)
+async def update_payment_methods(
+    body: SAPaymentMethodsUpdate,
+    sa: SA,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    methods = await sa_settings_service.update_payment_methods(
+        session, [m.model_dump() for m in body.methods]
+    )
+    return SAPaymentMethodsOut(methods=methods)
 
 
 # ── Billing Config ──────────────────────────────────────────────
@@ -48,6 +107,21 @@ async def update_billing_config(
 
 # ── Invoices ────────────────────────────────────────────────────
 
+@router.post("/invoices/preview", response_model=InvoicePreviewResponse)
+async def preview_invoice(
+    body: InvoicePreviewRequest,
+    sa: SA,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    try:
+        data = await sa_billing_service.preview_invoice_data(
+            session, body.institute_id, body.period_start, body.period_end,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return InvoicePreviewResponse(**data)
+
+
 @router.post("/invoices/generate", response_model=InvoiceOut)
 async def generate_invoice(
     body: InvoiceGenerateRequest,
@@ -58,6 +132,10 @@ async def generate_invoice(
         invoice = await sa_billing_service.generate_invoice(
             session, body.institute_id, body.period_start, body.period_end,
             body.due_date, sa.id,
+            custom_line_items=body.custom_line_items,
+            discount_type=body.discount_type,
+            discount_value=body.discount_value,
+            notes=body.notes,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -118,6 +196,25 @@ async def update_invoice_status(
     return InvoiceOut.model_validate(inv)
 
 
+@router.get("/invoices/{invoice_id}/download")
+async def download_invoice(
+    invoice_id: uuid.UUID,
+    sa: SA,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    from app.models.billing import Invoice
+    from app.utils.s3 import generate_download_url
+
+    inv = await session.get(Invoice, invoice_id)
+    if not inv:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    if not inv.pdf_path:
+        raise HTTPException(status_code=404, detail="PDF not generated yet")
+
+    url = generate_download_url(inv.pdf_path, f"{inv.invoice_number}.pdf")
+    return {"download_url": url}
+
+
 # ── Payments ────────────────────────────────────────────────────
 
 @router.post("/payments", response_model=PaymentOut)
@@ -162,6 +259,36 @@ async def get_revenue(
 ):
     data = await sa_billing_service.get_revenue_dashboard(session)
     return RevenueDashboard(**data)
+
+
+# ── Public Invoice Verification (no auth) ──────────────────────
+
+@router.get("/invoice/verify/{invoice_number}")
+async def verify_invoice(
+    invoice_number: str,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    from app.models.billing import Invoice
+    from sqlmodel import select as sel
+
+    r = await session.execute(
+        sel(Invoice).where(Invoice.invoice_number == invoice_number)
+    )
+    inv = r.scalar_one_or_none()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+
+    inst = await session.get(Institute, inv.institute_id) if inv.institute_id else None
+    return {
+        "invoice_number": inv.invoice_number,
+        "institute_name": inst.name if inst else "Unknown",
+        "total_amount": inv.total_amount,
+        "status": inv.status,
+        "period_start": inv.period_start.isoformat() if inv.period_start else None,
+        "period_end": inv.period_end.isoformat() if inv.period_end else None,
+        "due_date": inv.due_date.isoformat() if inv.due_date else None,
+        "created_at": inv.created_at.isoformat() if inv.created_at else None,
+    }
 
 
 # ── SA Announcements ───────────────────────────────────────────

@@ -71,6 +71,10 @@ class Invoice(SQLModel, table=True):
     line_items: list = Field(default=[], sa_column=Column(JSONB, nullable=False, server_default="[]"))
     total_amount: int = Field(default=0)
     status: str = Field(default="draft")
+    discount_type: Optional[str] = Field(default=None)
+    discount_value: Optional[int] = Field(default=None)
+    discount_amount: Optional[int] = Field(default=None)
+    notes: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
     pdf_path: Optional[str] = Field(default=None)
     due_date: date = Field(sa_column=Column(Date, nullable=False))
     generated_by: uuid.UUID = Field(

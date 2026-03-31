@@ -468,6 +468,11 @@ export interface InvoiceItem {
   lineItems: Array<{ description: string; quantity: number; unitPrice: number; amount: number }>;
   totalAmount: number;
   status: string;
+  discountType?: string;
+  discountValue?: number;
+  discountAmount?: number;
+  notes?: string;
+  pdfPath?: string;
   dueDate: string;
   generatedBy: string;
   createdAt?: string;
@@ -577,4 +582,90 @@ export async function listAnnouncements(params?: {
   per_page?: number;
 }): Promise<{ data: SAAnnouncement[]; total: number; page: number; perPage: number; totalPages: number }> {
   return apiClient('/super-admin/announcements', { params });
+}
+
+// ── SA Settings (Invoice Profile) ───────────────────────────────
+
+export interface SAProfile {
+  companyName: string;
+  companyEmail: string;
+  companyPhone: string;
+  companyAddress: string;
+  companyLogo?: string;
+}
+
+export async function getSAProfile(): Promise<SAProfile> {
+  return apiClient<SAProfile>('/super-admin/settings/profile');
+}
+
+export async function updateSAProfile(data: Partial<SAProfile>): Promise<SAProfile> {
+  return apiClient<SAProfile>('/super-admin/settings/profile', {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function uploadSALogo(logo: string): Promise<SAProfile> {
+  return apiClient<SAProfile>('/super-admin/settings/logo', {
+    method: 'POST',
+    body: JSON.stringify({ logo }),
+  });
+}
+
+export interface PaymentMethodItem {
+  type: string;
+  label: string;
+  details: Record<string, string>;
+}
+
+export async function getPaymentMethods(): Promise<{ methods: PaymentMethodItem[] }> {
+  return apiClient('/super-admin/settings/payment-methods');
+}
+
+export async function updatePaymentMethods(methods: PaymentMethodItem[]): Promise<{ methods: PaymentMethodItem[] }> {
+  return apiClient('/super-admin/settings/payment-methods', {
+    method: 'PUT',
+    body: JSON.stringify({ methods }),
+  });
+}
+
+// ── Invoice Preview & Enhanced Generate ─────────────────────────
+
+export interface InvoicePreview {
+  instituteName: string;
+  instituteEmail: string;
+  lineItems: Array<{ description: string; quantity: number; unitPrice: number; amount: number }>;
+  subtotal: number;
+}
+
+export async function previewInvoice(data: {
+  instituteId: string;
+  periodStart: string;
+  periodEnd: string;
+}): Promise<InvoicePreview> {
+  return apiClient<InvoicePreview>('/super-admin/invoices/preview', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function generateInvoiceEnhanced(data: {
+  instituteId: string;
+  periodStart: string;
+  periodEnd: string;
+  dueDate: string;
+  customLineItems?: Array<{ description: string; quantity: number; unit_price: number; amount: number }>;
+  discountType?: string;
+  discountValue?: number;
+  notes?: string;
+}): Promise<InvoiceItem> {
+  return apiClient<InvoiceItem>('/super-admin/invoices/generate', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function downloadInvoicePDF(invoiceId: string): Promise<string> {
+  const res = await apiClient<{ downloadUrl: string }>(`/super-admin/invoices/${invoiceId}/download`);
+  return res.downloadUrl;
 }

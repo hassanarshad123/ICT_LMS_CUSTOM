@@ -78,21 +78,15 @@ async def _next_invoice_number(session: AsyncSession) -> str:
     return f"INV-{year}-{counter.last_sequence:05d}"
 
 
-async def generate_invoice(
-    session: AsyncSession,
-    institute_id: uuid.UUID,
-    period_start: date,
-    period_end: date,
-    due_date: date,
-    generated_by: uuid.UUID,
-) -> Invoice:
-    """Generate invoice with auto-calculated line items."""
+async def _auto_calculate_line_items(
+    session: AsyncSession, institute_id: uuid.UUID
+) -> tuple[list[dict], "Institute", "InstituteBilling"]:
+    """Calculate line items from billing config and current usage."""
     billing = await get_or_create_billing(session, institute_id)
     inst = await session.get(Institute, institute_id)
     if not inst:
         raise ValueError("Institute not found")
 
-    # Get current usage
     r = await session.execute(text("""
         SELECT COALESCE(current_users, 0),
                COALESCE(current_storage_bytes, 0),
@@ -105,10 +99,8 @@ async def generate_invoice(
     current_storage_gb = (usage[1] / (1024 ** 3)) if usage else 0
     current_video_gb = (usage[2] / (1024 ** 3)) if usage else 0
 
-    # Build line items
     line_items = []
 
-    # Base plan fee
     if billing.base_amount > 0:
         line_items.append({
             "description": f"Base plan fee ({billing.billing_cycle})",
@@ -117,7 +109,6 @@ async def generate_invoice(
             "amount": billing.base_amount,
         })
 
-    # Extra users
     extra_users = max(0, current_users - inst.max_users)
     if extra_users > 0 and billing.extra_user_rate > 0:
         line_items.append({
@@ -127,29 +118,77 @@ async def generate_invoice(
             "amount": extra_users * billing.extra_user_rate,
         })
 
-    # Extra storage
     extra_storage = max(0, round(current_storage_gb - inst.max_storage_gb, 2))
     if extra_storage > 0 and billing.extra_storage_rate > 0:
-        amount = int(extra_storage * billing.extra_storage_rate)
+        amt = int(extra_storage * billing.extra_storage_rate)
         line_items.append({
             "description": f"Extra storage ({extra_storage:.2f} GB beyond {inst.max_storage_gb} GB)",
             "quantity": round(extra_storage, 2),
             "unit_price": billing.extra_storage_rate,
-            "amount": amount,
+            "amount": amt,
         })
 
-    # Extra video
     extra_video = max(0, round(current_video_gb - inst.max_video_gb, 2))
     if extra_video > 0 and billing.extra_video_rate > 0:
-        amount = int(extra_video * billing.extra_video_rate)
+        amt = int(extra_video * billing.extra_video_rate)
         line_items.append({
             "description": f"Extra video ({extra_video:.2f} GB beyond {inst.max_video_gb} GB)",
             "quantity": round(extra_video, 2),
             "unit_price": billing.extra_video_rate,
-            "amount": amount,
+            "amount": amt,
         })
 
-    total_amount = sum(item["amount"] for item in line_items)
+    return line_items, inst, billing
+
+
+async def preview_invoice_data(
+    session: AsyncSession,
+    institute_id: uuid.UUID,
+    period_start: date,
+    period_end: date,
+) -> dict:
+    """Preview auto-calculated line items WITHOUT creating a record."""
+    line_items, inst, billing = await _auto_calculate_line_items(session, institute_id)
+    subtotal = sum(item["amount"] for item in line_items)
+    return {
+        "institute_name": inst.name,
+        "institute_email": inst.contact_email,
+        "line_items": line_items,
+        "subtotal": subtotal,
+    }
+
+
+async def generate_invoice(
+    session: AsyncSession,
+    institute_id: uuid.UUID,
+    period_start: date,
+    period_end: date,
+    due_date: date,
+    generated_by: uuid.UUID,
+    custom_line_items: list[dict] | None = None,
+    discount_type: str | None = None,
+    discount_value: int | None = None,
+    notes: str | None = None,
+) -> Invoice:
+    """Generate invoice with optional custom line items, discount, and notes.
+    Also generates PDF and uploads to S3.
+    """
+    import logging
+    logger = logging.getLogger("ict_lms.billing")
+
+    auto_items, inst, billing = await _auto_calculate_line_items(session, institute_id)
+    line_items = custom_line_items if custom_line_items else auto_items
+    subtotal = sum(item["amount"] for item in line_items)
+
+    # Calculate discount
+    discount_amount = 0
+    if discount_type and discount_value:
+        if discount_type == "percentage":
+            discount_amount = int(subtotal * discount_value / 100)
+        else:  # flat
+            discount_amount = min(discount_value, subtotal)
+
+    total_amount = max(0, subtotal - discount_amount)
     invoice_number = await _next_invoice_number(session)
 
     invoice = Invoice(
@@ -160,11 +199,73 @@ async def generate_invoice(
         base_amount=billing.base_amount,
         line_items=line_items,
         total_amount=total_amount,
+        discount_type=discount_type,
+        discount_value=discount_value,
+        discount_amount=discount_amount if discount_amount > 0 else None,
+        notes=notes,
         status="draft",
         due_date=due_date,
         generated_by=generated_by,
     )
     session.add(invoice)
+    await session.flush()
+
+    # Generate PDF and upload to S3
+    try:
+        from app.utils.invoice_pdf import generate_invoice_pdf, InvoiceDesign
+        from app.services.sa_settings_service import get_sa_profile, get_payment_methods
+        from app.utils.s3 import _get_client as get_s3_client
+        from app.config import get_settings
+
+        settings = get_settings()
+        profile = await get_sa_profile(session)
+        payment_methods = await get_payment_methods(session)
+
+        design = InvoiceDesign(
+            company_name=profile.get("company_name", ""),
+            company_email=profile.get("company_email", ""),
+            company_phone=profile.get("company_phone", ""),
+            company_address=profile.get("company_address", ""),
+            company_logo=profile.get("company_logo") or None,
+            payment_methods=payment_methods,
+        )
+
+        discount_label = None
+        if discount_amount > 0:
+            if discount_type == "percentage":
+                discount_label = f"Discount ({discount_value}%)"
+            else:
+                discount_label = "Discount"
+
+        pdf_bytes = generate_invoice_pdf(
+            design=design,
+            invoice_number=invoice_number,
+            institute_name=inst.name,
+            institute_email=inst.contact_email,
+            period_start=period_start.isoformat(),
+            period_end=period_end.isoformat(),
+            due_date=due_date.isoformat(),
+            line_items=line_items,
+            subtotal=subtotal,
+            discount_label=discount_label,
+            discount_amount=discount_amount,
+            total_amount=total_amount,
+            notes=notes,
+            verification_url=f"https://zensbot.online/invoice/verify/{invoice_number}",
+        )
+
+        s3 = get_s3_client()
+        object_key = f"invoices/{invoice_number}.pdf"
+        s3.put_object(
+            Bucket=settings.S3_BUCKET_NAME,
+            Key=object_key,
+            Body=pdf_bytes,
+            ContentType="application/pdf",
+        )
+        invoice.pdf_path = object_key
+    except Exception as e:
+        logger.error("Failed to generate/upload invoice PDF: %s", e)
+
     await session.commit()
     await session.refresh(invoice)
     return invoice

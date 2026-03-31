@@ -32,11 +32,28 @@ class InvoiceLineItem(BaseModel):
     amount: int
 
 
+class InvoicePreviewRequest(BaseModel):
+    institute_id: uuid.UUID
+    period_start: date
+    period_end: date
+
+
+class InvoicePreviewResponse(BaseModel):
+    institute_name: str
+    institute_email: str
+    line_items: list[dict]
+    subtotal: int
+
+
 class InvoiceGenerateRequest(BaseModel):
     institute_id: uuid.UUID
     period_start: date
     period_end: date
     due_date: date
+    custom_line_items: Optional[list[dict]] = None
+    discount_type: Optional[str] = None
+    discount_value: Optional[int] = None
+    notes: Optional[str] = None
 
 
 class InvoiceOut(BaseModel):
@@ -50,6 +67,11 @@ class InvoiceOut(BaseModel):
     line_items: list[dict]
     total_amount: int
     status: str
+    discount_type: Optional[str] = None
+    discount_value: Optional[int] = None
+    discount_amount: Optional[int] = None
+    notes: Optional[str] = None
+    pdf_path: Optional[str] = None
     due_date: date
     generated_by: uuid.UUID
     created_at: Optional[datetime] = None

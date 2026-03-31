@@ -2,11 +2,12 @@
 
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, Plus, FileText } from 'lucide-react';
+import { ArrowLeft, Plus, FileText, Download } from 'lucide-react';
+import { SAInvoiceBuilder } from '@/components/pages/sa/sa-invoice-builder';
 import { useApi, useMutation } from '@/hooks/use-api';
 import {
-  getBillingConfig, updateBillingConfig, generateInvoice,
-  listInvoices, recordPayment, listPayments,
+  getBillingConfig, updateBillingConfig,
+  listInvoices, recordPayment, listPayments, downloadInvoicePDF,
   type BillingConfig, type InvoiceItem, type PaymentItem,
 } from '@/lib/api/super-admin';
 import { toast } from 'sonner';
@@ -19,7 +20,7 @@ function formatPKR(amount: number): string {
 export default function InstituteBillingPage() {
   const { instituteId } = useParams<{ instituteId: string }>();
   const [showPayment, setShowPayment] = useState(false);
-  const [showInvoice, setShowInvoice] = useState(false);
+  const [showBuilder, setShowBuilder] = useState(false);
 
   const { data: billing, refetch: refetchBilling } = useApi<BillingConfig>(
     () => getBillingConfig(instituteId), [instituteId]
@@ -68,27 +69,6 @@ export default function InstituteBillingPage() {
       setPayForm({ amount: '', method: 'bank_transfer', reference: '', notes: '' });
       refetchPay();
     } catch { toast.error('Failed to record payment'); }
-  };
-
-  // Invoice form
-  const [invForm, setInvForm] = useState({ periodStart: '', periodEnd: '', dueDate: '' });
-  const { execute: doGenerate } = useMutation(
-    (data: any) => generateInvoice(data)
-  );
-
-  const handleGenerateInvoice = async () => {
-    try {
-      await doGenerate({
-        instituteId,
-        periodStart: invForm.periodStart,
-        periodEnd: invForm.periodEnd,
-        dueDate: invForm.dueDate,
-      });
-      toast.success('Invoice generated');
-      setShowInvoice(false);
-      setInvForm({ periodStart: '', periodEnd: '', dueDate: '' });
-      refetchInv();
-    } catch { toast.error('Failed to generate invoice'); }
   };
 
   if (!billing) {
@@ -147,7 +127,7 @@ export default function InstituteBillingPage() {
         <button onClick={() => setShowPayment(true)} className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium bg-[#1A1A1A] text-white rounded-xl">
           <Plus size={16} /> Record Payment
         </button>
-        <button onClick={() => setShowInvoice(true)} className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium border border-zinc-200 rounded-xl hover:bg-zinc-50">
+        <button onClick={() => setShowBuilder(true)} className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium border border-zinc-200 rounded-xl hover:bg-zinc-50">
           <FileText size={16} /> Generate Invoice
         </button>
       </div>
@@ -169,6 +149,20 @@ export default function InstituteBillingPage() {
                   inv.status === 'overdue' ? 'bg-red-100 text-red-700' :
                   'bg-zinc-100 text-zinc-600'
                 }`}>{inv.status}</span>
+                {inv.pdfPath && (
+                  <button
+                    onClick={async () => {
+                      try {
+                        const url = await downloadInvoicePDF(inv.id);
+                        window.open(url, '_blank');
+                      } catch { toast.error('Download failed'); }
+                    }}
+                    className="p-1 text-zinc-400 hover:text-zinc-700"
+                    title="Download PDF"
+                  >
+                    <Download size={14} />
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -220,21 +214,14 @@ export default function InstituteBillingPage() {
         </div>
       )}
 
-      {/* Generate Invoice Modal */}
-      {showInvoice && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl space-y-4">
-            <h3 className="font-semibold text-zinc-900">Generate Invoice</h3>
-            <div><label className="text-xs text-zinc-500 block mb-1">Period Start</label><input type="date" value={invForm.periodStart} onChange={(e) => setInvForm({ ...invForm, periodStart: e.target.value })} className="w-full px-3 py-2 border border-zinc-200 rounded-xl text-sm" /></div>
-            <div><label className="text-xs text-zinc-500 block mb-1">Period End</label><input type="date" value={invForm.periodEnd} onChange={(e) => setInvForm({ ...invForm, periodEnd: e.target.value })} className="w-full px-3 py-2 border border-zinc-200 rounded-xl text-sm" /></div>
-            <div><label className="text-xs text-zinc-500 block mb-1">Due Date</label><input type="date" value={invForm.dueDate} onChange={(e) => setInvForm({ ...invForm, dueDate: e.target.value })} className="w-full px-3 py-2 border border-zinc-200 rounded-xl text-sm" /></div>
-            <p className="text-xs text-zinc-400">Line items will be auto-calculated from billing config and current usage.</p>
-            <div className="flex gap-2 justify-end">
-              <button onClick={() => setShowInvoice(false)} className="px-4 py-2 text-xs rounded-lg border border-zinc-200">Cancel</button>
-              <button onClick={handleGenerateInvoice} disabled={!invForm.periodStart || !invForm.periodEnd || !invForm.dueDate} className="px-4 py-2 text-xs rounded-lg bg-[#1A1A1A] text-white disabled:opacity-40">Generate</button>
-            </div>
-          </div>
-        </div>
+      {/* Invoice Builder */}
+      {showBuilder && (
+        <SAInvoiceBuilder
+          instituteId={instituteId}
+          instituteName={billing.instituteName}
+          onClose={() => setShowBuilder(false)}
+          onGenerated={() => refetchInv()}
+        />
       )}
     </div>
   );
