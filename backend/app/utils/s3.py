@@ -15,13 +15,16 @@ _client = None
 def _get_client():
     global _client
     if _client is None:
-        _client = boto3.client(
-            "s3",
-            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-            region_name=settings.AWS_REGION,
-            config=Config(signature_version="s3v4"),
-        )
+        kwargs: dict = {
+            "region_name": settings.AWS_REGION,
+            "config": Config(signature_version="s3v4"),
+        }
+        # Only pass explicit credentials when set. When empty, boto3 uses the
+        # default credential chain (env vars → AWS config → EC2 instance profile).
+        if settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY:
+            kwargs["aws_access_key_id"] = settings.AWS_ACCESS_KEY_ID
+            kwargs["aws_secret_access_key"] = settings.AWS_SECRET_ACCESS_KEY
+        _client = boto3.client("s3", **kwargs)
     return _client
 
 
