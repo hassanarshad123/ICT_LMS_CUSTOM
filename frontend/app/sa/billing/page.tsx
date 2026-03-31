@@ -1,13 +1,18 @@
 'use client';
 
 import { useState } from 'react';
-import { CreditCard, TrendingUp, AlertCircle, Receipt } from 'lucide-react';
+import { CreditCard, TrendingUp, AlertCircle, Receipt, FileText, Download, ChevronRight } from 'lucide-react';
 import { useApi } from '@/hooks/use-api';
-import { getRevenueDashboard, listInvoices, type RevenueDashboard, type InvoiceItem } from '@/lib/api/super-admin';
+import {
+  getRevenueDashboard, listInvoices, listInstitutes, downloadInvoicePDF,
+  type RevenueDashboard, type InvoiceItem, type InstituteOut,
+} from '@/lib/api/super-admin';
 import { SAKpiCard } from '@/components/sa/charts/sa-kpi-card';
 import { SABarChart } from '@/components/sa/charts/sa-bar-chart';
 import { SA_COLORS } from '@/components/sa/charts/sa-chart-theme';
+import { SAInvoiceBuilder } from '@/components/pages/sa/sa-invoice-builder';
 import Link from 'next/link';
+import { toast } from 'sonner';
 
 function formatPKR(amount: number): string {
   return `Rs. ${amount.toLocaleString()}`;
@@ -16,12 +21,14 @@ function formatPKR(amount: number): string {
 export default function SABillingPage() {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
+  const [builderInstitute, setBuilderInstitute] = useState<{ id: string; name: string } | null>(null);
 
   const { data: revenue } = useApi<RevenueDashboard>(() => getRevenueDashboard(), []);
+  const { data: institutes } = useApi(() => listInstitutes({ per_page: 100 }), []);
 
   const params: Record<string, any> = { page, per_page: 15 };
   if (statusFilter) params.status = statusFilter;
-  const { data: invoicesData } = useApi(() => listInvoices(params), [page, statusFilter]);
+  const { data: invoicesData, refetch: refetchInvoices } = useApi(() => listInvoices(params), [page, statusFilter]);
 
   const trendData = (revenue?.monthlyTrend || []).map((t) => ({
     name: t.month,
@@ -53,10 +60,50 @@ export default function SABillingPage() {
         </div>
       )}
 
+      {/* Institutes — Generate Invoice */}
+      <div className="bg-white rounded-2xl border border-zinc-200">
+        <div className="p-5 border-b border-zinc-100">
+          <h2 className="font-semibold text-zinc-900">Generate Invoice</h2>
+          <p className="text-xs text-zinc-500 mt-0.5">Select an institute to create a new invoice</p>
+        </div>
+        <div className="divide-y divide-zinc-50">
+          {(institutes?.data || []).map((inst: InstituteOut) => (
+            <div key={inst.id} className="flex items-center justify-between px-5 py-3 hover:bg-zinc-50/50">
+              <div>
+                <span className="text-sm font-medium text-zinc-900">{inst.name}</span>
+                <span className="ml-2 text-xs text-zinc-400">{inst.slug}</span>
+                <span className={`ml-2 text-xs px-1.5 py-0.5 rounded-full ${
+                  inst.status === 'active' ? 'bg-green-100 text-green-700' :
+                  inst.status === 'suspended' ? 'bg-red-100 text-red-700' :
+                  'bg-yellow-100 text-yellow-700'
+                }`}>{inst.status}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setBuilderInstitute({ id: inst.id, name: inst.name })}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#1A1A1A] text-white rounded-lg hover:bg-zinc-800"
+                >
+                  <FileText size={13} /> New Invoice
+                </button>
+                <Link
+                  href={`/sa/billing/${inst.id}`}
+                  className="flex items-center gap-1 px-2 py-1.5 text-xs text-zinc-500 hover:text-zinc-900 rounded-lg hover:bg-zinc-100"
+                >
+                  History <ChevronRight size={13} />
+                </Link>
+              </div>
+            </div>
+          ))}
+          {(!institutes?.data || institutes.data.length === 0) && (
+            <div className="px-5 py-8 text-center text-zinc-400 text-sm">No institutes found</div>
+          )}
+        </div>
+      </div>
+
       {/* Invoices Table */}
       <div className="bg-white rounded-2xl border border-zinc-200">
         <div className="p-5 border-b border-zinc-100 flex items-center justify-between">
-          <h2 className="font-semibold text-zinc-900">Invoices</h2>
+          <h2 className="font-semibold text-zinc-900">All Invoices</h2>
           <select
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
@@ -79,7 +126,7 @@ export default function SABillingPage() {
                 <th className="px-5 py-3 font-medium text-zinc-500">Amount</th>
                 <th className="px-5 py-3 font-medium text-zinc-500">Status</th>
                 <th className="px-5 py-3 font-medium text-zinc-500">Due Date</th>
-                <th className="px-5 py-3 font-medium text-zinc-500">Created</th>
+                <th className="px-5 py-3 font-medium text-zinc-500 w-20"></th>
               </tr>
             </thead>
             <tbody>
@@ -103,8 +150,21 @@ export default function SABillingPage() {
                     </span>
                   </td>
                   <td className="px-5 py-3 text-xs text-zinc-500">{inv.dueDate}</td>
-                  <td className="px-5 py-3 text-xs text-zinc-500">
-                    {inv.createdAt ? new Date(inv.createdAt).toLocaleDateString() : '-'}
+                  <td className="px-5 py-3">
+                    {inv.pdfPath && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            const url = await downloadInvoicePDF(inv.id);
+                            window.open(url, '_blank');
+                          } catch { toast.error('Download failed'); }
+                        }}
+                        className="p-1.5 text-zinc-400 hover:text-zinc-700 rounded-lg hover:bg-zinc-100"
+                        title="Download PDF"
+                      >
+                        <Download size={14} />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -127,6 +187,16 @@ export default function SABillingPage() {
           </div>
         )}
       </div>
+
+      {/* Invoice Builder Modal */}
+      {builderInstitute && (
+        <SAInvoiceBuilder
+          instituteId={builderInstitute.id}
+          instituteName={builderInstitute.name}
+          onClose={() => setBuilderInstitute(null)}
+          onGenerated={() => refetchInvoices()}
+        />
+      )}
     </div>
   );
 }
