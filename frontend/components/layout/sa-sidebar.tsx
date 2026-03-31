@@ -2,13 +2,44 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Building2, LogOut, X, Menu } from 'lucide-react';
+import {
+  LayoutDashboard, Building2, Users, Activity, AlertTriangle, HeartPulse,
+  CreditCard, Megaphone, LogOut, X, Menu, type LucideIcon,
+} from 'lucide-react';
 import { useSidebar } from './sidebar-context';
 import { logout as apiLogout } from '@/lib/api/auth';
 
-const navItems = [
-  { label: 'Dashboard', path: '/sa', icon: 'dashboard' },
-  { label: 'Institutes', path: '/sa/institutes', icon: 'building' },
+interface NavItem {
+  label: string;
+  path: string;
+  icon: LucideIcon;
+}
+
+interface NavSection {
+  items: NavItem[];
+}
+
+const navSections: NavSection[] = [
+  {
+    items: [
+      { label: 'Dashboard', path: '/sa', icon: LayoutDashboard },
+      { label: 'Institutes', path: '/sa/institutes', icon: Building2 },
+      { label: 'Users', path: '/sa/users', icon: Users },
+    ],
+  },
+  {
+    items: [
+      { label: 'Activity', path: '/sa/activity', icon: Activity },
+      { label: 'Monitoring', path: '/sa/monitoring', icon: AlertTriangle },
+      { label: 'System Health', path: '/sa/health', icon: HeartPulse },
+    ],
+  },
+  {
+    items: [
+      { label: 'Billing', path: '/sa/billing', icon: CreditCard },
+      { label: 'Announcements', path: '/sa/announcements', icon: Megaphone },
+    ],
+  },
 ];
 
 export function SASidebar() {
@@ -26,6 +57,9 @@ export function SASidebar() {
     localStorage.removeItem('user');
     router.push('/login');
   };
+
+  const isActive = (path: string) =>
+    path === '/sa' ? pathname === '/sa' : pathname.startsWith(path);
 
   const sidebarContent = (
     <div className="flex flex-col h-full bg-[#1A1A1A] text-white w-64">
@@ -45,27 +79,29 @@ export function SASidebar() {
 
       {/* Nav */}
       <nav className="flex-1 p-3 space-y-1">
-        {navItems.map((item) => {
-          const isActive = item.path === '/sa'
-            ? pathname === '/sa'
-            : pathname.startsWith(item.path);
-          return (
-            <Link
-              key={item.path}
-              href={item.path}
-              onClick={() => setMobileOpen(false)}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                isActive
-                  ? 'bg-[#C5D86D] text-[#1A1A1A]'
-                  : 'text-white/70 hover:bg-white/10 hover:text-white'
-              }`}
-            >
-              {item.icon === 'dashboard' && <LayoutDashboard size={18} />}
-              {item.icon === 'building' && <Building2 size={18} />}
-              {item.label}
-            </Link>
-          );
-        })}
+        {navSections.map((section, si) => (
+          <div key={si}>
+            {si > 0 && <div className="my-2 border-t border-white/10" />}
+            {section.items.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.path}
+                  href={item.path}
+                  onClick={() => setMobileOpen(false)}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                    isActive(item.path)
+                      ? 'bg-[#C5D86D] text-[#1A1A1A]'
+                      : 'text-white/70 hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  <Icon size={18} />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
       </nav>
 
       {/* Logout */}

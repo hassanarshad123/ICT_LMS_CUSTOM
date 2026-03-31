@@ -39,7 +39,7 @@ export default function SALayout({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarProvider>
-      <div className="flex h-screen bg-gray-50 overflow-hidden">
+      <div className="flex h-screen bg-zinc-50 overflow-hidden">
         <SASidebar />
         <main className="flex-1 overflow-y-auto">
           {children}
