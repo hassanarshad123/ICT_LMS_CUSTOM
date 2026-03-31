@@ -1,34 +1,145 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import SettingsView from '@/components/shared/settings-view';
-import { Minus, Plus, Save, Monitor, Video, Award, Edit3, Trash2, Star, Eye, EyeOff, X, Loader2, KeyRound, Mail } from 'lucide-react';
-import { useBasePath } from '@/hooks/use-base-path';
+import DashboardLayout from '@/components/layout/dashboard-layout';
+import DashboardHeader from '@/components/layout/dashboard-header';
+import { useAuth } from '@/lib/auth-context';
+import {
+  User, Lock, Monitor, Award, KeyRound, Mail, Video,
+  Save, Loader2, Plus, Minus, Eye, EyeOff, X, Edit3, Trash2, Star,
+} from 'lucide-react';
 import { useApi, useMutation } from '@/hooks/use-api';
 import { getSettings, updateSettings } from '@/lib/api/admin';
+import { updateUser } from '@/lib/api/users';
+import { changePassword } from '@/lib/api/auth';
 import { listAccounts, createAccount, updateAccount, deleteAccount, setDefaultAccount, ZoomAccountOut } from '@/lib/api/zoom';
 import { toast } from 'sonner';
-import { PageLoading } from '@/components/shared/page-states';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
+type TabType = 'account' | 'security' | 'notifications' | 'zoom';
+
+const TABS: { key: TabType; label: string; icon: any }[] = [
+  { key: 'account', label: 'Account', icon: User },
+  { key: 'security', label: 'Security', icon: Lock },
+  { key: 'notifications', label: 'Notifications', icon: Mail },
+  { key: 'zoom', label: 'Zoom', icon: Video },
+];
+
+const EMAIL_GROUPS = [
+  {
+    title: 'Student Lifecycle',
+    items: [
+      { key: 'email_welcome', label: 'Welcome Email', desc: 'Sent when a new student account is created' },
+      { key: 'email_enrollment', label: 'Enrollment Confirmation', desc: 'Sent when a student is added to a batch' },
+      { key: 'email_certificate', label: 'Certificate Issued', desc: 'Sent when a certificate is approved' },
+    ],
+  },
+  {
+    title: 'Batch Access',
+    items: [
+      { key: 'email_batch_expiry_7d', label: 'Expiry Warning (7 days)', desc: 'Reminder 7 days before batch access ends' },
+      { key: 'email_batch_expiry_1d', label: 'Expiry Warning (1 day)', desc: 'Urgent reminder 1 day before access ends' },
+      { key: 'email_batch_expired', label: 'Batch Expired', desc: 'Notification when batch access has expired' },
+    ],
+  },
+  {
+    title: 'Communication',
+    items: [
+      { key: 'email_announcement', label: 'Announcement Emails', desc: 'Sent when posted with the email toggle enabled' },
+      { key: 'email_quiz_graded', label: 'Quiz Graded', desc: 'Sent when all quiz answers have been graded' },
+      { key: 'email_zoom_reminder', label: 'Zoom Class Reminder', desc: 'Sent 15 minutes before a scheduled class' },
+    ],
+  },
+];
+
+// ── Toggle Switch ──────────────────────────────────────────────
+
+function ToggleSwitch({ checked, onChange, disabled }: { checked: boolean; onChange: () => void; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onChange}
+      disabled={disabled}
+      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/30 ${
+        checked ? 'bg-green-500' : 'bg-gray-300'
+      } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+    >
+      <span
+        className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+          checked ? 'translate-x-6' : 'translate-x-1'
+        }`}
+      />
+    </button>
+  );
+}
+
+// ── Number Stepper ─────────────────────────────────────────────
+
+function NumberStepper({ value, onChange, min, max, step = 1, suffix }: {
+  value: number; onChange: (v: number) => void; min: number; max?: number; step?: number; suffix?: string;
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <button
+        onClick={() => onChange(Math.max(min, value - step))}
+        disabled={value <= min}
+        className="w-9 h-9 rounded-lg border border-gray-200 bg-white flex items-center justify-center hover:bg-gray-50 transition-colors disabled:opacity-30"
+      >
+        <Minus size={16} className="text-gray-600" />
+      </button>
+      <div className="w-16 h-10 rounded-lg border border-gray-200 bg-white flex items-center justify-center">
+        <span className="text-xl font-bold text-primary">{value}{suffix}</span>
+      </div>
+      <button
+        onClick={() => onChange(max !== undefined ? Math.min(max, value + step) : value + step)}
+        disabled={max !== undefined && value >= max}
+        className="w-9 h-9 rounded-lg border border-gray-200 bg-white flex items-center justify-center hover:bg-gray-50 transition-colors disabled:opacity-30"
+      >
+        <Plus size={16} className="text-gray-600" />
+      </button>
+    </div>
+  );
+}
+
+// ── Main Component ─────────────────────────────────────────────
+
 export default function AdminSettings() {
-  const basePath = useBasePath();
+  const auth = useAuth();
+  const [activeTab, setActiveTab] = useState<TabType>('account');
+
+  // Data fetching
   const { data: settingsData, loading: settingsLoading } = useApi(getSettings);
   const { data: accountsData, loading: accountsLoading, refetch: refetchAccounts } = useApi(listAccounts);
+  const { execute: saveSettings, loading: savingSettings } = useMutation(updateSettings);
+  const { execute: doUpdateProfile, loading: savingProfile } = useMutation(updateUser);
+  const { execute: doChangePassword, loading: savingPassword } = useMutation(changePassword);
+  const { execute: doCreateAccount, loading: creatingAccount } = useMutation(createAccount);
+  const { execute: doUpdateAccount } = useMutation(updateAccount);
+  const { execute: doDeleteAccount } = useMutation(deleteAccount);
+  const { execute: doSetDefault } = useMutation(setDefaultAccount);
 
+  // Profile state
+  const [profileData, setProfileData] = useState({ name: auth.name, email: auth.email, phone: auth.phone });
+
+  // Password state
+  const [passwordData, setPasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [passwordError, setPasswordError] = useState('');
+
+  // Settings state
   const [deviceLimit, setDeviceLimit] = useState(2);
   const [certThreshold, setCertThreshold] = useState(70);
   const [defaultStudentPassword, setDefaultStudentPassword] = useState('changeme123');
   const [showDefaultPassword, setShowDefaultPassword] = useState(false);
+
+  // Email notification state (local copy for batch save)
+  const [emailToggles, setEmailToggles] = useState<Record<string, boolean>>({});
+  const [emailTogglesDirty, setEmailTogglesDirty] = useState(false);
+
+  // Zoom state
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
@@ -36,288 +147,142 @@ export default function AdminSettings() {
   const [editForm, setEditForm] = useState({ accountName: '', accountId: '', clientId: '', clientSecret: '' });
   const [deleteAccountId, setDeleteAccountId] = useState<string | null>(null);
 
-  const { execute: saveSettings, loading: savingSettings } = useMutation(updateSettings);
-  const { execute: doCreateAccount, loading: creatingAccount } = useMutation(createAccount);
-  const { execute: doUpdateAccount } = useMutation(updateAccount);
-  const { execute: doDeleteAccount } = useMutation(deleteAccount);
-  const { execute: doSetDefault } = useMutation(setDefaultAccount);
-
   useEffect(() => {
-    if (settingsData?.settings?.max_device_limit) {
-      setDeviceLimit(parseInt(settingsData.settings.max_device_limit, 10) || 2);
+    if (!settingsData?.settings) return;
+    const s = settingsData.settings;
+    if (s.max_device_limit) setDeviceLimit(parseInt(s.max_device_limit, 10) || 2);
+    if (s.certificate_completion_threshold) setCertThreshold(parseInt(s.certificate_completion_threshold, 10) || 70);
+    if (s.default_student_password) setDefaultStudentPassword(s.default_student_password);
+
+    // Initialize email toggles
+    const toggles: Record<string, boolean> = {};
+    for (const group of EMAIL_GROUPS) {
+      for (const item of group.items) {
+        toggles[item.key] = (s[item.key] ?? 'true') !== 'false';
+      }
     }
-    if (settingsData?.settings?.certificate_completion_threshold) {
-      setCertThreshold(parseInt(settingsData.settings.certificate_completion_threshold, 10) || 70);
-    }
-    if (settingsData?.settings?.default_student_password) {
-      setDefaultStudentPassword(settingsData.settings.default_student_password);
-    }
+    setEmailToggles(toggles);
   }, [settingsData]);
 
   const accounts: ZoomAccountOut[] = Array.isArray(accountsData) ? accountsData : [];
+  const inputClass = 'w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white transition-shadow';
 
-  const decrease = () => {
-    if (deviceLimit > 1) setDeviceLimit(deviceLimit - 1);
-  };
+  // ── Handlers ───────────────────────────────────────────────
 
-  const increase = () => setDeviceLimit(deviceLimit + 1);
-
-  const handleSave = async () => {
+  const handleProfileSave = async () => {
+    if (!auth.id) return;
     try {
-      await saveSettings({ max_device_limit: String(deviceLimit) });
-      toast.success('Device limit saved');
-    } catch (err: any) {
-      toast.error(err.message);
-    }
+      await doUpdateProfile(auth.id, { name: profileData.name, phone: profileData.phone });
+      toast.success('Profile updated');
+      const stored = localStorage.getItem('user');
+      if (stored) { try { const u = JSON.parse(stored); u.name = profileData.name; u.phone = profileData.phone; localStorage.setItem('user', JSON.stringify(u)); } catch {} }
+    } catch (err: any) { toast.error(err.message); }
   };
 
-  const handleSaveCertThreshold = async () => {
+  const handlePasswordUpdate = async () => {
+    setPasswordError('');
+    if (passwordData.newPassword !== passwordData.confirmPassword) { setPasswordError('Passwords do not match'); return; }
+    if (!passwordData.currentPassword || !passwordData.newPassword) { setPasswordError('Please fill in all fields'); return; }
     try {
-      await saveSettings({ certificate_completion_threshold: String(certThreshold) });
-      toast.success('Certificate threshold saved');
-    } catch (err: any) {
-      toast.error(err.message);
-    }
+      await doChangePassword(passwordData.currentPassword, passwordData.newPassword);
+      toast.success('Password updated');
+      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (err: any) { toast.error(err.message); }
   };
 
-  const handleSaveDefaultPassword = async () => {
-    if (!defaultStudentPassword.trim()) {
-      toast.error('Password cannot be empty');
-      return;
-    }
+  const handleSaveEmailToggles = async () => {
     try {
-      await saveSettings({ default_student_password: defaultStudentPassword.trim() });
-      toast.success('Default student password saved');
-    } catch (err: any) {
-      toast.error(err.message);
-    }
-  };
-
-  const decreaseThreshold = () => {
-    if (certThreshold > 10) setCertThreshold(certThreshold - 5);
-  };
-
-  const increaseThreshold = () => {
-    if (certThreshold < 100) setCertThreshold(certThreshold + 5);
-  };
-
-  const toggleSecret = (id: string) => {
-    setShowSecrets((prev) => ({ ...prev, [id]: !prev[id] }));
-  };
-
-  const maskSecret = (secret: string) => {
-    if (!secret || secret.length <= 6) return '••••••••';
-    return secret.slice(0, 3) + '••••••••' + secret.slice(-3);
+      const updates: Record<string, string> = {};
+      for (const [key, val] of Object.entries(emailToggles)) { updates[key] = val ? 'true' : 'false'; }
+      await saveSettings(updates);
+      toast.success('Email notification settings saved');
+      setEmailTogglesDirty(false);
+    } catch { toast.error('Failed to save'); }
   };
 
   const handleAddAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await doCreateAccount({
-        account_name: newAccount.accountName,
-        account_id: newAccount.accountId,
-        client_id: newAccount.clientId,
-        client_secret: newAccount.clientSecret,
-      });
+      await doCreateAccount({ account_name: newAccount.accountName, account_id: newAccount.accountId, client_id: newAccount.clientId, client_secret: newAccount.clientSecret });
       toast.success('Zoom account added');
       setNewAccount({ accountName: '', accountId: '', clientId: '', clientSecret: '' });
       setShowAddForm(false);
       refetchAccounts();
-    } catch (err: any) {
-      toast.error(err.message);
-    }
-  };
-
-  const handleDeleteAccount = async (id: string) => {
-    try {
-      await doDeleteAccount(id);
-      toast.success('Zoom account deleted');
-      setDeleteAccountId(null);
-      refetchAccounts();
-    } catch (err: any) {
-      toast.error(err.message);
-      setDeleteAccountId(null);
-    }
-  };
-
-  const handleSetDefault = async (id: string) => {
-    try {
-      await doSetDefault(id);
-      toast.success('Default account updated');
-      refetchAccounts();
-    } catch (err: any) {
-      toast.error(err.message);
-    }
-  };
-
-  const startEdit = (account: ZoomAccountOut) => {
-    setEditingAccountId(account.id);
-    setEditForm({
-      accountName: account.accountName,
-      accountId: account.accountId || '',
-      clientId: account.clientId || '',
-      clientSecret: '',
-    });
+    } catch (err: any) { toast.error(err.message); }
   };
 
   const handleEditAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingAccountId) return;
     try {
-      await doUpdateAccount(editingAccountId, {
-        account_name: editForm.accountName,
-        account_id: editForm.accountId,
-        client_id: editForm.clientId,
-        ...(editForm.clientSecret ? { client_secret: editForm.clientSecret } : {}),
-      });
-      toast.success('Zoom account updated');
+      await doUpdateAccount(editingAccountId, { account_name: editForm.accountName, account_id: editForm.accountId, client_id: editForm.clientId, ...(editForm.clientSecret ? { client_secret: editForm.clientSecret } : {}) });
+      toast.success('Account updated');
       setEditingAccountId(null);
       refetchAccounts();
-    } catch (err: any) {
-      toast.error(err.message);
-    }
+    } catch (err: any) { toast.error(err.message); }
   };
 
-  const inputClass = 'w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50';
+  // ── Render ─────────────────────────────────────────────────
 
   return (
-    <>
-    <SettingsView
-      subtitle="Manage your account and system settings"
-      extraCards={
-        <>
-          {/* Session Settings Card */}
-          <div className="bg-white rounded-2xl p-4 sm:p-6 card-shadow">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center">
-                <Monitor size={20} className="text-primary" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-primary">Session Settings</h3>
-                <p className="text-xs text-gray-500">Control how many devices users can be logged in on simultaneously</p>
-              </div>
-            </div>
+    <DashboardLayout>
+      <DashboardHeader greeting="Settings" subtitle="Manage your account and system settings" />
 
-            {settingsLoading ? (
-              <div className="animate-pulse bg-gray-200 rounded-xl h-32" />
-            ) : (
-              <>
-                <div className="bg-gray-50 rounded-xl p-4 sm:p-5 mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-3">
-                    Maximum Devices Per User
-                  </label>
-                  <div className="flex items-center gap-4">
-                    <button
-                      onClick={decrease}
-                      disabled={deviceLimit <= 1}
-                      className="w-10 h-10 rounded-xl border border-gray-200 bg-white flex items-center justify-center hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <Minus size={18} className="text-gray-600" />
-                    </button>
-                    <div className="w-16 h-12 rounded-xl border border-gray-200 bg-white flex items-center justify-center">
-                      <span className="text-2xl font-bold text-primary">{deviceLimit}</span>
-                    </div>
-                    <button
-                      onClick={increase}
-                      className="w-10 h-10 rounded-xl border border-gray-200 bg-white flex items-center justify-center hover:bg-gray-50 transition-colors"
-                    >
-                      <Plus size={18} className="text-gray-600" />
-                    </button>
-                  </div>
-                  <p className="text-xs text-gray-400 mt-3">
-                    Users who exceed this limit will have their oldest session terminated automatically. Minimum: 1 device.
-                  </p>
+      <div className="max-w-4xl">
+        {/* Tab Bar */}
+        <div className="flex gap-1 mb-6 bg-gray-100 rounded-xl p-1 w-fit">
+          {TABS.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === tab.key
+                    ? 'bg-white text-primary shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Icon size={16} />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* ── Account Tab ──────────────────────────────────── */}
+        {activeTab === 'account' && (
+          <div className="space-y-6">
+            {/* Profile */}
+            <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">Profile</h3>
+              <p className="text-sm text-gray-500 mb-5">Your personal information</p>
+              <div className="grid sm:grid-cols-2 gap-4 mb-5">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name</label>
+                  <input type="text" value={profileData.name} onChange={(e) => setProfileData({ ...profileData, name: e.target.value })} className={inputClass} />
                 </div>
-
-                <button
-                  onClick={handleSave}
-                  disabled={savingSettings}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors disabled:opacity-60"
-                >
-                  {savingSettings ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                  Save Changes
-                </button>
-              </>
-            )}
-          </div>
-
-          {/* Certificate Settings Card */}
-          <div className="bg-white rounded-2xl p-4 sm:p-6 card-shadow">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center">
-                <Award size={20} className="text-primary" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-primary">Certificate Settings</h3>
-                <p className="text-xs text-gray-500">Minimum video completion percentage required for certificate eligibility</p>
-              </div>
-            </div>
-
-            {settingsLoading ? (
-              <div className="animate-pulse bg-gray-200 rounded-xl h-32" />
-            ) : (
-              <>
-                <div className="bg-gray-50 rounded-xl p-4 sm:p-5 mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-3">
-                    Completion Threshold (%)
-                  </label>
-                  <div className="flex items-center gap-4">
-                    <button
-                      onClick={decreaseThreshold}
-                      disabled={certThreshold <= 10}
-                      className="w-10 h-10 rounded-xl border border-gray-200 bg-white flex items-center justify-center hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <Minus size={18} className="text-gray-600" />
-                    </button>
-                    <div className="w-16 h-12 rounded-xl border border-gray-200 bg-white flex items-center justify-center">
-                      <span className="text-2xl font-bold text-primary">{certThreshold}</span>
-                    </div>
-                    <button
-                      onClick={increaseThreshold}
-                      disabled={certThreshold >= 100}
-                      className="w-10 h-10 rounded-xl border border-gray-200 bg-white flex items-center justify-center hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <Plus size={18} className="text-gray-600" />
-                    </button>
-                  </div>
-                  <p className="text-xs text-gray-400 mt-3">
-                    Students must watch at least this percentage of all lectures in a course to become eligible for a certificate. Range: 10–100%, step: 5.
-                  </p>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
+                  <input type="email" value={profileData.email} disabled className={inputClass + ' opacity-60 cursor-not-allowed'} />
                 </div>
-
-                <button
-                  onClick={handleSaveCertThreshold}
-                  disabled={savingSettings}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors disabled:opacity-60"
-                >
-                  {savingSettings ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                  Save Changes
-                </button>
-              </>
-            )}
-          </div>
-
-          {/* Default Student Password Card */}
-          <div className="bg-white rounded-2xl p-4 sm:p-6 card-shadow">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center">
-                <KeyRound size={20} className="text-primary" />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone</label>
+                  <input type="text" value={profileData.phone} onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })} className={inputClass} />
+                </div>
               </div>
-              <div>
-                <h3 className="font-semibold text-primary">Default Student Password</h3>
-                <p className="text-xs text-gray-500">All new students will be created with this password</p>
-              </div>
+              <button onClick={handleProfileSave} disabled={savingProfile} className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50">
+                {savingProfile ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save Profile
+              </button>
             </div>
 
-            {settingsLoading ? (
-              <div className="animate-pulse bg-gray-200 rounded-xl h-32" />
-            ) : (
-              <>
-                <div className="bg-gray-50 rounded-xl p-4 sm:p-5 mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-3">
-                    Default Password
-                  </label>
-                  <div className="relative">
+            {/* Default Student Password */}
+            <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">Default Student Password</h3>
+              <p className="text-sm text-gray-500 mb-5">All new students will be created with this password</p>
+              {settingsLoading ? <div className="animate-pulse bg-gray-100 rounded-xl h-20" /> : (
+                <>
+                  <div className="relative mb-5 max-w-sm">
                     <input
                       type={showDefaultPassword ? 'text' : 'password'}
                       value={defaultStudentPassword}
@@ -325,231 +290,227 @@ export default function AdminSettings() {
                       placeholder="Enter default password"
                       className={inputClass + ' pr-10'}
                     />
-                    <button
-                      type="button"
-                      onClick={() => setShowDefaultPassword(!showDefaultPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
+                    <button type="button" onClick={() => setShowDefaultPassword(!showDefaultPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                       {showDefaultPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
-                  <p className="text-xs text-gray-400 mt-3">
-                    Students created via the add form or CSV import will use this password. They can change it after logging in.
-                  </p>
-                </div>
-
-                <button
-                  onClick={handleSaveDefaultPassword}
-                  disabled={savingSettings}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors disabled:opacity-60"
-                >
-                  {savingSettings ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                  Save Changes
-                </button>
-              </>
-            )}
-          </div>
-
-          {/* Email Notifications Card */}
-          <div className="bg-white rounded-2xl p-4 sm:p-6 card-shadow">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center">
-                <Mail size={20} className="text-primary" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-primary">Email Notifications</h3>
-                <p className="text-xs text-gray-500">Control which emails are sent to students</p>
-              </div>
-            </div>
-            <div className="space-y-3">
-              {[
-                { key: 'email_welcome', label: 'Welcome Email', desc: 'Sent when a new student account is created' },
-                { key: 'email_enrollment', label: 'Enrollment Confirmation', desc: 'Sent when a student is added to a batch' },
-                { key: 'email_batch_expiry_7d', label: 'Batch Expiry Warning (7 days)', desc: 'Sent 7 days before batch access expires' },
-                { key: 'email_batch_expiry_1d', label: 'Batch Expiry Warning (1 day)', desc: 'Sent 1 day before batch access expires' },
-                { key: 'email_batch_expired', label: 'Batch Expired', desc: 'Sent when batch access has expired' },
-                { key: 'email_certificate', label: 'Certificate Issued', desc: 'Sent when a certificate is approved' },
-                { key: 'email_announcement', label: 'Announcement Emails', desc: 'Sent when an announcement is posted with email toggle' },
-                { key: 'email_quiz_graded', label: 'Quiz Graded', desc: 'Sent when all quiz answers have been graded' },
-                { key: 'email_zoom_reminder', label: 'Zoom Class Reminder', desc: 'Sent 15 minutes before a scheduled class' },
-              ].map((item) => (
-                <label key={item.key} className="flex items-start gap-3 p-3 rounded-xl hover:bg-gray-50 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={(settingsData?.settings?.[item.key] ?? 'true') !== 'false'}
-                    onChange={async (e) => {
-                      try {
-                        await saveSettings({ [item.key]: e.target.checked ? 'true' : 'false' });
-                        toast.success(`${item.label} ${e.target.checked ? 'enabled' : 'disabled'}`);
-                      } catch { toast.error('Failed to update'); }
-                    }}
-                    className="mt-0.5 w-4 h-4 rounded border-gray-300 text-primary"
-                  />
-                  <div>
-                    <div className="text-sm font-medium text-gray-900">{item.label}</div>
-                    <div className="text-xs text-gray-500">{item.desc}</div>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Zoom Integration Card */}
-          <div className="bg-white rounded-2xl p-4 sm:p-6 card-shadow">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center">
-                  <Video size={20} className="text-primary" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-primary">Zoom Integration</h3>
-                  <p className="text-xs text-gray-500">Manage Zoom API accounts for auto-creating meeting links</p>
-                </div>
-              </div>
-              {!showAddForm && (
-                <button
-                  onClick={() => setShowAddForm(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors"
-                >
-                  <Plus size={16} />
-                  Add Account
-                </button>
+                  <button onClick={async () => { if (!defaultStudentPassword.trim()) { toast.error('Password cannot be empty'); return; } try { await saveSettings({ default_student_password: defaultStudentPassword.trim() }); toast.success('Default password saved'); } catch (e: any) { toast.error(e.message); } }} disabled={savingSettings} className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50">
+                    {savingSettings ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save
+                  </button>
+                </>
               )}
             </div>
 
-            {/* Add Form */}
-            {showAddForm && (
-              <form onSubmit={handleAddAccount} className="bg-gray-50 rounded-xl p-4 sm:p-5 mb-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="text-sm font-semibold text-primary">New Zoom Account</h4>
-                  <button type="button" onClick={() => setShowAddForm(false)} className="text-gray-400 hover:text-gray-600">
-                    <X size={18} />
+            {/* Certificate Threshold */}
+            <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">Certificate Threshold</h3>
+              <p className="text-sm text-gray-500 mb-5">Minimum video completion percentage for certificate eligibility</p>
+              {settingsLoading ? <div className="animate-pulse bg-gray-100 rounded-xl h-16" /> : (
+                <div className="flex items-center gap-4">
+                  <NumberStepper value={certThreshold} onChange={setCertThreshold} min={10} max={100} step={5} suffix="%" />
+                  <button onClick={async () => { try { await saveSettings({ certificate_completion_threshold: String(certThreshold) }); toast.success('Threshold saved'); } catch (e: any) { toast.error(e.message); } }} disabled={savingSettings} className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50">
+                    {savingSettings ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save
                   </button>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Account Name</label>
-                    <input type="text" value={newAccount.accountName} onChange={(e) => setNewAccount({ ...newAccount, accountName: e.target.value })} placeholder="e.g. ICT Main Account" className={inputClass} required />
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Security Tab ─────────────────────────────────── */}
+        {activeTab === 'security' && (
+          <div className="space-y-6">
+            {/* Change Password */}
+            <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">Change Password</h3>
+              <p className="text-sm text-gray-500 mb-5">Update your account password</p>
+              <div className="space-y-4 mb-5 max-w-md">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Current Password</label>
+                  <input type="password" value={passwordData.currentPassword} onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })} className={inputClass} placeholder="Enter current password" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">New Password</label>
+                  <input type="password" value={passwordData.newPassword} onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })} className={inputClass} placeholder="Enter new password" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Confirm New Password</label>
+                  <input type="password" value={passwordData.confirmPassword} onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })} className={inputClass} placeholder="Confirm new password" />
+                </div>
+                {passwordError && <p className="text-xs text-red-500">{passwordError}</p>}
+              </div>
+              <button onClick={handlePasswordUpdate} disabled={savingPassword} className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50">
+                {savingPassword ? <Loader2 size={16} className="animate-spin" /> : <Lock size={16} />} Update Password
+              </button>
+            </div>
+
+            {/* Session Settings */}
+            <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">Session Settings</h3>
+              <p className="text-sm text-gray-500 mb-5">Control how many devices users can be logged in on simultaneously</p>
+              {settingsLoading ? <div className="animate-pulse bg-gray-100 rounded-xl h-16" /> : (
+                <div className="flex items-center gap-4">
+                  <NumberStepper value={deviceLimit} onChange={setDeviceLimit} min={1} />
+                  <span className="text-sm text-gray-500">devices per user</span>
+                  <button onClick={async () => { try { await saveSettings({ max_device_limit: String(deviceLimit) }); toast.success('Device limit saved'); } catch (e: any) { toast.error(e.message); } }} disabled={savingSettings} className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 ml-auto">
+                    {savingSettings ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Notifications Tab ────────────────────────────── */}
+        {activeTab === 'notifications' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">Email Notifications</h3>
+              <p className="text-sm text-gray-500 mb-6">Control which emails are sent to students. Students can also manage their own preferences.</p>
+
+              {settingsLoading ? <div className="animate-pulse bg-gray-100 rounded-xl h-40" /> : (
+                <div className="space-y-8">
+                  {EMAIL_GROUPS.map((group) => (
+                    <div key={group.title}>
+                      <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">{group.title}</h4>
+                      <div className="space-y-1">
+                        {group.items.map((item) => (
+                          <div key={item.key} className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 transition-colors">
+                            <div className="mr-4">
+                              <div className="text-sm font-medium text-gray-900">{item.label}</div>
+                              <div className="text-xs text-gray-500">{item.desc}</div>
+                            </div>
+                            <ToggleSwitch
+                              checked={emailToggles[item.key] ?? true}
+                              onChange={() => {
+                                setEmailToggles({ ...emailToggles, [item.key]: !emailToggles[item.key] });
+                                setEmailTogglesDirty(true);
+                              }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+
+                  <button
+                    onClick={handleSaveEmailToggles}
+                    disabled={!emailTogglesDirty || savingSettings}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+                  >
+                    {savingSettings ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                    Save Changes
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Zoom Tab ─────────────────────────────────────── */}
+        {activeTab === 'zoom' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Zoom Integration</h3>
+                  <p className="text-sm text-gray-500">Manage Zoom API accounts for auto-creating meeting links</p>
+                </div>
+                {!showAddForm && (
+                  <button onClick={() => setShowAddForm(true)} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors">
+                    <Plus size={16} /> Add Account
+                  </button>
+                )}
+              </div>
+
+              {/* Add Form */}
+              {showAddForm && (
+                <form onSubmit={handleAddAccount} className="bg-gray-50 rounded-xl p-5 mb-5 border border-gray-100">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-sm font-semibold text-gray-900">New Zoom Account</h4>
+                    <button type="button" onClick={() => setShowAddForm(false)} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Account ID</label>
-                    <input type="text" value={newAccount.accountId} onChange={(e) => setNewAccount({ ...newAccount, accountId: e.target.value })} placeholder="Zoom Account ID" className={inputClass} required />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Client ID</label>
-                    <input type="text" value={newAccount.clientId} onChange={(e) => setNewAccount({ ...newAccount, clientId: e.target.value })} placeholder="OAuth Client ID" className={inputClass} required />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Client Secret</label>
-                    <div className="relative">
-                      <input type={showSecrets['new'] ? 'text' : 'password'} value={newAccount.clientSecret} onChange={(e) => setNewAccount({ ...newAccount, clientSecret: e.target.value })} placeholder="OAuth Client Secret" className={inputClass + ' pr-10'} required />
-                      <button type="button" onClick={() => toggleSecret('new')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                        {showSecrets['new'] ? <EyeOff size={16} /> : <Eye size={16} />}
-                      </button>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <div><label className="block text-xs font-medium text-gray-600 mb-1">Account Name</label><input type="text" value={newAccount.accountName} onChange={(e) => setNewAccount({ ...newAccount, accountName: e.target.value })} className={inputClass} required /></div>
+                    <div><label className="block text-xs font-medium text-gray-600 mb-1">Account ID</label><input type="text" value={newAccount.accountId} onChange={(e) => setNewAccount({ ...newAccount, accountId: e.target.value })} className={inputClass} required /></div>
+                    <div><label className="block text-xs font-medium text-gray-600 mb-1">Client ID</label><input type="text" value={newAccount.clientId} onChange={(e) => setNewAccount({ ...newAccount, clientId: e.target.value })} className={inputClass} required /></div>
+                    <div><label className="block text-xs font-medium text-gray-600 mb-1">Client Secret</label>
+                      <div className="relative"><input type={showSecrets['new'] ? 'text' : 'password'} value={newAccount.clientSecret} onChange={(e) => setNewAccount({ ...newAccount, clientSecret: e.target.value })} className={inputClass + ' pr-10'} required /><button type="button" onClick={() => setShowSecrets({ ...showSecrets, new: !showSecrets['new'] })} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">{showSecrets['new'] ? <EyeOff size={16} /> : <Eye size={16} />}</button></div>
                     </div>
                   </div>
-                </div>
-                <div className="flex justify-end mt-4">
-                  <button type="submit" disabled={creatingAccount} className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors disabled:opacity-60">
-                    {creatingAccount ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-                    Add Account
-                  </button>
-                </div>
-              </form>
-            )}
+                  <div className="flex justify-end mt-4">
+                    <button type="submit" disabled={creatingAccount} className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50">
+                      {creatingAccount ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Add Account
+                    </button>
+                  </div>
+                </form>
+              )}
 
-            {/* Account List */}
-            {accountsLoading ? (
-              <div className="animate-pulse bg-gray-200 rounded-xl h-24" />
-            ) : accounts.length === 0 ? (
-              <div className="bg-gray-50 rounded-xl p-6 text-center">
-                <p className="text-sm text-gray-500">No Zoom accounts configured. Add one to enable auto-creating meeting links.</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {accounts.map((account) => (
-                  <div key={account.id} className="bg-gray-50 rounded-xl p-4">
-                    {editingAccountId === account.id ? (
-                      <form onSubmit={handleEditAccount}>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                          <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Account Name</label>
-                            <input type="text" value={editForm.accountName} onChange={(e) => setEditForm({ ...editForm, accountName: e.target.value })} className={inputClass} required />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Account ID</label>
-                            <input type="text" value={editForm.accountId} onChange={(e) => setEditForm({ ...editForm, accountId: e.target.value })} className={inputClass} required />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Client ID</label>
-                            <input type="text" value={editForm.clientId} onChange={(e) => setEditForm({ ...editForm, clientId: e.target.value })} className={inputClass} required />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Client Secret</label>
-                            <div className="relative">
-                              <input type={showSecrets[account.id] ? 'text' : 'password'} value={editForm.clientSecret} onChange={(e) => setEditForm({ ...editForm, clientSecret: e.target.value })} placeholder="Leave empty to keep current" className={inputClass + ' pr-10'} />
-                              <button type="button" onClick={() => toggleSecret(account.id)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                                {showSecrets[account.id] ? <EyeOff size={16} /> : <Eye size={16} />}
-                              </button>
+              {/* Account List */}
+              {accountsLoading ? (
+                <div className="animate-pulse bg-gray-100 rounded-xl h-24" />
+              ) : accounts.length === 0 ? (
+                <div className="bg-gray-50 rounded-xl p-8 text-center border border-dashed border-gray-200">
+                  <Video size={32} className="text-gray-300 mx-auto mb-3" />
+                  <p className="text-sm text-gray-500">No Zoom accounts configured</p>
+                  <p className="text-xs text-gray-400 mt-1">Add one to enable auto-creating meeting links</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {accounts.map((account) => (
+                    <div key={account.id} className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                      {editingAccountId === account.id ? (
+                        <form onSubmit={handleEditAccount}>
+                          <div className="grid sm:grid-cols-2 gap-3 mb-3">
+                            <div><label className="block text-xs font-medium text-gray-600 mb-1">Account Name</label><input type="text" value={editForm.accountName} onChange={(e) => setEditForm({ ...editForm, accountName: e.target.value })} className={inputClass} required /></div>
+                            <div><label className="block text-xs font-medium text-gray-600 mb-1">Account ID</label><input type="text" value={editForm.accountId} onChange={(e) => setEditForm({ ...editForm, accountId: e.target.value })} className={inputClass} required /></div>
+                            <div><label className="block text-xs font-medium text-gray-600 mb-1">Client ID</label><input type="text" value={editForm.clientId} onChange={(e) => setEditForm({ ...editForm, clientId: e.target.value })} className={inputClass} required /></div>
+                            <div><label className="block text-xs font-medium text-gray-600 mb-1">Client Secret</label>
+                              <div className="relative"><input type={showSecrets[account.id] ? 'text' : 'password'} value={editForm.clientSecret} onChange={(e) => setEditForm({ ...editForm, clientSecret: e.target.value })} placeholder="Leave empty to keep current" className={inputClass + ' pr-10'} /><button type="button" onClick={() => setShowSecrets({ ...showSecrets, [account.id]: !showSecrets[account.id] })} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">{showSecrets[account.id] ? <EyeOff size={16} /> : <Eye size={16} />}</button></div>
                             </div>
                           </div>
-                        </div>
-                        <div className="flex justify-end gap-2">
-                          <button type="button" onClick={() => setEditingAccountId(null)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
-                          <button type="submit" className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors">
-                            <Save size={14} />
-                            Save
-                          </button>
-                        </div>
-                      </form>
-                    ) : (
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="flex justify-end gap-2">
+                            <button type="button" onClick={() => setEditingAccountId(null)} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Cancel</button>
+                            <button type="submit" className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors"><Save size={14} /> Save</button>
+                          </div>
+                        </form>
+                      ) : (
+                        <div className="flex items-center justify-between">
                           <div>
                             <div className="flex items-center gap-2">
-                              <h4 className="text-sm font-semibold text-primary">{account.accountName}</h4>
-                              {account.isDefault && (
-                                <span className="px-2 py-0.5 bg-accent text-primary text-[10px] font-bold rounded-full uppercase">Default</span>
-                              )}
+                              <h4 className="text-sm font-semibold text-gray-900">{account.accountName}</h4>
+                              {account.isDefault && <span className="px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded-full uppercase">Default</span>}
                             </div>
                             <p className="text-xs text-gray-500 mt-0.5">ID: {account.accountId || '—'}</p>
                           </div>
+                          <div className="flex items-center gap-1">
+                            {!account.isDefault && <button onClick={() => { doSetDefault(account.id).then(() => { toast.success('Default updated'); refetchAccounts(); }).catch((e: any) => toast.error(e.message)); }} title="Set as default" className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-yellow-500 hover:bg-white transition-colors"><Star size={16} /></button>}
+                            <button onClick={() => { setEditingAccountId(account.id); setEditForm({ accountName: account.accountName, accountId: account.accountId || '', clientId: account.clientId || '', clientSecret: '' }); }} title="Edit" className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-primary hover:bg-white transition-colors"><Edit3 size={16} /></button>
+                            <button onClick={() => setDeleteAccountId(account.id)} title="Delete" className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-white transition-colors"><Trash2 size={16} /></button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1.5 flex-shrink-0">
-                          {!account.isDefault && (
-                            <button onClick={() => handleSetDefault(account.id)} title="Set as default" className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-accent hover:bg-white transition-colors">
-                              <Star size={16} />
-                            </button>
-                          )}
-                          <button onClick={() => startEdit(account)} title="Edit" className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-primary hover:bg-white transition-colors">
-                            <Edit3 size={16} />
-                          </button>
-                          <button onClick={() => setDeleteAccountId(account.id)} title="Delete" className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-white transition-colors">
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </>
-      }
-    />
+        )}
+      </div>
+
       <AlertDialog open={!!deleteAccountId} onOpenChange={(open) => !open && setDeleteAccountId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Zoom Account</AlertDialogTitle>
-            <AlertDialogDescription>Are you sure you want to delete this Zoom account? This will also cascade to all zoom classes using this account.</AlertDialogDescription>
+            <AlertDialogDescription>This will also cascade to all zoom classes using this account.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => deleteAccountId && handleDeleteAccount(deleteAccountId)} className="bg-red-600 hover:bg-red-700 text-white">Delete</AlertDialogAction>
+            <AlertDialogAction onClick={() => deleteAccountId && doDeleteAccount(deleteAccountId).then(() => { toast.success('Account deleted'); setDeleteAccountId(null); refetchAccounts(); }).catch((e: any) => { toast.error(e.message); setDeleteAccountId(null); })} className="bg-red-600 hover:bg-red-700 text-white">Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </DashboardLayout>
   );
 }
