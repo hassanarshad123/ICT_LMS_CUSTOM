@@ -381,6 +381,36 @@ async def enroll_student(
 
     await session.commit()
     await session.refresh(sb)
+
+    # Send enrollment confirmation email
+    try:
+        from app.utils.email_sender import send_email_background, get_institute_branding, build_login_url
+        from app.utils.email_templates import enrollment_email
+
+        batch = await session.get(Batch, batch_id)
+        branding = await get_institute_branding(session, institute_id) if institute_id else {"name": "", "slug": "", "logo_url": None, "accent_color": "#C5D86D"}
+
+        teacher_name = None
+        if batch and batch.teacher_id:
+            teacher = await session.get(User, batch.teacher_id)
+            if teacher:
+                teacher_name = teacher.name
+
+        subject, html = enrollment_email(
+            student_name=student.name,
+            batch_name=batch.name if batch else "Unknown",
+            start_date=batch.start_date.isoformat() if batch and batch.start_date else "",
+            end_date=batch.end_date.isoformat() if batch and batch.end_date else "",
+            teacher_name=teacher_name,
+            login_url=build_login_url(branding["slug"]) if branding["slug"] else "",
+            institute_name=branding["name"],
+            logo_url=branding.get("logo_url"),
+            accent_color=branding.get("accent_color", "#C5D86D"),
+        )
+        send_email_background(student.email, subject, html, from_name=branding["name"])
+    except Exception:
+        pass  # Best-effort
+
     return sb
 
 

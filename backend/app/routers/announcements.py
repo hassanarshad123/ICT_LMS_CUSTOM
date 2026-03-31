@@ -98,6 +98,67 @@ async def _send_announcement_notifications(
         logger.exception("Failed to create announcement notifications for announcement %s", ann.id)
 
 
+async def _send_announcement_emails(
+    session: AsyncSession, ann, poster_name: str, institute_id: uuid.UUID = None,
+) -> None:
+    """Send announcement email to all affected users."""
+    from sqlmodel import select
+    from app.models.user import User as UserModel
+    from app.models.batch import Batch, StudentBatch
+    from app.models.course import BatchCourse
+    from app.models.enums import AnnouncementScope, UserStatus
+    from app.utils.email_sender import send_email_background, get_institute_branding, build_login_url
+    from app.utils.email_templates import announcement_email
+
+    branding = await get_institute_branding(session, institute_id) if institute_id else {"name": "", "slug": "", "logo_url": None, "accent_color": "#C5D86D"}
+    login_url = build_login_url(branding["slug"]) if branding["slug"] else ""
+
+    scope_label = ann.scope.value if hasattr(ann.scope, 'value') else str(ann.scope)
+
+    # Get recipient emails based on scope
+    user_ids: list[uuid.UUID] = []
+    if ann.scope == AnnouncementScope.institute:
+        r = await session.execute(
+            select(UserModel.id).where(
+                UserModel.deleted_at.is_(None), UserModel.status == UserStatus.active,
+                UserModel.institute_id == institute_id,
+            )
+        )
+        user_ids = [row[0] for row in r.all()]
+    elif ann.scope == AnnouncementScope.batch and ann.batch_id:
+        r = await session.execute(
+            select(StudentBatch.student_id).where(
+                StudentBatch.batch_id == ann.batch_id, StudentBatch.removed_at.is_(None),
+            )
+        )
+        user_ids = [row[0] for row in r.all()]
+    elif ann.scope == AnnouncementScope.course and ann.course_id:
+        batch_ids_q = select(BatchCourse.batch_id).where(
+            BatchCourse.course_id == ann.course_id, BatchCourse.deleted_at.is_(None),
+        )
+        r = await session.execute(
+            select(StudentBatch.student_id).where(
+                StudentBatch.batch_id.in_(batch_ids_q), StudentBatch.removed_at.is_(None),
+            )
+        )
+        user_ids = list(set(row[0] for row in r.all()))
+
+    # Fetch emails and send
+    for uid in user_ids:
+        try:
+            user = await session.get(UserModel, uid)
+            if user and user.email:
+                subj, html = announcement_email(
+                    student_name=user.name, title=ann.title, content=ann.content,
+                    posted_by=poster_name, scope_label=scope_label, login_url=login_url,
+                    institute_name=branding["name"], logo_url=branding.get("logo_url"),
+                    accent_color=branding.get("accent_color", "#C5D86D"),
+                )
+                send_email_background(user.email, subj, html, from_name=branding["name"])
+        except Exception:
+            continue
+
+
 @router.get("", response_model=PaginatedResponse[AnnouncementOut])
 async def list_announcements(
     current_user: AllRoles,
@@ -150,6 +211,13 @@ async def create_announcement(
 
     # Send notifications to affected users (non-blocking — errors are logged, not raised)
     await _send_announcement_notifications(session, ann, current_user.id, institute_id=current_user.institute_id)
+
+    # Send announcement emails if toggled on
+    if body.send_email:
+        try:
+            await _send_announcement_emails(session, ann, poster_name or "Admin", current_user.institute_id)
+        except Exception:
+            logger.exception("Failed to send announcement emails for %s", ann.id)
 
     return response
 

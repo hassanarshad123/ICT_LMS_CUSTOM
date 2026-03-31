@@ -351,6 +351,37 @@ async def send_batch_expiry_notifications():
                         institute_id=sb.institute_id,
                     )
                     total_sent += 1
+
+                    # Also send email
+                    try:
+                        from app.utils.email_sender import send_email_background, get_institute_branding, build_login_url
+                        from app.utils.email_templates import batch_expiry_warning_email, batch_expired_email
+                        from app.models.user import User as UserModel
+
+                        student = await session.get(UserModel, sb.student_id)
+                        if student and student.email:
+                            branding = await get_institute_branding(session, sb.institute_id) if sb.institute_id else {"name": "", "slug": "", "logo_url": None, "accent_color": "#C5D86D"}
+                            login_url = build_login_url(branding["slug"]) if branding["slug"] else ""
+
+                            if window["offset_days"] > 0:
+                                subj, html = batch_expiry_warning_email(
+                                    student_name=student.name, batch_name=batch.name,
+                                    days_remaining=window["offset_days"],
+                                    end_date=effective_end.strftime("%b %d, %Y"),
+                                    login_url=login_url,
+                                    institute_name=branding["name"], logo_url=branding.get("logo_url"),
+                                    accent_color=branding.get("accent_color", "#C5D86D"),
+                                )
+                            else:
+                                subj, html = batch_expired_email(
+                                    student_name=student.name, batch_name=batch.name,
+                                    institute_name=branding["name"], logo_url=branding.get("logo_url"),
+                                    accent_color=branding.get("accent_color", "#C5D86D"),
+                                )
+                            send_email_background(student.email, subj, html, from_name=branding["name"])
+                    except Exception as email_err:
+                        logger.warning("Failed to send expiry email to %s: %s", sb.student_id, email_err)
+
                 except Exception as e:
                     logger.error(
                         "Failed to send %s notification to student %s: %s",

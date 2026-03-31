@@ -408,6 +408,36 @@ async def approve_existing_certificate(
         logger.error("Failed to generate/upload certificate PDF: %s", e)
 
     await session.flush()
+
+    # Send certificate issued email
+    try:
+        from app.utils.email_sender import send_email_background, get_institute_branding, build_portal_url
+        from app.utils.email_templates import certificate_issued_email
+
+        student = await session.get(User, cert.student_id)
+        course = None
+        if cert.course_id:
+            from app.models.course import Course
+            course = await session.get(Course, cert.course_id)
+
+        if student and student.email and cert.institute_id:
+            branding = await get_institute_branding(session, cert.institute_id)
+            portal_url = build_portal_url(branding["slug"], str(student.id), "certificates")
+
+            subj, html = certificate_issued_email(
+                student_name=student.name,
+                course_name=course.title if course else cert.certificate_name or "Course",
+                cert_id=cert.certificate_id or "",
+                verification_code=cert.verification_code or "",
+                portal_url=portal_url,
+                institute_name=branding["name"],
+                logo_url=branding.get("logo_url"),
+                accent_color=branding.get("accent_color", "#C5D86D"),
+            )
+            send_email_background(student.email, subj, html, from_name=branding["name"])
+    except Exception:
+        pass  # Best-effort
+
     return cert
 
 

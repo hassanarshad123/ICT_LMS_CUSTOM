@@ -51,6 +51,7 @@ const EMPTY_FORM = {
   batchId: '',
   courseId: '',
   expiresAt: '',
+  sendEmail: false,
 };
 
 export default function AdminAnnouncements() {
@@ -97,6 +98,7 @@ export default function AdminAnnouncements() {
       batchId: ann.batchId || '',
       courseId: ann.courseId || '',
       expiresAt: ann.expiresAt ? ann.expiresAt.slice(0, 16) : '',
+      sendEmail: false,
     });
     setShowForm(true);
   };
@@ -135,8 +137,9 @@ export default function AdminAnnouncements() {
           batch_id: formData.scope === 'batch' ? formData.batchId : undefined,
           course_id: formData.scope === 'course' ? formData.courseId : undefined,
           expires_at: formData.expiresAt || undefined,
+          send_email: formData.sendEmail,
         });
-        toast.success('Announcement posted');
+        toast.success(formData.sendEmail ? 'Announcement posted & emailed' : 'Announcement posted');
       }
       setShowForm(false);
       setEditingId(null);
@@ -309,6 +312,20 @@ export default function AdminAnnouncements() {
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
               />
             </div>
+
+            {!editingId && (
+            <div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.sendEmail}
+                  onChange={(e) => setFormData({ ...formData, sendEmail: e.target.checked })}
+                  className="w-4 h-4 rounded border-gray-300"
+                />
+                <span className="text-sm text-gray-700">Also send via email to all affected users</span>
+              </label>
+            </div>
+            )}
 
             <div className="flex gap-3 pt-2">
               <button

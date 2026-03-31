@@ -38,6 +38,7 @@ export async function createAnnouncement(data: {
   batch_id?: string;
   course_id?: string;
   expires_at?: string;
+  send_email?: boolean;
 }): Promise<AnnouncementOut> {
   return apiClient('/announcements', {
     method: 'POST',

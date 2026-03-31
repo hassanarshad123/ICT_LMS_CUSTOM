@@ -250,6 +250,23 @@ async def create_user_endpoint(
         )
         await session.commit()
 
+    # Send welcome email for students
+    if db_role == "student" and current_user.institute_id:
+        try:
+            from app.utils.email_sender import send_email_background, get_institute_branding, build_login_url, build_reset_url
+            from app.utils.email_templates import welcome_email
+            branding = await get_institute_branding(session, current_user.institute_id)
+            subject, html = welcome_email(
+                student_name=user.name, email=user.email, default_password=password,
+                login_url=build_login_url(branding["slug"]),
+                reset_url=build_reset_url(branding["slug"]),
+                institute_name=branding["name"], logo_url=branding.get("logo_url"),
+                accent_color=branding.get("accent_color", "#C5D86D"),
+            )
+            send_email_background(user.email, subject, html, from_name=branding["name"])
+        except Exception:
+            pass  # Best-effort, don't fail user creation
+
     return {
         "id": user.id,
         "name": user.name,
@@ -524,6 +541,25 @@ async def bulk_import(
                 "email": email,
                 "temporary_password": "(default password)" if db_role == "student" else password,
             })
+
+            # Send welcome email for students (bulk import)
+            if db_role == "student" and current_user.institute_id:
+                try:
+                    from app.utils.email_sender import send_email_background, get_institute_branding, build_login_url, build_reset_url
+                    from app.utils.email_templates import welcome_email as _welcome_tpl
+                    if not hasattr(create_user_endpoint, '_branding_cache'):
+                        create_user_endpoint._branding_cache = await get_institute_branding(session, current_user.institute_id)
+                    br = create_user_endpoint._branding_cache
+                    subj, html = _welcome_tpl(
+                        student_name=name, email=email, default_password=password,
+                        login_url=build_login_url(br["slug"]),
+                        reset_url=build_reset_url(br["slug"]),
+                        institute_name=br["name"], logo_url=br.get("logo_url"),
+                        accent_color=br.get("accent_color", "#C5D86D"),
+                    )
+                    send_email_background(email, subj, html, from_name=br["name"])
+                except Exception:
+                    pass
 
             # Auto-enroll in selected batches (students only)
             if batch_id_list and db_role == "student":

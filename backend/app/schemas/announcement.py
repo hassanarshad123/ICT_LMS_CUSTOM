@@ -11,6 +11,7 @@ class AnnouncementCreate(BaseModel):
     batch_id: Optional[uuid.UUID] = None
     course_id: Optional[uuid.UUID] = None
     expires_at: Optional[datetime] = None
+    send_email: bool = False
 
 
 class AnnouncementUpdate(BaseModel):
