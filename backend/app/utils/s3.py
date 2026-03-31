@@ -17,6 +17,9 @@ def _get_client():
     if _client is None:
         kwargs: dict = {
             "region_name": settings.AWS_REGION,
+            # Use regional endpoint so pre-signed URLs resolve directly without
+            # a 307 redirect (which breaks signed URLs in <img> tags).
+            "endpoint_url": f"https://s3.{settings.AWS_REGION}.amazonaws.com",
             "config": Config(signature_version="s3v4"),
         }
         # Only pass explicit credentials when set. When empty, boto3 uses the
