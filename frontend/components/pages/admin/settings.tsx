@@ -228,7 +228,7 @@ export default function AdminSettings() {
     <DashboardLayout>
       <DashboardHeader greeting="Settings" subtitle="Manage your account and system settings" />
 
-      <div className="max-w-4xl">
+      <div className="w-full">
         {/* Tab Bar */}
         <div className="flex gap-1 mb-6 bg-gray-100 rounded-xl p-1 w-fit">
           {TABS.map((tab) => {
