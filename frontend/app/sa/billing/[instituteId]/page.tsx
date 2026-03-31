@@ -149,20 +149,17 @@ export default function InstituteBillingPage() {
                   inv.status === 'overdue' ? 'bg-red-100 text-red-700' :
                   'bg-zinc-100 text-zinc-600'
                 }`}>{inv.status}</span>
-                {inv.pdfPath && (
-                  <button
-                    onClick={async () => {
-                      try {
-                        const url = await downloadInvoicePDF(inv.id);
-                        window.open(url, '_blank');
-                      } catch { toast.error('Download failed'); }
-                    }}
-                    className="p-1 text-zinc-400 hover:text-zinc-700"
-                    title="Download PDF"
-                  >
-                    <Download size={14} />
-                  </button>
-                )}
+                <button
+                  onClick={async () => {
+                    try {
+                      await downloadInvoicePDF(inv.id);
+                    } catch { toast.error('Download failed'); }
+                  }}
+                  className="p-1 text-zinc-400 hover:text-zinc-700"
+                  title="Download PDF"
+                >
+                  <Download size={14} />
+                </button>
               </div>
             </div>
           ))}

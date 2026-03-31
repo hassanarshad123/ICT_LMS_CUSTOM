@@ -202,17 +202,21 @@ async def download_invoice(
     sa: SA,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    from app.models.billing import Invoice
-    from app.utils.s3 import generate_download_url
+    from fastapi.responses import StreamingResponse
+    import io
 
-    inv = await session.get(Invoice, invoice_id)
-    if not inv:
-        raise HTTPException(status_code=404, detail="Invoice not found")
-    if not inv.pdf_path:
-        raise HTTPException(status_code=404, detail="PDF not generated yet")
+    try:
+        pdf_bytes, filename = await sa_billing_service.generate_invoice_pdf_bytes(
+            session, invoice_id
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
-    url = generate_download_url(inv.pdf_path, f"{inv.invoice_number}.pdf")
-    return {"download_url": url}
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # ── Payments ────────────────────────────────────────────────────

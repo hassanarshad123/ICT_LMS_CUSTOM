@@ -151,20 +151,17 @@ export default function SABillingPage() {
                   </td>
                   <td className="px-5 py-3 text-xs text-zinc-500">{inv.dueDate}</td>
                   <td className="px-5 py-3">
-                    {inv.pdfPath && (
-                      <button
-                        onClick={async () => {
-                          try {
-                            const url = await downloadInvoicePDF(inv.id);
-                            window.open(url, '_blank');
-                          } catch { toast.error('Download failed'); }
-                        }}
-                        className="p-1.5 text-zinc-400 hover:text-zinc-700 rounded-lg hover:bg-zinc-100"
-                        title="Download PDF"
-                      >
-                        <Download size={14} />
-                      </button>
-                    )}
+                    <button
+                      onClick={async () => {
+                        try {
+                          await downloadInvoicePDF(inv.id);
+                        } catch { toast.error('Download failed'); }
+                      }}
+                      className="p-1.5 text-zinc-400 hover:text-zinc-700 rounded-lg hover:bg-zinc-100"
+                      title="Download PDF"
+                    >
+                      <Download size={14} />
+                    </button>
                   </td>
                 </tr>
               ))}

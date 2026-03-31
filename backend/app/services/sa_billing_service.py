@@ -208,67 +208,87 @@ async def generate_invoice(
         generated_by=generated_by,
     )
     session.add(invoice)
-    await session.flush()
-
-    # Generate PDF and upload to S3
-    try:
-        from app.utils.invoice_pdf import generate_invoice_pdf, InvoiceDesign
-        from app.services.sa_settings_service import get_sa_profile, get_payment_methods
-        from app.utils.s3 import _get_client as get_s3_client
-        from app.config import get_settings
-
-        settings = get_settings()
-        profile = await get_sa_profile(session)
-        payment_methods = await get_payment_methods(session)
-
-        design = InvoiceDesign(
-            company_name=profile.get("company_name", ""),
-            company_email=profile.get("company_email", ""),
-            company_phone=profile.get("company_phone", ""),
-            company_address=profile.get("company_address", ""),
-            company_logo=profile.get("company_logo") or None,
-            payment_methods=payment_methods,
-        )
-
-        discount_label = None
-        if discount_amount > 0:
-            if discount_type == "percentage":
-                discount_label = f"Discount ({discount_value}%)"
-            else:
-                discount_label = "Discount"
-
-        pdf_bytes = generate_invoice_pdf(
-            design=design,
-            invoice_number=invoice_number,
-            institute_name=inst.name,
-            institute_email=inst.contact_email,
-            period_start=period_start.isoformat(),
-            period_end=period_end.isoformat(),
-            due_date=due_date.isoformat(),
-            line_items=line_items,
-            subtotal=subtotal,
-            discount_label=discount_label,
-            discount_amount=discount_amount,
-            total_amount=total_amount,
-            notes=notes,
-            verification_url=f"https://zensbot.online/invoice/verify/{invoice_number}",
-        )
-
-        s3 = get_s3_client()
-        object_key = f"invoices/{invoice_number}.pdf"
-        s3.put_object(
-            Bucket=settings.S3_BUCKET_NAME,
-            Key=object_key,
-            Body=pdf_bytes,
-            ContentType="application/pdf",
-        )
-        invoice.pdf_path = object_key
-    except Exception as e:
-        logger.error("Failed to generate/upload invoice PDF: %s", e)
-
     await session.commit()
     await session.refresh(invoice)
     return invoice
+
+
+async def generate_invoice_pdf_bytes(
+    session: AsyncSession,
+    invoice_id: uuid.UUID,
+) -> tuple[bytes, str]:
+    """Generate PDF bytes for an invoice. Returns (pdf_bytes, filename)."""
+    from app.utils.invoice_pdf import generate_invoice_pdf, InvoiceDesign
+    from app.services.sa_settings_service import get_sa_profile, get_payment_methods
+
+    inv = await session.get(Invoice, invoice_id)
+    if not inv:
+        raise ValueError("Invoice not found")
+
+    inst = await session.get(Institute, inv.institute_id)
+    if not inst:
+        raise ValueError("Institute not found")
+
+    profile = await get_sa_profile(session)
+    payment_methods = await get_payment_methods(session)
+
+    design = InvoiceDesign(
+        company_name=profile.get("company_name", ""),
+        company_email=profile.get("company_email", ""),
+        company_phone=profile.get("company_phone", ""),
+        company_address=profile.get("company_address", ""),
+        company_logo=profile.get("company_logo") or None,
+        payment_methods=payment_methods,
+    )
+
+    discount_label = None
+    if inv.discount_amount and inv.discount_amount > 0:
+        if inv.discount_type == "percentage":
+            discount_label = f"Discount ({inv.discount_value}%)"
+        else:
+            discount_label = "Discount"
+
+    subtotal = sum(item.get("amount", 0) for item in (inv.line_items or []))
+
+    pdf_bytes = generate_invoice_pdf(
+        design=design,
+        invoice_number=inv.invoice_number,
+        institute_name=inst.name,
+        institute_email=inst.contact_email,
+        period_start=inv.period_start.isoformat(),
+        period_end=inv.period_end.isoformat(),
+        due_date=inv.due_date.isoformat(),
+        line_items=inv.line_items or [],
+        subtotal=subtotal,
+        discount_label=discount_label,
+        discount_amount=inv.discount_amount or 0,
+        total_amount=inv.total_amount,
+        notes=inv.notes,
+        verification_url=f"https://zensbot.online/invoice/verify/{inv.invoice_number}",
+    )
+
+    # Best-effort S3 upload (non-blocking)
+    try:
+        from app.utils.s3 import _get_client as get_s3_client
+        from app.config import get_settings
+        settings = get_settings()
+        if settings.AWS_ACCESS_KEY_ID:
+            s3 = get_s3_client()
+            object_key = f"invoices/{inv.invoice_number}.pdf"
+            s3.put_object(
+                Bucket=settings.S3_BUCKET_NAME,
+                Key=object_key,
+                Body=pdf_bytes,
+                ContentType="application/pdf",
+            )
+            inv.pdf_path = object_key
+            session.add(inv)
+            await session.commit()
+    except Exception:
+        pass  # S3 is optional — PDF is returned directly
+
+    filename = f"{inv.invoice_number}.pdf"
+    return pdf_bytes, filename
 
 
 async def list_invoices(

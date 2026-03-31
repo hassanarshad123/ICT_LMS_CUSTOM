@@ -665,7 +665,19 @@ export async function generateInvoiceEnhanced(data: {
   });
 }
 
-export async function downloadInvoicePDF(invoiceId: string): Promise<string> {
-  const res = await apiClient<{ downloadUrl: string }>(`/super-admin/invoices/${invoiceId}/download`);
-  return res.downloadUrl;
+export async function downloadInvoicePDF(invoiceId: string): Promise<void> {
+  const token = localStorage.getItem('access_token');
+  const res = await fetch(`/api/v1/super-admin/invoices/${invoiceId}/download`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error('Download failed');
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = res.headers.get('content-disposition')?.match(/filename="(.+)"/)?.[1] || 'invoice.pdf';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }

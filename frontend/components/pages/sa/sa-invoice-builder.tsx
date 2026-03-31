@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { X, Plus, Trash2, FileText, ChevronRight, ChevronLeft } from 'lucide-react';
 import { useMutation } from '@/hooks/use-api';
-import { previewInvoice, generateInvoiceEnhanced, type InvoicePreview } from '@/lib/api/super-admin';
+import { previewInvoice, generateInvoiceEnhanced, downloadInvoicePDF, type InvoicePreview } from '@/lib/api/super-admin';
 import { toast } from 'sonner';
 
 interface LineItem {
@@ -94,7 +94,7 @@ export function SAInvoiceBuilder({ instituteId, instituteName, onClose, onGenera
 
   const handleGenerate = async () => {
     try {
-      await doGenerate({
+      const invoice = await doGenerate({
         instituteId,
         periodStart,
         periodEnd,
@@ -109,8 +109,16 @@ export function SAInvoiceBuilder({ instituteId, instituteName, onClose, onGenera
         discountValue: discountValue || undefined,
         notes: notes || undefined,
       });
-      toast.success('Invoice generated with PDF');
+      toast.success('Invoice created! Downloading PDF...');
       onGenerated();
+
+      // Immediately download the PDF
+      try {
+        await downloadInvoicePDF(invoice.id);
+      } catch {
+        toast.error('Invoice created but PDF download failed. Use the download button to retry.');
+      }
+
       onClose();
     } catch {
       toast.error('Failed to generate invoice');
