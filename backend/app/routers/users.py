@@ -1,8 +1,10 @@
 import uuid
 import io
 import csv
+import re
 import secrets
 import math
+from dataclasses import dataclass
 from typing import Annotated, Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form, status
@@ -14,6 +16,7 @@ from app.schemas.user import UserCreate, UserUpdate, UserOut, UserPublicOut, Use
 from app.schemas.common import PaginatedResponse
 from app.services.user_service import (
     create_user,
+    find_users_by_emails,
     get_user,
     list_users,
     update_user,
@@ -439,8 +442,80 @@ async def force_logout_endpoint(
     await force_logout_user(session, user_id)
 
 
-@router.post("/bulk-import")
-async def bulk_import(
+# ── Shared CSV parsing ────────────────────────────────────────
+
+_EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+
+
+@dataclass
+class ValidatedRow:
+    row_num: int
+    name: str
+    email: str
+    phone: Optional[str]
+    role: str  # db_role (snake_case)
+    specialization: Optional[str]
+    password: str
+
+
+def _parse_and_validate_csv(
+    text: str,
+    default_student_password: str,
+) -> tuple[list[ValidatedRow], list[dict], int, bool]:
+    """Parse CSV text and validate rows.
+
+    Returns (valid_rows, errors, total_rows, truncated).
+    """
+    reader = csv.DictReader(io.StringIO(text))
+    all_rows = list(reader)
+    total_rows = len(all_rows)
+    truncated = total_rows > 500
+    rows_to_process = all_rows[:500]
+
+    valid_roles = {r.value for r in UserRole}
+    valid_rows: list[ValidatedRow] = []
+    errors: list[dict] = []
+
+    for row_num, row in enumerate(rows_to_process, start=1):
+        name = row.get("name", "").strip()
+        email = row.get("email", "").strip()
+        phone = row.get("phone", "").strip() or None
+        role = row.get("role", "student").strip()
+        specialization = row.get("specialization", "").strip() or None
+
+        if not name or not email:
+            errors.append({"row": row_num, "error": "Missing name or email"})
+            continue
+
+        if not _EMAIL_RE.match(email):
+            errors.append({"row": row_num, "error": f"Invalid email format: {email}"})
+            continue
+
+        db_role = to_db(role)
+        if db_role not in valid_roles:
+            errors.append({"row": row_num, "error": f"Invalid role: {role}. Must be student, teacher, admin, or course-creator"})
+            continue
+
+        if db_role == "student":
+            password = default_student_password
+        else:
+            password = row.get("password", "").strip()
+            if not password:
+                errors.append({"row": row_num, "error": f"Password required for {role} role (add a 'password' column)"})
+                continue
+
+        valid_rows.append(ValidatedRow(
+            row_num=row_num, name=name, email=email, phone=phone,
+            role=db_role, specialization=specialization, password=password,
+        ))
+
+    return valid_rows, errors, total_rows, truncated
+
+
+# ── Bulk Import Preview ──────────────────────────────────────
+
+@router.post("/bulk-import/preview")
+async def bulk_import_preview(
     file: UploadFile = File(...),
     batch_ids: str = Form(default=""),
     current_user: User = Depends(require_roles("admin", "course_creator")),
@@ -449,8 +524,8 @@ async def bulk_import(
     if not file.filename or not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="File must be a CSV")
 
-    # Parse and validate batch IDs
-    batch_id_list = []
+    # Parse batch IDs
+    batch_id_list: list[uuid.UUID] = []
     for b in batch_ids.split(","):
         b = b.strip()
         if not b:
@@ -466,127 +541,242 @@ async def bulk_import(
 
     content = await file.read()
     text = content.decode("utf-8-sig")
-    reader = csv.DictReader(io.StringIO(text))
 
-    # Read all rows first to detect truncation
-    all_rows = list(reader)
-    total_rows = len(all_rows)
-    truncated = total_rows > 500
-    rows_to_process = all_rows[:500]
+    default_student_password = await _get_default_student_password(session, current_user.institute_id)
+    valid_rows, errors, total_rows, truncated = _parse_and_validate_csv(text, default_student_password)
+
+    # Look up which emails already exist in the institute
+    all_emails = [r.email for r in valid_rows]
+    existing_map = await find_users_by_emails(session, all_emails, institute_id=current_user.institute_id)
+
+    # Batch-check which existing students are already enrolled in target batches
+    existing_student_ids = [
+        u.id for u in existing_map.values()
+        if u.role == UserRole.student
+    ]
+    already_enrolled_pairs: set[tuple[uuid.UUID, uuid.UUID]] = set()
+    if existing_student_ids and batch_id_list:
+        result = await session.execute(
+            select(StudentBatch.student_id, StudentBatch.batch_id).where(
+                StudentBatch.student_id.in_(existing_student_ids),
+                StudentBatch.batch_id.in_(batch_id_list),
+                StudentBatch.removed_at.is_(None),
+            )
+        )
+        for sid, bid in result.all():
+            already_enrolled_pairs.add((sid, bid))
+
+    # Categorize each valid row
+    new_users: list[dict] = []
+    existing_users: list[dict] = []
+    role_mismatches: list[dict] = []
+
+    for row in valid_rows:
+        existing_user = existing_map.get(row.email.lower())
+        if existing_user is None:
+            new_users.append({"row": row.row_num, "name": row.name, "email": row.email})
+        elif existing_user.role != UserRole.student:
+            role_mismatches.append({
+                "row": row.row_num,
+                "name": row.name,
+                "email": row.email,
+                "user_id": str(existing_user.id),
+                "actual_role": existing_user.role.value,
+            })
+        else:
+            already_in = [
+                str(bid) for bid in batch_id_list
+                if (existing_user.id, bid) in already_enrolled_pairs
+            ]
+            existing_users.append({
+                "row": row.row_num,
+                "name": row.name,
+                "email": row.email,
+                "user_id": str(existing_user.id),
+                "db_name": existing_user.name,
+                "already_in_batches": already_in,
+            })
+
+    return {
+        "new_users": new_users,
+        "existing_users": existing_users,
+        "role_mismatches": role_mismatches,
+        "errors": errors,
+        "total_new": len(new_users),
+        "total_existing": len(existing_users),
+        "total_role_mismatches": len(role_mismatches),
+        "total_errors": len(errors),
+        "truncated": truncated,
+        "total_rows": total_rows,
+    }
+
+
+# ── Bulk Import ──────────────────────────────────────────────
+
+@router.post("/bulk-import")
+async def bulk_import(
+    file: UploadFile = File(...),
+    batch_ids: str = Form(default=""),
+    enroll_user_ids: str = Form(default=""),
+    current_user: User = Depends(require_roles("admin", "course_creator")),
+    session: AsyncSession = Depends(get_session),
+):
+    if not file.filename or not file.filename.endswith(".csv"):
+        raise HTTPException(status_code=400, detail="File must be a CSV")
+
+    # Parse and validate batch IDs
+    batch_id_list: list[uuid.UUID] = []
+    for b in batch_ids.split(","):
+        b = b.strip()
+        if not b:
+            continue
+        try:
+            bid = uuid.UUID(b)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid batch ID: {b}")
+        batch = await get_batch(session, bid, institute_id=current_user.institute_id)
+        if not batch:
+            raise HTTPException(status_code=400, detail=f"Batch not found: {b}")
+        batch_id_list.append(bid)
+
+    # Parse enroll_user_ids (existing users to enroll instead of create)
+    enroll_set: set[uuid.UUID] = set()
+    for uid_str in enroll_user_ids.split(","):
+        uid_str = uid_str.strip()
+        if not uid_str:
+            continue
+        try:
+            enroll_set.add(uuid.UUID(uid_str))
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid enroll user ID: {uid_str}")
+
+    content = await file.read()
+    text = content.decode("utf-8-sig")
+
+    default_student_password = await _get_default_student_password(session, current_user.institute_id)
+    valid_rows, errors, total_rows, truncated = _parse_and_validate_csv(text, default_student_password)
+
+    # Pre-fetch existing users if enroll_set is provided
+    existing_map: dict[str, User] = {}
+    if enroll_set:
+        all_emails = [r.email for r in valid_rows]
+        existing_map = await find_users_by_emails(session, all_emails, institute_id=current_user.institute_id)
 
     imported = 0
     skipped = 0
     enrolled_count = 0
-    errors: list[dict] = []
+    enrolled_existing = 0
     created_users: list[dict] = []
+    existing_enrolled_users: list[dict] = []
+    branding_cache: dict | None = None  # per-request cache (not global)
 
-    import re
-    email_re = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
-    valid_roles = {r.value for r in UserRole}
+    for row in valid_rows:
+        # Check if this email belongs to an existing user we should enroll
+        existing_user = existing_map.get(row.email.lower()) if enroll_set else None
 
-    # Fetch default student password once (not per-row)
-    default_student_password = await _get_default_student_password(session, current_user.institute_id)
-
-    for row_num, row in enumerate(rows_to_process, start=1):
-        name = row.get("name", "").strip()
-        email = row.get("email", "").strip()
-        phone = row.get("phone", "").strip() or None
-        role = row.get("role", "student").strip()
-        specialization = row.get("specialization", "").strip() or None
-
-        if not name or not email:
-            errors.append({"row": row_num, "error": "Missing name or email"})
-            continue
-
-        # Validate email format
-        if not email_re.match(email):
-            errors.append({"row": row_num, "error": f"Invalid email format: {email}"})
-            continue
-
-        # Validate role early
-        db_role = to_db(role)
-        if db_role not in valid_roles:
-            errors.append({"row": row_num, "error": f"Invalid role: {role}. Must be student, teacher, admin, or course-creator"})
-            continue
-
-        # Password logic: students use default, other roles require password column
-        if db_role == "student":
-            password = default_student_password
-        else:
-            password = row.get("password", "").strip()
-            if not password:
-                errors.append({"row": row_num, "error": f"Password required for {role} role (add a 'password' column)"})
+        if existing_user is not None and existing_user.id in enroll_set:
+            # Existing user — enroll in batches without creating
+            if existing_user.role != UserRole.student:
+                errors.append({"row": row.row_num, "error": f"Cannot enroll {row.email}: user is a {existing_user.role.value}, not a student"})
                 continue
 
-        # Atomically check quota and pre-increment before create (locked with FOR UPDATE).
-        # Done after password validation to avoid orphaned increments on validation failures.
+            if not batch_id_list:
+                errors.append({"row": row.row_num, "error": f"No batches selected for existing user {row.email}"})
+                continue
+
+            row_enrolled = False
+            for bid in batch_id_list:
+                try:
+                    await enroll_student(session, bid, existing_user.id, enrolled_by=current_user.id, institute_id=current_user.institute_id)
+                    enrolled_count += 1
+                    row_enrolled = True
+                except ValueError as enroll_err:
+                    err_msg = str(enroll_err)
+                    if "already enrolled" in err_msg.lower():
+                        errors.append({"row": row.row_num, "error": f"Already enrolled in batch (skipped): {row.email}"})
+                    else:
+                        errors.append({"row": row.row_num, "error": f"Enrollment failed for batch {bid}: {enroll_err}"})
+
+            if row_enrolled:
+                enrolled_existing += 1
+                existing_enrolled_users.append({
+                    "row": row.row_num,
+                    "name": existing_user.name,
+                    "email": row.email,
+                    "temporary_password": "Existing account",
+                })
+            continue
+
+        # New user — create + enroll (original behavior)
         quota_incremented = False
         if current_user.institute_id:
             try:
                 await check_and_increment_user_quota(session, current_user.institute_id)
                 quota_incremented = True
             except ValueError as e:
-                errors.append({"row": row_num, "error": str(e)})
+                errors.append({"row": row.row_num, "error": str(e)})
                 continue
 
         try:
             user = await create_user(
-                session, email=email, name=name, password=password,
-                role=db_role, phone=phone, specialization=specialization,
+                session, email=row.email, name=row.name, password=row.password,
+                role=row.role, phone=row.phone, specialization=row.specialization,
                 institute_id=current_user.institute_id,
             )
             imported += 1
             created_users.append({
-                "row": row_num,
-                "name": name,
-                "email": email,
-                "temporary_password": "(default password)" if db_role == "student" else password,
+                "row": row.row_num,
+                "name": row.name,
+                "email": row.email,
+                "temporary_password": "(default password)" if row.role == "student" else row.password,
             })
 
             # Send welcome email for students (bulk import)
-            if db_role == "student" and current_user.institute_id:
+            if row.role == "student" and current_user.institute_id:
                 try:
                     from app.utils.email_sender import send_email_background, get_institute_branding, build_login_url, build_reset_url, should_send_email
                     from app.utils.email_templates import welcome_email as _welcome_tpl
                     if await should_send_email(session, current_user.institute_id, user.id, "email_welcome"):
-                        if not hasattr(create_user_endpoint, '_branding_cache'):
-                            create_user_endpoint._branding_cache = await get_institute_branding(session, current_user.institute_id)
-                        br = create_user_endpoint._branding_cache
+                        if branding_cache is None:
+                            branding_cache = await get_institute_branding(session, current_user.institute_id)
+                        br = branding_cache
                         subj, html = _welcome_tpl(
-                            student_name=name, email=email, default_password=password,
+                            student_name=row.name, email=row.email, default_password=row.password,
                             login_url=build_login_url(br["slug"]),
                             reset_url=build_reset_url(br["slug"]),
                             institute_name=br["name"], logo_url=br.get("logo_url"),
                             accent_color=br.get("accent_color", "#C5D86D"),
                         )
-                        send_email_background(email, subj, html, from_name=br["name"])
+                        send_email_background(row.email, subj, html, from_name=br["name"])
                 except Exception:
                     pass
 
             # Auto-enroll in selected batches (students only)
-            if batch_id_list and db_role == "student":
+            if batch_id_list and row.role == "student":
                 for bid in batch_id_list:
                     try:
                         await enroll_student(session, bid, user.id, enrolled_by=current_user.id, institute_id=current_user.institute_id)
                         enrolled_count += 1
                     except ValueError as enroll_err:
-                        errors.append({"row": row_num, "error": f"Enrollment failed for batch {bid}: {enroll_err}"})
+                        errors.append({"row": row.row_num, "error": f"Enrollment failed for batch {bid}: {enroll_err}"})
         except ValueError as e:
             # Roll back the quota increment since user creation failed
             if quota_incremented:
                 await decrement_usage(session, current_user.institute_id, users=1)
             if "already in use" in str(e):
                 skipped += 1
-                errors.append({"row": row_num, "error": f"Duplicate email (skipped): {email}"})
+                errors.append({"row": row.row_num, "error": f"Duplicate email (skipped): {row.email}"})
             else:
-                errors.append({"row": row_num, "error": str(e)})
+                errors.append({"row": row.row_num, "error": str(e)})
 
     return {
         "imported": imported,
         "skipped": skipped,
         "enrolled": enrolled_count,
+        "enrolled_existing": enrolled_existing,
         "errors": errors,
         "created_users": created_users,
+        "existing_enrolled_users": existing_enrolled_users,
         "truncated": truncated,
         "total_rows": total_rows,
     }

@@ -83,16 +83,54 @@ export interface BulkImportResult {
   imported: number;
   skipped: number;
   enrolled: number;
+  enrolledExisting: number;
   errors: { row: number; error: string }[];
   createdUsers: { row: number; name: string; email: string; temporaryPassword: string }[];
+  existingEnrolledUsers: { row: number; name: string; email: string; temporaryPassword: string }[];
   truncated: boolean;
   totalRows: number;
 }
 
-export async function bulkImportUsers(file: File, batchIds?: string[]): Promise<BulkImportResult> {
+export interface BulkImportPreviewResult {
+  newUsers: { row: number; name: string; email: string }[];
+  existingUsers: {
+    row: number;
+    name: string;
+    email: string;
+    userId: string;
+    dbName: string;
+    alreadyInBatches: string[];
+  }[];
+  roleMismatches: { row: number; name: string; email: string; userId: string; actualRole: string }[];
+  errors: { row: number; error: string }[];
+  totalNew: number;
+  totalExisting: number;
+  totalRoleMismatches: number;
+  totalErrors: number;
+  truncated: boolean;
+  totalRows: number;
+}
+
+export async function previewBulkImport(file: File, batchIds?: string[]): Promise<BulkImportPreviewResult> {
   const formData = new FormData();
   formData.append('file', file);
   if (batchIds?.length) formData.append('batch_ids', batchIds.join(','));
+  return apiClient('/users/bulk-import/preview', {
+    method: 'POST',
+    body: formData,
+    timeout: 60000,
+  });
+}
+
+export async function bulkImportUsers(
+  file: File,
+  batchIds?: string[],
+  enrollUserIds?: string[],
+): Promise<BulkImportResult> {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (batchIds?.length) formData.append('batch_ids', batchIds.join(','));
+  if (enrollUserIds?.length) formData.append('enroll_user_ids', enrollUserIds.join(','));
   return apiClient('/users/bulk-import', {
     method: 'POST',
     body: formData,

@@ -52,6 +52,25 @@ async def create_user(
     return user
 
 
+async def find_users_by_emails(
+    session: AsyncSession,
+    emails: list[str],
+    institute_id: Optional[uuid.UUID] = None,
+) -> dict[str, User]:
+    """Return dict mapping lowercase email -> User for matching active users."""
+    if not emails:
+        return {}
+    lower_emails = [e.lower() for e in emails]
+    query = select(User).where(
+        func.lower(User.email).in_(lower_emails),
+        User.deleted_at.is_(None),
+    )
+    if institute_id is not None:
+        query = query.where(User.institute_id == institute_id)
+    result = await session.execute(query)
+    return {u.email.lower(): u for u in result.scalars().all()}
+
+
 async def get_user(session: AsyncSession, user_id: uuid.UUID) -> User | None:
     result = await session.execute(
         select(User).where(User.id == user_id, User.deleted_at.is_(None))
