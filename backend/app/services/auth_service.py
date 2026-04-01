@@ -29,6 +29,7 @@ async def authenticate_user(
     institute_id: uuid.UUID | None = None,
 ) -> tuple[User, str, str]:
     """Authenticate user, enforce device limit, return (user, access_token, refresh_token)."""
+    email = email.strip().lower()
 
     # Find user — scope by institute if provided, otherwise find by email only (for super_admin)
     query = select(User).where(User.email == email, User.deleted_at.is_(None))

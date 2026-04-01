@@ -25,7 +25,7 @@ export async function login(email: string, password: string): Promise<LoginRespo
   return apiClient<LoginResponse>('/auth/login', {
     method: 'POST',
     body: JSON.stringify({
-      email,
+      email: email.trim().toLowerCase(),
       password,
       device_info: typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 100) : undefined,
     }),

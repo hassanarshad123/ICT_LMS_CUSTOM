@@ -192,8 +192,9 @@ async def forgot_password(
         if institute:
             institute_id = institute.id
 
-    # Look up user
-    query = select(User).where(User.email == body.email, User.deleted_at.is_(None))
+    # Look up user (case-insensitive email)
+    forgot_email = body.email.strip().lower()
+    query = select(User).where(User.email == forgot_email, User.deleted_at.is_(None))
     if institute_id is not None:
         query = query.where(User.institute_id == institute_id)
     else:

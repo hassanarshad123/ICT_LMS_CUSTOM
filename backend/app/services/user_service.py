@@ -25,6 +25,7 @@ async def create_user(
     institute_id: Optional[uuid.UUID] = None,
 ) -> User:
     """Create a new user (admin only)."""
+    email = email.strip().lower()
     # Check duplicate email within same institute
     dup_query = select(User).where(User.email == email, User.deleted_at.is_(None))
     if institute_id is not None:

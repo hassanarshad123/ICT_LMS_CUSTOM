@@ -1,4 +1,3 @@
-import re
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -12,18 +11,27 @@ from app.models.user import User
 from app.models.enums import UserRole
 from app.utils.security import hash_password
 from app.config import get_settings
+from app.schemas.validators import _SLUG_RE
 
 RESERVED_SLUGS = frozenset({
-    "www", "api", "admin", "sa", "app", "mail", "smtp", "ftp",
-    "dashboard", "login", "register", "signup", "auth", "oauth",
-    "help", "support", "docs", "blog", "status", "cdn", "assets",
-    "static", "test", "staging", "dev", "demo",
+    # System routes
+    "www", "api", "admin", "sa", "app", "auth", "oauth",
+    # Pages
+    "login", "register", "signup", "dashboard", "profile", "settings",
+    "help", "support", "docs", "blog", "status", "terms", "privacy",
+    # Infrastructure
+    "mail", "smtp", "ftp", "cdn", "assets", "static", "media", "files",
+    "download", "upload",
+    # Environments
+    "test", "staging", "dev", "demo", "sandbox",
+    # Common subdomains
+    "ns1", "ns2", "mx", "pop", "imap", "webmail",
 })
 
 
 def validate_slug_format(slug: str) -> tuple[bool, str]:
     """Validate slug format and check reserved words. Returns (valid, reason)."""
-    if not re.match(r"^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$", slug):
+    if not _SLUG_RE.match(slug):
         return False, "Slug must be 3-30 lowercase alphanumeric characters or hyphens"
     if "--" in slug:
         return False, "Slug cannot contain consecutive hyphens"
@@ -60,6 +68,7 @@ async def create_institute_with_admin(
     institute_slug: str,
 ) -> tuple[Institute, User]:
     """Create institute + admin user in one atomic transaction."""
+    email = email.strip().lower()
     settings = get_settings()
 
     trial_days = settings.TRIAL_DURATION_DAYS
