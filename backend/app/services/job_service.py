@@ -195,23 +195,50 @@ async def apply_to_job(
 
 
 async def list_applications(
-    session: AsyncSession, job_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None
-) -> list[dict]:
+    session: AsyncSession,
+    job_id: uuid.UUID,
+    institute_id: Optional[uuid.UUID] = None,
+    search: Optional[str] = None,
+    status_filter: Optional[str] = None,
+    page: int = 1,
+    per_page: int = 20,
+) -> tuple[list[dict], int]:
+    base_filters = [
+        JobApplication.job_id == job_id,
+        JobApplication.deleted_at.is_(None),
+    ]
+    if institute_id is not None:
+        base_filters.append(JobApplication.institute_id == institute_id)
+    if status_filter:
+        base_filters.append(JobApplication.status == status_filter)
+
     query = (
         select(JobApplication, User)
         .join(User, JobApplication.student_id == User.id)
-        .where(
-            JobApplication.job_id == job_id,
-            JobApplication.deleted_at.is_(None),
-        )
+        .where(*base_filters)
     )
-    if institute_id is not None:
-        query = query.where(JobApplication.institute_id == institute_id)
+    if search:
+        term = f"%{search}%"
+        query = query.where(User.name.ilike(term) | User.email.ilike(term))
+
+    # Count
+    count_q = (
+        select(func.count())
+        .select_from(JobApplication)
+        .join(User, JobApplication.student_id == User.id)
+        .where(*base_filters)
+    )
+    if search:
+        count_q = count_q.where(User.name.ilike(f"%{search}%") | User.email.ilike(f"%{search}%"))
+    total = (await session.execute(count_q)).scalar() or 0
+
+    # Paginate
+    offset = (page - 1) * per_page
     result = await session.execute(
-        query.order_by(JobApplication.created_at.desc())
+        query.order_by(JobApplication.created_at.desc()).offset(offset).limit(per_page)
     )
     rows = result.all()
-    return [
+    items = [
         {
             "id": app.id,
             "job_id": app.job_id,
@@ -225,6 +252,7 @@ async def list_applications(
         }
         for app, u in rows
     ]
+    return items, total
 
 
 async def update_application_status(

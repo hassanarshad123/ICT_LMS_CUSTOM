@@ -315,12 +315,13 @@ async def list_attempts(
     quiz_id: uuid.UUID,
     current_user: CCTeacher,
     session: Annotated[AsyncSession, Depends(get_session)],
+    search: Optional[str] = None,
     page: int = Query(1, ge=1),
     per_page: int = Query(15, ge=1, le=100),
 ):
     attempts, total = await quiz_service.list_attempts(
         session, quiz_id=quiz_id, institute_id=current_user.institute_id,
-        page=page, per_page=per_page,
+        search=search, page=page, per_page=per_page,
     )
     return PaginatedResponse(
         data=[AttemptOut.model_validate(a) for a in attempts],

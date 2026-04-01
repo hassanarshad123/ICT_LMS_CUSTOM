@@ -450,6 +450,7 @@ async def list_certificate_requests(
     current_user: "User",
     batch_id: uuid.UUID | None = None,
     course_id: uuid.UUID | None = None,
+    search: str | None = None,
     page: int = 1,
     per_page: int = 20,
 ) -> tuple[list[dict], int]:
@@ -475,6 +476,9 @@ async def list_certificate_requests(
         base = base.where(Certificate.batch_id == batch_id)
     if course_id:
         base = base.where(Certificate.course_id == course_id)
+    if search:
+        term = f"%{search}%"
+        base = base.where(User.name.ilike(term) | User.email.ilike(term))
 
     # Count
     from sqlalchemy import func as sa_func

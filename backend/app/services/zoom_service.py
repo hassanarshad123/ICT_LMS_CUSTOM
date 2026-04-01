@@ -124,6 +124,7 @@ async def list_classes(
     batch_id: Optional[uuid.UUID] = None,
     status_filter: Optional[str] = None,
     teacher_id: Optional[uuid.UUID] = None,
+    search: Optional[str] = None,
     page: int = 1,
     per_page: int = 20,
     institute_id: Optional[uuid.UUID] = None,
@@ -133,6 +134,9 @@ async def list_classes(
     Teacher = aliased(User)
 
     base_filters = [ZoomClass.deleted_at.is_(None)]
+
+    if search:
+        base_filters.append(ZoomClass.title.ilike(f"%{search}%"))
 
     if institute_id is not None:
         base_filters.append(ZoomClass.institute_id == institute_id)

@@ -298,22 +298,45 @@ async def soft_delete_batch(
 
 
 async def list_batch_students(
-    session: AsyncSession, batch_id: uuid.UUID, institute_id: Optional[uuid.UUID] = None
-) -> list[dict]:
+    session: AsyncSession,
+    batch_id: uuid.UUID,
+    institute_id: Optional[uuid.UUID] = None,
+    search: Optional[str] = None,
+    page: int = 1,
+    per_page: int = 20,
+) -> tuple[list[dict], int]:
+    base_filters = [
+        StudentBatch.batch_id == batch_id,
+        StudentBatch.removed_at.is_(None),
+        User.deleted_at.is_(None),
+    ]
+    if institute_id is not None:
+        base_filters.append(StudentBatch.institute_id == institute_id)
+
     query = (
         select(StudentBatch, User)
         .join(User, StudentBatch.student_id == User.id)
-        .where(
-            StudentBatch.batch_id == batch_id,
-            StudentBatch.removed_at.is_(None),
-            User.deleted_at.is_(None),
-        )
+        .where(*base_filters)
     )
-    if institute_id is not None:
-        query = query.where(StudentBatch.institute_id == institute_id)
-    result = await session.execute(query)
+    count_q = (
+        select(func.count())
+        .select_from(StudentBatch)
+        .join(User, StudentBatch.student_id == User.id)
+        .where(*base_filters)
+    )
+
+    if search:
+        term = f"%{search}%"
+        search_filter = User.name.ilike(term) | User.email.ilike(term)
+        query = query.where(search_filter)
+        count_q = count_q.where(search_filter)
+
+    total = (await session.execute(count_q)).scalar() or 0
+
+    offset = (page - 1) * per_page
+    result = await session.execute(query.order_by(User.name).offset(offset).limit(per_page))
     rows = result.all()
-    return [
+    items = [
         {
             "id": sb.id,
             "student_id": u.id,
@@ -326,6 +349,7 @@ async def list_batch_students(
         }
         for sb, u in rows
     ]
+    return items, total
 
 
 async def enroll_student(

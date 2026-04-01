@@ -172,12 +172,13 @@ async def list_announcements(
     scope: Optional[str] = None,
     batch_id: Optional[uuid.UUID] = None,
     course_id: Optional[uuid.UUID] = None,
+    search: Optional[str] = None,
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
 ):
     items, total = await announcement_service.list_announcements(
         session, current_user, scope=scope, batch_id=batch_id,
-        course_id=course_id, page=page, per_page=per_page,
+        course_id=course_id, search=search, page=page, per_page=per_page,
     )
     return PaginatedResponse(
         data=[AnnouncementOut(**item) for item in items],

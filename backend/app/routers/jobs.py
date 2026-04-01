@@ -129,16 +129,25 @@ async def apply_to_job(
     return {"id": app.id, "job_id": app.job_id, "status": app.status.value}
 
 
-@router.get("/{job_id}/applications", response_model=list[ApplicationOut])
+@router.get("/{job_id}/applications", response_model=PaginatedResponse[ApplicationOut])
 async def list_applications(
     job_id: uuid.UUID,
     current_user: CC,
     session: Annotated[AsyncSession, Depends(get_session)],
+    search: Optional[str] = None,
+    status: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
 ):
-    items = await job_service.list_applications(
-        session, job_id, institute_id=current_user.institute_id
+    items, total = await job_service.list_applications(
+        session, job_id, institute_id=current_user.institute_id,
+        search=search, status_filter=status, page=page, per_page=per_page,
     )
-    return [ApplicationOut(**item) for item in items]
+    return PaginatedResponse(
+        data=[ApplicationOut(**item) for item in items],
+        total=total, page=page, per_page=per_page,
+        total_pages=max(1, math.ceil(total / per_page)),
+    )
 
 
 @router.patch("/{job_id}/applications/{app_id}/status")

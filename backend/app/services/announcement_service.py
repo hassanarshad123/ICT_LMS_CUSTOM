@@ -18,11 +18,17 @@ async def list_announcements(
     scope: Optional[str] = None,
     batch_id: Optional[uuid.UUID] = None,
     course_id: Optional[uuid.UUID] = None,
+    search: Optional[str] = None,
     page: int = 1,
     per_page: int = 20,
 ) -> tuple[list[dict], int]:
     query = select(Announcement).where(Announcement.deleted_at.is_(None), Announcement.institute_id == current_user.institute_id)
     count_query = select(func.count()).select_from(Announcement).where(Announcement.deleted_at.is_(None), Announcement.institute_id == current_user.institute_id)
+
+    if search:
+        term = f"%{search}%"
+        query = query.where(Announcement.title.ilike(term))
+        count_query = count_query.where(Announcement.title.ilike(term))
 
     if scope:
         query = query.where(Announcement.scope == AnnouncementScope(scope))

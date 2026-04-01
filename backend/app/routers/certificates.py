@@ -105,12 +105,13 @@ async def list_certificate_requests(
     session: AsyncSession = Depends(get_session),
     batch_id: Optional[uuid.UUID] = None,
     course_id: Optional[uuid.UUID] = None,
+    search: Optional[str] = None,
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
 ):
     """List pending certificate requests from students."""
     requests, total = await certificate_service.list_certificate_requests(
-        session, current_user, batch_id, course_id, page, per_page,
+        session, current_user, batch_id, course_id, search=search, page=page, per_page=per_page,
     )
     return PaginatedResponse(
         data=[EligibleStudentOut(**r) for r in requests],

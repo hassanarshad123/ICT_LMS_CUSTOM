@@ -533,16 +533,24 @@ async def list_attempts(
     session: AsyncSession,
     quiz_id: uuid.UUID,
     institute_id: Optional[uuid.UUID] = None,
+    search: Optional[str] = None,
     page: int = 1,
     per_page: int = 15,
 ) -> tuple[list[QuizAttempt], int]:
-    query = select(QuizAttempt).where(QuizAttempt.quiz_id == quiz_id)
-    count_query = (
-        select(func.count()).select_from(QuizAttempt).where(QuizAttempt.quiz_id == quiz_id)
-    )
+    from app.models.user import User as UserModel
+
+    base_filters = [QuizAttempt.quiz_id == quiz_id]
     if institute_id is not None:
-        query = query.where(QuizAttempt.institute_id == institute_id)
-        count_query = count_query.where(QuizAttempt.institute_id == institute_id)
+        base_filters.append(QuizAttempt.institute_id == institute_id)
+
+    query = select(QuizAttempt).where(*base_filters)
+    count_query = select(func.count()).select_from(QuizAttempt).where(*base_filters)
+
+    if search:
+        term = f"%{search}%"
+        student_ids = select(UserModel.id).where(UserModel.name.ilike(term) | UserModel.email.ilike(term))
+        query = query.where(QuizAttempt.student_id.in_(student_ids))
+        count_query = count_query.where(QuizAttempt.student_id.in_(student_ids))
 
     total_result = await session.execute(count_query)
     total = total_result.scalar() or 0

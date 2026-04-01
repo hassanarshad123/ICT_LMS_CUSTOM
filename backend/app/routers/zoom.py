@@ -156,12 +156,13 @@ async def list_classes(
     batch_id: Optional[uuid.UUID] = None,
     status: Optional[str] = None,
     teacher_id: Optional[uuid.UUID] = None,
+    search: Optional[str] = None,
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
 ):
     items, total = await zoom_service.list_classes(
         session, current_user, batch_id=batch_id, status_filter=status,
-        teacher_id=teacher_id, page=page, per_page=per_page,
+        teacher_id=teacher_id, search=search, page=page, per_page=per_page,
         institute_id=current_user.institute_id,
     )
     return PaginatedResponse(

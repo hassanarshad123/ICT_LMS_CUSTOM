@@ -139,10 +139,20 @@ async def list_batch_students(
     batch_id: uuid.UUID,
     current_user: AdminOrCC,
     session: Annotated[AsyncSession, Depends(get_session)],
+    search: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
 ):
     """List students in a batch. Admin/CC/Teacher only — students cannot view roster."""
     await verify_batch_access(session, current_user, batch_id)
-    return await batch_service.list_batch_students(session, batch_id, institute_id=current_user.institute_id)
+    items, total = await batch_service.list_batch_students(
+        session, batch_id, institute_id=current_user.institute_id,
+        search=search, page=page, per_page=per_page,
+    )
+    return PaginatedResponse(
+        data=items, total=total, page=page, per_page=per_page,
+        total_pages=max(1, math.ceil(total / per_page)),
+    )
 
 
 @router.post("/{batch_id}/students", status_code=status.HTTP_201_CREATED)
