@@ -121,11 +121,24 @@ async def apply_to_job(
     current_user: Student,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    app = await job_service.apply_to_job(
-        session, job_id=job_id, student_id=current_user.id,
-        resume_key=body.resume_key, cover_letter=body.cover_letter,
-        institute_id=current_user.institute_id,
-    )
+    # Check job deadline before allowing application
+    job = await job_service.get_job(session, job_id, institute_id=current_user.institute_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.get("deadline"):
+        from datetime import date as date_type
+        deadline = job["deadline"] if isinstance(job["deadline"], date_type) else date_type.fromisoformat(str(job["deadline"]))
+        if date_type.today() > deadline:
+            raise HTTPException(status_code=400, detail="Application deadline has passed")
+
+    try:
+        app = await job_service.apply_to_job(
+            session, job_id=job_id, student_id=current_user.id,
+            resume_key=body.resume_key, cover_letter=body.cover_letter,
+            institute_id=current_user.institute_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     return {"id": app.id, "job_id": app.job_id, "status": app.status.value}
 
 

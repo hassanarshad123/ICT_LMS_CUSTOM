@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class BatchCreate(BaseModel):
@@ -11,6 +11,12 @@ class BatchCreate(BaseModel):
     teacher_id: Optional[uuid.UUID] = None
     enable_lecture_gating: bool = False
     lecture_gating_threshold: int = Field(default=65, ge=0, le=100)
+
+    @model_validator(mode="after")
+    def validate_dates(self):
+        if self.end_date < self.start_date:
+            raise ValueError("end_date must be on or after start_date")
+        return self
 
 
 class BatchUpdate(BaseModel):

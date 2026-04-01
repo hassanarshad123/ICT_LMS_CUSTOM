@@ -271,6 +271,15 @@ async def create_user_endpoint(
         except Exception:
             pass
 
+    # Audit log
+    from app.services.activity_service import log_activity
+    await log_activity(
+        session, action="user.created", entity_type="user", entity_id=user.id,
+        user_id=current_user.id, details={"email": user.email, "role": user.role.value},
+        institute_id=current_user.institute_id,
+    )
+    await session.commit()
+
     return {
         "id": user.id,
         "name": user.name,

@@ -1,7 +1,8 @@
 import uuid
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel
+import re
+from pydantic import BaseModel, field_validator
 
 
 class UserCreate(BaseModel):
@@ -11,6 +12,28 @@ class UserCreate(BaseModel):
     phone: Optional[str] = None
     role: str
     specialization: Optional[str] = None
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v: str) -> str:
+        pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(pattern, v.strip()):
+            raise ValueError("Invalid email format")
+        return v.strip().lower()
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        return v
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        if len(v.strip()) < 2:
+            raise ValueError("Name must be at least 2 characters")
+        return v.strip()
 
 
 class UserUpdate(BaseModel):

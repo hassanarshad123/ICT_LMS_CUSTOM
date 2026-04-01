@@ -158,6 +158,15 @@ async def approve_certificate(
         )
         await session.commit()
 
+    # Audit log
+    from app.services.activity_service import log_activity
+    await log_activity(
+        session, action="certificate.approved", entity_type="certificate", entity_id=cert.id,
+        user_id=current_user.id, details={"student_id": str(student_id)},
+        institute_id=current_user.institute_id,
+    )
+    await session.commit()
+
     data = await certificate_service.get_certificate(session, cert.id, institute_id=current_user.institute_id)
     return CertificateOut(**data)
 

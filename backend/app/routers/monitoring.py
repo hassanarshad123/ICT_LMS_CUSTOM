@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
 from app.middleware.auth import require_roles, get_current_user
+from app.utils.rate_limit import limiter
 from app.models.user import User
 from app.models.enums import UserRole
 from app.schemas.monitoring import (
@@ -207,6 +208,7 @@ async def clear_resolved_errors(
 
 
 @router.post("/client-errors", status_code=status.HTTP_201_CREATED, response_model=StatusResponse)
+@limiter.limit("20/minute")
 async def report_client_error(
     request: Request,
     body: ClientErrorReport,
