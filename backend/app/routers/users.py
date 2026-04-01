@@ -319,7 +319,9 @@ async def update_user_endpoint(
     target = await get_user(session, user_id)
     if not target or target.institute_id != current_user.institute_id:
         raise HTTPException(status_code=404, detail="User not found")
-    fields = body.model_dump(exclude_unset=True)
+    # Whitelist allowed fields — prevent escalation via role/institute_id/email
+    allowed_fields = {"name", "phone", "specialization", "status", "bio", "social_links"}
+    fields = {k: v for k, v in body.model_dump(exclude_unset=True).items() if k in allowed_fields}
     try:
         user = await update_user(session, user_id, **fields)
     except ValueError as e:

@@ -2,7 +2,7 @@ import uuid
 import math
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
@@ -11,6 +11,7 @@ from app.schemas.common import PaginatedResponse
 from app.services import job_service
 from app.middleware.auth import require_roles, get_current_user
 from app.models.user import User
+from app.utils.rate_limit import limiter
 
 router = APIRouter()
 
@@ -112,7 +113,9 @@ async def delete_job(
 
 
 @router.post("/{job_id}/apply", status_code=status.HTTP_201_CREATED)
+@limiter.limit("10/minute")
 async def apply_to_job(
+    request: Request,
     job_id: uuid.UUID,
     body: JobApply,
     current_user: Student,

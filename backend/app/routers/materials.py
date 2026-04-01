@@ -15,6 +15,7 @@ from app.services import material_service
 from app.middleware.auth import require_roles, get_current_user
 from app.middleware.access_control import verify_batch_access
 from app.models.user import User
+from app.models.enums import UserRole
 from app.utils.tenant import check_institute_ownership
 
 router = APIRouter()
@@ -113,6 +114,11 @@ async def get_download_url(
     material = await material_service.get_material(session, material_id, institute_id=current_user.institute_id)
     if not material:
         raise HTTPException(status_code=404, detail="Material not found")
+
+    # Students must have active, non-expired batch access to download
+    if current_user.role == UserRole.student:
+        from app.middleware.access_control import verify_batch_access
+        await verify_batch_access(session, current_user, material.batch_id, check_active=True, check_expiry=True)
 
     try:
         url = generate_download_url(material.file_path, material.file_name)

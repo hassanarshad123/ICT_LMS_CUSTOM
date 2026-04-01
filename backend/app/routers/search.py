@@ -69,6 +69,7 @@ async def global_search(
         my_batch_ids = select(StudentBatch.batch_id).where(
             StudentBatch.student_id == current_user.id,
             StudentBatch.removed_at.is_(None),
+            StudentBatch.is_active.is_(True),
         )
         batch_stmt = batch_stmt.where(Batch.id.in_(my_batch_ids))
     # admin: no extra filter
@@ -118,6 +119,7 @@ async def global_search(
         student_batch_ids = select(StudentBatch.batch_id).where(
             StudentBatch.student_id == current_user.id,
             StudentBatch.removed_at.is_(None),
+            StudentBatch.is_active.is_(True),
         )
         student_course_ids = select(BatchCourse.course_id).where(
             BatchCourse.batch_id.in_(student_batch_ids),
@@ -143,6 +145,7 @@ async def global_search(
         s_batch_ids = select(StudentBatch.batch_id).where(
             StudentBatch.student_id == current_user.id,
             StudentBatch.removed_at.is_(None),
+            StudentBatch.is_active.is_(True),
         )
         s_course_ids = select(BatchCourse.course_id).where(
             BatchCourse.batch_id.in_(s_batch_ids),

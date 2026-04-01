@@ -137,9 +137,10 @@ async def delete_batch(
 @router.get("/{batch_id}/students")
 async def list_batch_students(
     batch_id: uuid.UUID,
-    current_user: AllRoles,
+    current_user: AdminOrCC,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
+    """List students in a batch. Admin/CC/Teacher only — students cannot view roster."""
     await verify_batch_access(session, current_user, batch_id)
     return await batch_service.list_batch_students(session, batch_id, institute_id=current_user.institute_id)
 
