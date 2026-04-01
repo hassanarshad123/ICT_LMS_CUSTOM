@@ -8,9 +8,19 @@ import { useApi } from '@/hooks/use-api';
 import { listCourses } from '@/lib/api/courses';
 import { listBatches } from '@/lib/api/batches';
 import { listJobs } from '@/lib/api/jobs';
-import { PageLoading, PageError } from '@/components/shared/page-states';
-import { BookOpen, Layers, Briefcase, ChevronRight } from 'lucide-react';
+import { PageLoading } from '@/components/shared/page-states';
+import { BookOpen, Layers, Briefcase, ChevronRight, Plus, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
+
+function SectionError({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="flex items-center gap-3 p-4 rounded-xl bg-red-50 border border-red-100">
+      <AlertCircle size={16} className="text-red-400 flex-shrink-0" />
+      <p className="text-sm text-red-600 flex-1">{message}</p>
+      <button onClick={onRetry} className="text-xs font-medium text-red-600 hover:underline">Retry</button>
+    </div>
+  );
+}
 
 export default function CourseCreatorDashboard() {
   const { name } = useAuth();
@@ -19,25 +29,37 @@ export default function CourseCreatorDashboard() {
   const { data: coursesData, loading: coursesLoading, error: coursesError, refetch: refetchCourses } = useApi(
     () => listCourses({ per_page: 5 }),
   );
-  const { data: batchesData, loading: batchesLoading } = useApi(
-    () => listBatches({ per_page: 1 }),
+  const { data: batchesData, loading: batchesLoading, error: batchesError, refetch: refetchBatches } = useApi(
+    () => listBatches({ per_page: 1, status: 'active' }),
   );
-  const { data: jobsData, loading: jobsLoading } = useApi(
+  const { data: jobsData, loading: jobsLoading, error: jobsError, refetch: refetchJobs } = useApi(
     () => listJobs({ per_page: 1 }),
   );
 
-  const loading = coursesLoading || batchesLoading || jobsLoading;
-  const error = coursesError;
+  const allLoading = coursesLoading && batchesLoading && jobsLoading;
 
   return (
     <DashboardLayout>
-      <DashboardHeader greeting={`Good morning, ${name || 'Creator'}!`} subtitle="Manage your course content" />
+      <DashboardHeader greeting={`Welcome, ${name || 'Creator'}!`} subtitle="Manage your course content" />
 
-      {loading && <PageLoading variant="cards" />}
-      {error && <PageError message={error} onRetry={refetchCourses} />}
+      {allLoading && <PageLoading variant="cards" />}
 
-      {!loading && !error && (
+      {!allLoading && (
         <>
+          {/* Quick Actions */}
+          <div className="flex gap-3 mb-6 flex-wrap">
+            <Link href={`${basePath}/courses`}>
+              <button className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors">
+                <Plus size={14} /> Create Course
+              </button>
+            </Link>
+            <Link href={`${basePath}/batches`}>
+              <button className="flex items-center gap-2 px-4 py-2 bg-white text-primary border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors">
+                <Plus size={14} /> Create Batch
+              </button>
+            </Link>
+          </div>
+
           {/* KPI Cards */}
           <div id="tour-stats" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
             <Link href={`${basePath}/courses`}>
@@ -45,7 +67,7 @@ export default function CourseCreatorDashboard() {
                 <div className="w-12 h-12 bg-accent rounded-2xl flex items-center justify-center mb-4">
                   <BookOpen size={24} className="text-primary" />
                 </div>
-                <p className="text-xl sm:text-2xl font-bold text-primary">{coursesData?.total ?? 0}</p>
+                <p className="text-xl sm:text-2xl font-bold text-primary">{coursesError ? '—' : (coursesData?.total ?? 0)}</p>
                 <p className="text-sm text-gray-500 mt-1">Total Courses</p>
               </div>
             </Link>
@@ -54,8 +76,8 @@ export default function CourseCreatorDashboard() {
                 <div className="w-12 h-12 bg-secondary rounded-2xl flex items-center justify-center mb-4">
                   <Layers size={24} className="text-primary" />
                 </div>
-                <p className="text-xl sm:text-2xl font-bold text-primary">{batchesData?.total ?? 0}</p>
-                <p className="text-sm text-gray-500 mt-1">Total Batches</p>
+                <p className="text-xl sm:text-2xl font-bold text-primary">{batchesError ? '—' : (batchesData?.total ?? 0)}</p>
+                <p className="text-sm text-gray-500 mt-1">Active Batches</p>
               </div>
             </Link>
             <Link href={`${basePath}/jobs`}>
@@ -63,7 +85,7 @@ export default function CourseCreatorDashboard() {
                 <div className="w-12 h-12 bg-accent bg-opacity-40 rounded-2xl flex items-center justify-center mb-4">
                   <Briefcase size={24} className="text-primary" />
                 </div>
-                <p className="text-xl sm:text-2xl font-bold text-primary">{jobsData?.total ?? 0}</p>
+                <p className="text-xl sm:text-2xl font-bold text-primary">{jobsError ? '—' : (jobsData?.total ?? 0)}</p>
                 <p className="text-sm text-gray-500 mt-1">Total Jobs</p>
               </div>
             </Link>
@@ -77,11 +99,13 @@ export default function CourseCreatorDashboard() {
                 View All
               </Link>
             </div>
-            <div className="space-y-3">
-              {(coursesData?.data || []).length === 0 ? (
-                <p className="text-sm text-gray-500 py-4 text-center">No courses yet</p>
-              ) : (
-                (coursesData?.data ?? []).map((course) => (
+            {coursesError ? (
+              <SectionError message="Failed to load courses" onRetry={refetchCourses} />
+            ) : (coursesData?.data || []).length === 0 ? (
+              <p className="text-sm text-gray-500 py-4 text-center">No courses yet</p>
+            ) : (
+              <div className="space-y-3">
+                {(coursesData?.data ?? []).map((course) => (
                   <Link key={course.id} href={`${basePath}/courses/${course.id}`}>
                     <div className="flex items-center justify-between p-4 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer group">
                       <div className="flex items-center gap-4">
@@ -106,9 +130,9 @@ export default function CourseCreatorDashboard() {
                       <ChevronRight size={16} className="text-gray-400 group-hover:text-primary transition-colors" />
                     </div>
                   </Link>
-                ))
-              )}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </>
       )}
