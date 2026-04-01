@@ -193,6 +193,11 @@ async def create_announcement(
     current_user: AdminCCTeacher,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
+    # Teachers can only post batch-scoped announcements (not institute-wide)
+    from app.models.enums import UserRole
+    if current_user.role == UserRole.teacher and body.scope == "institute":
+        raise HTTPException(status_code=403, detail="Teachers can only post batch or course announcements")
+
     try:
         ann = await announcement_service.create_announcement(
             session, title=body.title, content=body.content,

@@ -159,6 +159,7 @@ async def upload_init(
 
 
 @router.post("/bunny-webhook")
+@limiter.limit("60/minute")
 async def bunny_webhook(request: Request):
     """Handle Bunny Stream encoding webhooks."""
     # HMAC signature validation
