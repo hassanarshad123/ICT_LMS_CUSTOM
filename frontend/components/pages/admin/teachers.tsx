@@ -24,9 +24,13 @@ export default function AdminTeachers() {
   const [editForm, setEditForm] = useState({ name: '', email: '', phone: '', specialization: '' });
   const [editSaving, setEditSaving] = useState(false);
 
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+
   const { data: teacherList, total, page, totalPages, loading, error, setPage, refetch } = usePaginatedApi(
-    (params) => listUsers({ ...params, role: 'teacher' }),
+    (params) => listUsers({ ...params, role: 'teacher', search: search || undefined, status: statusFilter || undefined }),
     15,
+    [search, statusFilter],
   );
 
   const { execute: doCreate, loading: creating } = useMutation(createUser);
@@ -96,7 +100,15 @@ export default function AdminTeachers() {
     <DashboardLayout>
       <DashboardHeader greeting="Teachers" subtitle="Manage all teachers" />
 
-      <div className="flex justify-end mb-6">
+      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+        <input type="text" placeholder="Search teachers..." value={search} onChange={(e) => setSearch(e.target.value)} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-white" />
+        <div className="flex gap-2">
+          {['', 'active', 'inactive'].map((s) => (
+            <button key={s} onClick={() => setStatusFilter(s)} className={`px-3 py-2 rounded-xl text-xs font-medium transition-colors ${statusFilter === s ? 'bg-primary text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}>
+              {s ? s.charAt(0).toUpperCase() + s.slice(1) : 'All'}
+            </button>
+          ))}
+        </div>
         <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors">
           {showForm ? <X size={16} /> : <Plus size={16} />}
           {showForm ? 'Cancel' : 'Add Teacher'}

@@ -30,9 +30,12 @@ export default function AdminCourseCreators() {
   const [showPassword, setShowPassword] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
+  const [search, setSearch] = useState('');
+
   const { data: creatorList, total, page, totalPages, loading, error, setPage, refetch } = usePaginatedApi(
-    (params) => listUsers({ ...params, role: 'course-creator' }),
+    (params) => listUsers({ ...params, role: 'course-creator', search: search || undefined }),
     15,
+    [search],
   );
 
   const { execute: doCreate, loading: creating } = useMutation(createUser);
@@ -91,7 +94,8 @@ export default function AdminCourseCreators() {
     <DashboardLayout>
       <DashboardHeader greeting="Course Creators" subtitle="Manage course creator accounts" />
 
-      <div className="flex justify-end mb-6">
+      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+        <input type="text" placeholder="Search course creators..." value={search} onChange={(e) => setSearch(e.target.value)} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-white" />
         <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors">
           {showForm ? <X size={16} /> : <Plus size={16} />}
           {showForm ? 'Cancel' : 'Add Course Creator'}

@@ -35,9 +35,12 @@ export default function CourseCreatorBatches() {
   const [loadingStudents, setLoadingStudents] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
+  const [search, setSearch] = useState('');
+
   const { data: batchList, total, page, totalPages, loading, error, setPage, refetch } = usePaginatedApi(
-    (params) => listBatches({ ...params }),
+    (params) => listBatches({ ...params, search: search || undefined }),
     15,
+    [search],
   );
 
   const { data: teachersData } = useApi(
@@ -101,7 +104,8 @@ export default function CourseCreatorBatches() {
     <DashboardLayout>
       <DashboardHeader greeting="Batches" subtitle="Create and manage student batches" />
 
-      <div className="flex justify-end mb-6">
+      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+        <input type="text" placeholder="Search batches..." value={search} onChange={(e) => setSearch(e.target.value)} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-white" />
         <button
           onClick={() => setShowForm(!showForm)}
           className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors"

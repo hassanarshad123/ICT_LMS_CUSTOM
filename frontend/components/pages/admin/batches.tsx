@@ -39,9 +39,13 @@ export default function AdminBatches() {
   const [editForm, setEditForm] = useState({ name: '', startDate: '', endDate: '', teacherId: '' });
   const [editSaving, setEditSaving] = useState(false);
 
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+
   const { data: batchList, total, page, totalPages, loading, error, setPage, refetch } = usePaginatedApi(
-    (params) => listBatches({ ...params }),
+    (params) => listBatches({ ...params, search: search || undefined, status: statusFilter || undefined }),
     15,
+    [search, statusFilter],
   );
 
   const { data: teachersData } = useApi(
@@ -110,7 +114,18 @@ export default function AdminBatches() {
     <DashboardLayout>
       <DashboardHeader greeting="Batches" subtitle="Manage all course batches" />
 
-      <div className="flex justify-end mb-4">
+      {/* Search & Filters */}
+      <div className="flex flex-col sm:flex-row gap-3 mb-4">
+        <div className="relative flex-1">
+          <input type="text" placeholder="Search batches..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-4 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-white" />
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          {['', 'active', 'upcoming', 'completed'].map((s) => (
+            <button key={s} onClick={() => setStatusFilter(s)} className={`px-3 py-2 rounded-xl text-xs font-medium transition-colors ${statusFilter === s ? 'bg-primary text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}>
+              {s ? s.charAt(0).toUpperCase() + s.slice(1) : 'All'}
+            </button>
+          ))}
+        </div>
         <button
           onClick={() => setShowForm(!showForm)}
           className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors"
