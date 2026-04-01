@@ -39,8 +39,13 @@ export default function AdminTeachers() {
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.password.length < 4) {
-      toast.error('Password must be at least 4 characters');
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(formData.email)) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+    if (formData.password.length < 8) {
+      toast.error('Password must be at least 8 characters');
       return;
     }
     try {

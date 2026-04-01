@@ -53,6 +53,10 @@ export default function CourseCreatorBatches() {
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (formData.endDate && formData.startDate && formData.endDate < formData.startDate) {
+      toast.error('End date must be on or after start date');
+      return;
+    }
     try {
       await doCreate({
         name: formData.name,
