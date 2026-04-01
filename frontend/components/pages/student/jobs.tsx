@@ -30,6 +30,8 @@ export default function StudentJobs() {
   const basePath = useBasePath();
   const [expandedJob, setExpandedJob] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>('all');
+  const [activeTab, setActiveTab] = useState<'browse' | 'applications'>('browse');
+  const [coverLetter, setCoverLetter] = useState('');
 
   // Paginated jobs with type filter
   const {
@@ -68,8 +70,9 @@ export default function StudentJobs() {
   const handleApply = async (jobId: string) => {
     setApplyingJobId(jobId);
     try {
-      await doApply(jobId, {});
+      await doApply(jobId, { cover_letter: coverLetter || undefined });
       toast.success('Application submitted successfully');
+      setCoverLetter('');
       refetchApps();
     } catch (err: any) {
       toast.error(err.message || 'Failed to submit application');
@@ -78,10 +81,67 @@ export default function StudentJobs() {
     }
   };
 
+  const applicationStatusColors: Record<string, string> = {
+    pending: 'bg-yellow-100 text-yellow-700',
+    shortlisted: 'bg-blue-100 text-blue-700',
+    rejected: 'bg-red-100 text-red-700',
+    accepted: 'bg-green-100 text-green-700',
+  };
+
   return (
     <DashboardLayout>
       <DashboardHeader greeting="Job Opportunities" subtitle="Find your next career opportunity" />
 
+      {/* Tab Switcher */}
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-6 w-fit">
+        <button
+          onClick={() => setActiveTab('browse')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'browse' ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+        >
+          Browse Jobs
+        </button>
+        <button
+          onClick={() => setActiveTab('applications')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'applications' ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+        >
+          My Applications {Array.isArray(myApplications) && myApplications.length > 0 && (
+            <span className="ml-1.5 bg-primary text-white text-xs rounded-full px-1.5 py-0.5">{myApplications.length}</span>
+          )}
+        </button>
+      </div>
+
+      {/* My Applications Tab */}
+      {activeTab === 'applications' && (
+        <div>
+          {appsLoading && <PageLoading variant="cards" />}
+          {!appsLoading && (!Array.isArray(myApplications) || myApplications.length === 0) && (
+            <EmptyState
+              icon={<Briefcase size={28} className="text-gray-400" />}
+              title="No applications yet"
+              description="Browse job opportunities and apply to get started."
+            />
+          )}
+          {!appsLoading && Array.isArray(myApplications) && myApplications.length > 0 && (
+            <div className="space-y-3">
+              {myApplications.map((app: any) => (
+                <div key={app.id} className="bg-white rounded-2xl p-5 card-shadow">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-semibold text-primary">{app.jobTitle || app.jobId}</h4>
+                      <p className="text-sm text-gray-500 mt-0.5">Applied {app.createdAt ? new Date(app.createdAt).toLocaleDateString() : ''}</p>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${applicationStatusColors[app.status] || 'bg-gray-100 text-gray-600'}`}>
+                      {app.status ? app.status.charAt(0).toUpperCase() + app.status.slice(1) : 'Pending'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'browse' && <>
       {/* Type filter */}
       <div className="flex gap-2 mb-6 flex-wrap">
         {['all', 'full-time', 'part-time', 'internship', 'remote'].map((type) => (
@@ -194,18 +254,28 @@ export default function StudentJobs() {
                               Already Applied
                             </span>
                           ) : (
-                            <button
-                              onClick={() => handleApply(job.id)}
-                              disabled={applying && applyingJobId === job.id}
-                              className="px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors flex items-center gap-2 disabled:opacity-60"
-                            >
-                              {applying && applyingJobId === job.id ? (
-                                <Loader2 size={14} className="animate-spin" />
-                              ) : (
-                                <ExternalLink size={14} />
-                              )}
-                              Apply Now
-                            </button>
+                            <div className="w-full space-y-3">
+                              <textarea
+                                placeholder="Cover letter (optional) — tell us why you're a great fit..."
+                                value={applyingJobId === job.id ? coverLetter : ''}
+                                onFocus={() => { setApplyingJobId(null); setCoverLetter(''); }}
+                                onChange={(e) => { setApplyingJobId(null); setCoverLetter(e.target.value); }}
+                                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50 resize-none"
+                                rows={3}
+                              />
+                              <button
+                                onClick={() => handleApply(job.id)}
+                                disabled={applying && applyingJobId === job.id}
+                                className="px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors flex items-center gap-2 disabled:opacity-60"
+                              >
+                                {applying && applyingJobId === job.id ? (
+                                  <Loader2 size={14} className="animate-spin" />
+                                ) : (
+                                  <ExternalLink size={14} />
+                                )}
+                                Apply Now
+                              </button>
+                            </div>
                           )}
                           {job.postedDate && (
                             <div className="flex items-center gap-1.5 text-xs text-gray-500">
@@ -251,6 +321,7 @@ export default function StudentJobs() {
           )}
         </>
       )}
+      </>}
     </DashboardLayout>
   );
 }

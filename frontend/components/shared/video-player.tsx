@@ -208,7 +208,7 @@ export function VideoPlayer({ lectureId, videoType, videoUrl, videoStatus, water
           }
         }
       } catch {
-        // Silently fail — user can manually retry
+        setError('Video session expired. Please reload the page to continue watching.');
       }
     }, refreshIn);
 

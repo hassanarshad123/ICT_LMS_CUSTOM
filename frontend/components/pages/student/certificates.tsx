@@ -180,6 +180,18 @@ export default function StudentCertificates() {
                       <Download size={16} />
                       Download Certificate
                     </button>
+                    {course.certificateId && (
+                      <button
+                        onClick={() => {
+                          const url = `${window.location.origin}/verify?code=${course.certificateId}`;
+                          navigator.clipboard.writeText(url);
+                          toast.success('Verification link copied to clipboard');
+                        }}
+                        className="w-full mt-2 flex items-center justify-center gap-2 px-4 py-2 text-gray-600 border border-gray-200 rounded-xl text-xs font-medium hover:bg-gray-50 transition-colors"
+                      >
+                        Copy Verification Link
+                      </button>
+                    )}
                   </>
                 )}
 

@@ -3,10 +3,10 @@
 import { useState } from 'react';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import DashboardHeader from '@/components/layout/dashboard-header';
-import { useApi } from '@/hooks/use-api';
+import { usePaginatedApi } from '@/hooks/use-paginated-api';
 import { listRecordings, getRecordingSignedUrl, RecordingItem } from '@/lib/api/zoom';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
-import { PlayCircle, Calendar, Clock, User, Layers, X, Loader2 } from 'lucide-react';
+import { PlayCircle, Calendar, Clock, User, Layers, X, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 
 function formatFileSize(bytes?: number): string {
   if (!bytes) return '';
@@ -24,13 +24,14 @@ function formatDuration(minutes?: number): string {
 }
 
 export default function RecordingsPage() {
-  const { data, loading, error, refetch } = useApi(() => listRecordings({ per_page: 50 }));
+  const { data: recordings, total, page, totalPages, loading, error, setPage, refetch } = usePaginatedApi(
+    ({ page: p, per_page: pp }) => listRecordings({ page: p, per_page: pp }),
+    20,
+  );
   const [selectedRecording, setSelectedRecording] = useState<RecordingItem | null>(null);
   const [embedUrl, setEmbedUrl] = useState<string | null>(null);
   const [playerLoading, setPlayerLoading] = useState(false);
   const [playerError, setPlayerError] = useState<string | null>(null);
-
-  const recordings = data?.data || [];
 
   const openPlayer = async (rec: RecordingItem) => {
     setSelectedRecording(rec);
@@ -183,6 +184,24 @@ export default function RecordingsPage() {
                 />
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {!loading && !error && totalPages > 1 && (
+        <div className="flex items-center justify-between mt-8">
+          <p className="text-sm text-gray-500">
+            Showing {(page - 1) * 20 + 1}–{Math.min(page * 20, total)} of {total} recordings
+          </p>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setPage(page - 1)} disabled={page <= 1} className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+              <ChevronLeft size={16} />
+            </button>
+            <span className="text-sm text-gray-600 px-2">Page {page} of {totalPages}</span>
+            <button onClick={() => setPage(page + 1)} disabled={page >= totalPages} className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+              <ChevronRight size={16} />
+            </button>
           </div>
         </div>
       )}
