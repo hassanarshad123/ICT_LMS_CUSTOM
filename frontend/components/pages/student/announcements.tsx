@@ -113,7 +113,7 @@ export default function StudentAnnouncements() {
           {totalPages > 1 && (
             <div className="flex items-center justify-between pt-4">
               <p className="text-sm text-gray-500">
-                Showing {(page - 1) * 15 + 1}-{Math.min(page * 15, total)} of {total}
+                Showing {(page - 1) * 15 + 1}–{Math.min(page * 15, total)} of {total}
               </p>
               <div className="flex items-center gap-2">
                 <button
