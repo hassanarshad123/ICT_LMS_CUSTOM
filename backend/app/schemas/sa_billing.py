@@ -1,7 +1,10 @@
 import uuid
 from datetime import date, datetime
 from typing import Optional
-from pydantic import BaseModel
+
+from pydantic import BaseModel, Field
+
+from app.schemas.validators import BillingCycleField, DiscountTypeField, InvoiceStatusField
 
 
 class BillingConfigOut(BaseModel):
@@ -17,12 +20,12 @@ class BillingConfigOut(BaseModel):
 
 
 class BillingConfigUpdate(BaseModel):
-    base_amount: Optional[int] = None
-    billing_cycle: Optional[str] = None
-    extra_user_rate: Optional[int] = None
-    extra_storage_rate: Optional[int] = None
-    extra_video_rate: Optional[int] = None
-    notes: Optional[str] = None
+    base_amount: Optional[int] = Field(default=None, ge=0)
+    billing_cycle: Optional[BillingCycleField] = None
+    extra_user_rate: Optional[int] = Field(default=None, ge=0)
+    extra_storage_rate: Optional[int] = Field(default=None, ge=0)
+    extra_video_rate: Optional[int] = Field(default=None, ge=0)
+    notes: Optional[str] = Field(default=None, max_length=2000)
 
 
 class InvoiceLineItem(BaseModel):
@@ -51,9 +54,9 @@ class InvoiceGenerateRequest(BaseModel):
     period_end: date
     due_date: date
     custom_line_items: Optional[list[dict]] = None
-    discount_type: Optional[str] = None
-    discount_value: Optional[int] = None
-    notes: Optional[str] = None
+    discount_type: Optional[DiscountTypeField] = None
+    discount_value: Optional[int] = Field(default=None, ge=0)
+    notes: Optional[str] = Field(default=None, max_length=2000)
 
 
 class InvoiceOut(BaseModel):
@@ -80,7 +83,7 @@ class InvoiceOut(BaseModel):
 
 
 class InvoiceStatusUpdate(BaseModel):
-    status: str
+    status: InvoiceStatusField
 
 
 class PaymentRecordRequest(BaseModel):

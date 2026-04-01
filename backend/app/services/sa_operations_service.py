@@ -152,28 +152,29 @@ async def bulk_update_institute_status(
     action: str,
     sa_id: uuid.UUID,
 ) -> int:
-    """Bulk suspend or activate institutes."""
-    new_status = InstituteStatus.suspended if action == "suspend" else InstituteStatus.active
+    """Bulk suspend or activate institutes using lifecycle module.
 
+    Uses per-item error handling so one failed institute doesn't block others.
+    Each operation is a separate transaction via the lifecycle module.
+    """
+    from app.services.institute_lifecycle import suspend_institute, activate_institute
+
+    lifecycle_fn = suspend_institute if action == "suspend" else activate_institute
     count = 0
+
     for inst_id in institute_ids:
-        inst = await session.get(Institute, inst_id)
-        if inst and inst.deleted_at is None:
-            inst.status = new_status
-            session.add(inst)
-
-            log = ActivityLog(
-                user_id=sa_id,
-                action=f"sa_bulk_{action}",
-                entity_type="institute",
-                entity_id=inst_id,
-                details={"institute_name": inst.name},
-                institute_id=inst_id,
-            )
-            session.add(log)
+        try:
+            await lifecycle_fn(session, inst_id, sa_id)
             count += 1
+        except ValueError:
+            # Institute not found or already deleted — skip
+            continue
+        except Exception as e:
+            logging.getLogger("ict_lms.operations").error(
+                "Bulk %s failed for institute %s: %s", action, inst_id, e,
+            )
+            await session.rollback()
 
-    await session.commit()
     return count
 
 
@@ -280,6 +281,42 @@ async def deactivate_user(
     )
     session.add(log)
     await session.commit()
+
+    # Invalidate Redis cache so stale "active" status isn't served
+    from app.core.cache import cache
+    await cache.delete(cache.user_key(str(user_id)))
+
+
+async def activate_user(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    sa_id: uuid.UUID,
+) -> None:
+    """Reactivate a deactivated user."""
+    user = await session.get(User, user_id)
+    if not user or user.deleted_at is not None:
+        raise ValueError("User not found")
+    if user.role == UserRole.super_admin:
+        raise ValueError("Cannot modify super admin status")
+    if user.status == "active":
+        raise ValueError("User is already active")
+
+    user.status = "active"
+    session.add(user)
+
+    log = ActivityLog(
+        user_id=sa_id,
+        action="sa_user_activated",
+        entity_type="user",
+        entity_id=user_id,
+        details={"target_email": user.email},
+    )
+    session.add(log)
+    await session.commit()
+
+    # Invalidate Redis cache
+    from app.core.cache import cache
+    await cache.delete(cache.user_key(str(user_id)))
 
 
 async def list_active_sessions(

@@ -1,31 +1,30 @@
 import uuid
 from typing import Optional
-from pydantic import BaseModel, EmailStr, field_validator
-import re
+
+from pydantic import BaseModel, field_validator
+
+from app.schemas.validators import (
+    ValidatedEmail,
+    ValidatedName,
+    ValidatedPassword,
+    ValidatedPhone,
+    ValidatedSlug,
+    validate_password_strength,
+    validate_slug_format,
+)
 
 
 class SignupRequest(BaseModel):
-    name: str
-    email: str
-    password: str
-    phone: Optional[str] = None
-    institute_name: str
-    institute_slug: str
+    name: ValidatedName
+    email: ValidatedEmail
+    password: ValidatedPassword
+    phone: ValidatedPhone = None
+    institute_name: ValidatedName
+    institute_slug: ValidatedSlug
     website: Optional[str] = None  # honeypot field
 
-    @field_validator("password")
-    @classmethod
-    def password_min_length(cls, v: str) -> str:
-        if len(v) < 8:
-            raise ValueError("Password must be at least 8 characters")
-        return v
-
-    @field_validator("institute_slug")
-    @classmethod
-    def slug_format(cls, v: str) -> str:
-        if not re.match(r"^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$", v):
-            raise ValueError("Slug must be 3-30 lowercase alphanumeric characters or hyphens, starting and ending with alphanumeric")
-        return v
+    _validate_password = field_validator("password")(validate_password_strength)
+    _validate_slug = field_validator("institute_slug")(validate_slug_format)
 
 
 class SignupResponse(BaseModel):

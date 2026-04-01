@@ -23,6 +23,8 @@ from app.services.institute_service import (
 )
 from app.utils.security import create_impersonation_token
 from app.utils.rate_limit import limiter
+from app.utils.audit import log_sa_action
+
 
 router = APIRouter()
 
@@ -115,6 +117,9 @@ async def create_institute_endpoint(
         max_video_gb=body.max_video_gb,
         expires_at=body.expires_at,
     )
+    await log_sa_action(session, sa.id, "institute_created", "institute", institute.id, details={"name": body.name, "slug": body.slug, "plan_tier": body.plan_tier})
+    await session.commit()
+    await session.refresh(institute)
     return await _institute_to_out(session, institute)
 
 
@@ -161,45 +166,48 @@ async def update_institute(
 
     institute.updated_at = datetime.now(timezone.utc)
     session.add(institute)
+    await log_sa_action(session, sa.id, "institute_updated", "institute", institute_id, institute_id=institute_id, details=update_data)
     await session.commit()
     await session.refresh(institute)
     return await _institute_to_out(session, institute)
 
 
 @router.post("/institutes/{institute_id}/suspend")
-async def suspend_institute(
+@limiter.limit("10/minute")
+async def suspend_institute_endpoint(
+    request: Request,
     institute_id: uuid.UUID,
     sa: SA,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    institute = await session.get(Institute, institute_id)
-    if not institute or institute.deleted_at:
-        raise HTTPException(404, "Institute not found")
-    institute.status = InstituteStatus.suspended
-    institute.updated_at = datetime.now(timezone.utc)
-    session.add(institute)
-    await session.commit()
+    from app.services.institute_lifecycle import suspend_institute
+    try:
+        await suspend_institute(session, institute_id, sa.id, ip_address=request.client.host if request.client else None)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
     return {"detail": "Institute suspended"}
 
 
 @router.post("/institutes/{institute_id}/activate")
-async def activate_institute(
+@limiter.limit("10/minute")
+async def activate_institute_endpoint(
+    request: Request,
     institute_id: uuid.UUID,
     sa: SA,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    institute = await session.get(Institute, institute_id)
-    if not institute or institute.deleted_at:
-        raise HTTPException(404, "Institute not found")
-    institute.status = InstituteStatus.active
-    institute.updated_at = datetime.now(timezone.utc)
-    session.add(institute)
-    await session.commit()
+    from app.services.institute_lifecycle import activate_institute
+    try:
+        await activate_institute(session, institute_id, sa.id, ip_address=request.client.host if request.client else None)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
     return {"detail": "Institute activated"}
 
 
 @router.post("/institutes/{institute_id}/admin", response_model=dict, status_code=201)
+@limiter.limit("10/minute")
 async def create_admin(
+    request: Request,
     institute_id: uuid.UUID,
     body: AdminCreate,
     sa: SA,
@@ -235,6 +243,10 @@ async def create_admin(
         phone=body.phone,
     )
 
+    # Single commit for quota increment + user creation + audit (atomic)
+    await log_sa_action(session, sa.id, "admin_created", "user", user.id, institute_id=institute_id, details={"email": body.email, "name": body.name})
+    await session.commit()
+    await session.refresh(user)
     return {"id": str(user.id), "email": user.email, "name": user.name, "role": user.role.value}
 
 

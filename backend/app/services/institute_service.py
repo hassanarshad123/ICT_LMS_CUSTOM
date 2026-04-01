@@ -58,7 +58,7 @@ async def check_user_quota(session: AsyncSession, institute_id: uuid.UUID) -> No
     usage = await get_or_create_usage(session, institute_id)
     institute = await session.get(Institute, institute_id)
     if not institute:
-        return
+        raise ValueError("Institute not found — cannot check user quota")
     if usage.current_users >= institute.max_users:
         raise ValueError(f"User limit reached ({institute.max_users}). Upgrade your plan to add more users.")
 
@@ -69,7 +69,7 @@ async def check_storage_quota(
     usage = await get_or_create_usage(session, institute_id)
     institute = await session.get(Institute, institute_id)
     if not institute:
-        return
+        raise ValueError("Institute not found — cannot check storage quota")
     max_bytes = int(institute.max_storage_gb * 1024 ** 3)
     if (usage.current_storage_bytes + file_size_bytes) > max_bytes:
         raise ValueError(f"Storage limit reached ({institute.max_storage_gb}GB). Upgrade your plan.")
@@ -81,7 +81,7 @@ async def check_video_quota(
     usage = await get_or_create_usage(session, institute_id)
     institute = await session.get(Institute, institute_id)
     if not institute:
-        return
+        raise ValueError("Institute not found — cannot check video quota")
     max_bytes = int(institute.max_video_gb * 1024 ** 3)
     if (usage.current_video_bytes + estimated_bytes) > max_bytes:
         raise ValueError(f"Video storage limit reached ({institute.max_video_gb}GB). Upgrade your plan.")
@@ -241,14 +241,13 @@ async def create_institute(
     session.add(institute)
     await session.flush()
 
-    # Create usage tracking row
+    # Create usage tracking row (same transaction — caller owns commit)
     usage = InstituteUsage(
         institute_id=institute.id,
         last_calculated_at=datetime.now(timezone.utc),
     )
     session.add(usage)
-    await session.commit()
-    await session.refresh(institute)
+    await session.flush()
     return institute
 
 
@@ -269,8 +268,7 @@ async def create_admin_for_institute(
         institute_id=institute_id,
     )
     session.add(user)
-    await session.commit()
-    await session.refresh(user)
+    await session.flush()
     return user
 
 

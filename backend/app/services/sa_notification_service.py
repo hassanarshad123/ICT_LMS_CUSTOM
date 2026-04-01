@@ -37,17 +37,15 @@ async def send_sa_announcement(
         )
         inst_ids = [row[0] for row in r.all()]
 
-    # Find admin users in target institutes
-    admin_user_ids = []
-    for inst_id in inst_ids:
-        r = await session.execute(
-            select(User.id).where(
-                User.institute_id == inst_id,
-                User.role == UserRole.admin,
-                User.deleted_at.is_(None),
-            )
+    # Find admin users in target institutes (single query instead of N+1)
+    r = await session.execute(
+        select(User.id).where(
+            User.institute_id.in_(inst_ids),
+            User.role == UserRole.admin,
+            User.deleted_at.is_(None),
         )
-        admin_user_ids.extend([row[0] for row in r.all()])
+    )
+    admin_user_ids = [row[0] for row in r.all()]
 
     # Create notifications using the existing Notification model
     if admin_user_ids:

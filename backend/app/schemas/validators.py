@@ -50,11 +50,13 @@ _SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$")
 
 def validate_password_strength(v: str) -> str:
     """Enforce password complexity: min 8 chars, at least one uppercase,
-    one digit, and one special character."""
+    one lowercase, one digit, and one special character."""
     if len(v) < 8:
         raise ValueError("Password must be at least 8 characters")
     if not any(c.isupper() for c in v):
         raise ValueError("Password must contain at least one uppercase letter")
+    if not any(c.islower() for c in v):
+        raise ValueError("Password must contain at least one lowercase letter")
     if not any(c.isdigit() for c in v):
         raise ValueError("Password must contain at least one digit")
     if not any(c in "!@#$%^&*()_+-=[]{}|;:,.<>?/~`" for c in v):

@@ -1,30 +1,45 @@
 import uuid
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+
+from app.schemas.validators import (
+    ValidatedEmail,
+    ValidatedName,
+    ValidatedPassword,
+    ValidatedPhone,
+    ValidatedSlug,
+    PlanTierField,
+    validate_password_strength,
+    validate_slug_format,
+)
 
 
 class InstituteCreate(BaseModel):
-    name: str
-    slug: str
-    contact_email: str
-    plan_tier: str = "free"
+    name: ValidatedName
+    slug: ValidatedSlug
+    contact_email: ValidatedEmail
+    plan_tier: PlanTierField = "free"
     max_users: int = 10
     max_storage_gb: float = 1.0
     max_video_gb: float = 5.0
     expires_at: Optional[datetime] = None
 
+    _validate_slug = field_validator("slug")(validate_slug_format)
+
 
 class InstituteUpdate(BaseModel):
-    name: Optional[str] = None
-    slug: Optional[str] = None
-    contact_email: Optional[str] = None
-    plan_tier: Optional[str] = None
+    name: Optional[ValidatedName] = None
+    slug: Optional[ValidatedSlug] = None
+    contact_email: Optional[ValidatedEmail] = None
+    plan_tier: Optional[PlanTierField] = None
     max_users: Optional[int] = None
     max_storage_gb: Optional[float] = None
     max_video_gb: Optional[float] = None
     expires_at: Optional[datetime] = None
+
+    _validate_slug = field_validator("slug")(validate_slug_format)
 
 
 class InstituteOut(BaseModel):
@@ -48,10 +63,12 @@ class InstituteOut(BaseModel):
 
 
 class AdminCreate(BaseModel):
-    email: str
-    name: str
-    password: str
-    phone: Optional[str] = None
+    email: ValidatedEmail
+    name: ValidatedName
+    password: ValidatedPassword
+    phone: ValidatedPhone = None
+
+    _validate_password = field_validator("password")(validate_password_strength)
 
 
 class PlatformDashboard(BaseModel):

@@ -1,7 +1,14 @@
 import uuid
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel
+
+from pydantic import BaseModel, field_validator
+
+from app.schemas.validators import (
+    BulkActionField,
+    ValidatedPassword,
+    validate_password_strength,
+)
 
 
 class ActivityLogItem(BaseModel):
@@ -58,8 +65,10 @@ class ActiveSessionItem(BaseModel):
 
 class BulkInstituteAction(BaseModel):
     institute_ids: list[uuid.UUID]
-    action: str  # "suspend" or "activate"
+    action: BulkActionField
 
 
 class PasswordResetRequest(BaseModel):
-    new_password: str
+    new_password: ValidatedPassword
+
+    _validate_password = field_validator("new_password")(validate_password_strength)

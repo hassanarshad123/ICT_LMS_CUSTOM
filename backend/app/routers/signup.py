@@ -1,6 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import hashlib
@@ -31,12 +32,13 @@ async def register(
         raise HTTPException(status_code=403, detail="Signup is currently disabled")
 
     # Honeypot check — bots fill hidden fields
+    # Return generic 202 after delay so bots can't distinguish from real signup
     if body.website:
-        return SignupResponse(
-            access_token="ok",
-            refresh_token="ok",
-            user={"id": "00000000-0000-0000-0000-000000000000"},
-            institute={"id": "00000000-0000-0000-0000-000000000000"},
+        import asyncio
+        await asyncio.sleep(2)
+        return JSONResponse(
+            status_code=202,
+            content={"detail": "Processing your registration"},
         )
 
     try:
@@ -70,6 +72,19 @@ async def register(
         institute_id=user.institute_id,
     )
     session.add(user_session)
+
+    # Audit log for self-service signup
+    from app.models.activity import ActivityLog
+    signup_log = ActivityLog(
+        user_id=user.id,
+        action="institute_self_registered",
+        entity_type="institute",
+        entity_id=institute.id,
+        institute_id=institute.id,
+        details={"institute_name": institute.name, "slug": institute.slug, "admin_email": user.email},
+        ip_address=request.client.host if request.client else None,
+    )
+    session.add(signup_log)
     await session.commit()
 
     return SignupResponse(

@@ -1,13 +1,15 @@
 import uuid
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
 from app.middleware.auth import require_roles
 from app.models.user import User
+from app.utils.rate_limit import limiter
+from app.utils.audit import log_sa_action
 from app.schemas.common import PaginatedResponse, CountResponse, MessageResponse
 from app.schemas.sa_operations import (
     ActivityLogItem,
@@ -88,13 +90,14 @@ async def search_users(
 
 
 @router.post("/institutes/bulk-action", response_model=CountResponse)
+@limiter.limit("5/minute")
 async def bulk_institute_action(
+    request: Request,
     body: BulkInstituteAction,
     sa: SA,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    if body.action not in ("suspend", "activate"):
-        raise HTTPException(status_code=400, detail="Action must be 'suspend' or 'activate'")
+    # action is already validated by BulkActionField (Literal["suspend", "activate"])
     count = await sa_operations_service.bulk_update_institute_status(
         session, body.institute_ids, body.action, sa.id,
     )
@@ -117,7 +120,9 @@ async def list_admins(
 
 
 @router.post("/users/{target_user_id}/reset-password", response_model=MessageResponse)
+@limiter.limit("10/minute")
 async def reset_password(
+    request: Request,
     target_user_id: uuid.UUID,
     body: PasswordResetRequest,
     sa: SA,
@@ -133,7 +138,9 @@ async def reset_password(
 
 
 @router.post("/users/{target_user_id}/deactivate", response_model=MessageResponse)
+@limiter.limit("10/minute")
 async def deactivate_user(
+    request: Request,
     target_user_id: uuid.UUID,
     sa: SA,
     session: Annotated[AsyncSession, Depends(get_session)],
@@ -143,6 +150,21 @@ async def deactivate_user(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return MessageResponse(detail="User deactivated")
+
+
+@router.post("/users/{target_user_id}/activate", response_model=MessageResponse)
+@limiter.limit("10/minute")
+async def activate_user(
+    request: Request,
+    target_user_id: uuid.UUID,
+    sa: SA,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    try:
+        await sa_operations_service.activate_user(session, target_user_id, sa.id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return MessageResponse(detail="User activated")
 
 
 @router.get("/sessions", response_model=PaginatedResponse[ActiveSessionItem])
@@ -165,7 +187,9 @@ async def list_sessions(
 
 
 @router.delete("/sessions/{session_id}", response_model=MessageResponse)
+@limiter.limit("20/minute")
 async def terminate_session(
+    request: Request,
     session_id: uuid.UUID,
     sa: SA,
     session: Annotated[AsyncSession, Depends(get_session)],
@@ -177,7 +201,9 @@ async def terminate_session(
 
 
 @router.delete("/sessions/institute/{institute_id}", response_model=CountResponse)
+@limiter.limit("5/minute")
 async def terminate_institute_sessions(
+    request: Request,
     institute_id: uuid.UUID,
     sa: SA,
     session: Annotated[AsyncSession, Depends(get_session)],
@@ -187,11 +213,15 @@ async def terminate_institute_sessions(
 
 
 @router.get("/export/institutes")
+@limiter.limit("3/minute")
 async def export_institutes(
+    request: Request,
     sa: SA,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     csv_content = await sa_operations_service.export_institutes_csv(session)
+    await log_sa_action(session, sa.id, "institutes_exported", "export")
+    await session.commit()
     return StreamingResponse(
         iter([csv_content]),
         media_type="text/csv",
@@ -200,11 +230,15 @@ async def export_institutes(
 
 
 @router.get("/export/users")
+@limiter.limit("3/minute")
 async def export_users(
+    request: Request,
     sa: SA,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     csv_content = await sa_operations_service.export_users_csv(session)
+    await log_sa_action(session, sa.id, "users_exported", "export")
+    await session.commit()
     return StreamingResponse(
         iter([csv_content]),
         media_type="text/csv",
@@ -213,7 +247,9 @@ async def export_users(
 
 
 @router.post("/recalculate-usage", response_model=MessageResponse)
+@limiter.limit("3/minute")
 async def force_recalculate(
+    request: Request,
     sa: SA,
     session: Annotated[AsyncSession, Depends(get_session)],
     institute_id: Optional[str] = None,

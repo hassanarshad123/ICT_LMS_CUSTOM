@@ -284,8 +284,11 @@ async def generate_invoice_pdf_bytes(
             inv.pdf_path = object_key
             session.add(inv)
             await session.commit()
-    except Exception:
-        pass  # S3 is optional — PDF is returned directly
+    except Exception as e:
+        import logging
+        logging.getLogger("ict_lms.billing").warning(
+            "S3 upload failed for invoice %s: %s", inv.invoice_number, e,
+        )
 
     filename = f"{inv.invoice_number}.pdf"
     return pdf_bytes, filename
@@ -377,8 +380,12 @@ async def record_payment(
     session.add(payment)
 
     # If linked to invoice and amount covers it, mark as paid
+    # Use FOR UPDATE lock to prevent concurrent payment race conditions
     if invoice_id:
-        inv = await session.get(Invoice, invoice_id)
+        r = await session.execute(
+            select(Invoice).where(Invoice.id == invoice_id).with_for_update()
+        )
+        inv = r.scalar_one_or_none()
         if inv and amount >= inv.total_amount:
             inv.status = "paid"
             inv.updated_at = datetime.now(timezone.utc)

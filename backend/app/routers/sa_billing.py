@@ -1,13 +1,15 @@
 import uuid
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
 from app.middleware.auth import require_roles
 from app.models.user import User
 from app.models.institute import Institute
+from app.utils.rate_limit import limiter
+from app.utils.audit import log_sa_action
 from app.schemas.common import PaginatedResponse
 from app.schemas.sa_billing import (
     BillingConfigOut, BillingConfigUpdate,
@@ -47,6 +49,8 @@ async def update_sa_profile(
 ):
     updates = body.model_dump(exclude_none=True)
     data = await sa_settings_service.update_sa_profile(session, updates)
+    await log_sa_action(session, sa.id, "sa_profile_updated", "settings", details=updates)
+    await session.commit()
     return SAProfileOut(**data)
 
 
@@ -57,6 +61,8 @@ async def upload_sa_logo(
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     data = await sa_settings_service.update_sa_logo(session, body.logo)
+    await log_sa_action(session, sa.id, "sa_logo_uploaded", "settings")
+    await session.commit()
     return SAProfileOut(**data)
 
 
@@ -78,6 +84,8 @@ async def update_payment_methods(
     methods = await sa_settings_service.update_payment_methods(
         session, [m.model_dump() for m in body.methods]
     )
+    await log_sa_action(session, sa.id, "payment_methods_updated", "settings", details={"count": len(body.methods)})
+    await session.commit()
     return SAPaymentMethodsOut(methods=methods)
 
 
@@ -102,6 +110,8 @@ async def update_billing_config(
 ):
     updates = body.model_dump(exclude_none=True)
     data = await sa_billing_service.update_billing_config(session, institute_id, updates)
+    await log_sa_action(session, sa.id, "billing_config_updated", "institute", institute_id, institute_id=institute_id, details=updates)
+    await session.commit()
     return BillingConfigOut(**data)
 
 
@@ -123,7 +133,9 @@ async def preview_invoice(
 
 
 @router.post("/invoices/generate", response_model=InvoiceOut)
+@limiter.limit("10/minute")
 async def generate_invoice(
+    request: Request,
     body: InvoiceGenerateRequest,
     sa: SA,
     session: Annotated[AsyncSession, Depends(get_session)],
@@ -139,6 +151,8 @@ async def generate_invoice(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    await log_sa_action(session, sa.id, "invoice_generated", "invoice", invoice.id, institute_id=body.institute_id, details={"invoice_number": invoice.invoice_number, "total_amount": invoice.total_amount})
+    await session.commit()
     return InvoiceOut.model_validate(invoice)
 
 
@@ -188,9 +202,11 @@ async def update_invoice_status(
     inv = await session.get(Invoice, invoice_id)
     if not inv:
         raise HTTPException(status_code=404, detail="Invoice not found")
+    old_status = inv.status
     inv.status = body.status
     inv.updated_at = datetime.now(timezone.utc)
     session.add(inv)
+    await log_sa_action(session, sa.id, "invoice_status_changed", "invoice", invoice_id, institute_id=inv.institute_id, details={"from": old_status, "to": body.status})
     await session.commit()
     await session.refresh(inv)
     return InvoiceOut.model_validate(inv)
@@ -222,7 +238,9 @@ async def download_invoice(
 # ── Payments ────────────────────────────────────────────────────
 
 @router.post("/payments", response_model=PaymentOut)
+@limiter.limit("10/minute")
 async def record_payment(
+    request: Request,
     body: PaymentRecordRequest,
     sa: SA,
     session: Annotated[AsyncSession, Depends(get_session)],
@@ -232,6 +250,8 @@ async def record_payment(
         body.payment_method, sa.id, body.reference_number, body.notes,
         body.invoice_id,
     )
+    await log_sa_action(session, sa.id, "payment_recorded", "payment", payment.id, institute_id=body.institute_id, details={"amount": body.amount, "method": body.payment_method})
+    await session.commit()
     return PaymentOut.model_validate(payment)
 
 
@@ -268,10 +288,13 @@ async def get_revenue(
 # ── Public Invoice Verification (no auth) ──────────────────────
 
 @router.get("/invoice/verify/{invoice_number}")
+@limiter.limit("10/minute")
 async def verify_invoice(
+    request: Request,
     invoice_number: str,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
+    """Public endpoint for invoice verification. Returns minimal data only."""
     from app.models.billing import Invoice
     from sqlmodel import select as sel
 
@@ -282,23 +305,20 @@ async def verify_invoice(
     if not inv:
         raise HTTPException(status_code=404, detail="Invoice not found")
 
-    inst = await session.get(Institute, inv.institute_id) if inv.institute_id else None
+    # Only expose verification status — no financial data, no institute names
     return {
         "invoice_number": inv.invoice_number,
-        "institute_name": inst.name if inst else "Unknown",
-        "total_amount": inv.total_amount,
+        "valid": True,
         "status": inv.status,
-        "period_start": inv.period_start.isoformat() if inv.period_start else None,
-        "period_end": inv.period_end.isoformat() if inv.period_end else None,
-        "due_date": inv.due_date.isoformat() if inv.due_date else None,
-        "created_at": inv.created_at.isoformat() if inv.created_at else None,
     }
 
 
 # ── SA Announcements ───────────────────────────────────────────
 
 @router.post("/announcements", response_model=SAAnnouncementOut)
+@limiter.limit("5/minute")
 async def create_announcement(
+    request: Request,
     body: SAAnnouncementCreate,
     sa: SA,
     session: Annotated[AsyncSession, Depends(get_session)],
@@ -306,6 +326,8 @@ async def create_announcement(
     notif = await sa_notification_service.send_sa_announcement(
         session, body.title, body.message, body.target_institute_ids, sa.id,
     )
+    await log_sa_action(session, sa.id, "sa_announcement_sent", "announcement", notif.id, details={"title": body.title, "target_count": len(body.target_institute_ids) or "all"})
+    await session.commit()
     return SAAnnouncementOut.model_validate(notif)
 
 

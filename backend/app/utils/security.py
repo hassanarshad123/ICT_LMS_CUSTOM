@@ -47,7 +47,7 @@ def create_impersonation_token(
     target_user_id: uuid.UUID, impersonator_id: uuid.UUID, token_version: int = 0
 ) -> str:
     """Create a short-lived access token for SA impersonation. No refresh token."""
-    expire = datetime.now(timezone.utc) + timedelta(minutes=30)
+    expire = datetime.now(timezone.utc) + timedelta(minutes=10)
     payload = {
         "sub": str(target_user_id),
         "type": "access",
