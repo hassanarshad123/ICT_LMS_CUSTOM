@@ -489,7 +489,7 @@ def _parse_and_validate_csv(
 
     for row_num, row in enumerate(rows_to_process, start=1):
         name = row.get("name", "").strip()
-        email = row.get("email", "").strip()
+        email = row.get("email", "").strip().lower()
         phone = row.get("phone", "").strip() or None
         role = row.get("role", "student").strip()
         specialization = row.get("specialization", "").strip() or None

@@ -3,7 +3,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Header
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlmodel import select
+from sqlmodel import select, func
 
 from app.database import get_session
 from app.schemas.auth import (
@@ -203,7 +203,7 @@ async def forgot_password(
 
     # Look up user (case-insensitive email)
     forgot_email = body.email.strip().lower()
-    query = select(User).where(User.email == forgot_email, User.deleted_at.is_(None))
+    query = select(User).where(func.lower(User.email) == forgot_email, User.deleted_at.is_(None))
     if institute_id is not None:
         query = query.where(User.institute_id == institute_id)
     else:

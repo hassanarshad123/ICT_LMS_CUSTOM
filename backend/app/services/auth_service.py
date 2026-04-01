@@ -32,7 +32,7 @@ async def authenticate_user(
     email = email.strip().lower()
 
     # Find user — scope by institute if provided, otherwise find by email only (for super_admin)
-    query = select(User).where(User.email == email, User.deleted_at.is_(None))
+    query = select(User).where(func.lower(User.email) == email, User.deleted_at.is_(None))
     if institute_id is not None:
         query = query.where(User.institute_id == institute_id)
     else:

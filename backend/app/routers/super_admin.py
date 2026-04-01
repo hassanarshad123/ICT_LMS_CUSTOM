@@ -220,7 +220,7 @@ async def create_admin(
     # Check email not already taken in this institute
     existing = await session.execute(
         select(User).where(
-            User.email == body.email,
+            func.lower(User.email) == body.email.strip().lower(),
             User.institute_id == institute_id,
             User.deleted_at.is_(None),
         )
@@ -237,7 +237,7 @@ async def create_admin(
     user = await create_admin_for_institute(
         session=session,
         institute_id=institute_id,
-        email=body.email,
+        email=body.email.strip().lower(),
         name=body.name,
         password=body.password,
         phone=body.phone,
