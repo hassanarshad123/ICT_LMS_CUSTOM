@@ -8,6 +8,12 @@ import {
   type SAAnnouncement, type InstituteOut,
 } from '@/lib/api/super-admin';
 import { toast } from 'sonner';
+import { PageLoading, PageError } from '@/components/shared/page-states';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 export default function SAAnnouncementsPage() {
   const [title, setTitle] = useState('');
@@ -15,7 +21,7 @@ export default function SAAnnouncementsPage() {
   const [targetAll, setTargetAll] = useState(true);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  const { data: announcementsData, refetch } = useApi(
+  const { data: announcementsData, loading, error, refetch } = useApi(
     () => listAnnouncements({ per_page: 50 }), []
   );
   const { data: institutesData } = useApi(
@@ -111,13 +117,29 @@ export default function SAAnnouncementsPage() {
           )}
         </div>
 
-        <button
-          onClick={handleSend}
-          disabled={!title.trim() || !message.trim() || sending || (!targetAll && selectedIds.length === 0)}
-          className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium bg-[#1A1A1A] text-white rounded-xl disabled:opacity-40"
-        >
-          <Send size={16} /> {sending ? 'Sending...' : 'Send Announcement'}
-        </button>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <button
+              disabled={!title.trim() || !message.trim() || sending || (!targetAll && selectedIds.length === 0)}
+              className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium bg-[#1A1A1A] text-white rounded-xl disabled:opacity-40"
+            >
+              <Send size={16} /> {sending ? 'Sending...' : 'Send Announcement'}
+            </button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Send Announcement?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will notify {targetAll ? 'all institute admins' : `admins in ${selectedIds.length} selected institute(s)`}.
+                This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleSend}>Send</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
       {/* History */}

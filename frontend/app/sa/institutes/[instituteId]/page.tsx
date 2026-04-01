@@ -10,6 +10,10 @@ import {
   impersonateUser, InstituteOut,
 } from '@/lib/api/super-admin';
 import { toast } from 'sonner';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 function UsageBar({ label, current, max, unit = '' }: { label: string; current: number; max: number; unit?: string }) {
   const pct = max > 0 ? Math.min((current / max) * 100, 100) : 0;
@@ -99,12 +103,14 @@ export default function InstituteDetailPage() {
     }
   };
 
+  const [showSuspendDialog, setShowSuspendDialog] = useState(false);
+
   const handleSuspend = async () => {
     if (!institute) return;
-    if (!confirm(`Suspend "${institute.name}"?`)) return;
     try {
       await suspendInstitute(instituteId);
       toast.success('Suspended');
+      setShowSuspendDialog(false);
       fetchInstitute();
     } catch (e: any) {
       toast.error(e.message);
@@ -151,8 +157,22 @@ export default function InstituteDetailPage() {
             <button onClick={handleActivate} className="px-3 py-1.5 text-sm bg-green-50 text-green-600 rounded-xl hover:bg-green-100">Activate</button>
           )}
           {institute.status !== 'suspended' && (
-            <button onClick={handleSuspend} className="px-3 py-1.5 text-sm bg-red-50 text-red-600 rounded-xl hover:bg-red-100">Suspend</button>
+            <button onClick={() => setShowSuspendDialog(true)} className="px-3 py-1.5 text-sm bg-red-50 text-red-600 rounded-xl hover:bg-red-100">Suspend</button>
           )}
+          <AlertDialog open={showSuspendDialog} onOpenChange={setShowSuspendDialog}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Suspend Institute?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will suspend &quot;{institute.name}&quot;. All active sessions will be terminated and users will lose access until reactivated.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleSuspend} className="bg-red-600 hover:bg-red-700">Suspend</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
 

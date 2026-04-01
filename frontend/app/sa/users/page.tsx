@@ -4,10 +4,15 @@ import { useState, useEffect, useRef } from 'react';
 import { Search, MoreVertical, Key, UserX, UserCheck } from 'lucide-react';
 import { useApi, useMutation } from '@/hooks/use-api';
 import {
-  searchUsers, resetUserPassword, deactivateUser, impersonateUser,
+  searchUsers, resetUserPassword, deactivateUser, activateUser, impersonateUser,
   type SAUserItem,
 } from '@/lib/api/super-admin';
 import { toast } from 'sonner';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 export default function SAUsersPage() {
   const [query, setQuery] = useState('');
@@ -42,6 +47,10 @@ export default function SAUsersPage() {
     (userId: string) => deactivateUser(userId),
   );
 
+  const { execute: doActivate } = useMutation(
+    (userId: string) => activateUser(userId),
+  );
+
   const handleReset = async () => {
     if (!resetModalId || !newPassword) return;
     try {
@@ -62,6 +71,17 @@ export default function SAUsersPage() {
       refetch();
     } catch {
       toast.error('Failed to deactivate');
+    }
+  };
+
+  const handleActivate = async (userId: string) => {
+    try {
+      await doActivate(userId);
+      toast.success('User activated');
+      setActionUserId(null);
+      refetch();
+    } catch {
+      toast.error('Failed to activate');
     }
   };
 
@@ -149,11 +169,34 @@ export default function SAUsersPage() {
                             <Key size={14} /> Reset Password
                           </button>
                           {user.status === 'active' && (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <button className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50">
+                                  <UserX size={14} /> Deactivate
+                                </button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Deactivate User?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    This will deactivate {user.name} ({user.email}), terminate all their sessions, and revoke their tokens. This action can be reversed by reactivating the user.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => handleDeactivate(user.id)} className="bg-red-600 hover:bg-red-700">
+                                    Deactivate
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          )}
+                          {user.status !== 'active' && (
                             <button
-                              onClick={() => handleDeactivate(user.id)}
-                              className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50"
+                              onClick={() => handleActivate(user.id)}
+                              className="flex items-center gap-2 w-full px-3 py-2 text-xs text-green-600 hover:bg-green-50"
                             >
-                              <UserX size={14} /> Deactivate
+                              <UserCheck size={14} /> Activate
                             </button>
                           )}
                           {user.instituteSlug && (

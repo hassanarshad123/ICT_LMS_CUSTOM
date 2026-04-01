@@ -5,6 +5,10 @@ import Link from 'next/link';
 import { Plus, Building2 } from 'lucide-react';
 import { listInstitutes, suspendInstitute, activateInstitute, InstituteOut } from '@/lib/api/super-admin';
 import { toast } from 'sonner';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
@@ -56,6 +60,8 @@ export default function InstitutesPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
   const [planFilter, setPlanFilter] = useState('');
+  const [suspendTarget, setSuspendTarget] = useState<{ id: string; name: string } | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const fetchInstitutes = useCallback(async () => {
     setLoading(true);
@@ -78,10 +84,10 @@ export default function InstitutesPage() {
   useEffect(() => { fetchInstitutes(); }, [fetchInstitutes]);
 
   const handleSuspend = async (id: string, name: string) => {
-    if (!confirm(`Suspend "${name}"? Users will not be able to log in.`)) return;
     try {
       await suspendInstitute(id);
       toast.success(`${name} suspended`);
+      setSuspendTarget(null);
       fetchInstitutes();
     } catch (e: any) {
       toast.error(e.message);
@@ -98,6 +104,12 @@ export default function InstitutesPage() {
     }
   };
 
+  const filteredInstitutes = searchQuery
+    ? institutes.filter((inst) =>
+        inst.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        inst.slug.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : institutes;
   const totalPages = Math.ceil(total / 20);
 
   return (
@@ -116,8 +128,15 @@ export default function InstitutesPage() {
         </Link>
       </div>
 
-      {/* Filters */}
+      {/* Search + Filters */}
       <div className="flex flex-wrap gap-3">
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search by name or slug..."
+          className="px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm w-56 focus:outline-none focus:ring-2 focus:ring-[#C5D86D]/50 focus:border-[#C5D86D]"
+        />
         <select
           value={statusFilter}
           onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
@@ -158,7 +177,7 @@ export default function InstitutesPage() {
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
           {/* Mobile card view */}
           <div className="md:hidden space-y-3 p-4">
-            {institutes.map((inst) => (
+            {filteredInstitutes.map((inst) => (
               <div key={inst.id} className="bg-white rounded-xl p-4 border border-gray-100">
                 <div className="flex items-center justify-between mb-2">
                   <Link href={`/sa/institutes/${inst.id}`} className="hover:underline">
@@ -189,7 +208,7 @@ export default function InstitutesPage() {
                   </Link>
                   {inst.status !== 'suspended' ? (
                     <button
-                      onClick={() => handleSuspend(inst.id, inst.name)}
+                      onClick={() => setSuspendTarget({ id: inst.id, name: inst.name })}
                       className="text-xs px-2.5 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
                     >
                       Suspend
@@ -221,7 +240,7 @@ export default function InstitutesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {institutes.map((inst) => (
+                {filteredInstitutes.map((inst) => (
                   <tr key={inst.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-4 py-3">
                       <Link href={`/sa/institutes/${inst.id}`} className="hover:underline">
@@ -251,7 +270,7 @@ export default function InstitutesPage() {
                         </Link>
                         {inst.status !== 'suspended' ? (
                           <button
-                            onClick={() => handleSuspend(inst.id, inst.name)}
+                            onClick={() => setSuspendTarget({ id: inst.id, name: inst.name })}
                             className="text-xs px-2.5 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
                           >
                             Suspend
@@ -296,6 +315,27 @@ export default function InstitutesPage() {
           )}
         </div>
       )}
+
+      {/* Suspend Confirmation Dialog */}
+      <AlertDialog open={!!suspendTarget} onOpenChange={(open) => !open && setSuspendTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Suspend Institute?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will suspend &quot;{suspendTarget?.name}&quot;. All active user sessions will be terminated and users will not be able to log in until the institute is reactivated.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => suspendTarget && handleSuspend(suspendTarget.id, suspendTarget.name)}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Suspend
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

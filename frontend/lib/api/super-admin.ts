@@ -386,6 +386,10 @@ export async function deactivateUser(userId: string): Promise<void> {
   await apiClient(`/super-admin/operations/users/${userId}/deactivate`, { method: 'POST' });
 }
 
+export async function activateUser(userId: string): Promise<void> {
+  await apiClient(`/super-admin/operations/users/${userId}/activate`, { method: 'POST' });
+}
+
 export async function bulkUpdateInstitutes(
   instituteIds: string[],
   action: 'suspend' | 'activate'

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useApi } from '@/hooks/use-api';
 import { getSAActivityLog, getImpersonationHistory, type ActivityLogItem } from '@/lib/api/super-admin';
+import { PageLoading, PageError } from '@/components/shared/page-states';
 
 type TabType = 'all' | 'impersonation';
 
@@ -16,10 +17,13 @@ export default function SAActivityPage() {
   if (actionFilter) params.action = actionFilter;
   if (entityFilter) params.entity_type = entityFilter;
 
-  const { data: allData } = useApi(
+  const { data: allData, loading, error, refetch } = useApi(
     () => tab === 'all' ? getSAActivityLog(params) : getImpersonationHistory({ page, per_page: 25 }),
     [tab, page, actionFilter, entityFilter],
   );
+
+  if (loading && !allData) return <div className="p-6"><PageLoading /></div>;
+  if (error && !allData) return <div className="p-6"><PageError message="Failed to load activity log" onRetry={refetch} /></div>;
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
@@ -57,10 +61,17 @@ export default function SAActivityPage() {
             <option value="course_created">Course Created</option>
             <option value="batch_created">Batch Created</option>
             <option value="sa_impersonation_start">Impersonation</option>
-            <option value="sa_bulk_suspend">Bulk Suspend</option>
-            <option value="sa_bulk_activate">Bulk Activate</option>
+            <option value="institute_suspended">Institute Suspended</option>
+            <option value="institute_activated">Institute Activated</option>
+            <option value="institute_created">Institute Created</option>
+            <option value="institute_updated">Institute Updated</option>
+            <option value="admin_created">Admin Created</option>
             <option value="sa_password_reset">Password Reset</option>
             <option value="sa_user_deactivated">User Deactivated</option>
+            <option value="invoice_generated">Invoice Generated</option>
+            <option value="payment_recorded">Payment Recorded</option>
+            <option value="sa_announcement_sent">Announcement Sent</option>
+            <option value="institute_self_registered">Self-Registration</option>
           </select>
           <select
             value={entityFilter}
@@ -73,6 +84,11 @@ export default function SAActivityPage() {
             <option value="course">Course</option>
             <option value="batch">Batch</option>
             <option value="lecture">Lecture</option>
+            <option value="invoice">Invoice</option>
+            <option value="payment">Payment</option>
+            <option value="settings">Settings</option>
+            <option value="export">Export</option>
+            <option value="announcement">Announcement</option>
           </select>
         </div>
       )}
