@@ -4,7 +4,7 @@ from typing import Optional
 import enum
 
 from sqlmodel import SQLModel, Field, Column
-from sqlalchemy import UniqueConstraint, Index, Enum as SAEnum, ForeignKey
+from sqlalchemy import BigInteger, UniqueConstraint, Index, Enum as SAEnum, ForeignKey
 from sqlalchemy.dialects.postgresql import TIMESTAMP, UUID as PG_UUID
 
 
@@ -73,8 +73,14 @@ class InstituteUsage(SQLModel, table=True):
         sa_column=Column(PG_UUID(as_uuid=True), ForeignKey("institutes.id"), nullable=False, unique=True)
     )
     current_users: int = Field(default=0, nullable=False)
-    current_storage_bytes: int = Field(default=0, nullable=False)
-    current_video_bytes: int = Field(default=0, nullable=False)
+    current_storage_bytes: int = Field(
+        default=0,
+        sa_column=Column(BigInteger, nullable=False, server_default="0"),
+    )
+    current_video_bytes: int = Field(
+        default=0,
+        sa_column=Column(BigInteger, nullable=False, server_default="0"),
+    )
     last_calculated_at: Optional[datetime] = Field(
         default=None, sa_column=Column(TIMESTAMP(timezone=True), nullable=True)
     )

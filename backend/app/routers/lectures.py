@@ -100,7 +100,7 @@ async def upload_init(
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Create a Bunny video entry + lecture record, return TUS upload credentials."""
-    from app.utils.bunny import create_video_entry, generate_tus_auth
+    from app.utils.bunny import create_video_entry, generate_tus_auth, delete_video
     import httpx as _httpx
 
     # 0. Check Bunny credentials are configured
@@ -128,15 +128,22 @@ async def upload_init(
     video_id = result["video_id"]
     library_id = result["library_id"]
 
-    # 2. Create lecture record
-    lecture = await lecture_service.create_lecture(
-        session, title=body.title, batch_id=body.batch_id,
-        video_type="upload", created_by=current_user.id,
-        description=body.description, course_id=body.course_id,
-        duration=body.duration, bunny_video_id=video_id,
-        bunny_library_id=library_id, video_status="pending",
-        institute_id=current_user.institute_id,
-    )
+    # 2. Create lecture record — if this fails, clean up the orphaned Bunny entry
+    try:
+        lecture = await lecture_service.create_lecture(
+            session, title=body.title, batch_id=body.batch_id,
+            video_type="upload", created_by=current_user.id,
+            description=body.description, course_id=body.course_id,
+            duration=body.duration, bunny_video_id=video_id,
+            bunny_library_id=library_id, video_status="pending",
+            institute_id=current_user.institute_id,
+        )
+    except Exception:
+        try:
+            await delete_video(video_id)
+        except Exception:
+            logger.warning("Failed to cleanup orphaned Bunny entry %s", video_id)
+        raise
 
     # 3. Generate TUS auth (6 hours — covers uploads up to ~5GB on slow connections)
     tus = generate_tus_auth(video_id, expires_in=21600)
