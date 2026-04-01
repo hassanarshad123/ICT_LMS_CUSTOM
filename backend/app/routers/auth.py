@@ -155,16 +155,23 @@ async def change_password(
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    if not current_user.hashed_password:
-        raise HTTPException(status_code=400, detail="No password set for this account. Please contact your administrator to reset your password.")
-    if not verify_password(body.current_password, current_user.hashed_password):
+    # Fetch user from DB — hashed_password is not available in cached user objects
+    from sqlmodel import select as _select
+    result = await session.execute(
+        _select(User).where(User.id == current_user.id, User.deleted_at.is_(None))
+    )
+    db_user = result.scalar_one_or_none()
+    if not db_user or not db_user.hashed_password:
+        raise HTTPException(status_code=400, detail="Unable to verify current password. Please contact your administrator.")
+
+    if not verify_password(body.current_password, db_user.hashed_password):
         raise HTTPException(status_code=400, detail="Current password is incorrect")
 
-    current_user.hashed_password = hash_password(body.new_password)
-    session.add(current_user)
-    await session.flush()  # Persist password change within this transaction before logout_all
+    db_user.hashed_password = hash_password(body.new_password)
+    session.add(db_user)
+    await session.flush()
 
-    # Logout all devices after password change (logout_all increments token_version — Fix 1)
+    # Logout all devices after password change (logout_all increments token_version)
     count = await logout_all(session, current_user.id)
 
     return {"detail": "Password changed successfully"}
