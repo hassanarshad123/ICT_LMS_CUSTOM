@@ -93,8 +93,7 @@ export default function StudentSettings() {
           <button
             onClick={handleSave}
             disabled={saving || prefs.length === 0}
-            className="mt-4 flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white rounded-xl disabled:opacity-50"
-            style={{ backgroundColor: 'hsl(var(--primary))' }}
+            className="mt-4 flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white rounded-xl bg-primary hover:bg-primary/80 transition-colors disabled:opacity-50"
           >
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
             Save Preferences

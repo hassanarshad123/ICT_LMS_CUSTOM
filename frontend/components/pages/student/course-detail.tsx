@@ -24,6 +24,8 @@ import {
   ChevronDown,
   ChevronUp,
   Video,
+  CheckCircle2,
+  Lock,
 } from 'lucide-react';
 import Link from 'next/link';
 import { CourseVideoPlayer } from './course-video-player';
@@ -228,8 +230,38 @@ export default function CourseDetailPage() {
         </div>
       </div>
 
+      {/* Progress Overview */}
+      {sortedLectures.length > 0 && (
+        <div className="bg-white rounded-2xl card-shadow p-4 sm:p-6 mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 size={18} className="text-green-500" />
+              <span className="text-sm font-medium text-primary">Course Progress</span>
+            </div>
+            <span className="text-sm text-gray-500">
+              {sortedLectures.filter(l => l.progressStatus === 'completed').length} of {sortedLectures.length} lectures completed
+            </span>
+          </div>
+          <div className="w-full bg-gray-100 rounded-full h-2.5">
+            <div
+              className="bg-green-500 h-2.5 rounded-full transition-all duration-500"
+              style={{ width: `${sortedLectures.length > 0 ? Math.round((sortedLectures.filter(l => l.progressStatus === 'completed').length / sortedLectures.length) * 100) : 0}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Video Player + Playlist + Now Playing Info */}
-      <CourseVideoPlayer
+      {accessExpired && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6 flex items-center gap-3">
+          <Lock size={18} className="text-amber-600 flex-shrink-0" />
+          <p className="text-sm text-amber-800">
+            Your access to this course has expired. Video playback and downloads are disabled.
+            Contact your administrator for access extension.
+          </p>
+        </div>
+      )}
+      {!accessExpired && <CourseVideoPlayer
         playlistTab={playlistTab}
         onPlaylistTabChange={setPlaylistTab}
         sortedLectures={sortedLectures}
@@ -242,7 +274,7 @@ export default function CourseDetailPage() {
         activeRecording={activeRecording}
         nowPlaying={nowPlaying}
         watermark={email || studentId}
-      />
+      />}
 
       {/* Curriculum Modules */}
       <div className="bg-white rounded-2xl card-shadow p-6">
@@ -302,7 +334,7 @@ export default function CourseDetailPage() {
         materials={materials}
         materialsLoading={materialsLoading}
         downloadingId={downloadingId}
-        onDownload={handleDownload}
+        onDownload={accessExpired ? () => toast.error('Your access has expired. Downloads are disabled.') : handleDownload}
       />
 
       {/* Quizzes */}
