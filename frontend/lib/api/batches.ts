@@ -103,7 +103,8 @@ export async function deleteBatch(batchId: string): Promise<void> {
 }
 
 export async function listBatchStudents(batchId: string) {
-  return apiClient(`/batches/${batchId}/students`);
+  const res = await apiClient(`/batches/${batchId}/students`);
+  return res.data ?? res;
 }
 
 export async function enrollStudent(batchId: string, studentId: string) {
