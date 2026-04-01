@@ -155,6 +155,8 @@ async def change_password(
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
+    if not current_user.hashed_password:
+        raise HTTPException(status_code=400, detail="No password set for this account. Please contact your administrator to reset your password.")
     if not verify_password(body.current_password, current_user.hashed_password):
         raise HTTPException(status_code=400, detail="Current password is incorrect")
 
