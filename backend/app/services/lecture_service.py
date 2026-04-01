@@ -221,6 +221,10 @@ async def upsert_progress(
     resume_position_seconds: int = 0,
     institute_id: Optional[uuid.UUID] = None,
 ) -> LectureProgress:
+    # Validate watch_percentage bounds
+    if not (0 <= watch_percentage <= 100):
+        raise ValueError("watch_percentage must be between 0 and 100")
+
     # Validate lecture belongs to the same institute
     if institute_id is not None:
         lec = await get_lecture(session, lecture_id, institute_id=institute_id)

@@ -301,18 +301,29 @@ async def start_attempt(
     if not quiz.is_published:
         raise ValueError("Quiz is not published")
 
-    # Check max_attempts not exceeded (count completed/submitted attempts)
+    # Return existing in-progress attempt instead of creating a new one
+    existing_result = await session.execute(
+        select(QuizAttempt).where(
+            QuizAttempt.quiz_id == quiz_id,
+            QuizAttempt.student_id == student_id,
+            QuizAttempt.status == QuizAttemptStatus.in_progress,
+        )
+    )
+    existing = existing_result.scalar_one_or_none()
+    if existing:
+        return existing
+
+    # Count ALL attempts (including in_progress) toward max_attempts
     count_result = await session.execute(
         select(func.count())
         .select_from(QuizAttempt)
         .where(
             QuizAttempt.quiz_id == quiz_id,
             QuizAttempt.student_id == student_id,
-            QuizAttempt.status != QuizAttemptStatus.in_progress,
         )
     )
-    completed_count = count_result.scalar() or 0
-    if completed_count >= quiz.max_attempts:
+    total_count = count_result.scalar() or 0
+    if total_count >= quiz.max_attempts:
         raise ValueError(f"Maximum attempts ({quiz.max_attempts}) exceeded")
 
     # Check student is enrolled in a batch that has this course
@@ -364,12 +375,22 @@ async def submit_attempt(
     if attempt.status != QuizAttemptStatus.in_progress:
         raise ValueError("Attempt is not in progress")
 
-    # Load quiz for pass_percentage (tenant-scoped)
+    # Load quiz for pass_percentage and time_limit (tenant-scoped)
     quiz_query = select(Quiz).where(Quiz.id == attempt.quiz_id)
     if institute_id is not None:
         quiz_query = quiz_query.where(Quiz.institute_id == institute_id)
     quiz_result = await session.execute(quiz_query)
     quiz = quiz_result.scalar_one_or_none()
+
+    # Server-side time limit enforcement (60-second grace period)
+    if quiz and quiz.time_limit_minutes:
+        elapsed_seconds = (datetime.now(timezone.utc) - attempt.created_at).total_seconds()
+        allowed_seconds = (quiz.time_limit_minutes * 60) + 60  # 60s grace
+        if elapsed_seconds > allowed_seconds:
+            raise ValueError(
+                f"Quiz time limit exceeded. Allowed {quiz.time_limit_minutes} minutes "
+                f"(+60s grace), but {int(elapsed_seconds // 60)} minutes elapsed."
+            )
 
     # Load all questions for this quiz
     questions_result = await session.execute(
