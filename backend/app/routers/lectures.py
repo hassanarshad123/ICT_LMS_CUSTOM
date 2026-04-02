@@ -159,9 +159,8 @@ async def upload_init(
 
 
 @router.post("/bunny-webhook")
-@limiter.limit("60/minute")
 async def bunny_webhook(request: Request):
-    """Handle Bunny Stream encoding webhooks."""
+    """Handle Bunny Stream encoding webhooks. No rate limiting — machine-to-machine callback."""
     # HMAC signature validation
     raw_body = await request.body()
     if settings.BUNNY_WEBHOOK_SECRET:
@@ -170,7 +169,7 @@ async def bunny_webhook(request: Request):
         ).hexdigest()
         actual = request.headers.get("Webhook-Signature", "")
         if not hmac.compare_digest(expected, actual):
-            logger.warning("Bunny webhook signature mismatch")
+            logger.warning("Bunny webhook signature mismatch (expected=%s, actual=%s)", expected[:12], actual[:12])
             return JSONResponse(status_code=403, content={"detail": "Invalid signature"})
     else:
         if settings.APP_ENV != "development":
@@ -225,6 +224,7 @@ async def bunny_webhook(request: Request):
             session, video_guid, new_status, thumbnail_url=thumbnail_url
         )
 
+    logger.info("Bunny webhook: video %s → %s", video_guid[:12], new_status)
     return {"status": "ok"}
 
 

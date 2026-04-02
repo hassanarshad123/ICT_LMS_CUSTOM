@@ -215,6 +215,54 @@ async def cleanup_stale_uploads():
             logger.info("Cleaned up %d stale pending uploads", len(stale))
 
 
+@sentry_job_wrapper("sync_stuck_video_statuses")
+async def sync_stuck_video_statuses():
+    """Poll Bunny for lectures stuck in pending/processing >30 min (every 30 min).
+
+    Safety net for missed webhooks. Only reads from Bunny API (no writes).
+    Updates DB only if Bunny reports ready or failed — never downgrades status.
+    """
+    from sqlmodel import select
+    from app.models.course import Lecture
+    from app.utils.bunny import get_video_status, get_thumbnail_url
+
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
+
+    async with async_session() as session:
+        result = await session.execute(
+            select(Lecture).where(
+                Lecture.video_status.in_(["pending", "processing"]),
+                Lecture.bunny_video_id.isnot(None),
+                Lecture.video_type == "upload",
+                Lecture.created_at < cutoff,
+                Lecture.deleted_at.is_(None),
+            )
+        )
+        stuck = result.scalars().all()
+        if not stuck:
+            return
+
+        fixed = 0
+        for lecture in stuck:
+            try:
+                bunny_status = await get_video_status(lecture.bunny_video_id)
+                if bunny_status in ("ready", "failed"):
+                    lecture.video_status = bunny_status
+                    if bunny_status == "ready":
+                        thumb = get_thumbnail_url(lecture.bunny_video_id)
+                        if thumb:
+                            lecture.thumbnail_url = thumb
+                    lecture.updated_at = datetime.now(timezone.utc)
+                    session.add(lecture)
+                    fixed += 1
+            except Exception as e:
+                logger.warning("Failed to sync video %s: %s", lecture.bunny_video_id, e)
+
+        if fixed:
+            await session.commit()
+            logger.info("Synced %d stuck video statuses from Bunny (%d total checked)", fixed, len(stuck))
+
+
 @sentry_job_wrapper("recalculate_all_usage")
 async def recalculate_all_usage():
     """Recalculate usage counters from actual DB rows for all institutes (daily).
