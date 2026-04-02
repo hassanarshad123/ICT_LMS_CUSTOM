@@ -126,6 +126,7 @@ export function useAuth() {
     batchIds: u?.batchIds || [],
     batchNames: u?.batchNames || [],
     teacherId: u?.id,
+    emailVerified: u?.emailVerified ?? true,
     // New properties
     user: u,
     isLoading: ctx.isLoading,

@@ -87,6 +87,23 @@ async def register(
     session.add(signup_log)
     await session.commit()
 
+    # Send email verification (fire-and-forget)
+    try:
+        from app.utils.security import create_email_verification_token
+        from app.utils.email import send_email
+        from app.utils.email_templates import email_verification_email
+
+        verify_token = create_email_verification_token(user.id, user.email)
+        verify_url = f"{settings.FRONTEND_URL or 'https://zensbot.online'}/verify-email?token={verify_token}"
+        subject, html = email_verification_email(
+            user_name=user.name,
+            verification_url=verify_url,
+            institute_name=institute.name,
+        )
+        send_email(to=user.email, subject=subject, html=html)
+    except Exception:
+        pass  # Don't fail signup if email fails
+
     return SignupResponse(
         access_token=access_token,
         refresh_token=refresh_token,
@@ -97,6 +114,7 @@ async def register(
             "phone": user.phone,
             "role": user.role.value,
             "institute_id": str(user.institute_id),
+            "email_verified": False,
         },
         institute={
             "id": str(institute.id),

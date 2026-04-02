@@ -10,6 +10,7 @@ import { ImpersonationBanner } from '@/components/shared/impersonation-banner';
 import { ContentProtection } from '@/components/shared/content-protection';
 import { TourProvider } from '@/components/shared/tour-provider';
 import FeedbackButton from '@/components/shared/feedback-button';
+import EmailVerifyBanner from '@/components/shared/email-verify-banner';
 
 export default function UserLayout({ children }: { children: React.ReactNode }) {
   const { userId } = useParams<{ userId: string }>();
@@ -53,6 +54,7 @@ export default function UserLayout({ children }: { children: React.ReactNode }) 
       <UploadProvider>
         <TourProvider>
           <ImpersonationBanner />
+          <EmailVerifyBanner />
           <ContentProtection>
             <ErrorBoundary>
               {children}

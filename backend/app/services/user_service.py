@@ -46,6 +46,7 @@ async def create_user(
         phone=phone,
         specialization=specialization,
         institute_id=institute_id,
+        email_verified=True,  # Admin-created users are trusted
     )
     session.add(user)
     await session.commit()

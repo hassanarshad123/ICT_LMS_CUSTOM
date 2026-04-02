@@ -45,7 +45,7 @@ async def lifespan(app: FastAPI):
     if settings.SCHEDULER_ENABLED:
         try:
             from apscheduler.schedulers.asyncio import AsyncIOScheduler
-            from app.scheduler.jobs import cleanup_expired_sessions, send_zoom_reminders, retry_failed_recordings, cleanup_stale_uploads, auto_suspend_expired_institutes, process_webhook_deliveries, recalculate_all_usage, send_batch_expiry_notifications, sync_stuck_video_statuses, send_trial_expiry_warnings
+            from app.scheduler.jobs import cleanup_expired_sessions, send_zoom_reminders, retry_failed_recordings, cleanup_stale_uploads, auto_suspend_expired_institutes, process_webhook_deliveries, recalculate_all_usage, send_batch_expiry_notifications, sync_stuck_video_statuses, send_trial_expiry_warnings, deactivate_unverified_users
 
             scheduler = AsyncIOScheduler()
             scheduler.add_job(cleanup_expired_sessions, "interval", hours=1, id="cleanup_sessions")
@@ -58,6 +58,7 @@ async def lifespan(app: FastAPI):
             scheduler.add_job(send_batch_expiry_notifications, "interval", hours=24, id="batch_expiry_notifications")
             scheduler.add_job(sync_stuck_video_statuses, "interval", minutes=30, id="sync_stuck_videos")
             scheduler.add_job(send_trial_expiry_warnings, "interval", hours=24, id="trial_expiry_warnings")
+            scheduler.add_job(deactivate_unverified_users, "interval", hours=12, id="deactivate_unverified")
             scheduler.start()
             app.state.scheduler = scheduler
             logging.getLogger("ict_lms").info("Scheduler started (slot=%s)", settings.DEPLOY_SLOT)

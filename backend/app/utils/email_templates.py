@@ -286,3 +286,39 @@ Hi {student_name}, your quiz <strong>{quiz_title}</strong> has been graded.
         f"Quiz Graded: {quiz_title} - {result_text}",
         _base_template(body, institute_name, logo_url, accent_color, login_url),
     )
+
+
+# ── 8. Email Verification ──────────────────────────────────────
+
+def email_verification_email(
+    user_name: str,
+    verification_url: str,
+    institute_name: str = "",
+    logo_url: Optional[str] = None,
+    accent_color: str = "#C5D86D",
+) -> tuple[str, str]:
+    body = f"""
+<h2 style="margin:0 0 8px;color:#1a1a1a;font-size:22px;">Verify Your Email</h2>
+<p style="color:#52525b;font-size:14px;line-height:1.6;">
+Hi {user_name}, welcome to <strong>{institute_name or 'your LMS'}</strong>!
+Please verify your email address to fully activate your account.
+</p>
+<p style="color:#52525b;font-size:14px;line-height:1.6;">
+You can use your LMS for the next 24 hours, but after that your account
+will be deactivated until you verify.
+</p>
+<div style="text-align:center;margin:24px 0;">
+{_button("Verify Email", verification_url, accent_color)}
+</div>
+<p style="color:#a1a1aa;font-size:12px;">
+If the button doesn't work, copy and paste this link into your browser:<br>
+<a href="{verification_url}" style="color:#6366f1;word-break:break-all;">{verification_url}</a>
+</p>
+<p style="color:#a1a1aa;font-size:12px;">
+This link expires in 24 hours. If you didn't create this account, you can safely ignore this email.
+</p>
+"""
+    return (
+        "Verify your email address",
+        _base_template(body, institute_name, logo_url, accent_color),
+    )

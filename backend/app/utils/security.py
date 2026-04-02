@@ -89,6 +89,18 @@ def create_handoff_token(user_id: uuid.UUID, institute_slug: str) -> str:
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
+def create_email_verification_token(user_id: uuid.UUID, email: str) -> str:
+    """Create a 24-hour token for email verification."""
+    expire = datetime.now(timezone.utc) + timedelta(hours=24)
+    payload = {
+        "sub": str(user_id),
+        "email": email,
+        "type": "email_verify",
+        "exp": expire,
+    }
+    return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+
 def decode_token(token: str) -> dict | None:
     """Decode and validate a JWT. Returns payload dict or None if invalid."""
     try:

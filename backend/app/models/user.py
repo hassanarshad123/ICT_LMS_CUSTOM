@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional, TYPE_CHECKING
 
 from sqlmodel import SQLModel, Field, Column, Relationship
-from sqlalchemy import Enum as SAEnum, UniqueConstraint, Index, ForeignKey
+from sqlalchemy import Boolean, Enum as SAEnum, UniqueConstraint, Index, ForeignKey
 from sqlalchemy.dialects.postgresql import TIMESTAMP, UUID as PG_UUID
 
 from app.models.enums import UserRole, UserStatus
@@ -55,6 +55,10 @@ class User(SQLModel, table=True):
     deleted_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(TIMESTAMP(timezone=True), nullable=True),
+    )
+    email_verified: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
     token_version: int = Field(default=0, nullable=False)
     failed_login_attempts: int = Field(default=0, nullable=False)

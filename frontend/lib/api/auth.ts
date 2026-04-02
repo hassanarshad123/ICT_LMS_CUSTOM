@@ -19,6 +19,7 @@ export interface AuthUser {
   batchNames: string[];
   instituteId?: string;
   instituteSlug?: string;
+  emailVerified?: boolean;
 }
 
 export async function login(email: string, password: string): Promise<LoginResponse> {

@@ -263,6 +263,116 @@ async def reset_password(
     return {"detail": "Password has been reset successfully"}
 
 
+# ── Email Verification ─────────────────────────────────────────
+
+@router.post("/verify-email")
+@limiter.limit("10/minute")
+async def verify_email(
+    request: Request,
+    body: dict,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """Verify email address via token from verification email."""
+    from app.utils.security import decode_token, create_handoff_token
+    from app.models.enums import UserStatus
+
+    token = body.get("token")
+    if not token:
+        raise HTTPException(status_code=400, detail="Token is required")
+
+    payload = decode_token(token)
+    if not payload or payload.get("type") != "email_verify":
+        raise HTTPException(status_code=400, detail="Invalid or expired verification link")
+
+    user_id = payload.get("sub")
+    token_email = payload.get("email")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Invalid token")
+
+    result = await session.execute(
+        select(User).where(User.id == user_id, User.deleted_at.is_(None))
+    )
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user.email_verified:
+        # Already verified — still return handoff so user can proceed
+        pass
+    else:
+        user.email_verified = True
+        # Reactivate if deactivated by the 24h expiry job
+        if user.status == UserStatus.inactive:
+            user.status = UserStatus.active
+        session.add(user)
+        await session.commit()
+
+    # Create handoff token for subdomain redirect
+    inst_result = await session.execute(
+        select(Institute.slug).where(Institute.id == user.institute_id)
+    )
+    institute_slug = inst_result.scalar_one_or_none() or ""
+
+    handoff_token = create_handoff_token(user.id, institute_slug)
+    return {
+        "detail": "Email verified successfully",
+        "handoff_token": handoff_token,
+        "institute_slug": institute_slug,
+    }
+
+
+@router.post("/resend-verification")
+@limiter.limit("3/hour")
+async def resend_verification(
+    request: Request,
+    body: dict,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """Resend email verification link. Rate limited to 3/hour."""
+    from app.utils.security import create_email_verification_token
+    from app.utils.email import send_email
+    from app.utils.email_templates import email_verification_email
+
+    email_addr = (body.get("email") or "").strip().lower()
+    if not email_addr:
+        raise HTTPException(status_code=400, detail="Email is required")
+
+    settings = get_settings()
+
+    # Find unverified user — don't reveal if email exists
+    result = await session.execute(
+        select(User).where(
+            User.email == email_addr,
+            User.email_verified == False,  # noqa: E712
+            User.deleted_at.is_(None),
+        )
+    )
+    user = result.scalar_one_or_none()
+
+    if user:
+        token = create_email_verification_token(user.id, user.email)
+        verify_url = f"{settings.FRONTEND_URL or 'https://zensbot.online'}/verify-email?token={token}"
+
+        # Get institute name for branding
+        inst_result = await session.execute(
+            select(Institute.name).where(Institute.id == user.institute_id)
+        )
+        inst_name = inst_result.scalar_one_or_none() or ""
+
+        subject, html = email_verification_email(
+            user_name=user.name,
+            verification_url=verify_url,
+            institute_name=inst_name,
+        )
+        try:
+            send_email(to=user.email, subject=subject, html=html)
+        except Exception:
+            pass  # Don't reveal delivery failure
+
+    # Always return success (prevents email enumeration)
+    return {"detail": "If that email exists and is unverified, a new verification link has been sent."}
+
+
 @router.get("/me", response_model=UserBrief)
 async def get_me(
     current_user: Annotated[User, Depends(get_current_user)],

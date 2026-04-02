@@ -227,6 +227,35 @@ async def send_trial_expiry_warnings():
                     logger.warning("Failed to send trial warning to %s: %s", admin[0], e)
 
 
+@sentry_job_wrapper("deactivate_unverified_users")
+async def deactivate_unverified_users():
+    """Deactivate users who haven't verified email within 24 hours (daily)."""
+    from sqlmodel import select
+    from app.models.user import User
+    from app.models.enums import UserStatus
+
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+
+    async with async_session() as session:
+        result = await session.execute(
+            select(User).where(
+                User.email_verified == False,  # noqa: E712
+                User.status == UserStatus.active,
+                User.created_at < cutoff,
+                User.deleted_at.is_(None),
+            )
+        )
+        unverified = result.scalars().all()
+        for user in unverified:
+            user.status = UserStatus.inactive
+            session.add(user)
+            logger.info("Deactivated unverified user: %s (email=%s)", user.id, user.email)
+
+        if unverified:
+            await session.commit()
+            logger.info("Deactivated %d unverified users (24h expired)", len(unverified))
+
+
 @sentry_job_wrapper("process_webhook_deliveries")
 async def process_webhook_deliveries():
     """Process pending webhook deliveries and retries (every 1 minute)."""
