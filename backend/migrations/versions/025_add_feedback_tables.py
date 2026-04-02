@@ -6,6 +6,7 @@ Create Date: 2026-04-02
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql import UUID, JSONB, TIMESTAMP
 
 revision = "025"
@@ -13,16 +14,29 @@ down_revision = "024"
 
 
 def upgrade() -> None:
-    feedback_type_enum = sa.Enum(
+    # Create enums idempotently (DO block handles already-exists in async drivers)
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE feedback_type AS ENUM ('bug_report', 'feature_request', 'general_feedback', 'ux_issue');
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END $$;
+    """)
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE feedback_status AS ENUM ('submitted', 'under_review', 'planned', 'in_progress', 'done', 'declined');
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END $$;
+    """)
+
+    # Reference enums with create_type=False (already created above)
+    feedback_type_enum = postgresql.ENUM(
         "bug_report", "feature_request", "general_feedback", "ux_issue",
-        name="feedback_type",
+        name="feedback_type", create_type=False,
     )
-    feedback_status_enum = sa.Enum(
+    feedback_status_enum = postgresql.ENUM(
         "submitted", "under_review", "planned", "in_progress", "done", "declined",
-        name="feedback_status",
+        name="feedback_status", create_type=False,
     )
-    feedback_type_enum.create(op.get_bind(), checkfirst=True)
-    feedback_status_enum.create(op.get_bind(), checkfirst=True)
 
     op.create_table(
         "feedbacks",
@@ -80,5 +94,5 @@ def downgrade() -> None:
     op.drop_table("feedback_responses")
     op.drop_table("feedback_attachments")
     op.drop_table("feedbacks")
-    sa.Enum(name="feedback_status").drop(op.get_bind(), checkfirst=True)
-    sa.Enum(name="feedback_type").drop(op.get_bind(), checkfirst=True)
+    op.execute("DROP TYPE IF EXISTS feedback_status")
+    op.execute("DROP TYPE IF EXISTS feedback_type")
