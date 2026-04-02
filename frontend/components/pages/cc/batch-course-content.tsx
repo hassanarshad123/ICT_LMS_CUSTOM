@@ -113,7 +113,9 @@ export function BatchCourseContent({
   return (
     <div className="space-y-10">
       {courses.map((course: any) => {
-        const lectures = courseLectures[course.id] || [];
+        const rawLectures = courseLectures[course.id] || [];
+        // Sort once — used for both SortableContext items and rendering
+        const lectures = [...rawLectures].sort((a, b) => a.sequenceOrder - b.sequenceOrder);
         const materials = courseMaterials[course.id] || [];
         const isContentLoading = loadingContent[course.id];
 
@@ -239,15 +241,13 @@ export function BatchCourseContent({
                         strategy={verticalListSortingStrategy}
                       >
                         <div className="space-y-2">
-                          {[...(lectures || [])]
-                            .sort((a, b) => a.sequenceOrder - b.sequenceOrder)
-                            .map((lecture) => (
-                              <SortableLectureCard
-                                key={lecture.id}
-                                lecture={lecture}
-                                onClick={() => onLectureClick(lecture.id)}
-                              />
-                            ))}
+                          {lectures.map((lecture) => (
+                            <SortableLectureCard
+                              key={lecture.id}
+                              lecture={lecture}
+                              onClick={() => onLectureClick(lecture.id)}
+                            />
+                          ))}
                         </div>
                       </SortableContext>
                     </DndContext>

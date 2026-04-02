@@ -93,11 +93,14 @@ export default function BatchContentPage() {
   const [materialTitle, setMaterialTitle] = useState('');
   const [materialDescription, setMaterialDescription] = useState('');
 
-  // DnD sensors
+  // DnD sensors — activation constraint prevents accidental drags from clicks
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
+
+  // Guard to prevent race conditions during rapid drags
+  const reorderingRef = useRef(false);
 
   // Student management
   const [selectedStudentId, setSelectedStudentId] = useState('');
@@ -205,24 +208,39 @@ export default function BatchContentPage() {
   const handleDragEnd = async (event: DragEndEvent, courseId: string) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
+    if (reorderingRef.current) return; // Prevent rapid concurrent reorders
 
-    const lectures = courseLectures[courseId] || [];
-    const oldIndex = lectures.findIndex((l) => l.id === active.id);
-    const newIndex = lectures.findIndex((l) => l.id === over.id);
+    // Sort by sequenceOrder first so indices match what user sees
+    const sorted = [...(courseLectures[courseId] || [])].sort(
+      (a, b) => a.sequenceOrder - b.sequenceOrder,
+    );
+    const oldIndex = sorted.findIndex((l) => l.id === active.id);
+    const newIndex = sorted.findIndex((l) => l.id === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
 
-    const reordered = arrayMove(lectures, oldIndex, newIndex);
-    // Optimistic update
-    setCourseLectures((prev) => ({ ...prev, [courseId]: reordered }));
+    const reordered = arrayMove(sorted, oldIndex, newIndex);
+    // Update sequenceOrder on each object so .sort() renders correctly
+    const withUpdatedOrder = reordered.map((l, i) => ({
+      ...l,
+      sequenceOrder: i + 1,
+    }));
+
+    // Optimistic update with corrected sequenceOrder values
+    const previousLectures = courseLectures[courseId] || [];
+    setCourseLectures((prev) => ({ ...prev, [courseId]: withUpdatedOrder }));
 
     // Persist to backend
-    const items = reordered.map((l, i) => ({ id: l.id, sequenceOrder: i + 1 }));
+    reorderingRef.current = true;
+    const items = withUpdatedOrder.map((l) => ({ id: l.id, sequenceOrder: l.sequenceOrder }));
     try {
       await bulkReorderLectures(items);
+      toast.success('Order saved');
     } catch {
       // Revert on failure
-      setCourseLectures((prev) => ({ ...prev, [courseId]: lectures }));
+      setCourseLectures((prev) => ({ ...prev, [courseId]: previousLectures }));
       toast.error('Failed to save new order');
+    } finally {
+      reorderingRef.current = false;
     }
   };
 
