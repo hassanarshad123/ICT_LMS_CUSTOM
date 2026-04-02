@@ -6,6 +6,19 @@ let errorCount = 0;
 let resetTime = Date.now();
 const MAX_ERRORS_PER_MINUTE = 10;
 
+// Store last captured error for feedback context
+let lastCapturedError: { message: string; stack?: string; timestamp: number } | null = null;
+
+/**
+ * Get the most recent captured error (if within last 5 minutes).
+ */
+export function getLastCapturedError() {
+  if (lastCapturedError && Date.now() - lastCapturedError.timestamp < 300000) {
+    return lastCapturedError;
+  }
+  return null;
+}
+
 function shouldReport(): boolean {
   const now = Date.now();
   if (now - resetTime > 60000) {
@@ -26,6 +39,8 @@ export function reportError(
   opts?: { stack?: string; component?: string; extra?: Record<string, any> },
 ) {
   if (!shouldReport()) return;
+
+  lastCapturedError = { message, stack: opts?.stack, timestamp: Date.now() };
 
   reportClientError({
     message,

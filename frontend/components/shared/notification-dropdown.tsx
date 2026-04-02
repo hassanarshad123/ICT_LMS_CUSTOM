@@ -9,6 +9,7 @@ import { listNotifications, getUnreadCount, markAsRead, markAllRead, Notificatio
 import {
   Bell,
   Megaphone,
+  MessageSquare,
   Video,
   Award,
   Users,
@@ -23,6 +24,8 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   class_reminder: <Video size={16} className="text-orange-500" />,
   certificate_issued: <Award size={16} className="text-green-500" />,
   enrollment: <Users size={16} className="text-primary" />,
+  new_feedback: <MessageSquare size={16} className="text-amber-500" />,
+  feedback_response: <MessageSquare size={16} className="text-green-500" />,
 };
 
 function timeAgo(dateStr?: string): string {

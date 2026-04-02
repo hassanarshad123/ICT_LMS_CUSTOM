@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { reportError } from '@/lib/utils/error-reporter';
-import { AlertCircle, RefreshCw } from 'lucide-react';
+import { AlertCircle, RefreshCw, MessageSquarePlus } from 'lucide-react';
 
 interface Props {
   children: React.ReactNode;
@@ -35,6 +35,15 @@ export class ErrorBoundary extends React.Component<Props, State> {
     this.setState({ hasError: false, error: null });
   };
 
+  handleReportIssue = () => {
+    window.dispatchEvent(new CustomEvent('open-feedback', {
+      detail: {
+        message: this.state.error?.message,
+        stack: this.state.error?.stack,
+      },
+    }));
+  };
+
   render() {
     if (this.state.hasError) {
       if (this.props.fallback) return this.props.fallback;
@@ -54,13 +63,22 @@ export class ErrorBoundary extends React.Component<Props, State> {
                 {this.state.error.message}
               </p>
             )}
-            <button
-              onClick={this.handleRetry}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors"
-            >
-              <RefreshCw size={16} />
-              Try Again
-            </button>
+            <div className="flex items-center gap-3 justify-center">
+              <button
+                onClick={this.handleRetry}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors"
+              >
+                <RefreshCw size={16} />
+                Try Again
+              </button>
+              <button
+                onClick={this.handleReportIssue}
+                className="inline-flex items-center gap-2 px-5 py-2.5 border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors"
+              >
+                <MessageSquarePlus size={16} />
+                Report Issue
+              </button>
+            </div>
           </div>
         </div>
       );

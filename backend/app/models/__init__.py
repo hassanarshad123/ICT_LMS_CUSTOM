@@ -26,3 +26,4 @@ from app.models.certificate import Certificate, CertificateCounter  # noqa: F401
 from app.models.error_log import ErrorLog  # noqa: F401
 from app.models.api_integration import ApiKey, WebhookEndpoint, WebhookDelivery  # noqa: F401
 from app.models.quiz import Quiz, QuizQuestion, QuizAttempt, QuizAnswer  # noqa: F401
+from app.models.feedback import Feedback, FeedbackAttachment, FeedbackResponse  # noqa: F401

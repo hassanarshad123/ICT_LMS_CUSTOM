@@ -95,3 +95,19 @@ class QuizAttemptStatus(str, enum.Enum):
     in_progress = "in_progress"
     submitted = "submitted"
     graded = "graded"
+
+
+class FeedbackType(str, enum.Enum):
+    bug_report = "bug_report"
+    feature_request = "feature_request"
+    general_feedback = "general_feedback"
+    ux_issue = "ux_issue"
+
+
+class FeedbackStatus(str, enum.Enum):
+    submitted = "submitted"
+    under_review = "under_review"
+    planned = "planned"
+    in_progress = "in_progress"
+    done = "done"
+    declined = "declined"

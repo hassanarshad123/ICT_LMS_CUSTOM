@@ -9,6 +9,7 @@ import { ErrorBoundary } from '@/components/shared/error-boundary';
 import { ImpersonationBanner } from '@/components/shared/impersonation-banner';
 import { ContentProtection } from '@/components/shared/content-protection';
 import { TourProvider } from '@/components/shared/tour-provider';
+import FeedbackButton from '@/components/shared/feedback-button';
 
 export default function UserLayout({ children }: { children: React.ReactNode }) {
   const { userId } = useParams<{ userId: string }>();
@@ -53,7 +54,10 @@ export default function UserLayout({ children }: { children: React.ReactNode }) 
         <TourProvider>
           <ImpersonationBanner />
           <ContentProtection>
-            <ErrorBoundary>{children}</ErrorBoundary>
+            <ErrorBoundary>
+              {children}
+              <FeedbackButton />
+            </ErrorBoundary>
           </ContentProtection>
         </TourProvider>
       </UploadProvider>

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Building2, Users, Activity, AlertTriangle, HeartPulse,
-  CreditCard, Megaphone, Settings, LogOut, X, Menu, type LucideIcon,
+  CreditCard, Megaphone, MessageSquarePlus, Settings, LogOut, X, Menu, type LucideIcon,
 } from 'lucide-react';
 import { useSidebar } from './sidebar-context';
 import { logout as apiLogout } from '@/lib/api/auth';
@@ -31,6 +31,7 @@ const navSections: NavSection[] = [
     items: [
       { label: 'Activity', path: '/sa/activity', icon: Activity },
       { label: 'Monitoring', path: '/sa/monitoring', icon: AlertTriangle },
+      { label: 'Feedback', path: '/sa/feedback', icon: MessageSquarePlus },
       { label: 'System Health', path: '/sa/health', icon: HeartPulse },
     ],
   },

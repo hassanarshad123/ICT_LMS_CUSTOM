@@ -25,6 +25,7 @@ import {
   Activity,
   Settings,
   Palette,
+  MessageSquare,
   Megaphone,
   Plug,
   Upload,
@@ -64,6 +65,7 @@ const navConfig: Record<UserRole, NavItem[]> = {
     { label: 'Monitoring', path: '/monitoring', icon: 'activity', navId: 'nav-monitoring' },
     { label: 'Branding', path: '/branding', icon: 'palette', navId: 'nav-branding' },
     { label: 'Integrations', path: '/integrations', icon: 'plug', navId: 'nav-integrations' },
+    { label: 'Feedback', path: '/feedback', icon: 'message-square', navId: 'nav-feedback' },
     { label: 'Settings', path: '/settings', icon: 'settings', navId: 'nav-settings' },
   ],
   'course-creator': [
@@ -77,6 +79,7 @@ const navConfig: Record<UserRole, NavItem[]> = {
     { label: 'Certificates', path: '/certificates', icon: 'award', navId: 'nav-certificates' },
     { label: 'Announcements', path: '/announcements', icon: 'megaphone', navId: 'nav-announcements' },
     { label: 'Jobs', path: '/jobs', icon: 'briefcase', navId: 'nav-jobs' },
+    { label: 'Feedback', path: '/feedback', icon: 'message-square', navId: 'nav-feedback' },
     { label: 'Settings', path: '/settings', icon: 'settings', navId: 'nav-settings' },
   ],
   teacher: [
@@ -86,6 +89,7 @@ const navConfig: Record<UserRole, NavItem[]> = {
     { label: 'Zoom Classes', path: '/classes', icon: 'video', navId: 'nav-classes' },
     { label: 'Recordings', path: '/recordings', icon: 'play-circle', navId: 'nav-recordings' },
     { label: 'Announcements', path: '/announcements', icon: 'megaphone', navId: 'nav-announcements' },
+    { label: 'Feedback', path: '/feedback', icon: 'message-square', navId: 'nav-feedback' },
     { label: 'Settings', path: '/settings', icon: 'settings', navId: 'nav-settings' },
   ],
   student: [
@@ -96,6 +100,7 @@ const navConfig: Record<UserRole, NavItem[]> = {
     { label: 'Announcements', path: '/announcements', icon: 'megaphone', navId: 'nav-announcements' },
     { label: 'Certificates', path: '/certificates', icon: 'award', navId: 'nav-certificates' },
     { label: 'Job Opportunities', path: '/jobs', icon: 'briefcase', navId: 'nav-jobs' },
+    { label: 'Feedback', path: '/feedback', icon: 'message-square', navId: 'nav-feedback' },
     { label: 'Settings', path: '/settings', icon: 'settings', navId: 'nav-settings' },
   ],
 };
@@ -120,6 +125,7 @@ const iconMap: Record<string, React.ReactNode> = {
   plug: <Plug size={20} />,
   upload: <Upload size={20} />,
   megaphone: <Megaphone size={20} />,
+  'message-square': <MessageSquare size={20} />,
   settings: <Settings size={20} />,
 };
 
