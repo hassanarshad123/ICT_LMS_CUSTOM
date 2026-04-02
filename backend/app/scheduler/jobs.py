@@ -162,6 +162,71 @@ async def auto_suspend_expired_institutes():
             logger.info("Auto-suspended %d expired institutes", len(expired))
 
 
+@sentry_job_wrapper("send_trial_expiry_warnings")
+async def send_trial_expiry_warnings():
+    """Send email warnings when institute trial is about to expire (daily)."""
+    from sqlmodel import select
+    from app.models.institute import Institute, InstituteStatus
+    from app.models.user import User
+    from app.models.enums import UserRole
+    from app.utils.email import send_email
+
+    now = datetime.now(timezone.utc)
+    warning_intervals = [
+        (7, "Your trial ends in 7 days"),
+        (1, "Your trial expires tomorrow"),
+    ]
+
+    async with async_session() as session:
+        for days_before, subject_line in warning_intervals:
+            target_date = now + timedelta(days=days_before)
+            window_start = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
+            window_end = window_start + timedelta(days=1)
+
+            result = await session.execute(
+                select(Institute).where(
+                    Institute.status.in_([InstituteStatus.active, InstituteStatus.trial]),
+                    Institute.expires_at.isnot(None),
+                    Institute.expires_at >= window_start,
+                    Institute.expires_at < window_end,
+                    Institute.deleted_at.is_(None),
+                )
+            )
+            institutes = result.scalars().all()
+
+            for inst in institutes:
+                # Find the admin user for this institute
+                admin_result = await session.execute(
+                    select(User.email, User.name).where(
+                        User.institute_id == inst.id,
+                        User.role == UserRole.admin,
+                        User.deleted_at.is_(None),
+                    ).limit(1)
+                )
+                admin = admin_result.first()
+                if not admin or not admin[0]:
+                    continue
+
+                try:
+                    expires_str = inst.expires_at.strftime("%B %d, %Y") if inst.expires_at else "soon"
+                    send_email(
+                        to=admin[0],
+                        subject=f"[{inst.name}] {subject_line}",
+                        html=f"""
+                        <h2>{subject_line}</h2>
+                        <p>Hi {admin[1] or 'Admin'},</p>
+                        <p>Your <strong>{inst.name}</strong> LMS trial expires on <strong>{expires_str}</strong>.</p>
+                        <p>After expiry, your institute will be suspended and users won't be able to log in.</p>
+                        <p>To continue using the LMS, please contact us to upgrade your plan.</p>
+                        <br>
+                        <p>— The Zensbot LMS Team</p>
+                        """,
+                    )
+                    logger.info("Sent %d-day trial warning to %s for %s", days_before, admin[0], inst.slug)
+                except Exception as e:
+                    logger.warning("Failed to send trial warning to %s: %s", admin[0], e)
+
+
 @sentry_job_wrapper("process_webhook_deliveries")
 async def process_webhook_deliveries():
     """Process pending webhook deliveries and retries (every 1 minute)."""

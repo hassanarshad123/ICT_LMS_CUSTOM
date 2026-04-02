@@ -11,18 +11,18 @@ from pydantic import EmailStr, Field, field_validator
 
 # ── Reusable Field Types ────────────────────────────────────────
 
-# Email — always RFC-5322 validated via Pydantic EmailStr
-ValidatedEmail = EmailStr
+# Email — RFC-5322 validated via Pydantic EmailStr, max 254 per RFC 5321
+ValidatedEmail = Annotated[EmailStr, Field(max_length=254)]
 
 # Password — min 8 chars, must contain uppercase + digit + special character
 # Usage: `password: ValidatedPassword`
 ValidatedPassword = Annotated[str, Field(min_length=8, max_length=128)]
 
-# Name — 1-255 chars, no blank strings
-ValidatedName = Annotated[str, Field(min_length=1, max_length=255)]
+# Name — 1-255 chars, alphanumeric + common punctuation only (no Unicode tricks)
+ValidatedName = Annotated[str, Field(min_length=1, max_length=255, pattern=r"^[\w\s\-\.,'&()/]+$")]
 
-# Phone — optional, max 20 chars (international format)
-ValidatedPhone = Annotated[Optional[str], Field(default=None, max_length=20)]
+# Phone — optional, E.164 format (+ prefix, 1-15 digits)
+ValidatedPhone = Annotated[Optional[str], Field(default=None, max_length=20, pattern=r"^\+?[1-9]\d{1,14}$")]
 
 # Slug — 3-30 lowercase alphanumeric + hyphens
 ValidatedSlug = Annotated[str, Field(min_length=3, max_length=30)]

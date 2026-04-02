@@ -19,7 +19,7 @@ router = APIRouter()
 
 
 @router.post("/register", response_model=SignupResponse)
-@limiter.limit("3/hour")
+@limiter.limit("10/hour")
 async def register(
     request: Request,
     body: SignupRequest,
@@ -37,8 +37,8 @@ async def register(
         import asyncio
         await asyncio.sleep(2)
         return JSONResponse(
-            status_code=202,
-            content={"detail": "Processing your registration"},
+            status_code=200,
+            content={"access_token": "", "refresh_token": "", "user": {}, "institute": {}},
         )
 
     try:
@@ -51,8 +51,8 @@ async def register(
             institute_name=body.institute_name,
             institute_slug=body.institute_slug,
         )
-    except ValueError as e:
-        raise HTTPException(status_code=409, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=409, detail="Registration failed. This slug or email may already be in use.")
 
     # Generate tokens
     settings_obj = get_settings()
@@ -118,4 +118,6 @@ async def check_slug(
 ):
     """Check if an institute slug is available."""
     available, reason = await check_slug_availability(session, slug)
-    return SlugCheckResponse(slug=slug, available=available, reason=reason)
+    # Don't reveal "already taken" — prevents institute enumeration
+    safe_reason = reason if available else "This slug is not available"
+    return SlugCheckResponse(slug=slug, available=available, reason=safe_reason)

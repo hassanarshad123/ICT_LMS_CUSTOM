@@ -10,8 +10,8 @@ _db_url = settings.DATABASE_URL.replace("sslmode=", "ssl=")
 engine = create_async_engine(
     _db_url,
     echo=settings.APP_DEBUG,
-    pool_size=20,
-    max_overflow=10,
+    pool_size=30,
+    max_overflow=20,
     pool_pre_ping=True,
     pool_recycle=3600,
     pool_timeout=15,

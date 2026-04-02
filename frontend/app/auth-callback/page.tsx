@@ -21,7 +21,7 @@ function AuthCallbackContent() {
     // Strip token from URL immediately to prevent leaking in browser history
     window.history.replaceState({}, '', '/auth-callback');
 
-    const exchange = async () => {
+    const exchange = async (attempt = 1): Promise<void> => {
       try {
         const result = await exchangeHandoffToken(token);
 
@@ -45,6 +45,11 @@ function AuthCallbackContent() {
         // Redirect to dashboard
         router.replace(`/${result.user.id}`);
       } catch (err: unknown) {
+        // Retry up to 3 times with 2s delay (network failures, slow backend)
+        if (attempt < 3) {
+          await new Promise((r) => setTimeout(r, 2000));
+          return exchange(attempt + 1);
+        }
         const message = err instanceof Error ? err.message : 'Invalid or expired link';
         setError(message);
       }
@@ -59,9 +64,17 @@ function AuthCallbackContent() {
         <div className="text-center">
           <h1 className="text-xl font-semibold text-gray-800 mb-2">Link expired or invalid</h1>
           <p className="text-gray-500 mb-4">{error}</p>
-          <Link href="/login" className="text-sm font-medium text-primary hover:underline">
-            Go to Login
-          </Link>
+          <div className="flex items-center gap-3 justify-center">
+            <button
+              onClick={() => { setError(''); window.location.reload(); }}
+              className="px-4 py-2 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary/80 transition-colors"
+            >
+              Retry
+            </button>
+            <Link href="/login" className="text-sm font-medium text-gray-500 hover:text-primary transition-colors">
+              Go to Login
+            </Link>
+          </div>
         </div>
       </div>
     );

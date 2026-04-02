@@ -1,6 +1,6 @@
 export function getInstituteSlug(): string | null {
   if (typeof window === 'undefined') return null;
-  const hostname = window.location.hostname; // "acme.zensbot.online"
+  const hostname = window.location.hostname.toLowerCase(); // "acme.zensbot.online"
   const parts = hostname.split('.');
 
   // localhost (dev without explicit slug) = no institute
