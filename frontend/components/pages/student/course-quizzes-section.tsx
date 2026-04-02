@@ -60,7 +60,7 @@ export function CourseQuizzesSection({
             const canAttempt = attemptsRemaining > 0;
 
             return (
-              <div key={quiz.id} className="border border-gray-100 rounded-xl p-4 flex items-center gap-4">
+              <div key={quiz.id} className="border border-gray-100 rounded-xl p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
                 <div className="w-12 h-12 bg-accent bg-opacity-30 rounded-xl flex items-center justify-center flex-shrink-0">
                   <HelpCircle size={20} className="text-primary" />
                 </div>
@@ -106,11 +106,11 @@ export function CourseQuizzesSection({
                     )}
                   </div>
                 </div>
-                <div className="flex-shrink-0">
+                <div className="flex-shrink-0 w-full sm:w-auto">
                   {canAttempt ? (
                     <Link
                       href={`${basePath}/courses/${courseId}/quizzes/${quiz.id}/take`}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-xs font-medium rounded-lg hover:bg-primary/80 transition-colors"
+                      className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-primary text-white text-xs font-medium rounded-lg hover:bg-primary/80 transition-colors w-full sm:w-auto"
                     >
                       {lastAttempt ? 'Retry' : 'Take Quiz'}
                       <ArrowRight size={12} />

@@ -58,12 +58,12 @@ export function QuizTakingPhase({
     <>
       {/* Top bar with timer and progress */}
       <div className="bg-primary rounded-2xl p-4 sm:p-5 mb-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm sm:text-base font-semibold text-white truncate mr-4">{quiz.title}</h2>
-          <div className="flex items-center gap-4 flex-shrink-0">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <h2 className="text-sm sm:text-base font-semibold text-white truncate">{quiz.title}</h2>
+          <div className="flex items-center gap-3 flex-shrink-0">
             {timeRemaining !== null && (
               <div
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold ${
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold ${
                   timeRemaining <= 60
                     ? 'bg-red-500/20 text-red-300'
                     : timeRemaining <= 300
@@ -76,15 +76,15 @@ export function QuizTakingPhase({
               </div>
             )}
             <span className="text-xs text-gray-300">
-              {answeredCount}/{sortedQuestions.length} answered
+              {answeredCount}/{sortedQuestions.length}
             </span>
           </div>
         </div>
       </div>
 
       {/* Question number grid */}
-      <div className="bg-white rounded-2xl card-shadow p-4 mb-6">
-        <div className="flex flex-wrap gap-2">
+      <div className="bg-white rounded-2xl card-shadow p-3 sm:p-4 mb-6">
+        <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-1.5 sm:gap-2">
           {sortedQuestions.map((q, i) => {
             const isAnswered = !!answers[q.id]?.trim();
             const isCurrent = i === currentQuestionIndex;
@@ -92,7 +92,7 @@ export function QuizTakingPhase({
               <button
                 key={q.id}
                 onClick={() => onSetCurrentQuestionIndex(i)}
-                className={`w-9 h-9 rounded-lg text-xs font-bold transition-colors ${
+                className={`aspect-square rounded-lg text-xs font-bold transition-colors min-h-[36px] ${
                   isCurrent
                     ? 'bg-primary text-white'
                     : isAnswered
@@ -188,11 +188,11 @@ export function QuizTakingPhase({
       </div>
 
       {/* Navigation */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3">
         <button
           onClick={() => onSetCurrentQuestionIndex(Math.max(0, currentQuestionIndex - 1))}
           disabled={currentQuestionIndex === 0}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className="inline-flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <ArrowLeft size={16} />
           Previous
@@ -202,7 +202,7 @@ export function QuizTakingPhase({
           {currentQuestionIndex < sortedQuestions.length - 1 ? (
             <button
               onClick={() => onSetCurrentQuestionIndex(currentQuestionIndex + 1)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary/80 transition-colors"
+              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-3 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary/80 transition-colors"
             >
               Next
               <ArrowRight size={16} />
@@ -211,10 +211,10 @@ export function QuizTakingPhase({
           <button
             onClick={() => onShowSubmitConfirm(true)}
             disabled={submittingAttempt}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white text-sm font-medium rounded-xl hover:bg-green-700 transition-colors disabled:opacity-60"
+            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-3 bg-green-600 text-white text-sm font-medium rounded-xl hover:bg-green-700 transition-colors disabled:opacity-60"
           >
             {submittingAttempt ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-            Submit Quiz
+            Submit
           </button>
         </div>
       </div>

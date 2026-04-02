@@ -143,12 +143,12 @@ export default function StudentJobs() {
 
       {activeTab === 'browse' && <>
       {/* Type filter */}
-      <div className="flex gap-2 mb-6 flex-wrap">
+      <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
         {['all', 'full-time', 'part-time', 'internship', 'remote'].map((type) => (
           <button
             key={type}
             onClick={() => setFilter(type)}
-            className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+            className={`px-3 sm:px-4 py-2 rounded-xl text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
               filter === type
                 ? 'bg-primary text-white'
                 : 'bg-white text-gray-600 hover:bg-gray-100'
@@ -294,27 +294,27 @@ export default function StudentJobs() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-6">
-              <p className="text-sm text-gray-500">
-                Showing {jobs.length} of {total} jobs
+            <div className="flex items-center justify-between mt-6 gap-2">
+              <p className="text-xs sm:text-sm text-gray-500">
+                {jobs.length} of {total} jobs
               </p>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setPage(page - 1)}
                   disabled={page <= 1}
-                  className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="p-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
                 >
-                  <ChevronLeft size={16} />
+                  <ChevronLeft size={18} />
                 </button>
-                <span className="text-sm text-gray-700 px-2">
-                  Page {page} of {totalPages}
+                <span className="text-sm text-gray-700 px-1">
+                  {page}/{totalPages}
                 </span>
                 <button
                   onClick={() => setPage(page + 1)}
                   disabled={page >= totalPages}
-                  className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="p-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
                 >
-                  <ChevronRight size={16} />
+                  <ChevronRight size={18} />
                 </button>
               </div>
             </div>

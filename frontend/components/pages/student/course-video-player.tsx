@@ -44,7 +44,7 @@ function LectureThumbnail({
   const [imgError, setImgError] = useState(false);
 
   return (
-    <div className="w-[120px] h-[68px] rounded-lg overflow-hidden flex-shrink-0 relative bg-gray-100">
+    <div className="w-[88px] h-[50px] sm:w-[120px] sm:h-[68px] rounded-lg overflow-hidden flex-shrink-0 relative bg-gray-100">
       {!imgError ? (
         <img
           src={thumbnailUrl}
@@ -140,7 +140,7 @@ export function CourseVideoPlayer({
   return (
     <>
       {/* Video Player + Playlist Side by Side */}
-      <div className="flex flex-col lg:flex-row gap-6 mb-6 sm:mb-8">
+      <div className="flex flex-col lg:flex-row gap-4 sm:gap-6 mb-4 sm:mb-8">
         {/* Left: Video Player */}
         <div className="flex-1 min-w-0">
           {playlistTab === 'lectures' && activeLecture ? (
@@ -205,7 +205,7 @@ export function CourseVideoPlayer({
         </div>
 
         {/* Right: Playlist with toggle */}
-        <div className="w-full lg:w-80 lg:flex-shrink-0">
+        <div className="w-full lg:w-80 lg:flex-shrink-0 max-h-[60vh] sm:max-h-none">
           <div className="bg-white rounded-2xl card-shadow overflow-hidden h-full flex flex-col">
             {/* Two big toggle buttons */}
             <div className="grid grid-cols-2 gap-0">

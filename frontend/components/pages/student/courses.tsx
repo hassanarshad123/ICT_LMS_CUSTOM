@@ -105,27 +105,27 @@ export default function StudentCourses() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-8">
-              <p className="text-sm text-gray-500">
-                Showing {(page - 1) * 12 + 1}–{Math.min(page * 12, total)} of {total} courses
+            <div className="flex items-center justify-between mt-8 gap-2">
+              <p className="text-xs sm:text-sm text-gray-500">
+                {(page - 1) * 12 + 1}–{Math.min(page * 12, total)} of {total}
               </p>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setPage(page - 1)}
                   disabled={page <= 1}
-                  className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="p-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed min-w-[44px] min-h-[44px] flex items-center justify-center"
                 >
-                  <ChevronLeft size={16} />
+                  <ChevronLeft size={18} />
                 </button>
-                <span className="text-sm text-gray-600 px-2">
-                  Page {page} of {totalPages}
+                <span className="text-sm text-gray-600 px-1">
+                  {page}/{totalPages}
                 </span>
                 <button
                   onClick={() => setPage(page + 1)}
                   disabled={page >= totalPages}
-                  className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="p-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed min-w-[44px] min-h-[44px] flex items-center justify-center"
                 >
-                  <ChevronRight size={16} />
+                  <ChevronRight size={18} />
                 </button>
               </div>
             </div>

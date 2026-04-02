@@ -153,7 +153,7 @@ export default function LectureDrawer({
   return (
     <>
       <Sheet open={!!lectureId} onOpenChange={(open) => !open && onClose()}>
-        <SheetContent className="w-[500px] sm:max-w-[500px] overflow-y-auto">
+        <SheetContent className="w-full sm:w-[500px] sm:max-w-[500px] overflow-y-auto">
           <SheetHeader>
             <SheetTitle>Lecture Details</SheetTitle>
           </SheetHeader>

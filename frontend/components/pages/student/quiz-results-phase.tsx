@@ -53,10 +53,10 @@ export function QuizResultsPhase({
       </div>
 
       {/* Score Summary */}
-      <div className="bg-white rounded-2xl card-shadow p-6 mb-6">
-        <div className="flex flex-col sm:flex-row items-center gap-6">
+      <div className="bg-white rounded-2xl card-shadow p-4 sm:p-6 mb-6">
+        <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
           <div
-            className={`w-24 h-24 rounded-full flex items-center justify-center text-2xl font-bold ${
+            className={`w-20 h-20 sm:w-24 sm:h-24 rounded-full flex items-center justify-center text-xl sm:text-2xl font-bold flex-shrink-0 ${
               currentAttempt.passed
                 ? 'bg-green-100 text-green-700'
                 : 'bg-red-100 text-red-700'
