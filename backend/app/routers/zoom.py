@@ -632,13 +632,26 @@ async def zoom_webhook(request: Request):
 
                 # Save and process ALL MP4 recordings from the class
                 for rec in mp4_files:
-                    logger.info("Processing recording type=%s for meeting %s",
-                                rec.get("recording_type"), meeting_id)
+                    # Compute duration in minutes from recording_start/recording_end timestamps
+                    rec_duration = None
+                    try:
+                        rec_start = rec.get("recording_start", "")
+                        rec_end = rec.get("recording_end", "")
+                        if rec_start and rec_end:
+                            from datetime import datetime as dt
+                            start_dt = dt.fromisoformat(rec_start.replace("Z", "+00:00"))
+                            end_dt = dt.fromisoformat(rec_end.replace("Z", "+00:00"))
+                            rec_duration = max(int((end_dt - start_dt).total_seconds() / 60), 1)
+                    except Exception:
+                        rec_duration = payload.get("duration")  # fallback to meeting duration
+
+                    logger.info("Processing recording type=%s duration=%s for meeting %s",
+                                rec.get("recording_type"), rec_duration, meeting_id)
                     recording = await zoom_service.create_recording(
                         session,
                         zoom_class_id=zc.id,
                         original_download_url=rec.get("download_url"),
-                        duration=rec.get("recording_end", 0),
+                        duration=rec_duration,
                         file_size=rec.get("file_size"),
                         institute_id=zc.institute_id,
                     )
