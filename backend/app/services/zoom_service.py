@@ -187,7 +187,11 @@ async def list_classes(
         UserRole.admin, UserRole.course_creator, UserRole.teacher
     )
 
-    now = datetime.now(timezone.utc)
+    # scheduled_date/time are stored as naive local time (no timezone).
+    # Compare against naive local now to match. Server TZ = UTC, users enter PKT (UTC+5).
+    # Use UTC+5 offset to match Pakistan Standard Time.
+    from zoneinfo import ZoneInfo
+    now_local = datetime.now(ZoneInfo("Asia/Karachi")).replace(tzinfo=None)
 
     items = []
     for zc, batch_name, teacher_name in rows:
@@ -196,9 +200,9 @@ async def list_classes(
         # This handles cases where the webhook was never received.
         effective_status = zc.status.value
         if zc.status == ZoomClassStatus.upcoming and zc.scheduled_date and zc.scheduled_time:
-            scheduled_dt = datetime.combine(zc.scheduled_date, zc.scheduled_time, tzinfo=timezone.utc)
+            scheduled_dt = datetime.combine(zc.scheduled_date, zc.scheduled_time)
             class_end = scheduled_dt + timedelta(minutes=(zc.duration or 60) + 15)  # 15-min grace
-            if now > class_end:
+            if now_local > class_end:
                 effective_status = "completed"
 
         items.append({
