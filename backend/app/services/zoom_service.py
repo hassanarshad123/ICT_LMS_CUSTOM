@@ -187,7 +187,11 @@ async def list_classes(
         UserRole.admin, UserRole.course_creator, UserRole.teacher
     )
 
-    now = datetime.now(timezone.utc)
+    # scheduled_date/time are stored as naive local time (no timezone).
+    # Compare against naive local now to match. Server TZ = UTC, users enter PKT (UTC+5).
+    # Use UTC+5 offset to match Pakistan Standard Time.
+    from zoneinfo import ZoneInfo
+    now_local = datetime.now(ZoneInfo("Asia/Karachi")).replace(tzinfo=None)
 
     items = []
     for zc, batch_name, teacher_name in rows:
@@ -196,9 +200,9 @@ async def list_classes(
         # This handles cases where the webhook was never received.
         effective_status = zc.status.value
         if zc.status == ZoomClassStatus.upcoming and zc.scheduled_date and zc.scheduled_time:
-            scheduled_dt = datetime.combine(zc.scheduled_date, zc.scheduled_time, tzinfo=timezone.utc)
+            scheduled_dt = datetime.combine(zc.scheduled_date, zc.scheduled_time)
             class_end = scheduled_dt + timedelta(minutes=(zc.duration or 60) + 15)  # 15-min grace
-            if now > class_end:
+            if now_local > class_end:
                 effective_status = "completed"
 
         items.append({
@@ -642,13 +646,35 @@ async def process_recording(session: AsyncSession, recording_id: uuid.UUID) -> N
         return
 
     try:
-        from app.utils.zoom_api import get_recording_download_url
+        from app.utils.zoom_api import get_recording_download_url, _get_access_token
         from app.utils.bunny import create_video_from_url
 
-        # Get authenticated download URL
+        # The webhook_download URL is short-lived and may expire before Bunny
+        # fetches it. Instead, get a fresh download URL from the Zoom recordings API.
+        download_url = rec.original_download_url
+        if zc.zoom_meeting_id:
+            try:
+                import httpx as _httpx
+                token = await _get_access_token(
+                    account.account_id, account.client_id, account.client_secret
+                )
+                resp = await _httpx.AsyncClient(timeout=15).get(
+                    f"https://api.zoom.us/v2/meetings/{zc.zoom_meeting_id}/recordings",
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+                if resp.status_code == 200:
+                    for rf in resp.json().get("recording_files", []):
+                        if rf.get("file_type") == "MP4" and rf.get("download_url"):
+                            download_url = rf["download_url"]
+                            break
+                    logger.info("Using fresh download URL from recordings API for %s", recording_id)
+            except Exception as e:
+                logger.warning("Failed to get fresh download URL, using webhook URL: %s", e)
+
+        # Get authenticated download URL (appends ?access_token=)
         authed_url = await get_recording_download_url(
             account.account_id, account.client_id,
-            account.client_secret, rec.original_download_url,
+            account.client_secret, download_url,
         )
 
         # Tell Bunny to fetch from that URL
