@@ -151,6 +151,19 @@ export async function listRecordings(params?: {
   return apiClient('/zoom/recordings', { params: params as Record<string, string | number | undefined> });
 }
 
-export async function getRecordingSignedUrl(recordingId: string): Promise<{ url: string; type: string }> {
+export async function getRecordingSignedUrl(recordingId: string): Promise<{ url: string; type: string; expiresAt?: number }> {
   return apiClient(`/zoom/recordings/${recordingId}/signed-url`, { method: 'POST' });
+}
+
+export interface ZoomAnalytics {
+  totalClasses: number;
+  upcomingClasses: number;
+  liveClasses: number;
+  completedClasses: number;
+  totalRecordings: number;
+  averageAttendanceRate: number;
+}
+
+export async function getZoomAnalytics(): Promise<ZoomAnalytics> {
+  return apiClient('/zoom/analytics');
 }

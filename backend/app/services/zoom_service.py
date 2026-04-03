@@ -181,6 +181,12 @@ async def list_classes(
     result = await session.execute(data_query)
     rows = result.all()
 
+    # Only teachers (for their own classes) and admin/CC should see zoom_start_url
+    # Students should never get the host URL — it grants host privileges
+    can_see_start_url = current_user.role in (
+        UserRole.admin, UserRole.course_creator, UserRole.teacher
+    )
+
     items = []
     for zc, batch_name, teacher_name in rows:
         items.append({
@@ -191,7 +197,7 @@ async def list_classes(
             "teacher_id": zc.teacher_id,
             "teacher_name": teacher_name,
             "zoom_meeting_url": zc.zoom_meeting_url,
-            "zoom_start_url": zc.zoom_start_url,
+            "zoom_start_url": zc.zoom_start_url if can_see_start_url else None,
             "scheduled_date": zc.scheduled_date,
             "scheduled_time": zc.scheduled_time.strftime("%H:%M") if zc.scheduled_time else None,
             "duration": zc.duration,
@@ -480,8 +486,9 @@ async def get_recording_signed_url(
     # Prefer Bunny embed if available
     if rec.bunny_video_id:
         from app.utils.bunny import generate_embed_token
-        embed_url, _ = generate_embed_token(rec.bunny_video_id)
-        return {"url": embed_url, "type": "bunny"}
+
+        embed_url, expires_at = generate_embed_token(rec.bunny_video_id)
+        return {"url": embed_url, "type": "bunny", "expires_at": expires_at}
 
     # Never expose raw Zoom download URLs to the client
     raise ValueError("Recording is still being processed. Please try again later.")
@@ -590,6 +597,7 @@ async def sync_attendance(session: AsyncSession, class_id: uuid.UUID, institute_
             join_time=join_time,
             leave_time=leave_time,
             duration_minutes=duration_minutes,
+            institute_id=zc.institute_id,
         )
         session.add(attendance)
         count += 1
@@ -651,3 +659,63 @@ async def process_recording(session: AsyncSession, recording_id: uuid.UUID) -> N
         rec.updated_at = datetime.now(timezone.utc)
         session.add(rec)
         await session.commit()
+
+
+async def get_zoom_analytics(
+    session: AsyncSession, institute_id: Optional[uuid.UUID] = None
+) -> dict:
+    """Return aggregate Zoom class/recording/attendance stats for dashboards."""
+    base_filter = [ZoomClass.deleted_at.is_(None)]
+    if institute_id is not None:
+        base_filter.append(ZoomClass.institute_id == institute_id)
+
+    # Class counts by status
+    r = await session.execute(
+        select(ZoomClass.status, func.count(ZoomClass.id))
+        .where(*base_filter)
+        .group_by(ZoomClass.status)
+    )
+    status_counts = {row[0].value: row[1] for row in r.all()}
+
+    total_classes = sum(status_counts.values())
+    upcoming = status_counts.get("upcoming", 0) + status_counts.get("scheduled", 0)
+    live = status_counts.get("live", 0)
+    completed = status_counts.get("completed", 0)
+
+    # Total recordings (ClassRecording has no deleted_at — filter via parent class)
+    rec_query = select(func.count(ClassRecording.id))
+    if institute_id is not None:
+        rec_query = rec_query.where(
+            ClassRecording.zoom_class_id.in_(
+                select(ZoomClass.id).where(*base_filter)
+            )
+        )
+    r = await session.execute(rec_query)
+    total_recordings = r.scalar() or 0
+
+    # Average attendance rate
+    from sqlalchemy import case
+    att_query = select(
+        func.count(ZoomAttendance.id),
+        func.sum(case((ZoomAttendance.attended == True, 1), else_=0)),  # noqa: E712
+    )
+    if institute_id is not None:
+        att_query = att_query.where(
+            ZoomAttendance.zoom_class_id.in_(
+                select(ZoomClass.id).where(*base_filter)
+            )
+        )
+    r = await session.execute(att_query)
+    row = r.one_or_none()
+    total_attendance_records = row[0] if row else 0
+    attended_count = row[1] if row and row[1] else 0
+    avg_attendance_rate = round((attended_count / total_attendance_records) * 100, 1) if total_attendance_records > 0 else 0
+
+    return {
+        "total_classes": total_classes,
+        "upcoming_classes": upcoming,
+        "live_classes": live,
+        "completed_classes": completed,
+        "total_recordings": total_recordings,
+        "average_attendance_rate": avg_attendance_rate,
+    }

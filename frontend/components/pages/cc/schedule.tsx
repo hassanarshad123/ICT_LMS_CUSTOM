@@ -6,12 +6,12 @@ import DashboardHeader from '@/components/layout/dashboard-header';
 import { useAuth } from '@/lib/auth-context';
 import { useBasePath } from '@/hooks/use-base-path';
 import { useApi, useMutation } from '@/hooks/use-api';
-import { listClasses, createClass, deleteClass, listAccounts } from '@/lib/api/zoom';
+import { listClasses, createClass, updateClass, deleteClass, listAccounts, getZoomAnalytics } from '@/lib/api/zoom';
 import { listBatches } from '@/lib/api/batches';
 import { listUsers } from '@/lib/api/users';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
-import { Plus, X, Video, ExternalLink, Clock, Info, Loader2, Calendar, Trash2, Users } from 'lucide-react';
+import { Plus, X, Video, ExternalLink, Clock, Info, Loader2, Calendar, Trash2, Users, Pencil, PlayCircle, BarChart3 } from 'lucide-react';
 import { StyledSelect } from '@/components/ui/styled-select';
 import { SearchableCombobox } from '@/components/ui/searchable-combobox';
 import AttendancePanel from '@/components/shared/attendance-panel';
@@ -45,9 +45,13 @@ export default function CourseCreatorSchedule() {
     [],
   );
 
+  const { data: analytics } = useApi(getZoomAnalytics);
+
   const { execute: doCreate, loading: creating } = useMutation(createClass);
+  const { execute: doUpdate, loading: updating } = useMutation(updateClass);
   const { execute: doDelete } = useMutation(deleteClass);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [editingClassId, setEditingClassId] = useState<string | null>(null);
 
   const batches = batchesData?.data || [];
   const accounts = Array.isArray(accountsData) ? accountsData : [];
@@ -87,10 +91,38 @@ export default function CourseCreatorSchedule() {
   const upcoming = allClasses.filter((c) => c.status === 'upcoming' || c.status === 'scheduled' || c.status === 'live');
   const completed = allClasses.filter((c) => c.status === 'completed');
 
-  const handleAdd = async (e: React.FormEvent) => {
+  const handleEditClick = (cls: any) => {
+    setFormData({
+      title: cls.title || '',
+      batchId: cls.batchId || '',
+      teacherId: cls.teacherId || '',
+      zoomAccountId: cls.zoomAccountId || defaultAccount?.id || '',
+      date: cls.scheduledDate || '',
+      time: cls.scheduledTime || '',
+      duration: String(cls.duration || 60),
+    });
+    setEditingClassId(cls.id);
+    setShowForm(true);
+  };
+
+  const resetForm = () => {
+    setFormData({
+      title: '',
+      batchId: '',
+      teacherId: '',
+      zoomAccountId: defaultAccount?.id || '',
+      date: '',
+      time: '',
+      duration: '60',
+    });
+    setEditingClassId(null);
+    setShowForm(false);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await doCreate({
+      const payload = {
         title: formData.title,
         batch_id: formData.batchId,
         teacher_id: formData.teacherId,
@@ -98,18 +130,16 @@ export default function CourseCreatorSchedule() {
         scheduled_date: formData.date,
         scheduled_time: formData.time,
         duration: parseInt(formData.duration, 10) || 60,
-      });
-      toast.success('Class scheduled');
-      setFormData({
-        title: '',
-        batchId: '',
-        teacherId: '',
-        zoomAccountId: defaultAccount?.id || '',
-        date: '',
-        time: '',
-        duration: '60',
-      });
-      setShowForm(false);
+      };
+
+      if (editingClassId) {
+        await doUpdate(editingClassId, payload);
+        toast.success('Class updated');
+      } else {
+        await doCreate(payload);
+        toast.success('Class scheduled');
+      }
+      resetForm();
       refetchClasses();
     } catch (err: any) {
       toast.error(err.message);
@@ -134,9 +164,58 @@ export default function CourseCreatorSchedule() {
     <DashboardLayout>
       <DashboardHeader greeting="Schedule Classes" subtitle="Manage Zoom classes for your batches" />
 
+      {analytics && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+          <div className="bg-white rounded-2xl p-4 card-shadow">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
+                <Calendar size={18} className="text-blue-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-primary">{analytics.upcomingClasses}</p>
+                <p className="text-xs text-gray-500">Upcoming</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white rounded-2xl p-4 card-shadow">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center">
+                <Video size={18} className="text-green-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-primary">{analytics.completedClasses}</p>
+                <p className="text-xs text-gray-500">Completed</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white rounded-2xl p-4 card-shadow">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center">
+                <PlayCircle size={18} className="text-purple-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-primary">{analytics.totalRecordings}</p>
+                <p className="text-xs text-gray-500">Recordings</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white rounded-2xl p-4 card-shadow">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center">
+                <BarChart3 size={18} className="text-amber-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-primary">{analytics.averageAttendanceRate}%</p>
+                <p className="text-xs text-gray-500">Attendance</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex justify-end mb-6">
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => showForm ? resetForm() : setShowForm(true)}
           className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors"
         >
           {showForm ? <X size={16} /> : <Plus size={16} />}
@@ -146,14 +225,14 @@ export default function CourseCreatorSchedule() {
 
       {showForm && (
         <div className="bg-white rounded-2xl p-6 card-shadow mb-6">
-          <h3 className="text-lg font-semibold text-primary mb-4">New Zoom Class</h3>
+          <h3 className="text-lg font-semibold text-primary mb-4">{editingClassId ? 'Edit Zoom Class' : 'New Zoom Class'}</h3>
           {!hasAccounts ? (
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
               <Info size={18} className="text-amber-500 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-amber-700">No Zoom accounts have been configured. Please ask your administrator to add a Zoom account in Settings before scheduling classes.</p>
             </div>
           ) : (
-            <form onSubmit={handleAdd} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Class Title</label>
                 <input type="text" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} placeholder="e.g. Week 13 - Revision" className={inputClass} required />
@@ -211,9 +290,9 @@ export default function CourseCreatorSchedule() {
                 <input type="number" value={formData.duration} onChange={(e) => setFormData({ ...formData, duration: e.target.value })} placeholder="e.g. 60" className={inputClass} required min={1} />
               </div>
               <div className="flex items-end">
-                <button type="submit" disabled={creating} className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors disabled:opacity-60">
-                  {creating && <Loader2 size={16} className="animate-spin" />}
-                  Schedule Class
+                <button type="submit" disabled={creating || updating} className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors disabled:opacity-60">
+                  {(creating || updating) && <Loader2 size={16} className="animate-spin" />}
+                  {editingClassId ? 'Update Class' : 'Schedule Class'}
                 </button>
               </div>
             </form>
@@ -233,11 +312,16 @@ export default function CourseCreatorSchedule() {
                 {upcoming.map((cls) => (
                   <div key={cls.id} className="bg-white rounded-2xl p-4 sm:p-5 card-shadow flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 bg-accent rounded-xl flex items-center justify-center flex-shrink-0">
-                        <Video size={22} className="text-primary" />
+                      <div className={`w-10 h-10 sm:w-12 sm:h-12 ${cls.status === 'live' ? 'bg-red-100' : 'bg-accent'} rounded-xl flex items-center justify-center flex-shrink-0`}>
+                        <Video size={22} className={cls.status === 'live' ? 'text-red-600' : 'text-primary'} />
                       </div>
                       <div>
-                        <h4 className="font-medium text-primary">{cls.title}</h4>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-medium text-primary">{cls.title}</h4>
+                          {cls.status === 'live' && (
+                            <span className="px-2 py-0.5 bg-red-100 text-red-600 text-xs font-medium rounded-full">LIVE</span>
+                          )}
+                        </div>
                         <p className="text-xs text-gray-500 mt-0.5">{cls.batchName}{cls.teacherName ? ` \u00B7 ${cls.teacherName}` : ''}</p>
                       </div>
                     </div>
@@ -254,13 +338,24 @@ export default function CourseCreatorSchedule() {
                           <ExternalLink size={16} className="text-white" />
                         </a>
                       )}
-                      <button
-                        onClick={() => setDeleteConfirmId(cls.id)}
-                        className="w-10 h-10 rounded-xl flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                        title="Delete class"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      {cls.status !== 'live' && (
+                        <>
+                          <button
+                            onClick={() => handleEditClick(cls)}
+                            className="w-10 h-10 rounded-xl flex items-center justify-center text-gray-400 hover:text-primary hover:bg-accent transition-colors"
+                            title="Edit class"
+                          >
+                            <Pencil size={16} />
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirmId(cls.id)}
+                            className="w-10 h-10 rounded-xl flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                            title="Delete class"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 ))}

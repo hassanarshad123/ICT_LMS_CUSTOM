@@ -24,6 +24,7 @@ from app.middleware.access_control import verify_zoom_class_access
 from app.models.user import User
 from app.models.enums import ZoomClassStatus
 from app.utils.rate_limit import limiter
+from app.utils.tenant import check_institute_ownership
 
 router = APIRouter()
 settings = get_settings()
@@ -193,11 +194,18 @@ async def create_class(
         *([Batch.institute_id == current_user.institute_id] if current_user.institute_id else []),
     ))
     batch = r.scalar_one_or_none()
-    if not batch or batch.created_by != current_user.id:
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch not found")
+    # Admins can schedule for any batch in their institute; CCs only for their own
+    if current_user.role.value == "course_creator" and batch.created_by != current_user.id:
         raise HTTPException(status_code=403, detail="You can only schedule classes for your own batches")
 
-    # Validate teacher_id exists and is a teacher
-    r = await session.execute(select(User).where(User.id == body.teacher_id, User.deleted_at.is_(None)))
+    # Validate teacher_id exists, is a teacher, and belongs to the same institute
+    r = await session.execute(select(User).where(
+        User.id == body.teacher_id,
+        User.deleted_at.is_(None),
+        User.institute_id == current_user.institute_id,
+    ))
     teacher = r.scalar_one_or_none()
     if not teacher or teacher.role != UserRole.teacher:
         raise HTTPException(status_code=400, detail="Invalid teacher selected")
@@ -437,11 +445,34 @@ async def get_recording_signed_url(
     current_user: AllRoles,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
+    # Verify the user has access to this recording's class (enrollment/ownership check)
+    from app.models.zoom import ClassRecording as CR
+    from sqlmodel import select as sel
+    rec_row = await session.execute(
+        sel(CR.zoom_class_id).where(CR.id == recording_id)
+    )
+    class_id = rec_row.scalar_one_or_none()
+    if not class_id:
+        raise HTTPException(status_code=404, detail="Recording not found")
+    await verify_zoom_class_access(session, current_user, class_id)
+
     try:
         result = await zoom_service.get_recording_signed_url(session, recording_id, institute_id=current_user.institute_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     return RecordingSignedUrlOut(**result)
+
+
+# --- Analytics ---
+
+@router.get("/analytics")
+@limiter.limit("30/minute")
+async def zoom_analytics(
+    request: Request,
+    current_user: AdminOrCourseCreator,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    return await zoom_service.get_zoom_analytics(session, institute_id=current_user.institute_id)
 
 
 # --- Webhook ---
@@ -452,19 +483,19 @@ async def zoom_webhook(request: Request):
     body = await request.body()
     data = await request.json()
 
-    # Handle URL validation event
-    if data.get("event") == "endpoint.url_validation":
-        plain_token = data["payload"]["plainToken"]
-        hash_value = hmac.HMAC(
-            settings.ZOOM_WEBHOOK_SECRET.encode(),
-            plain_token.encode(),
-            hashlib.sha256,
-        ).hexdigest()
-        return {"plainToken": plain_token, "encryptedToken": hash_value}
-
-    # Verify HMAC signature
+    # Verify HMAC signature FIRST — before handling any event type
     signature = request.headers.get("x-zm-signature", "")
     timestamp = request.headers.get("x-zm-request-timestamp", "")
+
+    # Replay protection — reject timestamps older than 5 minutes
+    import time
+    try:
+        ts = int(timestamp)
+        if abs(time.time() - ts) > 300:
+            raise HTTPException(status_code=401, detail="Stale timestamp")
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=401, detail="Invalid timestamp")
+
     message = f"v0:{timestamp}:{body.decode()}"
     expected = "v0=" + hmac.HMAC(
         settings.ZOOM_WEBHOOK_SECRET.encode(),
@@ -476,6 +507,16 @@ async def zoom_webhook(request: Request):
         raise HTTPException(status_code=401, detail="Invalid signature")
 
     event = data.get("event", "")
+
+    # Handle URL validation event (after signature verified)
+    if event == "endpoint.url_validation":
+        plain_token = data["payload"]["plainToken"]
+        hash_value = hmac.HMAC(
+            settings.ZOOM_WEBHOOK_SECRET.encode(),
+            plain_token.encode(),
+            hashlib.sha256,
+        ).hexdigest()
+        return {"plainToken": plain_token, "encryptedToken": hash_value}
     payload = data.get("payload", {}).get("object", {})
     meeting_id = str(payload.get("id", ""))
 
@@ -527,6 +568,7 @@ async def zoom_webhook(request: Request):
                             original_download_url=rec.get("download_url"),
                             duration=rec.get("recording_end", 0),
                             file_size=rec.get("file_size"),
+                            institute_id=zc.institute_id,
                         )
 
                         # Phase 5D: Process recording in background
