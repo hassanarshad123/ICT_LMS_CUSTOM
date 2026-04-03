@@ -271,6 +271,30 @@ async def update_meeting(
         resp.raise_for_status()
 
 
+async def get_meeting(
+    account_id: str,
+    client_id: str,
+    encrypted_secret: str,
+    meeting_id: str,
+) -> Optional[dict]:
+    """Fetch meeting details from Zoom. Returns fresh start_url and join_url."""
+    token = await _get_access_token(account_id, client_id, encrypted_secret)
+    resp = await _request_with_retry(
+        "GET",
+        f"https://api.zoom.us/v2/meetings/{meeting_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    if resp.status_code == 404:
+        return None
+    resp.raise_for_status()
+    data = resp.json()
+    return {
+        "meeting_id": str(data["id"]),
+        "join_url": data.get("join_url"),
+        "start_url": data.get("start_url"),
+    }
+
+
 async def get_recording_download_url(
     account_id: str,
     client_id: str,
