@@ -1,6 +1,6 @@
 import logging
 import uuid
-from datetime import datetime, time, timezone
+from datetime import datetime, time, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -187,8 +187,20 @@ async def list_classes(
         UserRole.admin, UserRole.course_creator, UserRole.teacher
     )
 
+    now = datetime.now(timezone.utc)
+
     items = []
     for zc, batch_name, teacher_name in rows:
+        # Time-based status override: if a class is still "upcoming" but its
+        # scheduled time + duration has passed, mark it as "completed" (missed).
+        # This handles cases where the webhook was never received.
+        effective_status = zc.status.value
+        if zc.status == ZoomClassStatus.upcoming and zc.scheduled_date and zc.scheduled_time:
+            scheduled_dt = datetime.combine(zc.scheduled_date, zc.scheduled_time, tzinfo=timezone.utc)
+            class_end = scheduled_dt + timedelta(minutes=(zc.duration or 60) + 15)  # 15-min grace
+            if now > class_end:
+                effective_status = "completed"
+
         items.append({
             "id": zc.id,
             "title": zc.title,
@@ -202,7 +214,7 @@ async def list_classes(
             "scheduled_time": zc.scheduled_time.strftime("%H:%M") if zc.scheduled_time else None,
             "duration": zc.duration,
             "duration_display": format_duration(zc.duration * 60) if zc.duration else None,
-            "status": zc.status.value,
+            "status": effective_status,
             "zoom_account_id": zc.zoom_account_id,
             "created_at": zc.created_at,
         })

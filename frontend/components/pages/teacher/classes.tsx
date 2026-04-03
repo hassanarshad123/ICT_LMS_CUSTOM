@@ -4,10 +4,12 @@ import DashboardLayout from '@/components/layout/dashboard-layout';
 import DashboardHeader from '@/components/layout/dashboard-header';
 import { useAuth } from '@/lib/auth-context';
 import { useBasePath } from '@/hooks/use-base-path';
+import { useState } from 'react';
 import { useApi } from '@/hooks/use-api';
-import { listClasses } from '@/lib/api/zoom';
+import { listClasses, getFreshStartUrl } from '@/lib/api/zoom';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
-import { Video, ExternalLink, Clock, Calendar, PlayCircle } from 'lucide-react';
+import { toast } from 'sonner';
+import { Video, ExternalLink, Clock, Calendar, PlayCircle, Loader2 } from 'lucide-react';
 import AttendancePanel from '@/components/shared/attendance-panel';
 
 export default function TeacherZoom() {
@@ -18,6 +20,24 @@ export default function TeacherZoom() {
     () => listClasses({ teacher_id: id, per_page: 100 }),
     [id],
   );
+
+  const [startingClassId, setStartingClassId] = useState<string | null>(null);
+
+  const handleStartClass = async (classId: string) => {
+    setStartingClassId(classId);
+    try {
+      const res = await getFreshStartUrl(classId);
+      if (res.startUrl) {
+        window.open(res.startUrl, '_blank');
+      } else {
+        toast.error('Could not get start URL from Zoom');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to start class');
+    } finally {
+      setStartingClassId(null);
+    }
+  };
 
   const classes = classesData?.data || [];
   const upcoming = classes.filter((z) => z.status === 'upcoming' || z.status === 'scheduled' || z.status === 'live');
@@ -66,27 +86,19 @@ export default function TeacherZoom() {
                           </div>
                         </div>
                       </div>
-                      {cls.zoomStartUrl && (
-                        <a
-                          href={cls.zoomStartUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors flex items-center gap-2 flex-shrink-0 w-full sm:w-auto justify-center"
+                      {(cls.zoomStartUrl || cls.zoomMeetingUrl) && (
+                        <button
+                          onClick={() => handleStartClass(cls.id)}
+                          disabled={startingClassId === cls.id}
+                          className="px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors flex items-center gap-2 flex-shrink-0 w-full sm:w-auto justify-center disabled:opacity-60"
                         >
-                          <PlayCircle size={14} />
-                          Start Class
-                        </a>
-                      )}
-                      {!cls.zoomStartUrl && cls.zoomMeetingUrl && (
-                        <a
-                          href={cls.zoomMeetingUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors flex items-center gap-2 flex-shrink-0 w-full sm:w-auto justify-center"
-                        >
-                          <ExternalLink size={14} />
-                          Join Class
-                        </a>
+                          {startingClassId === cls.id ? (
+                            <Loader2 size={14} className="animate-spin" />
+                          ) : (
+                            <PlayCircle size={14} />
+                          )}
+                          {startingClassId === cls.id ? 'Opening Zoom...' : 'Start Class'}
+                        </button>
                       )}
                     </div>
                   </div>

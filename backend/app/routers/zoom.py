@@ -417,6 +417,60 @@ async def sync_attendance(
     return {"synced": count}
 
 
+# --- Fresh start URL for teachers ---
+
+@router.post("/classes/{class_id}/start-url")
+async def get_fresh_start_url(
+    class_id: uuid.UUID,
+    current_user: AllRoles,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """Fetch a fresh start_url from Zoom with a valid zak token.
+    The stored start_url expires after ~2 hours, so this endpoint
+    fetches a new one on demand when the teacher clicks Start Class."""
+    await verify_zoom_class_access(session, current_user, class_id)
+
+    from sqlmodel import select as sel
+    from app.models.zoom import ZoomClass as ZC
+    r = await session.execute(
+        sel(ZC).where(ZC.id == class_id, ZC.deleted_at.is_(None),
+                      ZC.institute_id == current_user.institute_id)
+    )
+    zc = r.scalar_one_or_none()
+    if not zc or not zc.zoom_meeting_id:
+        raise HTTPException(status_code=404, detail="Class not found or no Zoom meeting linked")
+
+    account = await zoom_service.get_account(session, zc.zoom_account_id, institute_id=current_user.institute_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="Zoom account not found")
+
+    from app.utils.zoom_api import get_meeting
+    try:
+        meeting = await get_meeting(
+            account.account_id, account.client_id,
+            account.client_secret, zc.zoom_meeting_id,
+        )
+    except Exception as e:
+        logger.error("Failed to fetch fresh meeting URLs for %s: %s", zc.zoom_meeting_id, e)
+        raise HTTPException(status_code=502, detail="Could not fetch meeting from Zoom")
+
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found on Zoom")
+
+    # Update stored URLs with fresh ones
+    if meeting.get("start_url"):
+        zc.zoom_start_url = meeting["start_url"]
+    if meeting.get("join_url"):
+        zc.zoom_meeting_url = meeting["join_url"]
+    session.add(zc)
+    await session.commit()
+
+    return {
+        "start_url": meeting.get("start_url"),
+        "join_url": meeting.get("join_url"),
+    }
+
+
 # --- Phase 1A: Global recordings endpoints ---
 
 @router.get("/recordings", response_model=PaginatedResponse[RecordingListOut])
@@ -507,6 +561,8 @@ async def zoom_webhook(request: Request):
         raise HTTPException(status_code=401, detail="Invalid signature")
 
     event = data.get("event", "")
+    payload_obj = data.get("payload", {}).get("object", {})
+    logger.info("Zoom webhook: event=%s meeting_id=%s", event, payload_obj.get("id", ""))
 
     # Handle URL validation event (after signature verified)
     if event == "endpoint.url_validation":
@@ -559,26 +615,34 @@ async def zoom_webhook(request: Request):
             )
             zc = r.scalar_one_or_none()
             if zc:
-                recordings = payload.get("recording_files", [])
-                for rec in recordings:
-                    if rec.get("recording_type") == "shared_screen_with_speaker_view":
-                        recording = await zoom_service.create_recording(
-                            session,
-                            zoom_class_id=zc.id,
-                            original_download_url=rec.get("download_url"),
-                            duration=rec.get("recording_end", 0),
-                            file_size=rec.get("file_size"),
-                            institute_id=zc.institute_id,
-                        )
+                recording_files = payload.get("recording_files", [])
+                mp4_files = [r for r in recording_files if r.get("file_type") == "MP4"]
 
-                        # Phase 5D: Process recording in background
-                        async def _process_rec(rec_id):
-                            async with async_session() as s:
-                                try:
-                                    await zoom_service.process_recording(s, rec_id)
-                                except Exception as e:
-                                    logger.error("Background recording processing failed for %s: %s", rec_id, e)
+                if not mp4_files:
+                    logger.warning("No MP4 recording files in webhook for meeting %s (types: %s)",
+                                   meeting_id, [r.get("recording_type") for r in recording_files])
 
-                        asyncio.create_task(_process_rec(recording.id))
+                # Save and process ALL MP4 recordings from the class
+                for rec in mp4_files:
+                    logger.info("Processing recording type=%s for meeting %s",
+                                rec.get("recording_type"), meeting_id)
+                    recording = await zoom_service.create_recording(
+                        session,
+                        zoom_class_id=zc.id,
+                        original_download_url=rec.get("download_url"),
+                        duration=rec.get("recording_end", 0),
+                        file_size=rec.get("file_size"),
+                        institute_id=zc.institute_id,
+                    )
+
+                    # Process recording in background (upload to Bunny)
+                    async def _process_rec(rec_id):
+                        async with async_session() as s:
+                            try:
+                                await zoom_service.process_recording(s, rec_id)
+                            except Exception as e:
+                                logger.error("Background recording processing failed for %s: %s", rec_id, e)
+
+                    asyncio.create_task(_process_rec(recording.id))
 
     return {"status": "ok"}

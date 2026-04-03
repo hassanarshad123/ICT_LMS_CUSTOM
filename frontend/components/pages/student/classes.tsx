@@ -16,7 +16,13 @@ function formatRelativeTime(dateStr: string, timeStr: string): string {
     const classTime = new Date(`${dateStr}T${timeStr}`);
     const now = new Date();
     const diff = classTime.getTime() - now.getTime();
-    if (diff <= 0) return 'Starting now';
+    if (diff <= 0) {
+      const pastMins = Math.floor(-diff / 60000);
+      if (pastMins < 5) return 'Starting now';
+      if (pastMins < 60) return `Started ${pastMins}m ago`;
+      const pastHours = Math.floor(pastMins / 60);
+      return `Started ${pastHours}h ${pastMins % 60}m ago`;
+    }
     const hours = Math.floor(diff / 3600000);
     const mins = Math.floor((diff % 3600000) / 60000);
     if (hours >= 24) return `in ${Math.floor(hours / 24)}d ${hours % 24}h`;

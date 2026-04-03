@@ -97,6 +97,10 @@ export async function deleteClass(classId: string): Promise<void> {
   return apiClient(`/zoom/classes/${classId}`, { method: 'DELETE' });
 }
 
+export async function getFreshStartUrl(classId: string): Promise<{ startUrl: string; joinUrl: string }> {
+  return apiClient(`/zoom/classes/${classId}/start-url`, { method: 'POST' });
+}
+
 export interface AttendanceItem {
   id: string;
   zoomClassId: string;
