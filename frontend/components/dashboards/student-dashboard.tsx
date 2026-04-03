@@ -25,7 +25,14 @@ function SectionError({ message, onRetry }: { message: string; onRetry: () => vo
 }
 
 export default function StudentDashboard() {
-  const { name } = useAuth();
+  const { name, batchIds, batchNames } = useAuth();
+
+  // Map a course's batchIds to the student's batch name
+  const getBatchName = (courseBatchIds?: string[]) => {
+    if (!courseBatchIds?.length || !batchIds?.length) return null;
+    const idx = batchIds.findIndex((b) => courseBatchIds.includes(b));
+    return idx >= 0 && batchNames?.[idx] ? batchNames[idx] : null;
+  };
   const basePath = useBasePath();
 
   const { data: coursesData, loading: coursesLoading, error: coursesError, refetch: refetchCourses } = useApi(
@@ -157,6 +164,7 @@ export default function StudentDashboard() {
               <div className="space-y-3">
                 {inProgressCourses.slice(0, 3).map((course) => {
                   const wp = (course as any).watchPercentage || 0;
+                  const bn = getBatchName(course.batchIds);
                   return (
                     <Link key={course.id} href={`${basePath}/courses/${course.id}`}>
                       <div className="flex items-center gap-4 p-4 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer">
@@ -164,6 +172,7 @@ export default function StudentDashboard() {
                           <BookOpen size={18} className="text-primary" />
                         </div>
                         <div className="flex-1 min-w-0">
+                          {bn && <p className="text-xs text-gray-400 truncate mb-0.5">{bn}</p>}
                           <p className="font-medium text-sm text-primary truncate">{course.title}</p>
                           <div className="flex items-center gap-2 mt-1.5">
                             <div className="flex-1 bg-gray-200 rounded-full h-1.5">
@@ -204,7 +213,9 @@ export default function StudentDashboard() {
                 <p className="text-sm text-gray-500 py-4 text-center">No courses yet</p>
               ) : (
                 <div className="space-y-3">
-                  {courses.slice(0, 4).map((course) => (
+                  {courses.slice(0, 4).map((course) => {
+                    const bn = getBatchName(course.batchIds);
+                    return (
                     <Link key={course.id} href={`${basePath}/courses/${course.id}`}>
                       <div className="flex items-center justify-between p-4 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer">
                         <div className="flex items-center gap-4">
@@ -212,6 +223,7 @@ export default function StudentDashboard() {
                             <BookOpen size={18} className="text-primary" />
                           </div>
                           <div>
+                            {bn && <p className="text-xs text-gray-400 truncate">{bn}</p>}
                             <p className="font-medium text-sm text-primary">{course.title}</p>
                             <p className="text-xs text-gray-500 mt-0.5">
                               {course.status ? course.status.charAt(0).toUpperCase() + course.status.slice(1) : ''}
@@ -221,7 +233,8 @@ export default function StudentDashboard() {
                         <ChevronRight size={16} className="text-gray-400" />
                       </div>
                     </Link>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

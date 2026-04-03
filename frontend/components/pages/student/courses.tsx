@@ -13,7 +13,13 @@ import { BookOpen, ChevronRight, Search, ChevronLeft } from 'lucide-react';
 import Link from 'next/link';
 
 export default function StudentCourses() {
-  const { batchIds } = useAuth();
+  const { batchIds, batchNames } = useAuth();
+
+  const getBatchName = (courseBatchIds?: string[]) => {
+    if (!courseBatchIds?.length || !batchIds?.length) return null;
+    const idx = batchIds.findIndex((b) => courseBatchIds.includes(b));
+    return idx >= 0 && batchNames?.[idx] ? batchNames[idx] : null;
+  };
   const basePath = useBasePath();
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -90,7 +96,9 @@ export default function StudentCourses() {
             <p className="text-sm text-gray-500 mb-4">Found {total} course{total !== 1 ? 's' : ''}{debouncedSearch ? ` matching "${debouncedSearch}"` : ''}</p>
           )}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {courses.map((course) => (
+            {courses.map((course) => {
+              const bn = getBatchName(course.batchIds);
+              return (
               <Link key={course.id} href={`${basePath}/courses/${course.id}`}>
                 <div className="bg-white rounded-2xl card-shadow hover:card-shadow-hover transition-all duration-200 cursor-pointer group overflow-hidden">
                   <div className="h-32 bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center relative overflow-hidden">
@@ -102,9 +110,16 @@ export default function StudentCourses() {
                   </div>
                   <div className="p-6">
                     <div className="flex items-center justify-between mb-3">
-                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColors[course.status] || 'bg-gray-100 text-gray-600'}`}>
-                        {course.status?.charAt(0).toUpperCase() + course.status?.slice(1)}
-                      </span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColors[course.status] || 'bg-gray-100 text-gray-600'}`}>
+                          {course.status?.charAt(0).toUpperCase() + course.status?.slice(1)}
+                        </span>
+                        {bn && (
+                          <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-600">
+                            {bn}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <h3 className="text-lg font-bold text-primary mb-2">{course.title}</h3>
                     <p className="text-sm text-gray-500 line-clamp-2 mb-4">{course.description || 'No description'}</p>
@@ -114,7 +129,8 @@ export default function StudentCourses() {
                   </div>
                 </div>
               </Link>
-            ))}
+              );
+            })}
           </div>
 
           {/* Pagination */}

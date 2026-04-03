@@ -233,6 +233,9 @@ export default function CourseDetailPage() {
         </Link>
         <div className="flex items-start justify-between">
           <div>
+            {batchInfo?.name && (
+              <p className="text-xs text-gray-400 mb-1">{batchInfo.name}</p>
+            )}
             <h1 className="text-lg sm:text-2xl font-bold text-white mb-2">{course.title}</h1>
             <p className="text-sm text-gray-300 max-w-2xl mb-3">{course.description}</p>
             <div className="flex flex-wrap items-center gap-2 sm:gap-4">
