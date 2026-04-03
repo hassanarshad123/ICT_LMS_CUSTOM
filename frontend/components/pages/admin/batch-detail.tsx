@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import DashboardLayout from '@/components/layout/dashboard-layout';
@@ -8,6 +8,7 @@ import DashboardHeader from '@/components/layout/dashboard-header';
 import { useAuth } from '@/lib/auth-context';
 import { useBasePath } from '@/hooks/use-base-path';
 import { useApi, useMutation } from '@/hooks/use-api';
+import { usePaginatedApi } from '@/hooks/use-paginated-api';
 import { getBatch, listBatchStudents, enrollStudent, updateBatch, toggleEnrollmentActive } from '@/lib/api/batches';
 import CsvImportPanel from '@/components/shared/csv-import-panel';
 import { ExtendAccessModal } from '@/components/shared/extend-access-modal';
@@ -15,7 +16,7 @@ import { SearchableCombobox } from '@/components/ui/searchable-combobox';
 import { listUsers } from '@/lib/api/users';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
-import { ArrowLeft, UserPlus, Loader2, Users, Calendar, GraduationCap, BookOpen, Upload, Pencil, X, CalendarPlus } from 'lucide-react';
+import { ArrowLeft, UserPlus, Loader2, Users, Calendar, GraduationCap, BookOpen, Upload, Pencil, X, CalendarPlus, Search } from 'lucide-react';
 export default function AdminBatchDetail() {
   const { batchId } = useParams<{ batchId: string }>();
   const { name } = useAuth();
@@ -26,15 +27,32 @@ export default function AdminBatchDetail() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', start_date: '', end_date: '', teacher_id: '' });
   const [editSaving, setEditSaving] = useState(false);
+  const [studentSearch, setStudentSearch] = useState('');
+  const [debouncedStudentSearch, setDebouncedStudentSearch] = useState('');
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedStudentSearch(studentSearch), 300);
+    return () => clearTimeout(t);
+  }, [studentSearch]);
 
   const { data: batch, loading: batchLoading, error: batchError, refetch: refetchBatch } = useApi(
     () => getBatch(batchId),
     [batchId],
   );
 
-  const { data: students, loading: studentsLoading, error: studentsError, refetch: refetchStudents } = useApi(
-    () => listBatchStudents(batchId),
-    [batchId],
+  const {
+    data: students,
+    total: studentsTotal,
+    page: studentsPage,
+    totalPages: studentsTotalPages,
+    loading: studentsLoading,
+    error: studentsError,
+    setPage: setStudentsPage,
+    refetch: refetchStudents,
+  } = usePaginatedApi(
+    (params) => listBatchStudents(batchId, { ...params, search: debouncedStudentSearch || undefined }),
+    20,
+    [batchId, debouncedStudentSearch],
   );
 
   const { data: allStudentsData } = useApi(
@@ -351,10 +369,22 @@ export default function AdminBatchDetail() {
           {/* Enrolled Students Table */}
           <div className="bg-white rounded-2xl card-shadow overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-100">
-              <h3 className="text-lg font-semibold text-primary">Enrolled Students ({Array.isArray(students) ? students.length : 0})</h3>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <h3 className="text-lg font-semibold text-primary">Enrolled Students ({studentsTotal})</h3>
+                <div className="relative w-full sm:w-64">
+                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search students..."
+                    value={studentSearch}
+                    onChange={(e) => setStudentSearch(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-primary"
+                  />
+                </div>
+              </div>
             </div>
 
-            {!Array.isArray(students) || students.length === 0 ? (
+            {students.length === 0 ? (
               <div className="p-8">
                 <EmptyState
                   icon={<Users size={28} className="text-gray-400" />}
@@ -443,6 +473,19 @@ export default function AdminBatchDetail() {
                   </table>
                 </div>
               </>
+            )}
+
+            {students.length > 0 && studentsTotalPages > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between px-6 py-4 border-t border-gray-100">
+                <p className="text-sm text-gray-500 mb-2 sm:mb-0">
+                  <span className="hidden sm:inline">Page {studentsPage} of {studentsTotalPages} ({studentsTotal} students)</span>
+                  <span className="sm:hidden">{studentsPage}/{studentsTotalPages}</span>
+                </p>
+                <div className="flex gap-2">
+                  <button onClick={() => setStudentsPage(studentsPage - 1)} disabled={studentsPage === 1} className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">Previous</button>
+                  <button onClick={() => setStudentsPage(studentsPage + 1)} disabled={studentsPage === studentsTotalPages} className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">Next</button>
+                </div>
+              </div>
             )}
           </div>
         </>

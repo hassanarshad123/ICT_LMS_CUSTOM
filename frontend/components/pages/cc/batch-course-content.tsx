@@ -139,7 +139,7 @@ export function BatchCourseContent({
                 {/* Lectures Section */}
                 <div>
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-semibold text-primary uppercase tracking-wide">Lectures</h3>
+                    <h3 className="text-sm font-semibold text-primary uppercase tracking-wide">Lectures ({lectures.length})</h3>
                     <div className="flex items-center gap-2">
                       <Link
                         href={`${basePath}/upload`}

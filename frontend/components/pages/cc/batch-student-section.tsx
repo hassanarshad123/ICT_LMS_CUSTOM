@@ -11,6 +11,7 @@ import {
   Upload,
   Loader2,
   CalendarPlus,
+  Search,
 } from 'lucide-react';
 
 export interface BatchStudentSectionProps {
@@ -32,6 +33,13 @@ export interface BatchStudentSectionProps {
   batchName?: string;
   batchEndDate?: string;
   onImportComplete?: () => void;
+  /** Pagination */
+  studentsTotal?: number;
+  studentsPage?: number;
+  studentsTotalPages?: number;
+  onSetStudentsPage?: (page: number) => void;
+  studentSearch?: string;
+  onStudentSearchChange?: (search: string) => void;
 }
 
 export function BatchStudentSection({
@@ -47,6 +55,12 @@ export function BatchStudentSection({
   batchName,
   batchEndDate,
   onImportComplete,
+  studentsTotal,
+  studentsPage,
+  studentsTotalPages,
+  onSetStudentsPage,
+  studentSearch,
+  onStudentSearchChange,
 }: BatchStudentSectionProps) {
   const [showImport, setShowImport] = useState(false);
   const [extendingStudent, setExtendingStudent] = useState<{ id: string; name: string; effectiveEndDate?: string } | null>(null);
@@ -126,7 +140,21 @@ export function BatchStudentSection({
       {/* Enrolled Students Table */}
       <div className="bg-white rounded-2xl card-shadow overflow-hidden mb-6">
         <div className="px-6 py-4 border-b border-gray-100">
-          <h3 className="text-lg font-semibold text-primary">Enrolled Students ({Array.isArray(students) ? students.length : 0})</h3>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <h3 className="text-lg font-semibold text-primary">Enrolled Students ({studentsTotal ?? (Array.isArray(students) ? students.length : 0)})</h3>
+            {onStudentSearchChange && (
+              <div className="relative w-full sm:w-64">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search students..."
+                  value={studentSearch ?? ''}
+                  onChange={(e) => onStudentSearchChange(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-primary"
+                />
+              </div>
+            )}
+          </div>
         </div>
         {studentsLoading ? (
           <div className="flex items-center gap-2 py-8 justify-center">
@@ -235,6 +263,19 @@ export function BatchStudentSection({
             </div>
           </>
 
+        )}
+
+        {onSetStudentsPage && studentsPage && studentsTotalPages && studentsTotalPages > 1 && (Array.isArray(students) && students.length > 0) && (
+          <div className="flex flex-col sm:flex-row items-center justify-between px-6 py-4 border-t border-gray-100">
+            <p className="text-sm text-gray-500 mb-2 sm:mb-0">
+              <span className="hidden sm:inline">Page {studentsPage} of {studentsTotalPages} ({studentsTotal} students)</span>
+              <span className="sm:hidden">{studentsPage}/{studentsTotalPages}</span>
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => onSetStudentsPage(studentsPage - 1)} disabled={studentsPage === 1} className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">Previous</button>
+              <button onClick={() => onSetStudentsPage(studentsPage + 1)} disabled={studentsPage === studentsTotalPages} className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">Next</button>
+            </div>
+          </div>
         )}
       </div>
     </>

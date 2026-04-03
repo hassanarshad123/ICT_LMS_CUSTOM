@@ -1,4 +1,5 @@
 import { apiClient } from './client';
+import { PaginatedResponse } from '@/lib/types/api';
 
 export interface BatchOut {
   id: string;
@@ -102,9 +103,13 @@ export async function deleteBatch(batchId: string): Promise<void> {
   return apiClient(`/batches/${batchId}`, { method: 'DELETE' });
 }
 
-export async function listBatchStudents(batchId: string) {
-  const res = await apiClient(`/batches/${batchId}/students`);
-  return res.data ?? res;
+export async function listBatchStudents(
+  batchId: string,
+  params?: { page?: number; per_page?: number; search?: string },
+): Promise<PaginatedResponse<any>> {
+  return apiClient(`/batches/${batchId}/students`, {
+    params: params as Record<string, string | number | undefined>,
+  });
 }
 
 export async function enrollStudent(batchId: string, studentId: string) {

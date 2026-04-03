@@ -34,7 +34,8 @@ export default function TeacherBatches() {
     if (!batchStudents[batchId]) {
       setLoadingStudents(batchId);
       try {
-        const students = await listBatchStudents(batchId);
+        const res = await listBatchStudents(batchId);
+        const students = res.data ?? res;
         setBatchStudents((prev) => ({ ...prev, [batchId]: Array.isArray(students) ? students : [] }));
       } catch (err: any) {
         toast.error(err.message || 'Unable to load students for this batch');

@@ -6,6 +6,7 @@ import DashboardLayout from '@/components/layout/dashboard-layout';
 import { useAuth } from '@/lib/auth-context';
 import { useBasePath } from '@/hooks/use-base-path';
 import { useApi, useMutation } from '@/hooks/use-api';
+import { usePaginatedApi } from '@/hooks/use-paginated-api';
 import { getBatch, listBatchCourses, listBatchStudents, enrollStudent, updateBatch, toggleEnrollmentActive } from '@/lib/api/batches';
 import { listUsers } from '@/lib/api/users';
 import { listLectures, createLecture, deleteLecture, bulkReorderLectures, LectureOut } from '@/lib/api/lectures';
@@ -104,10 +105,26 @@ export default function BatchContentPage() {
 
   // Student management
   const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [studentSearch, setStudentSearch] = useState('');
+  const [debouncedStudentSearch, setDebouncedStudentSearch] = useState('');
 
-  const { data: students, loading: studentsLoading, refetch: refetchStudents } = useApi(
-    () => listBatchStudents(batchId),
-    [batchId],
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedStudentSearch(studentSearch), 300);
+    return () => clearTimeout(t);
+  }, [studentSearch]);
+
+  const {
+    data: students,
+    total: studentsTotal,
+    page: studentsPage,
+    totalPages: studentsTotalPages,
+    loading: studentsLoading,
+    setPage: setStudentsPage,
+    refetch: refetchStudents,
+  } = usePaginatedApi(
+    (params) => listBatchStudents(batchId, { ...params, search: debouncedStudentSearch || undefined }),
+    20,
+    [batchId, debouncedStudentSearch],
   );
 
   const { data: allStudentsData } = useApi(
@@ -526,6 +543,12 @@ export default function BatchContentPage() {
         batchName={batch?.name}
         batchEndDate={batch?.endDate}
         onImportComplete={() => { refetchStudents(); refetchBatch(); }}
+        studentsTotal={studentsTotal}
+        studentsPage={studentsPage}
+        studentsTotalPages={studentsTotalPages}
+        onSetStudentsPage={setStudentsPage}
+        studentSearch={studentSearch}
+        onStudentSearchChange={setStudentSearch}
       />
 
       {/* Content grouped by course */}

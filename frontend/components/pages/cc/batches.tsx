@@ -94,7 +94,8 @@ export default function CourseCreatorBatches() {
     if (!batchStudents[batchId]) {
       setLoadingStudents(batchId);
       try {
-        const students = await listBatchStudents(batchId);
+        const res = await listBatchStudents(batchId);
+        const students = res.data ?? res;
         setBatchStudents((prev) => ({ ...prev, [batchId]: Array.isArray(students) ? students : [] }));
       } catch {
         setBatchStudents((prev) => ({ ...prev, [batchId]: [] }));
