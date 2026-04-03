@@ -446,28 +446,36 @@ async def get_fresh_start_url(
 
     from app.utils.zoom_api import get_meeting
     try:
+        logger.info("Fetching fresh start_url: class=%s meeting_id=%s account=%s",
+                     class_id, zc.zoom_meeting_id, account.account_name)
         meeting = await get_meeting(
             account.account_id, account.client_id,
             account.client_secret, zc.zoom_meeting_id,
         )
     except Exception as e:
-        logger.error("Failed to fetch fresh meeting URLs for %s: %s", zc.zoom_meeting_id, e)
-        raise HTTPException(status_code=502, detail="Could not fetch meeting from Zoom")
+        logger.warning("Failed to fetch fresh meeting URLs for %s: %s — falling back to stored URLs",
+                       zc.zoom_meeting_id, e)
+        meeting = None
 
-    if not meeting:
-        raise HTTPException(status_code=404, detail="Meeting not found on Zoom")
+    # Use fresh URLs if available, otherwise fall back to stored URLs
+    start_url = (meeting.get("start_url") if meeting else None) or zc.zoom_start_url
+    join_url = (meeting.get("join_url") if meeting else None) or zc.zoom_meeting_url
 
-    # Update stored URLs with fresh ones
-    if meeting.get("start_url"):
-        zc.zoom_start_url = meeting["start_url"]
-    if meeting.get("join_url"):
-        zc.zoom_meeting_url = meeting["join_url"]
-    session.add(zc)
-    await session.commit()
+    if not start_url and not join_url:
+        raise HTTPException(status_code=404, detail="No meeting URL available")
+
+    # Update stored URLs with fresh ones if we got them
+    if meeting:
+        if meeting.get("start_url"):
+            zc.zoom_start_url = meeting["start_url"]
+        if meeting.get("join_url"):
+            zc.zoom_meeting_url = meeting["join_url"]
+        session.add(zc)
+        await session.commit()
 
     return {
-        "start_url": meeting.get("start_url"),
-        "join_url": meeting.get("join_url"),
+        "start_url": start_url,
+        "join_url": join_url,
     }
 
 

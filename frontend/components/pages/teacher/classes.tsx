@@ -23,17 +23,23 @@ export default function TeacherZoom() {
 
   const [startingClassId, setStartingClassId] = useState<string | null>(null);
 
-  const handleStartClass = async (classId: string) => {
+  const handleStartClass = async (classId: string, fallbackUrl?: string) => {
     setStartingClassId(classId);
     try {
       const res = await getFreshStartUrl(classId);
-      if (res.startUrl) {
-        window.open(res.startUrl, '_blank');
+      const url = res.startUrl || res.joinUrl;
+      if (url) {
+        window.open(url, '_blank');
       } else {
-        toast.error('Could not get start URL from Zoom');
+        toast.error('No meeting URL available');
       }
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to start class');
+    } catch {
+      // If fresh URL fetch fails, fall back to stored URL
+      if (fallbackUrl) {
+        window.open(fallbackUrl, '_blank');
+      } else {
+        toast.error('Could not open Zoom meeting');
+      }
     } finally {
       setStartingClassId(null);
     }
@@ -88,7 +94,7 @@ export default function TeacherZoom() {
                       </div>
                       {(cls.zoomStartUrl || cls.zoomMeetingUrl) && (
                         <button
-                          onClick={() => handleStartClass(cls.id)}
+                          onClick={() => handleStartClass(cls.id, cls.zoomStartUrl || cls.zoomMeetingUrl)}
                           disabled={startingClassId === cls.id}
                           className="px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors flex items-center gap-2 flex-shrink-0 w-full sm:w-auto justify-center disabled:opacity-60"
                         >
