@@ -44,7 +44,7 @@ export default function StudentZoom() {
   );
 
   const classes = classesData?.data || [];
-  const upcoming = classes.filter((z) => z.status === 'upcoming' || z.status === 'scheduled');
+  const upcoming = classes.filter((z) => z.status === 'upcoming' || z.status === 'scheduled' || z.status === 'live');
   const completed = classes.filter((z) => z.status === 'completed');
 
   return (

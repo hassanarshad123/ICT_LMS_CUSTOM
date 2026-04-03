@@ -37,6 +37,10 @@ async def lifespan(app: FastAPI):
         except Exception:
             pass
 
+    # Startup — Zoom API httpx client (connection pooling)
+    from app.utils.zoom_api import startup as zoom_startup, shutdown as zoom_shutdown
+    await zoom_startup()
+
     # Startup — WebSocket Pub/Sub listener (cross-worker notification delivery)
     from app.websockets.pubsub import start_pubsub_listener
     pubsub_task = await start_pubsub_listener()
@@ -75,6 +79,7 @@ async def lifespan(app: FastAPI):
         app.state.scheduler.shutdown()
     if pubsub_task is not None:
         pubsub_task.cancel()
+    await zoom_shutdown()
     await close_redis()
 
 

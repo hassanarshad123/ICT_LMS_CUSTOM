@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import DashboardHeader from '@/components/layout/dashboard-header';
+import { useAuth } from '@/lib/auth-context';
 import { usePaginatedApi } from '@/hooks/use-paginated-api';
 import { listRecordings, getRecordingSignedUrl, RecordingItem } from '@/lib/api/zoom';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
-import { PlayCircle, Calendar, Clock, User, Layers, X, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { PlayCircle, Calendar, Clock, User, Layers, X, Loader2, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
 
 function formatFileSize(bytes?: number): string {
   if (!bytes) return '';
@@ -24,6 +25,8 @@ function formatDuration(minutes?: number): string {
 }
 
 export default function RecordingsPage() {
+  const { role } = useAuth();
+  const isAdmin = role === 'admin' || role === 'course-creator';
   const { data: recordings, total, page, totalPages, loading, error, setPage, refetch } = usePaginatedApi(
     ({ page: p, per_page: pp }) => listRecordings({ page: p, per_page: pp }),
     20,
@@ -32,6 +35,30 @@ export default function RecordingsPage() {
   const [embedUrl, setEmbedUrl] = useState<string | null>(null);
   const [playerLoading, setPlayerLoading] = useState(false);
   const [playerError, setPlayerError] = useState<string | null>(null);
+  const expiresAtRef = useRef<number | null>(null);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const REFRESH_BUFFER = 5 * 60; // Refresh 5 minutes before expiry
+
+  const fetchAndSetUrl = useCallback(async (recordingId: string) => {
+    // Clear any existing timer to prevent stacking
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = null;
+    }
+    const res = await getRecordingSignedUrl(recordingId);
+    setEmbedUrl(res.url);
+    expiresAtRef.current = res.expiresAt || null;
+    // Schedule next refresh
+    if (res.expiresAt) {
+      const msUntilRefresh = (res.expiresAt - Math.floor(Date.now() / 1000) - REFRESH_BUFFER) * 1000;
+      if (msUntilRefresh > 0) {
+        refreshTimerRef.current = setTimeout(() => {
+          fetchAndSetUrl(recordingId).catch(() => {});
+        }, msUntilRefresh);
+      }
+    }
+  }, []);
 
   const openPlayer = async (rec: RecordingItem) => {
     setSelectedRecording(rec);
@@ -39,8 +66,7 @@ export default function RecordingsPage() {
     setPlayerError(null);
     setEmbedUrl(null);
     try {
-      const res = await getRecordingSignedUrl(rec.id);
-      setEmbedUrl(res.url);
+      await fetchAndSetUrl(rec.id);
     } catch (err: any) {
       setPlayerError(err.message || 'Could not load recording');
     } finally {
@@ -52,7 +78,35 @@ export default function RecordingsPage() {
     setSelectedRecording(null);
     setEmbedUrl(null);
     setPlayerError(null);
+    expiresAtRef.current = null;
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = null;
+    }
   };
+
+  // Refresh token when tab becomes visible again (handles laptop sleep/resume)
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (!selectedRecording || !expiresAtRef.current) return;
+      const secondsLeft = expiresAtRef.current - Math.floor(Date.now() / 1000);
+      if (secondsLeft < REFRESH_BUFFER) {
+        fetchAndSetUrl(selectedRecording.id).catch(() => {});
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [selectedRecording, fetchAndSetUrl]);
+
+  // Cleanup timer on component unmount
+  useEffect(() => {
+    return () => {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+      }
+    };
+  }, []);
 
   return (
     <DashboardLayout>
@@ -74,8 +128,9 @@ export default function RecordingsPage() {
           {recordings.map((rec) => (
             <button
               key={rec.id}
-              onClick={() => openPlayer(rec)}
-              className="bg-white rounded-2xl card-shadow hover:card-shadow-hover transition-all duration-200 overflow-hidden text-left group"
+              onClick={() => rec.status === 'ready' ? openPlayer(rec) : isAdmin ? openPlayer(rec) : null}
+              disabled={rec.status !== 'ready' && !isAdmin}
+              className="bg-white rounded-2xl card-shadow hover:card-shadow-hover transition-all duration-200 overflow-hidden text-left group disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {/* Thumbnail */}
               <div className="aspect-video bg-gray-900 relative overflow-hidden">
@@ -99,6 +154,12 @@ export default function RecordingsPage() {
                   <span className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-0.5 rounded">
                     {formatDuration(rec.duration)}
                   </span>
+                )}
+                {isAdmin && rec.status === 'processing' && (
+                  <span className="absolute top-2 left-2 bg-yellow-500 text-white text-xs px-2 py-0.5 rounded font-medium">Processing</span>
+                )}
+                {isAdmin && rec.status === 'failed' && (
+                  <span className="absolute top-2 left-2 bg-red-500 text-white text-xs px-2 py-0.5 rounded font-medium">Failed</span>
                 )}
               </div>
 
@@ -155,12 +216,25 @@ export default function RecordingsPage() {
                   {selectedRecording.teacherName} &middot; {selectedRecording.scheduledDate}
                 </p>
               </div>
-              <button
-                onClick={closePlayer}
-                className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors"
-              >
-                <X size={18} className="text-gray-500" />
-              </button>
+              <div className="flex items-center gap-2">
+                {embedUrl && (
+                  <a
+                    href={embedUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors"
+                    title="Open in new tab"
+                  >
+                    <ExternalLink size={18} className="text-gray-500" />
+                  </a>
+                )}
+                <button
+                  onClick={closePlayer}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors"
+                >
+                  <X size={18} className="text-gray-500" />
+                </button>
+              </div>
             </div>
 
             {/* Player */}

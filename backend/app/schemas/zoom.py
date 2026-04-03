@@ -1,7 +1,8 @@
+import re
 import uuid
 from datetime import date, datetime
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class ZoomAccountCreate(BaseModel):
@@ -43,6 +44,16 @@ class ZoomClassCreate(BaseModel):
     scheduled_date: date
     scheduled_time: str
     duration: int
+
+    @field_validator('scheduled_time')
+    @classmethod
+    def validate_time_format(cls, v: str) -> str:
+        if not re.match(r'^\d{2}:\d{2}$', v):
+            raise ValueError('scheduled_time must be in HH:MM format')
+        h, m = int(v[:2]), int(v[3:5])
+        if h > 23 or m > 59:
+            raise ValueError('Invalid time value')
+        return v
 
 
 class ZoomClassUpdate(BaseModel):
@@ -116,3 +127,4 @@ class RecordingListOut(BaseModel):
 class RecordingSignedUrlOut(BaseModel):
     url: str
     type: str
+    expires_at: Optional[int] = None  # Unix timestamp when token expires
