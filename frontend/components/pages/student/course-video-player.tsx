@@ -139,6 +139,13 @@ export function CourseVideoPlayer({
 }: CourseVideoPlayerProps) {
   return (
     <>
+      {/* Lecture / Recording Title Heading */}
+      {nowPlaying && !(playlistTab === 'lectures' && activeLecture?.isLocked) && (
+        <h2 className="text-xl sm:text-2xl font-bold text-primary mb-3">
+          {nowPlaying.title}
+        </h2>
+      )}
+
       {/* Video Player + Playlist Side by Side */}
       <div className="flex flex-col lg:flex-row gap-4 sm:gap-6 mb-4 sm:mb-8">
         {/* Left: Video Player */}
