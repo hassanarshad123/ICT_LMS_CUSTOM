@@ -195,12 +195,12 @@ export default function RecordingsPage() {
             Showing {(page - 1) * 20 + 1}–{Math.min(page * 20, total)} of {total} recordings
           </p>
           <div className="flex items-center gap-2">
-            <button onClick={() => setPage(page - 1)} disabled={page <= 1} className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
-              <ChevronLeft size={16} />
+            <button onClick={() => setPage(page - 1)} disabled={page <= 1} className="p-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed min-w-[44px] min-h-[44px] flex items-center justify-center">
+              <ChevronLeft size={18} />
             </button>
             <span className="text-sm text-gray-600 px-2">Page {page} of {totalPages}</span>
-            <button onClick={() => setPage(page + 1)} disabled={page >= totalPages} className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
-              <ChevronRight size={16} />
+            <button onClick={() => setPage(page + 1)} disabled={page >= totalPages} className="p-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed min-w-[44px] min-h-[44px] flex items-center justify-center">
+              <ChevronRight size={18} />
             </button>
           </div>
         </div>

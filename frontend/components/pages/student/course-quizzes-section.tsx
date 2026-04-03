@@ -6,6 +6,7 @@ import {
   CheckCircle,
   XCircle,
   ArrowRight,
+  Lock,
 } from 'lucide-react';
 import Link from 'next/link';
 import type { Quiz, QuizAttempt } from '@/lib/api/quizzes';
@@ -19,6 +20,7 @@ export interface CourseQuizzesSectionProps {
   myAttemptsLoading: boolean;
   courseId: string;
   basePath: string;
+  accessExpired?: boolean;
 }
 
 /* ─── Component ──────────────────────────────────────────────────── */
@@ -30,6 +32,7 @@ export function CourseQuizzesSection({
   myAttemptsLoading,
   courseId,
   basePath,
+  accessExpired,
 }: CourseQuizzesSectionProps) {
   return (
     <div className="bg-white rounded-2xl card-shadow p-6 mt-8">
@@ -107,7 +110,12 @@ export function CourseQuizzesSection({
                   </div>
                 </div>
                 <div className="flex-shrink-0 w-full sm:w-auto">
-                  {canAttempt ? (
+                  {accessExpired ? (
+                    <span className="inline-flex items-center gap-1.5 px-4 py-2 bg-gray-100 text-gray-400 text-xs font-medium rounded-lg cursor-not-allowed">
+                      <Lock size={12} />
+                      Access Expired
+                    </span>
+                  ) : canAttempt ? (
                     <Link
                       href={`${basePath}/courses/${courseId}/quizzes/${quiz.id}/take`}
                       className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-primary text-white text-xs font-medium rounded-lg hover:bg-primary/80 transition-colors w-full sm:w-auto"

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { useAuth } from '@/lib/auth-context';
@@ -113,8 +113,31 @@ export default function CourseDetailPage() {
   const publishedQuizzes = (quizzesData?.data || []).filter((q) => q.isPublished);
   const myAttempts = myAttemptsData?.data || [];
 
-  // Auto-select first lecture/recording when data loads
-  const activeLecture = lectures.find((l) => l.id === selectedLecture) || lectures[0] || null;
+  // Auto-resume: select last in-progress lecture, or first unlocked lecture
+  const autoResumedRef = useRef(false);
+  useEffect(() => {
+    if (autoResumedRef.current || lectures.length === 0) return;
+    autoResumedRef.current = true;
+    const sorted = [...lectures].sort((a, b) => a.sequenceOrder - b.sequenceOrder);
+    // Find last in-progress lecture (highest sequence order with in_progress status)
+    const inProgress = sorted
+      .filter((l) => l.progressStatus === 'in_progress' && !l.isLocked)
+      .sort((a, b) => b.sequenceOrder - a.sequenceOrder);
+    if (inProgress.length > 0) {
+      setSelectedLecture(inProgress[0].id);
+      return;
+    }
+    // Fallback: first unlocked lecture that isn't completed
+    const firstUnlocked = sorted.find((l) => !l.isLocked && l.progressStatus !== 'completed');
+    if (firstUnlocked) {
+      setSelectedLecture(firstUnlocked.id);
+      return;
+    }
+    // All completed or all locked: select first lecture
+    if (sorted[0]) setSelectedLecture(sorted[0].id);
+  }, [lectures.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const activeLecture = lectures.find((l) => l.id === selectedLecture) || null;
   const activeRecording = recordings.find((r) => r.id === selectedRecording) || recordings[0] || null;
 
   const nowPlaying = playlistTab === 'lectures'
@@ -345,6 +368,7 @@ export default function CourseDetailPage() {
         myAttemptsLoading={myAttemptsLoading}
         courseId={courseId}
         basePath={basePath}
+        accessExpired={accessExpired}
       />
     </DashboardLayout>
   );

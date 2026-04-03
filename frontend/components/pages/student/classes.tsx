@@ -7,8 +7,33 @@ import { useBasePath } from '@/hooks/use-base-path';
 import { useApi } from '@/hooks/use-api';
 import { listClasses } from '@/lib/api/zoom';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
-import { Video, ExternalLink, Clock, Calendar } from 'lucide-react';
+import { Video, ExternalLink, Clock, Calendar, PlayCircle } from 'lucide-react';
 import AttendancePanel from '@/components/shared/attendance-panel';
+import Link from 'next/link';
+
+function formatRelativeTime(dateStr: string, timeStr: string): string {
+  try {
+    const classTime = new Date(`${dateStr}T${timeStr}`);
+    const now = new Date();
+    const diff = classTime.getTime() - now.getTime();
+    if (diff <= 0) return 'Starting now';
+    const hours = Math.floor(diff / 3600000);
+    const mins = Math.floor((diff % 3600000) / 60000);
+    if (hours >= 24) return `in ${Math.floor(hours / 24)}d ${hours % 24}h`;
+    return hours > 0 ? `Starts in ${hours}h ${mins}m` : `Starts in ${mins}m`;
+  } catch {
+    return '';
+  }
+}
+
+function formatFriendlyDate(dateStr: string): string {
+  try {
+    const d = new Date(dateStr + 'T00:00:00');
+    return d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+  } catch {
+    return dateStr;
+  }
+}
 
 export default function StudentZoom() {
   const { name } = useAuth();
@@ -51,7 +76,7 @@ export default function StudentZoom() {
                           <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-3">
                             <div className="flex items-center gap-1.5 text-sm text-gray-600">
                               <Calendar size={14} />
-                              {cls.scheduledDate}
+                              {formatFriendlyDate(cls.scheduledDate)}
                             </div>
                             <div className="flex items-center gap-1.5 text-sm text-gray-600">
                               <Clock size={14} />
@@ -61,9 +86,12 @@ export default function StudentZoom() {
                               {cls.durationDisplay || `${cls.duration} min`}
                             </span>
                           </div>
+                          <p className="text-xs font-medium text-primary mt-2">
+                            {formatRelativeTime(cls.scheduledDate, cls.scheduledTime)}
+                          </p>
                         </div>
                       </div>
-                      {cls.zoomMeetingUrl && (
+                      {cls.zoomMeetingUrl ? (
                         <a
                           href={cls.zoomMeetingUrl}
                           target="_blank"
@@ -73,6 +101,8 @@ export default function StudentZoom() {
                           <ExternalLink size={14} />
                           Join Class
                         </a>
+                      ) : (
+                        <span className="text-xs text-gray-400 italic">Join link will be available soon</span>
                       )}
                     </div>
                   </div>
@@ -96,7 +126,7 @@ export default function StudentZoom() {
               <div className="space-y-3">
                 {completed.map((cls) => (
                   <div key={cls.id} className="bg-white rounded-2xl p-5 card-shadow">
-                    <div className="flex items-center justify-between opacity-70">
+                    <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
                         <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
                           <Video size={18} className="text-gray-400" />
@@ -108,9 +138,15 @@ export default function StudentZoom() {
                           )}
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm text-gray-600">{cls.scheduledDate}</p>
-                        <p className="text-xs text-gray-500">{cls.scheduledTime}</p>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <p className="text-sm text-gray-600">{formatFriendlyDate(cls.scheduledDate)}</p>
+                          <p className="text-xs text-gray-500">{cls.scheduledTime}</p>
+                        </div>
+                        <Link href={`${basePath}/recordings`} className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-primary border border-primary/20 rounded-lg hover:bg-primary/5 transition-colors">
+                          <PlayCircle size={12} />
+                          Recordings
+                        </Link>
                       </div>
                     </div>
                     <AttendancePanel classId={cls.id} />

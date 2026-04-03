@@ -80,10 +80,13 @@ export function CourseMaterialsSection({
                 <button
                   onClick={() => onDownload(material.id)}
                   disabled={downloadingId === material.id}
-                  className="flex-shrink-0 p-2 bg-primary text-white rounded-lg hover:bg-primary/80 transition-colors disabled:opacity-60"
+                  className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 bg-primary text-white rounded-lg hover:bg-primary/80 transition-colors disabled:opacity-60 min-h-[40px]"
                 >
                   {downloadingId === material.id ? (
-                    <Loader2 size={14} className="animate-spin" />
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      <span className="text-xs sm:hidden">Downloading...</span>
+                    </>
                   ) : (
                     <Download size={14} />
                   )}

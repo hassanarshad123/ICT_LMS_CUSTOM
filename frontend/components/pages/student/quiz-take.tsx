@@ -53,6 +53,8 @@ export default function QuizTake({ quizId, courseId }: QuizTakeProps) {
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const autoSubmitRef = useRef(false);
+  const warned5minRef = useRef(false);
+  const warned1minRef = useRef(false);
 
   const loading = quizLoading || attemptsLoading;
 
@@ -68,9 +70,19 @@ export default function QuizTake({ quizId, courseId }: QuizTakeProps) {
     if (timeRemaining <= 0) {
       if (!autoSubmitRef.current) {
         autoSubmitRef.current = true;
+        toast("Time's up! Your quiz has been submitted.");
         handleSubmit();
       }
       return;
+    }
+
+    if (timeRemaining === 300 && !warned5minRef.current) {
+      warned5minRef.current = true;
+      toast.warning('5 minutes remaining');
+    }
+    if (timeRemaining === 60 && !warned1minRef.current) {
+      warned1minRef.current = true;
+      toast.warning('1 minute remaining! Submit soon.');
     }
 
     timerRef.current = setTimeout(() => {
@@ -103,6 +115,8 @@ export default function QuizTake({ quizId, courseId }: QuizTakeProps) {
       setAnswers({});
       setCurrentQuestionIndex(0);
       autoSubmitRef.current = false;
+      warned5minRef.current = false;
+      warned1minRef.current = false;
 
       if (quiz?.timeLimitMinutes) {
         setTimeRemaining(quiz.timeLimitMinutes * 60);

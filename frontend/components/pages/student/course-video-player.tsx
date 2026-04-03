@@ -44,7 +44,7 @@ function LectureThumbnail({
   const [imgError, setImgError] = useState(false);
 
   return (
-    <div className="w-[88px] h-[50px] sm:w-[120px] sm:h-[68px] rounded-lg overflow-hidden flex-shrink-0 relative bg-gray-100">
+    <div className="w-[100px] h-[56px] sm:w-[120px] sm:h-[68px] rounded-lg overflow-hidden flex-shrink-0 relative bg-gray-100">
       {!imgError ? (
         <img
           src={thumbnailUrl}
@@ -157,10 +157,19 @@ export function CourseVideoPlayer({
                   <Lock size={48} className="text-gray-400 mx-auto mb-3" />
                   <p className="text-white text-sm font-medium mb-1">This lecture is locked</p>
                   <p className="text-gray-400 text-xs mb-4">
-                    Complete the previous lecture to unlock this one.
-                    {activeLecture.watchPercentage != null && activeLecture.watchPercentage > 0 && (
-                      <span className="block mt-1">Previous lecture: {activeLecture.watchPercentage}% watched</span>
-                    )}
+                    {(() => {
+                      const idx = sortedLectures.findIndex(l => l.id === activeLecture.id);
+                      const prev = idx > 0 ? sortedLectures[idx - 1] : null;
+                      if (prev) {
+                        const pct = prev.watchPercentage ?? 0;
+                        return (
+                          <>
+                            Complete &ldquo;{prev.title}&rdquo; {pct > 0 ? `(${pct}% done)` : ''} to unlock this lecture.
+                          </>
+                        );
+                      }
+                      return 'Complete the previous lecture to unlock this one.';
+                    })()}
                   </p>
                   {sortedLectures.length > 0 && (
                     <button
@@ -269,9 +278,7 @@ export function CourseVideoPlayer({
                             isLocked
                               ? 'opacity-50 cursor-not-allowed bg-gray-50'
                               : isActive
-                                ? hasThumbnail
-                                  ? 'bg-primary/5 border-l-[3px] border-l-primary'
-                                  : 'bg-primary text-white'
+                                ? 'bg-primary/5 border-l-[3px] border-l-primary'
                                 : 'hover:bg-gray-50 text-primary'
                           }`}
                         >
@@ -303,16 +310,13 @@ export function CourseVideoPlayer({
                           <div className="flex-1 min-w-0">
                             <p className={`text-sm font-medium truncate ${
                               isLocked ? 'text-gray-400'
-                                : isActive
-                                  ? hasThumbnail ? 'text-primary font-semibold' : 'text-white'
+                                : isActive ? 'text-primary font-semibold'
                                   : 'text-primary'
                             }`}>
                               {lecture.title}
                             </p>
                             <div className={`flex items-center gap-1 text-xs mt-0.5 ${
-                              isActive
-                                ? hasThumbnail ? 'text-gray-500' : 'text-gray-300'
-                                : 'text-gray-400'
+                              isActive ? 'text-gray-500' : 'text-gray-400'
                             }`}>
                               {!hasThumbnail && <Clock size={10} />}
                               {!hasThumbnail && (lecture.durationDisplay || `${lecture.duration || 0}s`)}
@@ -327,7 +331,7 @@ export function CourseVideoPlayer({
                           {!hasThumbnail && (
                             <>
                               {isLocked && <Lock size={14} className="text-gray-300 flex-shrink-0" />}
-                              {!isLocked && isActive && <PlayCircle size={16} className="text-accent flex-shrink-0" />}
+                              {!isLocked && isActive && <PlayCircle size={16} className="text-primary flex-shrink-0" />}
                               {!isLocked && !isActive && isCompleted && <CheckCircle2 size={14} className="text-green-500 flex-shrink-0" />}
                             </>
                           )}

@@ -219,9 +219,9 @@ export default function StudentJobs() {
                     </div>
                     <div className="flex items-center gap-3 flex-shrink-0">
                       {job.deadline && (
-                        <div className="text-right hidden sm:block">
+                        <div className="text-right">
                           <p className="text-xs text-gray-500">Deadline</p>
-                          <p className="text-sm font-medium text-primary">{job.deadline}</p>
+                          <p className="text-xs sm:text-sm font-medium text-primary">{job.deadline}</p>
                         </div>
                       )}
                       {isExpanded ? <ChevronUp size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />}

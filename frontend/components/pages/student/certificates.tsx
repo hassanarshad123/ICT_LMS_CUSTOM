@@ -36,7 +36,7 @@ function ProgressBar({ percentage, threshold }: { percentage: number; threshold:
     <div className="mt-3">
       <div className="flex items-center justify-between text-xs mb-1.5">
         <span className="font-medium text-gray-600">{percentage}% complete</span>
-        <span className="text-gray-400">Threshold: {threshold}%</span>
+        <span className="text-gray-400">Need {threshold}% to earn certificate</span>
       </div>
       <div className="relative w-full h-2.5 bg-gray-200 rounded-full overflow-hidden">
         <div
@@ -196,9 +196,10 @@ export default function StudentCertificates() {
                 )}
 
                 {course.status === 'revoked' && (
-                  <p className="text-xs text-red-500 text-center py-2">
-                    This certificate has been revoked
-                  </p>
+                  <div className="text-center py-2">
+                    <p className="text-xs text-red-500">This certificate has been revoked</p>
+                    <p className="text-xs text-gray-400 mt-0.5">Contact your institute for details</p>
+                  </div>
                 )}
               </div>
             </div>

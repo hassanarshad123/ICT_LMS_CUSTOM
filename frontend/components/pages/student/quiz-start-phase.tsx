@@ -105,6 +105,13 @@ export function QuizStartPhase({
             </div>
           )}
 
+          {canAttempt && (quiz.maxAttempts - completedAttempts.length) === 1 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center gap-2 mb-3">
+              <AlertTriangle size={14} className="text-amber-500 flex-shrink-0" />
+              <p className="text-xs text-amber-700">This is your last attempt. Make sure you&apos;re ready before starting.</p>
+            </div>
+          )}
+
           {canAttempt ? (
             <button
               onClick={onStartQuiz}

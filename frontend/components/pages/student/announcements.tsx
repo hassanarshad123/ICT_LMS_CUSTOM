@@ -20,7 +20,7 @@ import {
 
 const SCOPE_OPTIONS = [
   { value: 'institute', label: 'Institute-wide', color: 'bg-blue-100 text-blue-700' },
-  { value: 'batch', label: 'Batch', color: 'bg-purple-100 text-purple-700' },
+  { value: 'batch', label: 'Your Batch', color: 'bg-purple-100 text-purple-700' },
   { value: 'course', label: 'Course', color: 'bg-green-100 text-green-700' },
 ];
 

@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import SettingsView from '@/components/shared/settings-view';
 import { useAuth } from '@/lib/auth-context';
 import { useBasePath } from '@/hooks/use-base-path';
 import { useApi, useMutation } from '@/hooks/use-api';
 import { getEmailPreferences, updateEmailPreferences, type EmailPreferenceItem } from '@/lib/api/users';
-import { Mail, Save, Loader2 } from 'lucide-react';
+import { Mail, Save, Loader2, Check } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function StudentSettings() {
@@ -27,11 +27,16 @@ export default function StudentSettings() {
   const { execute: doSave, loading: saving } = useMutation(
     (p: Array<{ emailType: string; subscribed: boolean }>) => updateEmailPreferences(p),
   );
+  const [saved, setSaved] = useState(false);
+  const savedTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleSave = async () => {
     try {
       await doSave(prefs.map((p) => ({ emailType: p.emailType, subscribed: p.subscribed })));
       toast.success('Email preferences saved');
+      setSaved(true);
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = setTimeout(() => setSaved(false), 2000);
     } catch {
       toast.error('Failed to save preferences');
     }
@@ -95,8 +100,8 @@ export default function StudentSettings() {
             disabled={saving || prefs.length === 0}
             className="mt-4 flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white rounded-xl bg-primary hover:bg-primary/80 transition-colors disabled:opacity-50"
           >
-            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-            Save Preferences
+            {saving ? <Loader2 size={16} className="animate-spin" /> : saved ? <Check size={16} /> : <Save size={16} />}
+            {saved ? 'Saved!' : 'Save Preferences'}
           </button>
         </div>
       }

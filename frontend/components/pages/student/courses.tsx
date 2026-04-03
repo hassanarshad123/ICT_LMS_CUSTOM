@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import DashboardHeader from '@/components/layout/dashboard-header';
+import { useAuth } from '@/lib/auth-context';
 import { useBasePath } from '@/hooks/use-base-path';
 import { usePaginatedApi } from '@/hooks/use-paginated-api';
 import { listCourses } from '@/lib/api/courses';
@@ -12,14 +13,24 @@ import { BookOpen, ChevronRight, Search, ChevronLeft } from 'lucide-react';
 import Link from 'next/link';
 
 export default function StudentCourses() {
+  const { batchIds } = useAuth();
   const basePath = useBasePath();
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Filter by first batch ID to scope courses to student's enrollment
+  const batchId = batchIds?.[0];
+
   const { data: courses, total, page, totalPages, loading, error, setPage, refetch } = usePaginatedApi(
-    ({ page: p, per_page: pp }) => listCourses({ page: p, per_page: pp, search: search || undefined, status: statusFilter || undefined }),
+    ({ page: p, per_page: pp }) => listCourses({ page: p, per_page: pp, search: debouncedSearch || undefined, status: statusFilter || undefined, batch_id: batchId || undefined }),
     12,
-    [search, statusFilter],
+    [debouncedSearch, statusFilter, batchId],
   );
 
   const statuses = [
@@ -69,12 +80,15 @@ export default function StudentCourses() {
         <EmptyState
           icon={<BookOpen size={28} className="text-gray-400" />}
           title="No courses found"
-          description={search ? `No courses match "${search}". Try a different search.` : "Courses for your batch will appear here once they are published."}
+          description={search ? `No courses match "${search}". Try a different search.` : "Your courses will appear here once your institute assigns them to your batch."}
         />
       )}
 
       {!loading && !error && courses.length > 0 && (
         <>
+          {(debouncedSearch || statusFilter) && (
+            <p className="text-sm text-gray-500 mb-4">Found {total} course{total !== 1 ? 's' : ''}{debouncedSearch ? ` matching "${debouncedSearch}"` : ''}</p>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {courses.map((course) => (
               <Link key={course.id} href={`${basePath}/courses/${course.id}`}>

@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import DashboardHeader from '@/components/layout/dashboard-header';
 import { useAuth } from '@/lib/auth-context';
@@ -8,8 +9,9 @@ import { useApi } from '@/hooks/use-api';
 import { listCourses } from '@/lib/api/courses';
 import { listClasses } from '@/lib/api/zoom';
 import { listJobs } from '@/lib/api/jobs';
+import { listAnnouncements } from '@/lib/api/announcements';
 import { PageLoading, EmptyState } from '@/components/shared/page-states';
-import { BookOpen, Briefcase, ChevronRight, Video, Calendar, Clock, PlayCircle, AlertCircle } from 'lucide-react';
+import { BookOpen, Briefcase, ChevronRight, Video, Calendar, Clock, PlayCircle, AlertCircle, Megaphone, Zap } from 'lucide-react';
 import Link from 'next/link';
 
 function SectionError({ message, onRetry }: { message: string; onRetry: () => void }) {
@@ -35,13 +37,37 @@ export default function StudentDashboard() {
   const { data: jobsData, loading: jobsLoading, error: jobsError, refetch: refetchJobs } = useApi(
     () => listJobs(),
   );
+  const { data: announcementsData, loading: announcementsLoading, error: announcementsError, refetch: refetchAnnouncements } = useApi(
+    () => listAnnouncements({ per_page: 3 }),
+  );
 
   const allLoading = coursesLoading && classesLoading && jobsLoading;
 
   const courses = coursesData?.data || [];
   const classes = classesData?.data || [];
+  const announcements = announcementsData?.data || [];
 
   const upcomingClasses = classes.filter((c) => c.status === 'upcoming' || c.status === 'scheduled');
+
+  // Next class countdown
+  const nextClass = upcomingClasses[0] || null;
+  const [countdown, setCountdown] = useState('');
+  useEffect(() => {
+    if (!nextClass?.scheduledDate || !nextClass?.scheduledTime) return;
+    const update = () => {
+      const classTime = new Date(`${nextClass.scheduledDate}T${nextClass.scheduledTime}`);
+      const now = new Date();
+      const diff = classTime.getTime() - now.getTime();
+      if (diff <= 0) { setCountdown('Starting now!'); return; }
+      const hours = Math.floor(diff / 3600000);
+      const mins = Math.floor((diff % 3600000) / 60000);
+      if (hours >= 24) { setCountdown(`in ${Math.floor(hours / 24)}d ${hours % 24}h`); return; }
+      setCountdown(hours > 0 ? `in ${hours}h ${mins}m` : `in ${mins}m`);
+    };
+    update();
+    const interval = setInterval(update, 60000);
+    return () => clearInterval(interval);
+  }, [nextClass?.scheduledDate, nextClass?.scheduledTime]);
 
   // Find courses with progress for "Continue Learning"
   const inProgressCourses = courses.filter((c) => {
@@ -60,6 +86,34 @@ export default function StudentDashboard() {
 
       {!allLoading && (
         <>
+          {/* Next Class Countdown Banner */}
+          {nextClass && countdown && (
+            <div className="bg-primary rounded-2xl p-4 sm:p-5 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <Zap size={20} className="text-accent" />
+                </div>
+                <div>
+                  <p className="text-white text-sm font-semibold">{nextClass.title}</p>
+                  <p className="text-gray-300 text-xs mt-0.5">
+                    {nextClass.teacherName ? `${nextClass.teacherName} · ` : ''}Starts {countdown}
+                  </p>
+                </div>
+              </div>
+              {nextClass.zoomMeetingUrl && (
+                <a
+                  href={nextClass.zoomMeetingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-white text-primary rounded-xl text-sm font-semibold hover:bg-gray-100 transition-colors flex-shrink-0"
+                >
+                  <Video size={16} />
+                  Join Now
+                </a>
+              )}
+            </div>
+          )}
+
           {/* KPI Cards — show even if some APIs failed */}
           <div id="tour-stats" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
             <Link href={`${basePath}/courses`}>
@@ -67,7 +121,7 @@ export default function StudentDashboard() {
                 <div className="w-12 h-12 bg-accent rounded-2xl flex items-center justify-center mb-4">
                   <BookOpen size={24} className="text-primary" />
                 </div>
-                <p className="text-2xl sm:text-3xl font-bold text-primary">{coursesError ? '—' : courses.length}</p>
+                <p className="text-2xl sm:text-3xl font-bold text-primary">{coursesError ? <span className="text-gray-300" title="Couldn't load">—</span> : courses.length}</p>
                 <p className="text-sm text-gray-500 mt-1">Courses Enrolled</p>
               </div>
             </Link>
@@ -77,7 +131,7 @@ export default function StudentDashboard() {
                 <div className="w-12 h-12 bg-secondary rounded-2xl flex items-center justify-center mb-4">
                   <Video size={24} className="text-primary" />
                 </div>
-                <p className="text-2xl sm:text-3xl font-bold text-primary">{classesError ? '—' : upcomingClasses.length}</p>
+                <p className="text-2xl sm:text-3xl font-bold text-primary">{classesError ? <span className="text-gray-300" title="Couldn't load">—</span> : upcomingClasses.length}</p>
                 <p className="text-sm text-gray-500 mt-1">Upcoming Classes</p>
               </div>
             </Link>
@@ -87,7 +141,7 @@ export default function StudentDashboard() {
                 <div className="w-12 h-12 bg-accent rounded-2xl flex items-center justify-center mb-4">
                   <Briefcase size={24} className="text-primary" />
                 </div>
-                <p className="text-2xl sm:text-3xl font-bold text-primary">{jobsError ? '—' : (jobsData?.total ?? 0)}</p>
+                <p className="text-2xl sm:text-3xl font-bold text-primary">{jobsError ? <span className="text-gray-300" title="Couldn't load">—</span> : (jobsData?.total ?? 0)}</p>
                 <p className="text-sm text-gray-500 mt-1">Job Postings</p>
               </div>
             </Link>
@@ -123,6 +177,13 @@ export default function StudentDashboard() {
                     </Link>
                   );
                 })}
+                {inProgressCourses.length > 3 && (
+                  <Link href={`${basePath}/courses`} className="block text-center pt-2">
+                    <span className="text-sm font-medium text-primary hover:underline">
+                      View all {inProgressCourses.length} courses &rarr;
+                    </span>
+                  </Link>
+                )}
               </div>
             </div>
           )}
@@ -215,6 +276,34 @@ export default function StudentDashboard() {
               )}
             </div>
           </div>
+
+          {/* Announcements Preview */}
+          {!announcementsError && announcements.length > 0 && (
+            <div className="bg-white rounded-2xl p-4 sm:p-6 card-shadow mt-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Megaphone size={18} className="text-primary" />
+                  <h3 className="text-lg font-semibold text-primary">Announcements</h3>
+                </div>
+                <Link href={`${basePath}/announcements`} className="text-sm font-medium text-gray-500 hover:text-primary flex items-center gap-1 transition-colors">
+                  View All <ChevronRight size={14} />
+                </Link>
+              </div>
+              <div className="space-y-3">
+                {announcements.map((ann) => (
+                  <div key={ann.id} className="p-3 rounded-xl bg-gray-50">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="font-medium text-sm text-primary">{ann.title}</p>
+                      <span className="text-xs text-gray-400 flex-shrink-0 ml-2">
+                        {ann.createdAt ? new Date(ann.createdAt).toLocaleDateString() : ''}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 line-clamp-2">{ann.content}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </>
       )}
     </DashboardLayout>
