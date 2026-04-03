@@ -17,6 +17,7 @@ _BUNNY_STATUS_MAP = {
     3: "ready",        # finished
     4: "ready",        # resolution_finished
     5: "failed",       # failed
+    6: "failed",       # fetch_failed (source URL expired or unreachable)
 }
 
 
