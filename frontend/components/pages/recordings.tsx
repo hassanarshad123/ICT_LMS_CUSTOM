@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import { usePaginatedApi } from '@/hooks/use-paginated-api';
 import { listRecordings, getRecordingSignedUrl, RecordingItem } from '@/lib/api/zoom';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
-import { PlayCircle, Calendar, Clock, User, Layers, X, Loader2, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
+import { PlayCircle, Calendar, Clock, User, Layers, X, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 
 function formatFileSize(bytes?: number): string {
   if (!bytes) return '';
@@ -217,17 +217,6 @@ export default function RecordingsPage() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                {embedUrl && (
-                  <a
-                    href={embedUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors"
-                    title="Open in new tab"
-                  >
-                    <ExternalLink size={18} className="text-gray-500" />
-                  </a>
-                )}
                 <button
                   onClick={closePlayer}
                   className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors"
