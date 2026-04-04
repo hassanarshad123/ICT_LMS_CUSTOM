@@ -11,7 +11,11 @@ from typing import Any
 logger = logging.getLogger("ict_lms.sentry")
 
 # Sensitive keys to redact from request bodies and local variables
-_SENSITIVE_KEYS = {"password", "secret", "token", "api_key", "apikey", "credit_card", "dsn"}
+_SENSITIVE_KEYS = {
+    "password", "secret", "token", "api_key", "apikey", "credit_card", "dsn",
+    "encryption", "jwt", "bunny", "zoom", "resend", "webhook", "database",
+    "redis", "key", "credential", "auth",
+}
 
 # Sensitive headers to strip from Sentry events
 _SENSITIVE_HEADERS = {"authorization", "cookie", "x-api-key"}

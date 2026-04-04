@@ -236,19 +236,19 @@ def announcement_email(
     accent_color: str = "#C5D86D",
 ) -> tuple[str, str]:
     body = f"""
-<h2 style="margin:0 0 8px;color:#1a1a1a;font-size:22px;">{title}</h2>
+<h2 style="margin:0 0 8px;color:#1a1a1a;font-size:22px;">{_e(title)}</h2>
 <p style="color:#71717a;font-size:12px;margin-bottom:16px;">
-Posted by {posted_by} &middot; {scope_label}
+Posted by {_e(posted_by)} &middot; {_e(scope_label)}
 </p>
 <div style="color:#52525b;font-size:15px;line-height:1.6;border-left:3px solid {accent_color};padding-left:16px;margin:16px 0;">
-{content}
+{_e(content)}
 </div>
 <p style="margin:20px 0;text-align:center;">
 {_button("View in Portal", login_url, accent_color)}
 </p>
 """
     return (
-        f"Announcement: {title}",
+        f"Announcement: {_e(title)}",
         _base_template(body, institute_name, logo_url, accent_color, login_url),
     )
 
