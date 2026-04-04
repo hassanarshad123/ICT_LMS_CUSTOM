@@ -11,6 +11,12 @@ class BatchOut {
   final String status;
   final String? createdBy;
   final DateTime? createdAt;
+  final bool enableLectureGating;
+  final int lectureGatingThreshold;
+  // Per-student access status (populated by backend for students)
+  final bool? accessExpired;
+  final DateTime? effectiveEndDate;
+  final DateTime? extendedEndDate;
 
   const BatchOut({
     required this.id,
@@ -24,6 +30,11 @@ class BatchOut {
     required this.status,
     this.createdBy,
     this.createdAt,
+    this.enableLectureGating = false,
+    this.lectureGatingThreshold = 65,
+    this.accessExpired,
+    this.effectiveEndDate,
+    this.extendedEndDate,
   });
 
   factory BatchOut.fromJson(Map<String, dynamic> json) {
@@ -39,6 +50,11 @@ class BatchOut {
       status: json['status'] as String? ?? '',
       createdBy: json['createdBy']?.toString(),
       createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? ''),
+      enableLectureGating: json['enableLectureGating'] as bool? ?? false,
+      lectureGatingThreshold: json['lectureGatingThreshold'] as int? ?? 65,
+      accessExpired: json['accessExpired'] as bool?,
+      effectiveEndDate: DateTime.tryParse(json['effectiveEndDate']?.toString() ?? ''),
+      extendedEndDate: DateTime.tryParse(json['extendedEndDate']?.toString() ?? ''),
     );
   }
 
@@ -55,6 +71,11 @@ class BatchOut {
       'status': status,
       'createdBy': createdBy,
       'createdAt': createdAt?.toIso8601String(),
+      'enableLectureGating': enableLectureGating,
+      'lectureGatingThreshold': lectureGatingThreshold,
+      'accessExpired': accessExpired,
+      'effectiveEndDate': effectiveEndDate?.toIso8601String(),
+      'extendedEndDate': extendedEndDate?.toIso8601String(),
     };
   }
 
@@ -70,6 +91,11 @@ class BatchOut {
     String? status,
     String? createdBy,
     DateTime? createdAt,
+    bool? enableLectureGating,
+    int? lectureGatingThreshold,
+    bool? accessExpired,
+    DateTime? effectiveEndDate,
+    DateTime? extendedEndDate,
   }) {
     return BatchOut(
       id: id ?? this.id,
@@ -83,6 +109,11 @@ class BatchOut {
       status: status ?? this.status,
       createdBy: createdBy ?? this.createdBy,
       createdAt: createdAt ?? this.createdAt,
+      enableLectureGating: enableLectureGating ?? this.enableLectureGating,
+      lectureGatingThreshold: lectureGatingThreshold ?? this.lectureGatingThreshold,
+      accessExpired: accessExpired ?? this.accessExpired,
+      effectiveEndDate: effectiveEndDate ?? this.effectiveEndDate,
+      extendedEndDate: extendedEndDate ?? this.extendedEndDate,
     );
   }
 

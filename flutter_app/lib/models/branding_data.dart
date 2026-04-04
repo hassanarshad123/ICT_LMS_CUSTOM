@@ -12,6 +12,7 @@ class BrandingData {
   final String? logoUrl;
   final String? faviconUrl;
   final String? presetTheme;
+  final bool watermarkEnabled;
 
   const BrandingData({
     this.primaryColor = '#1A1A1A',
@@ -22,6 +23,7 @@ class BrandingData {
     this.logoUrl,
     this.faviconUrl,
     this.presetTheme,
+    this.watermarkEnabled = true,
   });
 
   factory BrandingData.fromJson(Map<String, dynamic> json) {
@@ -34,6 +36,7 @@ class BrandingData {
       logoUrl: json['logoUrl'] as String?,
       faviconUrl: json['faviconUrl'] as String?,
       presetTheme: json['presetTheme'] as String?,
+      watermarkEnabled: json['watermarkEnabled'] as bool? ?? true,
     );
   }
 
@@ -47,6 +50,7 @@ class BrandingData {
       'logoUrl': logoUrl,
       'faviconUrl': faviconUrl,
       'presetTheme': presetTheme,
+      'watermarkEnabled': watermarkEnabled,
     };
   }
 
@@ -59,6 +63,7 @@ class BrandingData {
     String? logoUrl,
     String? faviconUrl,
     String? presetTheme,
+    bool? watermarkEnabled,
   }) {
     return BrandingData(
       primaryColor: primaryColor ?? this.primaryColor,
@@ -69,6 +74,7 @@ class BrandingData {
       logoUrl: logoUrl ?? this.logoUrl,
       faviconUrl: faviconUrl ?? this.faviconUrl,
       presetTheme: presetTheme ?? this.presetTheme,
+      watermarkEnabled: watermarkEnabled ?? this.watermarkEnabled,
     );
   }
 

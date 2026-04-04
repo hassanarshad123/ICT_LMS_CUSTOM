@@ -18,6 +18,7 @@ class BrandingState {
   final String? tagline;
   final String? logoUrl;
   final String? faviconUrl;
+  final bool watermarkEnabled;
   final bool isLoading;
   final String? error;
 
@@ -28,6 +29,7 @@ class BrandingState {
     this.tagline,
     this.logoUrl,
     this.faviconUrl,
+    this.watermarkEnabled = true,
     this.isLoading = false,
     this.error,
   });
@@ -39,6 +41,7 @@ class BrandingState {
     String? tagline,
     String? logoUrl,
     String? faviconUrl,
+    bool? watermarkEnabled,
     bool? isLoading,
     String? error,
   }) {
@@ -49,6 +52,7 @@ class BrandingState {
       tagline: tagline ?? this.tagline,
       logoUrl: logoUrl ?? this.logoUrl,
       faviconUrl: faviconUrl ?? this.faviconUrl,
+      watermarkEnabled: watermarkEnabled ?? this.watermarkEnabled,
       isLoading: isLoading ?? this.isLoading,
       error: error,
     );
@@ -83,6 +87,7 @@ class BrandingNotifier extends StateNotifier<BrandingState> {
           tagline: data.tagline,
           logoUrl: data.logoUrl,
           faviconUrl: data.faviconUrl,
+          watermarkEnabled: data.watermarkEnabled,
         );
         // Cache restored successfully — delay background refresh by 30s
         Future.delayed(const Duration(seconds: 30), fetchBranding);
@@ -112,6 +117,7 @@ class BrandingNotifier extends StateNotifier<BrandingState> {
         tagline: data.tagline,
         logoUrl: data.logoUrl,
         faviconUrl: data.faviconUrl,
+        watermarkEnabled: data.watermarkEnabled,
         isLoading: false,
       );
       // Cache branding for next cold start
