@@ -136,11 +136,13 @@ async def verify_zoom_class_access(
     session: AsyncSession,
     current_user: User,
     class_id: uuid.UUID,
+    check_active: bool = False,
+    check_expiry: bool = False,
 ) -> ZoomClass:
     """Verify current_user can access this zoom class.
 
     Loads the class, then delegates to verify_batch_access using the
-    class's batch_id.
+    class's batch_id. Passes through check_active and check_expiry flags.
     """
     result = await session.execute(
         select(ZoomClass).where(
@@ -168,7 +170,8 @@ async def verify_zoom_class_access(
         return zoom_class
 
     # Delegate batch-level access check for all other cases
-    await verify_batch_access(session, current_user, zoom_class.batch_id)
+    await verify_batch_access(session, current_user, zoom_class.batch_id,
+                              check_active=check_active, check_expiry=check_expiry)
 
     return zoom_class
 
