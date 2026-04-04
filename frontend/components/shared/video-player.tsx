@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getSignedUrl, getProgress, updateProgress } from '@/lib/api/lectures';
-import { PlayCircle, Loader2, AlertTriangle, RefreshCw } from 'lucide-react';
+import { PlayCircle, Loader2, AlertTriangle, RefreshCw, Maximize2, Minimize2 } from 'lucide-react';
 
 interface VideoPlayerProps {
   lectureId: string;
@@ -55,7 +55,7 @@ function WatermarkOverlay({ text }: { text: string }) {
         {tiles.map((_, i) => (
           <div key={i} className="flex items-center justify-center" style={{ transform: 'rotate(-25deg)' }}>
             <span
-              className="text-white/10 text-sm sm:text-base md:text-lg font-bold font-mono tracking-widest whitespace-nowrap"
+              className="text-white/[0.18] text-xs sm:text-sm md:text-base font-semibold font-mono tracking-wider whitespace-nowrap"
               style={{ textShadow: '0 0 4px rgba(0,0,0,0.3)' }}
             >
               {text}
@@ -73,10 +73,27 @@ export function VideoPlayer({ lectureId, videoType, videoUrl, videoStatus, water
   const [error, setError] = useState<string | null>(null);
   const [urlType, setUrlType] = useState<string>('');
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const expiresAtRef = useRef<number | null>(null);
   const lastKnownTimeRef = useRef<number>(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const toggleFullscreen = useCallback(() => {
+    if (!containerRef.current) return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      containerRef.current.requestFullscreen().catch(() => {});
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', handleFsChange);
+    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+  }, []);
 
   const fetchSignedUrl = useCallback(async () => {
     setLoading(true);
@@ -295,18 +312,26 @@ export function VideoPlayer({ lectureId, videoType, videoUrl, videoStatus, water
   if (embedUrl) {
     return (
       <div
-        className="relative aspect-video bg-black rounded-2xl overflow-hidden"
+        ref={containerRef}
+        className={`group relative bg-black overflow-hidden ${isFullscreen ? 'w-screen h-screen' : 'aspect-video rounded-2xl'}`}
         onContextMenu={(e) => e.preventDefault()}
         onDragStart={(e) => e.preventDefault()}
         style={{ WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' } as React.CSSProperties}
       >
         {watermark && <WatermarkOverlay text={watermark} />}
+        {/* Custom fullscreen toggle — visible on hover */}
+        <button
+          onClick={toggleFullscreen}
+          className="absolute bottom-3 right-3 z-20 p-2 bg-black/60 hover:bg-black/80 text-white rounded-lg transition-opacity opacity-0 group-hover:opacity-100"
+          title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+        >
+          {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+        </button>
         <iframe
           ref={iframeRef}
           src={embedUrl}
           className="w-full h-full"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
-          allowFullScreen
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           loading="lazy"
         />
       </div>
