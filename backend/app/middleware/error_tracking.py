@@ -87,6 +87,12 @@ async def _store_error(
         ip = request.client.host if request.client else None
         user_agent = request.headers.get("user-agent", "")[:500]
 
+        # Include cached request body in extra JSONB field for debugging
+        extra_data = {}
+        req_body = getattr(request.state, "request_body", None)
+        if req_body:
+            extra_data["request_body"] = req_body
+
         error_log = ErrorLog(
             level="critical" if status_code >= 500 else "error",
             message=message[:2000],
@@ -101,6 +107,7 @@ async def _store_error(
             ip_address=ip,
             user_agent=user_agent[:500] if user_agent else None,
             source="backend",
+            extra=extra_data if extra_data else None,
         )
 
         try:
@@ -119,9 +126,35 @@ async def _store_error(
 class ErrorTrackingMiddleware(BaseHTTPMiddleware):
     """Adds request ID to every request and catches unhandled exceptions."""
 
+    # Keys whose values are redacted from logged request bodies
+    _REDACT_KEYS = {"password", "new_password", "current_password", "token",
+                    "refresh_token", "secret", "api_key", "credit_card"}
+
     async def dispatch(self, request: Request, call_next) -> Response:
         request_id = uuid.uuid4().hex[:12]
         request.state.request_id = request_id
+
+        # Cache request body for error logging (only for write methods, max 4KB)
+        if request.method in ("POST", "PATCH", "PUT"):
+            try:
+                raw = await request.body()
+                body_str = raw.decode("utf-8", errors="replace")[:4000]
+                # Redact sensitive fields
+                try:
+                    import json as _json
+                    body_dict = _json.loads(body_str)
+                    if isinstance(body_dict, dict):
+                        for k in self._REDACT_KEYS:
+                            if k in body_dict:
+                                body_dict[k] = "[REDACTED]"
+                        body_str = _json.dumps(body_dict)[:4000]
+                except (ValueError, TypeError):
+                    pass  # Not JSON, keep raw truncated string
+                request.state.request_body = body_str
+            except Exception:
+                request.state.request_body = None
+        else:
+            request.state.request_body = None
 
         start = time.perf_counter()
 
