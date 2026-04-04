@@ -95,10 +95,12 @@ class _ErrorMappingInterceptor extends Interceptor {
         if (statusCode != null) {
           apiException = switch (statusCode) {
             401 => UnauthorizedException(detail),
-            403 => ForbiddenException(detail),
+            402 => QuotaExceededException(detail),
+            403 => _mapForbidden(detail),
             404 => NotFoundException(detail),
             409 => ConflictException(detail),
             422 => ValidationException(detail),
+            429 => RateLimitedException(detail),
             >= 500 => ServerException(detail),
             _ => ServerException(detail),
           };
@@ -119,6 +121,14 @@ class _ErrorMappingInterceptor extends Interceptor {
     }
   }
 
+  ApiException _mapForbidden(String detail) {
+    final lower = detail.toLowerCase();
+    if (lower.contains('suspended') || lower.contains('expired')) {
+      return InstituteSuspendedException(detail);
+    }
+    return ForbiddenException(detail);
+  }
+
   String _extractDetail(dynamic data) {
     if (data is Map) {
       return data['detail']?.toString() ?? 'Something went wrong';
@@ -131,7 +141,7 @@ class _ErrorMappingInterceptor extends Interceptor {
 Dio createAuthenticatedDio({
   required SharedPreferences prefs,
   required FlutterSecureStorage secureStorage,
-  required VoidCallback onForceLogout,
+  required void Function([String? reason]) onForceLogout,
 }) {
   final dio = Dio(BaseOptions(
     baseUrl: ApiConstants.baseUrl,

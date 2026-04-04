@@ -9,7 +9,9 @@ import '../utils/jwt_decoder.dart';
 class AuthInterceptor extends Interceptor {
   final Dio _refreshDio;
   final FlutterSecureStorage _secureStorage;
-  final VoidCallback onForceLogout;
+  /// Called when the user must be logged out. An optional [reason] message
+  /// is passed so the UI can show an alert explaining why (e.g. suspension).
+  final void Function([String? reason]) onForceLogout;
 
   Completer<String?>? _refreshCompleter;
 
@@ -64,7 +66,26 @@ class AuthInterceptor extends Interceptor {
         onForceLogout();
       }
     }
+
+    // Institute suspended/expired → force logout with reason
+    if (err.response?.statusCode == 403) {
+      final detail = _extractDetail(err.response?.data);
+      final lower = detail.toLowerCase();
+      if (lower.contains('suspended')) {
+        onForceLogout('Your institute\'s access has been suspended. Please contact your administrator.');
+      } else if (lower.contains('institute') && lower.contains('expired')) {
+        onForceLogout('Your institute\'s subscription has expired. Please contact your administrator.');
+      }
+    }
+
     handler.next(err);
+  }
+
+  String _extractDetail(dynamic data) {
+    if (data is Map) {
+      return data['detail']?.toString() ?? '';
+    }
+    return '';
   }
 
   /// Deduplicates concurrent refresh calls using a Completer.

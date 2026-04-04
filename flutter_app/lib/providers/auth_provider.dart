@@ -19,12 +19,16 @@ class AuthState {
   final bool isAuthenticated;
   final bool isLoading;
   final String? error;
+  /// Set when the user is force-logged out due to institute suspension/expiry.
+  /// The UI should show this message in a dialog before clearing it.
+  final String? suspensionReason;
 
   const AuthState({
     this.user,
     this.isAuthenticated = false,
     this.isLoading = true,
     this.error,
+    this.suspensionReason,
   });
 
   AuthState copyWith({
@@ -32,12 +36,14 @@ class AuthState {
     bool? isAuthenticated,
     bool? isLoading,
     String? error,
+    String? suspensionReason,
   }) {
     return AuthState(
       user: user ?? this.user,
       isAuthenticated: isAuthenticated ?? this.isAuthenticated,
       isLoading: isLoading ?? this.isLoading,
       error: error,
+      suspensionReason: suspensionReason,
     );
   }
 
@@ -195,10 +201,15 @@ class AuthNotifier extends StateNotifier<AuthState> {
   ///
   /// Called by the AuthInterceptor when a token refresh fails,
   /// indicating the session is irrecoverably expired.
-  void forceLogout() {
+  void forceLogout([String? reason]) {
     _secureStorage.clearTokens();
     _localStorage.clear();
-    state = const AuthState(isLoading: false);
+    state = AuthState(isLoading: false, suspensionReason: reason);
+  }
+
+  /// Clear the suspension reason after the UI has shown the dialog.
+  void clearSuspensionReason() {
+    state = state.copyWith(suspensionReason: null);
   }
 }
 
@@ -219,8 +230,8 @@ final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   final dio = createAuthenticatedDio(
     prefs: prefs,
     secureStorage: secureStorage,
-    onForceLogout: () {
-      notifier.forceLogout();
+    onForceLogout: ([String? reason]) {
+      notifier.forceLogout(reason);
     },
   );
 
