@@ -1,25 +1,29 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../../core/constants/app_colors.dart';
+import '../../providers/fullscreen_provider.dart';
 
-class VideoPlayerWebView extends StatefulWidget {
+class VideoPlayerWebView extends ConsumerStatefulWidget {
   final String signedUrl;
-  final String userEmail;
+  final String? userEmail;
   final String videoType;
 
   const VideoPlayerWebView({
     super.key,
     required this.signedUrl,
+    // userEmail is nullable — pass null to hide watermark (admin toggle)
     required this.userEmail,
     this.videoType = 'bunny_embed',
   });
 
   @override
-  State<VideoPlayerWebView> createState() => _VideoPlayerWebViewState();
+  ConsumerState<VideoPlayerWebView> createState() =>
+      _VideoPlayerWebViewState();
 }
 
-class _VideoPlayerWebViewState extends State<VideoPlayerWebView> {
+class _VideoPlayerWebViewState extends ConsumerState<VideoPlayerWebView> {
   late final WebViewController _controller;
   bool _isLoading = true;
 
@@ -29,6 +33,18 @@ class _VideoPlayerWebViewState extends State<VideoPlayerWebView> {
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(AppColors.scaffoldBg)
+      ..addJavaScriptChannel(
+        'FlutterFullscreen',
+        onMessageReceived: (JavaScriptMessage message) {
+          final isFullscreen = message.message == 'true';
+          final notifier = ref.read(fullscreenProvider.notifier);
+          if (isFullscreen) {
+            notifier.enterFullscreen();
+          } else {
+            notifier.exitFullscreen();
+          }
+        },
+      )
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (_) {
@@ -40,6 +56,7 @@ class _VideoPlayerWebViewState extends State<VideoPlayerWebView> {
             if (mounted) {
               setState(() => _isLoading = false);
             }
+            _injectFullscreenListener();
           },
           onWebResourceError: (error) {
             debugPrint('WebView error: ${error.description}');
@@ -52,38 +69,81 @@ class _VideoPlayerWebViewState extends State<VideoPlayerWebView> {
       );
   }
 
+  void _injectFullscreenListener() {
+    _controller.runJavaScript('''
+      (function() {
+        if (window._fsListenerAdded) return;
+        window._fsListenerAdded = true;
+
+        document.addEventListener('fullscreenchange', function() {
+          var isFs = !!document.fullscreenElement;
+          FlutterFullscreen.postMessage(isFs ? 'true' : 'false');
+        });
+
+        document.addEventListener('webkitfullscreenchange', function() {
+          var isFs = !!document.webkitFullscreenElement;
+          FlutterFullscreen.postMessage(isFs ? 'true' : 'false');
+        });
+
+        var videos = document.querySelectorAll('video');
+        videos.forEach(function(v) {
+          v.addEventListener('webkitbeginfullscreen', function() {
+            FlutterFullscreen.postMessage('true');
+          });
+          v.addEventListener('webkitendfullscreen', function() {
+            FlutterFullscreen.postMessage('false');
+          });
+        });
+      })();
+    ''');
+  }
+
+  @override
+  void dispose() {
+    if (ref.read(fullscreenProvider)) {
+      ref.read(fullscreenProvider.notifier).exitFullscreen();
+    }
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return AspectRatio(
-      aspectRatio: 16 / 9,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Stack(
-          children: [
-            // WebView player — loads Bunny embed URL directly
-            WebViewWidget(controller: _controller),
+    final isFullscreen = ref.watch(fullscreenProvider);
 
-            // Loading overlay
-            if (_isLoading)
-              Container(
-                color: AppColors.scaffoldBg,
-                child: Center(
-                  child: CircularProgressIndicator(
-                    color: Theme.of(context).colorScheme.primary,
-                    strokeWidth: 2,
-                  ),
+    final player = ClipRRect(
+      borderRadius: BorderRadius.circular(isFullscreen ? 0 : 12),
+      child: Stack(
+        children: [
+          WebViewWidget(controller: _controller),
+
+          if (_isLoading)
+            Container(
+              color: AppColors.scaffoldBg,
+              child: Center(
+                child: CircularProgressIndicator(
+                  color: Theme.of(context).colorScheme.primary,
+                  strokeWidth: 2,
                 ),
               ),
+            ),
 
-            // Watermark overlay
+          if (widget.userEmail != null && widget.userEmail!.isNotEmpty)
             Positioned.fill(
               child: IgnorePointer(
-                child: _WatermarkOverlay(email: widget.userEmail),
+                child: _WatermarkOverlay(email: widget.userEmail!),
               ),
             ),
-          ],
-        ),
+        ],
       ),
+    );
+
+    if (isFullscreen) {
+      return SizedBox.expand(child: player);
+    }
+
+    return AspectRatio(
+      aspectRatio: 16 / 9,
+      child: player,
     );
   }
 }
@@ -100,29 +160,34 @@ class _WatermarkOverlay extends StatelessWidget {
         final width = constraints.maxWidth;
         final height = constraints.maxHeight;
 
-        final cols = (width / 200).ceil();
-        final rows = (height / 100).ceil();
+        final cellW = width < 600 ? 180.0 : 240.0;
+        final cellH = width < 600 ? 90.0 : 120.0;
+        final cols = (width / cellW).ceil();
+        final rows = (height / cellH).ceil();
 
         return Stack(
           children: [
             for (int row = 0; row < rows; row++)
               for (int col = 0; col < cols; col++)
                 Positioned(
-                  left: col * 200.0 + (row.isOdd ? 50 : 0),
-                  top: row * 100.0,
+                  left: col * cellW + (row.isOdd ? 50 : 0),
+                  top: row * cellH,
                   child: Transform.rotate(
-                    angle: -30 * math.pi / 180,
-                    child: Opacity(
-                      opacity: 0.15,
-                      child: Text(
-                        email,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          letterSpacing: 1,
-                          decoration: TextDecoration.none,
-                        ),
+                    angle: -25 * math.pi / 180,
+                    child: Text(
+                      email,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.25),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1,
+                        decoration: TextDecoration.none,
+                        shadows: const [
+                          Shadow(offset: Offset(1, 0), color: Color(0x4D000000)),
+                          Shadow(offset: Offset(-1, 0), color: Color(0x4D000000)),
+                          Shadow(offset: Offset(0, 1), color: Color(0x4D000000)),
+                          Shadow(offset: Offset(0, -1), color: Color(0x4D000000)),
+                        ],
                       ),
                     ),
                   ),

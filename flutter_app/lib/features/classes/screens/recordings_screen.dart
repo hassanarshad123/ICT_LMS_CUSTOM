@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:ict_lms_student/core/constants/app_animations.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
 import 'package:ict_lms_student/core/constants/app_spacing.dart';
 import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 import 'package:ict_lms_student/features/classes/providers/recordings_provider.dart';
 import 'package:ict_lms_student/features/classes/widgets/recording_card.dart';
 import 'package:ict_lms_student/providers/auth_provider.dart';
+import 'package:ict_lms_student/providers/branding_provider.dart';
+import 'package:ict_lms_student/providers/fullscreen_provider.dart';
+import 'package:ict_lms_student/shared/widgets/shimmer_loading.dart';
 import 'package:ict_lms_student/shared/widgets/video_player_webview.dart';
 
 class RecordingsScreen extends ConsumerStatefulWidget {
@@ -71,8 +75,30 @@ class _RecordingsScreenState extends ConsumerState<RecordingsScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(recordingsProvider);
-    final userEmail =
-        ref.watch(authProvider.select((s) => s.user?.email ?? ''));
+    final watermarkEnabled = ref.watch(brandingProvider).watermarkEnabled;
+    final userEmail = watermarkEnabled
+        ? ref.watch(authProvider.select((s) => s.user?.email ?? ''))
+        : null;
+    final isFullscreen = ref.watch(fullscreenProvider);
+
+    if (isFullscreen && _playingUrl != null) {
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) {
+            ref.read(fullscreenProvider.notifier).exitFullscreen();
+          }
+        },
+        child: Scaffold(
+          backgroundColor: Colors.black,
+          body: VideoPlayerWebView(
+            signedUrl: _playingUrl!,
+            userEmail: userEmail,
+            videoType: 'bunny_embed',
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: AppColors.scaffoldBg,
@@ -138,7 +164,7 @@ class _RecordingsScreenState extends ConsumerState<RecordingsScreen> {
 
   Widget _buildBody(RecordingsState state) {
     if (state.isLoading && state.items.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const ShimmerList(itemCount: 5, itemHeight: 90);
     }
 
     if (state.error != null && state.items.isEmpty) {
@@ -186,7 +212,11 @@ class _RecordingsScreenState extends ConsumerState<RecordingsScreen> {
     }
 
     return RefreshIndicator(
-      onRefresh: () => ref.read(recordingsProvider.notifier).refresh(),
+      color: Theme.of(context).colorScheme.primary,
+      onRefresh: () {
+        AppAnimations.hapticLight();
+        return ref.read(recordingsProvider.notifier).refresh();
+      },
       child: ListView.builder(
         controller: _scrollController,
         padding: const EdgeInsets.fromLTRB(
@@ -198,11 +228,9 @@ class _RecordingsScreenState extends ConsumerState<RecordingsScreen> {
         itemCount: state.items.length + (state.isLoadingMore ? 1 : 0),
         itemBuilder: (context, index) {
           if (index == state.items.length) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(AppSpacing.space16),
-                child: CircularProgressIndicator(),
-              ),
+            return const Padding(
+              padding: EdgeInsets.all(AppSpacing.space16),
+              child: ShimmerCard(height: 90),
             );
           }
 
