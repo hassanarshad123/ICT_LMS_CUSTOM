@@ -64,6 +64,7 @@ async def _build_user_brief(session: AsyncSession, user: User) -> UserBrief:
         batch_names=batch_names,
         institute_id=user.institute_id,
         institute_slug=institute_slug,
+        email_verified=user.email_verified,
     )
 
 

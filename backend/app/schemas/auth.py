@@ -44,6 +44,7 @@ class UserBrief(BaseModel):
     batch_names: list[str] = []
     institute_id: Optional[uuid.UUID] = None
     institute_slug: Optional[str] = None
+    email_verified: bool = True
 
     model_config = {"from_attributes": True}
 
