@@ -19,6 +19,7 @@ const defaults: BrandingData = {
   logoUrl: null,
   faviconUrl: null,
   presetTheme: null,
+  watermarkEnabled: true,
 };
 
 const BrandingContext = createContext<BrandingContextType>({

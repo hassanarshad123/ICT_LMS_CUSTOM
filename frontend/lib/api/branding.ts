@@ -9,6 +9,7 @@ export interface BrandingData {
   logoUrl: string | null;
   faviconUrl: string | null;
   presetTheme: string | null;
+  watermarkEnabled: boolean;
 }
 
 export interface BrandingUpdate {
@@ -57,6 +58,7 @@ export async function getBranding(slug?: string | null): Promise<BrandingData> {
     logoUrl: data.logo_url ?? null,
     faviconUrl: data.favicon_url ?? null,
     presetTheme: data.preset_theme ?? null,
+    watermarkEnabled: data.watermark_enabled !== false,
   };
 }
 
