@@ -1,12 +1,12 @@
 import uuid
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class MaterialUploadUrlRequest(BaseModel):
-    file_name: str
-    content_type: str
+    file_name: str = Field(max_length=500)
+    content_type: str = Field(max_length=100)
     batch_id: uuid.UUID
     course_id: Optional[uuid.UUID] = None
     file_size: Optional[int] = None
@@ -18,10 +18,10 @@ class MaterialUploadUrlResponse(BaseModel):
 
 
 class MaterialCreate(BaseModel):
-    object_key: str
-    title: str
-    description: Optional[str] = None
-    file_name: str
+    object_key: str = Field(max_length=1000)
+    title: str = Field(max_length=500)
+    description: Optional[str] = Field(default=None, max_length=5000)
+    file_name: str = Field(max_length=500)
     file_type: str
     file_size_bytes: Optional[int] = None
     batch_id: uuid.UUID

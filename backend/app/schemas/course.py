@@ -1,17 +1,17 @@
 import uuid
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class CourseCreate(BaseModel):
-    title: str
-    description: Optional[str] = None
+    title: str = Field(max_length=500)
+    description: Optional[str] = Field(default=None, max_length=10000)
 
 
 class CourseUpdate(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
+    title: Optional[str] = Field(default=None, max_length=500)
+    description: Optional[str] = Field(default=None, max_length=10000)
     status: Optional[str] = None
 
 
