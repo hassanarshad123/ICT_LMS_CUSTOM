@@ -93,7 +93,7 @@ async def register(
         from app.utils.email import send_email
         from app.utils.email_templates import email_verification_email
 
-        verify_token = create_email_verification_token(user.id, user.email)
+        verify_token = create_email_verification_token(user.id, user.email, user.token_version)
         verify_url = f"{settings.FRONTEND_URL or 'https://zensbot.online'}/verify-email?token={verify_token}"
         subject, html = email_verification_email(
             user_name=user.name,

@@ -296,6 +296,10 @@ async def verify_email(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    # Reject replayed tokens: token_version must match current value
+    if payload.get("tv") is not None and payload.get("tv") != user.token_version:
+        raise HTTPException(status_code=400, detail="Verification link is no longer valid")
+
     if user.email_verified:
         # Already verified — still return handoff so user can proceed
         pass
@@ -350,7 +354,7 @@ async def resend_verification(
     user = result.scalar_one_or_none()
 
     if user:
-        token = create_email_verification_token(user.id, user.email)
+        token = create_email_verification_token(user.id, user.email, user.token_version)
         verify_url = f"{settings.FRONTEND_URL or 'https://zensbot.online'}/verify-email?token={token}"
 
         # Get institute name for branding
