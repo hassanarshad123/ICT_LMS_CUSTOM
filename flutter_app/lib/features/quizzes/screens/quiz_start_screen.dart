@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:ict_lms_student/core/constants/app_animations.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
 import 'package:ict_lms_student/core/constants/app_shadows.dart';
 import 'package:ict_lms_student/core/constants/app_spacing.dart';
+import 'package:ict_lms_student/core/utils/responsive.dart';
 import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 import 'package:ict_lms_student/data/repositories/quiz_repository.dart';
 import 'package:ict_lms_student/models/quiz_out.dart';
 import 'package:ict_lms_student/models/quiz_attempt_out.dart';
+import 'package:ict_lms_student/shared/widgets/shimmer_loading.dart';
 
 /// Provider that fetches quiz detail + past attempts.
 final _quizStartDataProvider = FutureProvider.autoDispose
@@ -57,29 +60,54 @@ class QuizStartScreen extends ConsumerWidget {
         elevation: 0,
       ),
       body: asyncData.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(
-          child: Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: AppSpacing.space24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.error_outline,
-                    color: AppColors.error, size: 48),
-                const SizedBox(height: AppSpacing.space16),
-                Text(error.toString(), style: AppTextStyles.subheadline,
-                    textAlign: TextAlign.center),
-                const SizedBox(height: AppSpacing.space16),
-                TextButton(
-                  onPressed: () =>
-                      ref.invalidate(_quizStartDataProvider(params)),
-                  child: const Text('Retry'),
-                ),
-              ],
-            ),
+        loading: () => const Padding(
+          padding: EdgeInsets.all(AppSpacing.screenH),
+          child: Column(
+            children: [
+              ShimmerCard(height: 200),
+              SizedBox(height: 16),
+              ShimmerCard(height: 64),
+              SizedBox(height: 12),
+              ShimmerCard(height: 64),
+              SizedBox(height: 12),
+              ShimmerCard(height: 64),
+            ],
           ),
         ),
+        error: (error, _) {
+          final isExpired = error.toString().toLowerCase().contains('expired');
+          return Center(
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: AppSpacing.space24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    isExpired ? Icons.lock_outline : Icons.error_outline,
+                    color: isExpired ? Colors.amber.shade700 : AppColors.error,
+                    size: 48,
+                  ),
+                  const SizedBox(height: AppSpacing.space16),
+                  Text(
+                    isExpired
+                        ? 'Your batch access has expired. You cannot start new quiz attempts.'
+                        : error.toString(),
+                    style: AppTextStyles.subheadline,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: AppSpacing.space16),
+                  TextButton(
+                    onPressed: () => isExpired
+                        ? Navigator.of(context).pop()
+                        : ref.invalidate(_quizStartDataProvider(params)),
+                    child: Text(isExpired ? 'Go Back' : 'Retry'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
         data: (data) {
           final quiz = data.quiz;
           final attempts = data.attempts;
@@ -91,10 +119,10 @@ class QuizStartScreen extends ConsumerWidget {
             children: [
               Expanded(
                 child: ListView(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.screenH,
+                  padding: EdgeInsets.fromLTRB(
+                    Responsive.screenPadding(context),
                     AppSpacing.space16,
-                    AppSpacing.screenH,
+                    Responsive.screenPadding(context),
                     80,
                   ),
                   children: [
@@ -110,7 +138,13 @@ class QuizStartScreen extends ConsumerWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(quiz.title, style: AppTextStyles.title3),
+                          Hero(
+                            tag: 'quiz-${quiz.id}',
+                            child: Material(
+                              type: MaterialType.transparency,
+                              child: Text(quiz.title, style: AppTextStyles.title3),
+                            ),
+                          ),
                           if (quiz.description != null &&
                               quiz.description!.isNotEmpty) ...[
                             const SizedBox(height: AppSpacing.space8),
@@ -158,7 +192,7 @@ class QuizStartScreen extends ConsumerWidget {
               // Start button
               Container(
                 color: AppColors.cardBg,
-                padding: const EdgeInsets.all(AppSpacing.screenH),
+                padding: EdgeInsets.all(Responsive.screenPadding(context)),
                 child: SafeArea(
                   top: false,
                   child: SizedBox(
@@ -166,9 +200,12 @@ class QuizStartScreen extends ConsumerWidget {
                     height: 52,
                     child: ElevatedButton(
                       onPressed: canStart
-                          ? () => context.push(
+                          ? () {
+                              AppAnimations.hapticMedium();
+                              context.push(
                                 '/courses/$courseId/quiz/$quizId/take',
-                              )
+                              );
+                            }
                           : null,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: accent,

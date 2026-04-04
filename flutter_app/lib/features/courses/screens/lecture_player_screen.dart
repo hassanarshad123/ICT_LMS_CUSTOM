@@ -10,6 +10,7 @@ import 'package:ict_lms_student/core/services/screen_protection_service.dart';
 import 'package:ict_lms_student/providers/auth_provider.dart';
 import 'package:ict_lms_student/providers/branding_provider.dart';
 import 'package:ict_lms_student/providers/fullscreen_provider.dart';
+import 'package:ict_lms_student/shared/widgets/access_expired_banner.dart';
 import 'package:ict_lms_student/shared/widgets/progress_bar.dart';
 import 'package:ict_lms_student/shared/widgets/video_player_webview.dart';
 
@@ -80,29 +81,42 @@ class _LecturePlayerScreenState extends ConsumerState<LecturePlayerScreen> {
           ? const Center(child: CupertinoActivityIndicator(radius: 14))
           : state.error != null
               ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.error_outline,
-                          color: AppColors.error, size: 48),
-                      const SizedBox(height: AppSpacing.space16),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.space24,
-                        ),
-                        child: Text(
-                          state.error!,
-                          style: AppTextStyles.subheadline,
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.space16),
-                      TextButton(
-                        onPressed: () => ref.invalidate(
-                            lecturePlayerProvider(widget.lectureId)),
-                        child: const Text('Retry'),
-                      ),
-                    ],
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.space24),
+                    child: state.error!.toLowerCase().contains('expired')
+                        ? Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              AccessExpiredBanner(
+                                isExpired: true,
+                                effectiveEndDate: null,
+                              ),
+                              const SizedBox(height: AppSpacing.space16),
+                              TextButton(
+                                onPressed: () => Navigator.of(context).pop(),
+                                child: const Text('Go Back'),
+                              ),
+                            ],
+                          )
+                        : Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.error_outline,
+                                  color: AppColors.error, size: 48),
+                              const SizedBox(height: AppSpacing.space16),
+                              Text(
+                                state.error!,
+                                style: AppTextStyles.subheadline,
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: AppSpacing.space16),
+                              TextButton(
+                                onPressed: () => ref.invalidate(
+                                    lecturePlayerProvider(widget.lectureId)),
+                                child: const Text('Retry'),
+                              ),
+                            ],
+                          ),
                   ),
                 )
               : SingleChildScrollView(

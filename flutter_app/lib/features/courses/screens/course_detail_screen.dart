@@ -207,14 +207,24 @@ class CourseDetailScreen extends ConsumerWidget {
                           top: Responsive.screenPadding(context),
                           bottom: 80,
                         ),
-                        itemCount: data.materials.length,
+                        itemCount: data.materials.length + (data.isAccessExpired || (data.daysLeft != null && data.daysLeft! <= 7) ? 1 : 0),
                         itemBuilder: (context, index) {
+                          if ((data.isAccessExpired || (data.daysLeft != null && data.daysLeft! <= 7)) && index == 0) {
+                            return AccessExpiredBanner(
+                              isExpired: data.isAccessExpired,
+                              effectiveEndDate: data.effectiveEndDate,
+                            );
+                          }
+                          final matIndex = (data.isAccessExpired || (data.daysLeft != null && data.daysLeft! <= 7)) ? index - 1 : index;
                           return Padding(
                             padding: const EdgeInsets.only(
                               bottom: AppSpacing.space8,
                             ),
-                            child: MaterialItem(
-                              material: data.materials[index],
+                            child: Opacity(
+                              opacity: data.isAccessExpired ? 0.5 : 1.0,
+                              child: MaterialItem(
+                                material: data.materials[matIndex],
+                              ),
                             ),
                           );
                         },

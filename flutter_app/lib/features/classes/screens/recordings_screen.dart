@@ -58,10 +58,14 @@ class _RecordingsScreenState extends ConsumerState<RecordingsScreen> {
         _playingTitle = title;
       });
     } else if (state.error != null) {
+      final isExpired = state.error!.toLowerCase().contains('expired');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(state.error!),
-          backgroundColor: AppColors.error,
+          content: Text(isExpired
+              ? 'Your batch access has expired. Contact your institute for renewal.'
+              : state.error!),
+          backgroundColor: isExpired ? Colors.amber.shade800 : AppColors.error,
+          duration: isExpired ? const Duration(seconds: 5) : const Duration(seconds: 3),
         ),
       );
     }
