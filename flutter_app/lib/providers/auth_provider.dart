@@ -167,14 +167,23 @@ class AuthNotifier extends StateNotifier<AuthState> {
   /// Refresh user data from the API.
   ///
   /// Called when returning to the app or after profile updates.
-  /// Silently fails -- keeps the current user state on error.
+  /// Re-validate user data from the backend.
+  ///
+  /// Called on app resume to catch server-side changes (deactivation,
+  /// batch removal, email verification status update). Silently fails
+  /// on network errors to avoid disrupting the user during brief
+  /// connectivity drops.
   Future<void> refreshUser() async {
     try {
       final user = await _repo.getMe();
       await _localStorage.setUserJson(user.toJson());
       state = state.copyWith(user: user);
+      // If user was deactivated server-side, force logout with explanation
+      if (user.status != 'active') {
+        forceLogout('Your account has been deactivated. Please contact your administrator.');
+      }
     } catch (_) {
-      // Ignore -- keep current state
+      // Silent — don't log out on network errors during resume
     }
   }
 

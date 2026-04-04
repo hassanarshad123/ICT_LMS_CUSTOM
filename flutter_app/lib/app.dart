@@ -5,13 +5,40 @@ import 'providers/auth_provider.dart';
 import 'providers/branding_provider.dart';
 import 'router/app_router.dart';
 
-final _navigatorKey = GlobalKey<NavigatorState>();
-
-class App extends ConsumerWidget {
+class App extends ConsumerStatefulWidget {
   const App({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<App> createState() => _AppState();
+}
+
+class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Re-validate session when app returns to foreground.
+      // Catches: account deactivated, password changed, batch removed.
+      final auth = ref.read(authProvider);
+      if (auth.isAuthenticated) {
+        ref.read(authProvider.notifier).refreshUser();
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final branding = ref.watch(brandingProvider);
     final router = ref.watch(routerProvider);
 
@@ -19,9 +46,7 @@ class App extends ConsumerWidget {
     ref.listen<AuthState>(authProvider, (prev, next) {
       final reason = next.suspensionReason;
       if (reason != null && reason.isNotEmpty) {
-        // Clear immediately so dialog doesn't re-trigger on rebuild
         ref.read(authProvider.notifier).clearSuspensionReason();
-        // Show dialog using the router's navigator
         final ctx = router.routerDelegate.navigatorKey.currentContext;
         if (ctx != null) {
           showDialog(
