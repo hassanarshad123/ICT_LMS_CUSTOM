@@ -56,7 +56,10 @@ function WatermarkOverlay({ text }: { text: string }) {
           <div key={i} className="flex items-center justify-center" style={{ transform: 'rotate(-25deg)' }}>
             <span
               className="text-white/25 text-xs sm:text-sm md:text-base font-semibold font-mono tracking-wider whitespace-nowrap"
-              style={{ textShadow: '1px 1px 0px rgba(0,0,0,0.5)' }}
+              style={{
+                WebkitTextStroke: '0.5px rgba(0,0,0,0.4)',
+                textShadow: '1px 0 0 rgba(0,0,0,0.3), -1px 0 0 rgba(0,0,0,0.3), 0 1px 0 rgba(0,0,0,0.3), 0 -1px 0 rgba(0,0,0,0.3)',
+              }}
             >
               {text}
             </span>
