@@ -121,4 +121,17 @@ class AuthRepository {
     final data = response.data as Map<String, dynamic>;
     return data['detail'] as String? ?? '';
   }
+
+  /// POST /auth/verify-email
+  ///
+  /// Body: { token }
+  /// Returns: detail message string.
+  Future<String> verifyEmail(String token) async {
+    final response = await _dio.post(
+      '${ApiConstants.authPrefix}/verify-email',
+      data: {'token': token},
+    );
+    final data = response.data as Map<String, dynamic>;
+    return data['detail'] as String? ?? '';
+  }
 }

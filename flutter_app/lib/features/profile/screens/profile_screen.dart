@@ -118,6 +118,13 @@ class ProfileScreen extends ConsumerWidget {
                       title: 'Announcements',
                       onTap: () => context.push('/profile/announcements'),
                     ),
+                    Divider(
+                        color: AppColors.border, height: 1, indent: 56),
+                    MenuItemTile(
+                      icon: Icons.settings_outlined,
+                      title: 'Settings',
+                      onTap: () => context.push('/profile/settings'),
+                    ),
                   ],
                 ),
               ),

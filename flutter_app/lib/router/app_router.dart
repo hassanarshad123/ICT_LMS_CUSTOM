@@ -1,6 +1,7 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../core/constants/app_animations.dart';
 import '../providers/auth_provider.dart';
 import '../providers/institute_slug_provider.dart';
 import '../shell/app_shell.dart';
@@ -20,17 +21,100 @@ import '../features/profile/screens/certificates_screen.dart';
 import '../features/profile/screens/jobs_screen.dart';
 import '../features/profile/screens/job_detail_screen.dart';
 import '../features/profile/screens/announcements_screen.dart';
+import '../features/profile/screens/settings_screen.dart';
+import '../features/auth/screens/verify_email_screen.dart';
+import '../features/auth/screens/reset_password_screen.dart';
 import '../shared/widgets/pdf_viewer_screen.dart';
 import '../features/quizzes/screens/quiz_start_screen.dart';
 import '../features/quizzes/screens/quiz_taking_screen.dart';
 import '../features/quizzes/screens/quiz_results_screen.dart';
 import 'route_names.dart';
 
+// ---------------------------------------------------------------------------
+// Transition builders
+// ---------------------------------------------------------------------------
+
+/// iOS-style slide from right + fade for detail screens.
+CustomTransitionPage<void> _slideTransition({
+  required LocalKey key,
+  required Widget child,
+}) {
+  return CustomTransitionPage<void>(
+    key: key,
+    child: child,
+    transitionDuration: AppAnimations.normal,
+    reverseTransitionDuration: AppAnimations.normal,
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final slide = Tween<Offset>(
+        begin: const Offset(1, 0),
+        end: Offset.zero,
+      ).animate(CurvedAnimation(
+        parent: animation,
+        curve: AppAnimations.curveEnter,
+      ));
+      final fade = CurvedAnimation(
+        parent: animation,
+        curve: AppAnimations.curveEnter,
+      );
+      return SlideTransition(
+        position: slide,
+        child: FadeTransition(opacity: fade, child: child),
+      );
+    },
+  );
+}
+
+/// Cross-fade for tab switches within the shell.
+CustomTransitionPage<void> _fadeTransition({
+  required LocalKey key,
+  required Widget child,
+}) {
+  return CustomTransitionPage<void>(
+    key: key,
+    child: child,
+    transitionDuration: AppAnimations.tabFade,
+    reverseTransitionDuration: AppAnimations.tabFade,
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      return FadeTransition(
+        opacity: CurvedAnimation(
+          parent: animation,
+          curve: AppAnimations.curveEnter,
+        ),
+        child: child,
+      );
+    },
+  );
+}
+
+/// Fade + scale for modal screens (login, onboarding).
+CustomTransitionPage<void> _modalTransition({
+  required LocalKey key,
+  required Widget child,
+}) {
+  return CustomTransitionPage<void>(
+    key: key,
+    child: child,
+    transitionDuration: AppAnimations.normal,
+    reverseTransitionDuration: AppAnimations.normal,
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final fade = CurvedAnimation(
+        parent: animation,
+        curve: AppAnimations.curveEnter,
+      );
+      final scale = Tween<double>(begin: 0.95, end: 1.0).animate(fade);
+      return FadeTransition(
+        opacity: fade,
+        child: ScaleTransition(scale: scale, child: child),
+      );
+    },
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Router notifier
+// ---------------------------------------------------------------------------
+
 /// Notifier that triggers GoRouter.refresh() when auth or slug state changes.
-///
-/// Instead of recreating GoRouter on every state change (which loses navigation
-/// state), we create GoRouter once and use refreshListenable to re-evaluate
-/// the redirect logic.
 class _RouterNotifier extends ChangeNotifier {
   _RouterNotifier(Ref ref) {
     ref.listen(authProvider, (_, __) => notifyListeners());
@@ -41,6 +125,10 @@ class _RouterNotifier extends ChangeNotifier {
 final _routerNotifierProvider = Provider<_RouterNotifier>((ref) {
   return _RouterNotifier(ref);
 });
+
+// ---------------------------------------------------------------------------
+// Router
+// ---------------------------------------------------------------------------
 
 final routerProvider = Provider<GoRouter>((ref) {
   final notifier = ref.watch(_routerNotifierProvider);
@@ -74,27 +162,36 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null; // No redirect
     },
     routes: [
-      // Onboarding
+      // Onboarding — modal fade+scale
       GoRoute(
         path: '/onboarding',
         name: RouteNames.onboarding,
-        builder: (context, state) => const InstituteSlugScreen(),
+        pageBuilder: (context, state) => _modalTransition(
+          key: state.pageKey,
+          child: const InstituteSlugScreen(),
+        ),
       ),
-      // Login
+      // Login — modal fade+scale
       GoRoute(
         path: '/login',
         name: RouteNames.login,
-        builder: (context, state) => const LoginScreen(),
+        pageBuilder: (context, state) => _modalTransition(
+          key: state.pageKey,
+          child: const LoginScreen(),
+        ),
       ),
-      // PDF Viewer (standalone, outside shell)
+      // PDF Viewer (standalone, outside shell) — slide
       GoRoute(
         path: '/pdf-viewer',
         name: RouteNames.pdfViewer,
-        builder: (context, state) {
+        pageBuilder: (context, state) {
           final extra = state.extra as Map<String, dynamic>? ?? {};
-          return PdfViewerScreen(
-            filePath: extra['filePath'] as String? ?? '',
-            fileName: extra['fileName'] as String? ?? 'Document',
+          return _slideTransition(
+            key: state.pageKey,
+            child: PdfViewerScreen(
+              filePath: extra['filePath'] as String? ?? '',
+              fileName: extra['fileName'] as String? ?? 'Document',
+            ),
           );
         },
       ),
@@ -102,59 +199,80 @@ final routerProvider = Provider<GoRouter>((ref) {
       ShellRoute(
         builder: (context, state, child) => AppShell(child: child),
         routes: [
-          // Home tab
+          // Home tab — cross-fade
           GoRoute(
             path: '/home',
             name: RouteNames.home,
-            builder: (context, state) => const HomeScreen(),
+            pageBuilder: (context, state) => _fadeTransition(
+              key: state.pageKey,
+              child: const HomeScreen(),
+            ),
           ),
-          // Courses tab
+          // Courses tab — cross-fade, children slide
           GoRoute(
             path: '/courses',
             name: RouteNames.courses,
-            builder: (context, state) => const CoursesListScreen(),
+            pageBuilder: (context, state) => _fadeTransition(
+              key: state.pageKey,
+              child: const CoursesListScreen(),
+            ),
             routes: [
               GoRoute(
                 path: ':courseId',
                 name: RouteNames.courseDetail,
-                builder: (context, state) {
+                pageBuilder: (context, state) {
                   final courseId = state.pathParameters['courseId']!;
-                  return CourseDetailScreen(courseId: courseId);
+                  return _slideTransition(
+                    key: state.pageKey,
+                    child: CourseDetailScreen(courseId: courseId),
+                  );
                 },
                 routes: [
                   GoRoute(
                     path: 'lecture/:lectureId',
                     name: RouteNames.lecturePlayer,
-                    builder: (context, state) {
+                    pageBuilder: (context, state) {
                       final lectureId = state.pathParameters['lectureId']!;
-                      return LecturePlayerScreen(lectureId: lectureId);
+                      return _slideTransition(
+                        key: state.pageKey,
+                        child: LecturePlayerScreen(lectureId: lectureId),
+                      );
                     },
                   ),
                   GoRoute(
                     path: 'quiz/:quizId',
                     name: RouteNames.quizStart,
-                    builder: (context, state) {
+                    pageBuilder: (context, state) {
                       final courseId = state.pathParameters['courseId']!;
                       final quizId = state.pathParameters['quizId']!;
-                      return QuizStartScreen(courseId: courseId, quizId: quizId);
+                      return _slideTransition(
+                        key: state.pageKey,
+                        child: QuizStartScreen(courseId: courseId, quizId: quizId),
+                      );
                     },
                     routes: [
                       GoRoute(
                         path: 'take',
                         name: RouteNames.quizTaking,
-                        builder: (context, state) {
+                        pageBuilder: (context, state) {
                           final courseId = state.pathParameters['courseId']!;
                           final quizId = state.pathParameters['quizId']!;
-                          return QuizTakingScreen(courseId: courseId, quizId: quizId);
+                          return _slideTransition(
+                            key: state.pageKey,
+                            child: QuizTakingScreen(courseId: courseId, quizId: quizId),
+                          );
                         },
                       ),
                       GoRoute(
                         path: 'results/:attemptId',
                         name: RouteNames.quizResults,
-                        builder: (context, state) {
+                        pageBuilder: (context, state) {
                           final quizId = state.pathParameters['quizId']!;
                           final attemptId = state.pathParameters['attemptId']!;
-                          return QuizResultsScreen(quizId: quizId, attemptId: attemptId);
+                          return _slideTransition(
+                            key: state.pageKey,
+                            child: QuizResultsScreen(quizId: quizId, attemptId: attemptId),
+                          );
                         },
                       ),
                     ],
@@ -163,57 +281,84 @@ final routerProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-          // Classes tab
+          // Classes tab — cross-fade, children slide
           GoRoute(
             path: '/classes',
             name: RouteNames.classes,
-            builder: (context, state) => const ClassesListScreen(),
+            pageBuilder: (context, state) => _fadeTransition(
+              key: state.pageKey,
+              child: const ClassesListScreen(),
+            ),
             routes: [
               GoRoute(
                 path: 'recordings',
                 name: RouteNames.recordings,
-                builder: (context, state) => const RecordingsScreen(),
+                pageBuilder: (context, state) => _slideTransition(
+                  key: state.pageKey,
+                  child: const RecordingsScreen(),
+                ),
               ),
             ],
           ),
-          // Notifications tab
+          // Notifications tab — cross-fade
           GoRoute(
             path: '/notifications',
             name: RouteNames.notifications,
-            builder: (context, state) => const NotificationsScreen(),
+            pageBuilder: (context, state) => _fadeTransition(
+              key: state.pageKey,
+              child: const NotificationsScreen(),
+            ),
           ),
-          // Profile tab
+          // Profile tab — cross-fade, children slide
           GoRoute(
             path: '/profile',
             name: RouteNames.profile,
-            builder: (context, state) => const ProfileScreen(),
+            pageBuilder: (context, state) => _fadeTransition(
+              key: state.pageKey,
+              child: const ProfileScreen(),
+            ),
             routes: [
               GoRoute(
                 path: 'edit',
                 name: RouteNames.editProfile,
-                builder: (context, state) => const EditProfileScreen(),
+                pageBuilder: (context, state) => _slideTransition(
+                  key: state.pageKey,
+                  child: const EditProfileScreen(),
+                ),
               ),
               GoRoute(
                 path: 'change-password',
                 name: RouteNames.changePassword,
-                builder: (context, state) => const ChangePasswordScreen(),
+                pageBuilder: (context, state) => _slideTransition(
+                  key: state.pageKey,
+                  child: const ChangePasswordScreen(),
+                ),
               ),
               GoRoute(
                 path: 'certificates',
                 name: RouteNames.certificates,
-                builder: (context, state) => const CertificatesScreen(),
+                pageBuilder: (context, state) => _slideTransition(
+                  key: state.pageKey,
+                  child: const CertificatesScreen(),
+                ),
               ),
               GoRoute(
                 path: 'jobs',
                 name: RouteNames.jobs,
-                builder: (context, state) => const JobsScreen(),
+                pageBuilder: (context, state) => _slideTransition(
+                  key: state.pageKey,
+                  child: const JobsScreen(),
+                ),
                 routes: [
                   GoRoute(
                     path: ':jobId',
                     name: RouteNames.jobDetail,
-                    builder: (context, state) {
+                    pageBuilder: (context, state) {
                       final jobId = state.pathParameters['jobId']!;
-                      return JobDetailScreen(jobId: jobId);
+                      return _slideTransition(
+                        key: state.pageKey,
+                        child: JobDetailScreen(jobId: jobId),
+                      );
                     },
                   ),
                 ],
@@ -221,11 +366,37 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: 'announcements',
                 name: RouteNames.announcements,
-                builder: (context, state) => const AnnouncementsScreen(),
+                pageBuilder: (context, state) => _slideTransition(
+                  key: state.pageKey,
+                  child: const AnnouncementsScreen(),
+                ),
+              ),
+              GoRoute(
+                path: 'settings',
+                pageBuilder: (context, state) => _slideTransition(
+                  key: state.pageKey,
+                  child: const SettingsScreen(),
+                ),
               ),
             ],
           ),
         ],
+      ),
+
+      // Auth routes (accessible before login, for deep links)
+      GoRoute(
+        path: '/verify-email',
+        pageBuilder: (context, state) => _modalTransition(
+          key: state.pageKey,
+          child: VerifyEmailScreen(token: state.uri.queryParameters['token']),
+        ),
+      ),
+      GoRoute(
+        path: '/reset-password',
+        pageBuilder: (context, state) => _modalTransition(
+          key: state.pageKey,
+          child: ResetPasswordScreen(token: state.uri.queryParameters['token']),
+        ),
       ),
     ],
   );
