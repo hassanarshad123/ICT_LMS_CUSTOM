@@ -16,7 +16,25 @@ from app.exceptions import NotFoundError, DuplicateError, ForbiddenError, Valida
 
 settings = get_settings()
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+import os as _os
+
+if _os.getenv("APP_ENV") == "production":
+    # Structured JSON logging for production (queryable by CloudWatch/ELK/Datadog)
+    try:
+        from pythonjsonlogger import jsonlogger
+        _handler = logging.StreamHandler()
+        _handler.setFormatter(jsonlogger.JsonFormatter(
+            fmt="%(asctime)s %(levelname)s %(name)s %(message)s",
+            rename_fields={"asctime": "timestamp", "levelname": "level", "name": "logger"},
+        ))
+        logging.root.handlers = [_handler]
+        logging.root.setLevel(logging.INFO)
+    except ImportError:
+        # Fallback if python-json-logger not installed
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+else:
+    # Human-readable text format for development
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
 # ── Sentry ──────────────────────────────────────────────────────
 from app.core.sentry import init_sentry

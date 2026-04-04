@@ -40,6 +40,7 @@ qrcode[pil]>=7.4.0
 
 # Monitoring
 sentry-sdk[fastapi]>=2.0.0
+python-json-logger>=2.0.0
 
 # Caching
 redis[hiredis]>=5.0.0
