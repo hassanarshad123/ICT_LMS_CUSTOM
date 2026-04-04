@@ -428,7 +428,8 @@ async def get_attendance(
     current_user: AllRoles,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    await verify_zoom_class_access(session, current_user, class_id)
+    await verify_zoom_class_access(session, current_user, class_id,
+                                   check_active=True, check_expiry=True)
     items = await zoom_service.get_attendance(session, class_id, institute_id=current_user.institute_id)
     return [AttendanceOut(**item) for item in items]
 
@@ -439,7 +440,8 @@ async def get_recordings(
     current_user: AllRoles,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    await verify_zoom_class_access(session, current_user, class_id)
+    await verify_zoom_class_access(session, current_user, class_id,
+                                   check_active=True, check_expiry=True)
     recordings = await zoom_service.get_recordings(session, class_id, institute_id=current_user.institute_id)
     return [
         RecordingOut(
@@ -571,7 +573,8 @@ async def get_recording_signed_url(
     class_id = rec_row.scalar_one_or_none()
     if not class_id:
         raise HTTPException(status_code=404, detail="Recording not found")
-    await verify_zoom_class_access(session, current_user, class_id)
+    await verify_zoom_class_access(session, current_user, class_id,
+                                   check_active=True, check_expiry=True)
 
     try:
         result = await zoom_service.get_recording_signed_url(session, recording_id, institute_id=current_user.institute_id)
