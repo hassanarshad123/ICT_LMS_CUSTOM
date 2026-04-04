@@ -533,6 +533,13 @@ async def get_progress(
     current_user: Student,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
+    # Verify student is enrolled in the batch that contains this lecture
+    lecture_obj = await lecture_service.get_lecture(session, lecture_id)
+    if not lecture_obj or not check_institute_ownership(current_user.institute_id, lecture_obj.institute_id):
+        raise HTTPException(status_code=404, detail="Lecture not found")
+    await verify_batch_access(session, current_user, lecture_obj.batch_id,
+                              check_active=True, check_expiry=True)
+
     try:
         progress = await lecture_service.get_progress(
             session, current_user.id, lecture_id, institute_id=current_user.institute_id
