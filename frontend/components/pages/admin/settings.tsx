@@ -5,7 +5,7 @@ import DashboardLayout from '@/components/layout/dashboard-layout';
 import DashboardHeader from '@/components/layout/dashboard-header';
 import { useAuth } from '@/lib/auth-context';
 import {
-  User, Lock, Monitor, Award, KeyRound, Mail, Video,
+  User, Lock, Monitor, Award, KeyRound, Mail, Video, Shield,
   Save, Loader2, Plus, Minus, Eye, EyeOff, X, Edit3, Trash2, Star,
 } from 'lucide-react';
 import { useApi, useMutation } from '@/hooks/use-api';
@@ -14,6 +14,7 @@ import { updateUser } from '@/lib/api/users';
 import { changePassword } from '@/lib/api/auth';
 import { listAccounts, createAccount, updateAccount, deleteAccount, setDefaultAccount, ZoomAccountOut } from '@/lib/api/zoom';
 import { toast } from 'sonner';
+import { useBranding } from '@/lib/branding-context';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
@@ -135,6 +136,10 @@ export default function AdminSettings() {
   const [defaultStudentPassword, setDefaultStudentPassword] = useState('changeme123');
   const [showDefaultPassword, setShowDefaultPassword] = useState(false);
 
+  // Watermark state
+  const [watermarkEnabled, setWatermarkEnabled] = useState(true);
+  const { refetch: refetchBranding } = useBranding();
+
   // Email notification state (local copy for batch save)
   const [emailToggles, setEmailToggles] = useState<Record<string, boolean>>({});
   const [emailTogglesDirty, setEmailTogglesDirty] = useState(false);
@@ -153,6 +158,7 @@ export default function AdminSettings() {
     if (s.max_device_limit) setDeviceLimit(parseInt(s.max_device_limit, 10) || 2);
     if (s.certificate_completion_threshold) setCertThreshold(parseInt(s.certificate_completion_threshold, 10) || 70);
     if (s.default_student_password) setDefaultStudentPassword(s.default_student_password);
+    setWatermarkEnabled((s.branding_watermark_enabled ?? 'true') !== 'false');
 
     // Initialize email toggles
     const toggles: Record<string, boolean> = {};
@@ -342,6 +348,42 @@ export default function AdminSettings() {
               <button onClick={handlePasswordUpdate} disabled={savingPassword} className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50">
                 {savingPassword ? <Loader2 size={16} className="animate-spin" /> : <Lock size={16} />} Update Password
               </button>
+            </div>
+
+            {/* Video Watermark */}
+            <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">Video Watermark</h3>
+              <p className="text-sm text-gray-500 mb-5">Display a watermark with the student&apos;s email on lecture videos for anti-piracy protection</p>
+              {settingsLoading ? <div className="animate-pulse bg-gray-100 rounded-xl h-16" /> : (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                      <Shield size={18} className="text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">Enable watermark overlay</p>
+                      <p className="text-xs text-gray-500">{watermarkEnabled ? 'Student email shown on all videos' : 'Watermark is disabled'}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      const newVal = !watermarkEnabled;
+                      setWatermarkEnabled(newVal);
+                      try {
+                        await saveSettings({ branding_watermark_enabled: newVal ? 'true' : 'false' });
+                        await refetchBranding();
+                        toast.success(newVal ? 'Watermark enabled' : 'Watermark disabled');
+                      } catch (e: any) {
+                        setWatermarkEnabled(!newVal);
+                        toast.error(e.message || 'Failed to update');
+                      }
+                    }}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${watermarkEnabled ? 'bg-green-500' : 'bg-gray-300'}`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${watermarkEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Session Settings */}
