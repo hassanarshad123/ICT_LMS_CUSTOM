@@ -4,8 +4,10 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_shadows.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../core/utils/responsive.dart';
 import '../../../models/batch_out.dart';
 import '../../../shared/widgets/status_badge.dart';
+import '../../../shared/widgets/tap_scale.dart';
 import '../../../shared/extensions/date_extensions.dart';
 
 /// Horizontal scrolling card showing batch info.
@@ -17,28 +19,27 @@ class BatchCard extends StatelessWidget {
 
   const BatchCard({super.key, required this.batch});
 
+  int? get _daysLeft {
+    final end = batch.effectiveEndDate ?? batch.endDate;
+    if (end == null) return null;
+    return end.difference(DateTime.now()).inDays;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final accentColor = Theme.of(context).colorScheme.primary;
-
-    return GestureDetector(
+    return TapScale(
       onTap: () {
         // Navigate to courses tab filtered by this batch
         context.go('/courses');
       },
       child: Container(
-        width: 240,
+        width: Responsive.isCompact(context) ? 240 : 280,
         padding: const EdgeInsets.all(AppSpacing.cardPadding),
         decoration: BoxDecoration(
           color: AppColors.cardBg,
           borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+          border: Border.all(color: AppColors.border, width: 1),
           boxShadow: AppShadows.sm,
-          border: Border(
-            left: BorderSide(
-              color: accentColor,
-              width: 4,
-            ),
-          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -55,7 +56,46 @@ class BatchCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: AppSpacing.space8),
-                StatusBadge(status: batch.status),
+                Row(
+                  children: [
+                    StatusBadge(status: batch.status),
+                    if (batch.accessExpired == true) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.error.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'Expired',
+                          style: TextStyle(
+                            color: AppColors.error,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ] else if (_daysLeft != null && _daysLeft! <= 7) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '${_daysLeft}d left',
+                          style: TextStyle(
+                            color: Colors.amber.shade800,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ],
             ),
 
