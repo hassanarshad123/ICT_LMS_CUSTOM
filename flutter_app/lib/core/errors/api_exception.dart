@@ -32,6 +32,26 @@ class ValidationException extends ApiException {
       : super(message, statusCode: 422);
 }
 
+class RateLimitedException extends ApiException {
+  const RateLimitedException([String message = 'Too many attempts, please wait'])
+      : super(message, statusCode: 429);
+}
+
+class QuotaExceededException extends ApiException {
+  const QuotaExceededException([String message = 'Quota exceeded'])
+      : super(message, statusCode: 402);
+}
+
+class AccessExpiredException extends ApiException {
+  const AccessExpiredException([String message = 'Your access to this batch has expired'])
+      : super(message, statusCode: 403);
+}
+
+class InstituteSuspendedException extends ApiException {
+  const InstituteSuspendedException([String message = 'Institute account is suspended'])
+      : super(message, statusCode: 403);
+}
+
 class ServerException extends ApiException {
   const ServerException([String message = 'Server error'])
       : super(message, statusCode: 500);

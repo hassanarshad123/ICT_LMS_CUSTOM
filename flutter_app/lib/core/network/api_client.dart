@@ -123,7 +123,12 @@ class _ErrorMappingInterceptor extends Interceptor {
 
   ApiException _mapForbidden(String detail) {
     final lower = detail.toLowerCase();
-    if (lower.contains('suspended') || lower.contains('expired')) {
+    // Batch access expiry (student-level) — distinct from institute suspension
+    if (lower.contains('access') && lower.contains('expired')) {
+      return AccessExpiredException(detail);
+    }
+    // Institute-level suspension/expiry
+    if (lower.contains('suspended') || (lower.contains('institute') && lower.contains('expired'))) {
       return InstituteSuspendedException(detail);
     }
     return ForbiddenException(detail);
