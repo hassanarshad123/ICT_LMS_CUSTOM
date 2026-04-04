@@ -5,10 +5,17 @@ import 'package:ict_lms_student/core/constants/app_colors.dart';
 import 'package:ict_lms_student/core/constants/app_shadows.dart';
 import 'package:ict_lms_student/core/constants/app_spacing.dart';
 import 'package:ict_lms_student/core/theme/app_text_styles.dart';
+import 'package:ict_lms_student/core/utils/responsive.dart';
 import 'package:ict_lms_student/features/profile/widgets/menu_item_tile.dart';
 import 'package:ict_lms_student/features/profile/widgets/profile_header.dart';
 import 'package:ict_lms_student/providers/auth_provider.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+final _appVersionProvider = FutureProvider<String>((ref) async {
+  final info = await PackageInfo.fromPlatform();
+  return 'v${info.version} (${info.buildNumber})';
+});
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -26,11 +33,13 @@ class ProfileScreen extends ConsumerWidget {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.screenH,
+      body: Responsive.constrainWidth(
+        context,
+        child: ListView(
+        padding: EdgeInsets.fromLTRB(
+          Responsive.screenPadding(context),
           AppSpacing.space20,
-          AppSpacing.screenH,
+          Responsive.screenPadding(context),
           80,
         ),
         children: [
@@ -45,64 +54,74 @@ class ProfileScreen extends ConsumerWidget {
           ),
           const SizedBox(height: AppSpacing.space32),
           // Section 1: Account.
-          _SectionLabel(title: 'ACCOUNT'),
-          const SizedBox(height: AppSpacing.space8),
-          Container(
-            decoration: BoxDecoration(
-              color: AppColors.cardBg,
-              borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
-              boxShadow: AppShadows.sm,
-            ),
-            child: Column(
+          Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                MenuItemTile(
-                  icon: Icons.person_outline,
-                  title: 'Edit Profile',
-                  onTap: () => context.push('/profile/edit'),
-                ),
-                const Divider(
-                    color: AppColors.border, height: 1, indent: 56),
-                MenuItemTile(
-                  icon: Icons.lock_outline,
-                  title: 'Change Password',
-                  onTap: () => context.push('/profile/change-password'),
+                _SectionLabel(title: 'ACCOUNT'),
+                const SizedBox(height: AppSpacing.space8),
+                Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.cardBg,
+                    borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+                    boxShadow: AppShadows.sm,
+                  ),
+                  child: Column(
+                    children: [
+                      MenuItemTile(
+                        icon: Icons.person_outline,
+                        title: 'Edit Profile',
+                        onTap: () => context.push('/profile/edit'),
+                      ),
+                      const Divider(
+                          color: AppColors.border, height: 1, indent: 56),
+                      MenuItemTile(
+                        icon: Icons.lock_outline,
+                        title: 'Change Password',
+                        onTap: () => context.push('/profile/change-password'),
+                      ),
+                    ],
+                  ),
                 ),
               ],
-            ),
           ),
           const SizedBox(height: AppSpacing.space24),
           // Section 2: Explore.
-          _SectionLabel(title: 'EXPLORE'),
-          const SizedBox(height: AppSpacing.space8),
-          Container(
-            decoration: BoxDecoration(
-              color: AppColors.cardBg,
-              borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
-              boxShadow: AppShadows.sm,
-            ),
-            child: Column(
-              children: [
-                MenuItemTile(
-                  icon: Icons.workspace_premium_outlined,
-                  title: 'Certificates',
-                  onTap: () => context.push('/profile/certificates'),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _SectionLabel(title: 'EXPLORE'),
+              const SizedBox(height: AppSpacing.space8),
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.cardBg,
+                  borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+                  boxShadow: AppShadows.sm,
                 ),
-                const Divider(
-                    color: AppColors.border, height: 1, indent: 56),
-                MenuItemTile(
-                  icon: Icons.work_outline,
-                  title: 'Jobs',
-                  onTap: () => context.push('/profile/jobs'),
+                child: Column(
+                  children: [
+                    MenuItemTile(
+                      icon: Icons.workspace_premium_outlined,
+                      title: 'Certificates',
+                      onTap: () => context.push('/profile/certificates'),
+                    ),
+                    const Divider(
+                        color: AppColors.border, height: 1, indent: 56),
+                    MenuItemTile(
+                      icon: Icons.work_outline,
+                      title: 'Jobs',
+                      onTap: () => context.push('/profile/jobs'),
+                    ),
+                    const Divider(
+                        color: AppColors.border, height: 1, indent: 56),
+                    MenuItemTile(
+                      icon: Icons.campaign_outlined,
+                      title: 'Announcements',
+                      onTap: () => context.push('/profile/announcements'),
+                    ),
+                  ],
                 ),
-                const Divider(
-                    color: AppColors.border, height: 1, indent: 56),
-                MenuItemTile(
-                  icon: Icons.campaign_outlined,
-                  title: 'Announcements',
-                  onTap: () => context.push('/profile/announcements'),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
           const SizedBox(height: AppSpacing.space24),
           // Section 3: Sign Out.
@@ -124,7 +143,7 @@ class ProfileScreen extends ConsumerWidget {
           // App version.
           Center(
             child: Text(
-              'v1.0.0',
+              ref.watch(_appVersionProvider).valueOrNull ?? 'v1.0.0',
               style: AppTextStyles.caption1,
             ),
           ),
@@ -144,6 +163,7 @@ class ProfileScreen extends ConsumerWidget {
           ),
           const SizedBox(height: AppSpacing.space16),
         ],
+      ),
       ),
     );
   }
