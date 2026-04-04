@@ -285,6 +285,10 @@ async def get_lecture(
     lecture = await lecture_service.get_lecture(session, lecture_id)
     if not lecture or not check_institute_ownership(current_user.institute_id, lecture.institute_id):
         raise HTTPException(status_code=404, detail="Lecture not found")
+    # Students must be enrolled in the batch that contains this lecture
+    if current_user.role.value == "student":
+        await verify_batch_access(session, current_user, lecture.batch_id,
+                                  check_active=True, check_expiry=True)
     return _lecture_out(lecture)
 
 
@@ -298,6 +302,10 @@ async def get_lecture_status(
     lecture = await lecture_service.get_lecture(session, lecture_id)
     if not lecture or not check_institute_ownership(current_user.institute_id, lecture.institute_id):
         raise HTTPException(status_code=404, detail="Lecture not found")
+    # Students must be enrolled in the batch that contains this lecture
+    if current_user.role.value == "student":
+        await verify_batch_access(session, current_user, lecture.batch_id,
+                                  check_active=True, check_expiry=True)
 
     current_status = lecture.video_status
 
