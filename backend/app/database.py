@@ -10,11 +10,11 @@ _db_url = settings.DATABASE_URL.replace("sslmode=", "ssl=")
 engine = create_async_engine(
     _db_url,
     echo=settings.APP_DEBUG,
-    pool_size=30,
-    max_overflow=20,
+    pool_size=10,          # max 10 held connections per worker (was 30 — caused OOM on db.t4g.micro)
+    max_overflow=5,        # burst up to 15 total per worker; 30 max during blue-green overlap
     pool_pre_ping=True,
-    pool_recycle=3600,
-    pool_timeout=15,
+    pool_recycle=1800,     # 30 min (avoids stale connections on RDS idle cutoff)
+    pool_timeout=10,       # fail fast rather than queue indefinitely
 )
 
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
