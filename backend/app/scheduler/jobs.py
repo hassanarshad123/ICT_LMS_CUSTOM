@@ -558,3 +558,87 @@ async def send_batch_expiry_notifications():
 
         if total_sent:
             logger.info("Sent %d batch expiry notifications", total_sent)
+
+
+@sentry_job_wrapper("purge_stale_records")
+async def purge_stale_records():
+    """Daily cleanup: delete old inactive sessions, read notifications, resolved errors, old activity logs.
+    Each table purged in its own transaction to avoid long-held locks."""
+    from sqlmodel import delete
+
+    now = datetime.now(timezone.utc)
+    cutoff_30 = now - timedelta(days=30)
+    cutoff_90 = now - timedelta(days=90)
+    cutoff_180 = now - timedelta(days=180)
+    cutoff_365 = now - timedelta(days=365)
+
+    # 1. Purge inactive sessions older than 90 days (including those with NULL expires_at)
+    async with async_session() as session:
+        from app.models.session import UserSession
+        from sqlalchemy import or_
+        await session.execute(
+            delete(UserSession).where(
+                UserSession.is_active.is_(False),
+                or_(
+                    UserSession.expires_at < cutoff_90,
+                    UserSession.expires_at.is_(None),
+                ),
+            )
+        )
+        await session.commit()
+
+    # 2. Purge read notifications older than 90 days
+    async with async_session() as session:
+        from app.models.notification import Notification
+        await session.execute(
+            delete(Notification).where(
+                Notification.read.is_(True),
+                Notification.created_at < cutoff_90,
+            )
+        )
+        await session.commit()
+
+    # 3. Purge ALL notifications older than 180 days (read or unread — stale data)
+    async with async_session() as session:
+        from app.models.notification import Notification
+        await session.execute(
+            delete(Notification).where(
+                Notification.read.is_(True),
+                Notification.created_at < cutoff_180,
+            )
+        )
+        await session.commit()
+
+    # 4. Purge resolved error logs older than 30 days
+    async with async_session() as session:
+        from app.models.error_log import ErrorLog
+        await session.execute(
+            delete(ErrorLog).where(
+                ErrorLog.resolved.is_(True),
+                ErrorLog.created_at < cutoff_30,
+            )
+        )
+        await session.commit()
+
+    # 5. Purge unresolved error logs older than 90 days
+    async with async_session() as session:
+        from app.models.error_log import ErrorLog
+        await session.execute(
+            delete(ErrorLog).where(
+                ErrorLog.resolved.is_(False),
+                ErrorLog.created_at < cutoff_90,
+            )
+        )
+        await session.commit()
+
+    # 6. Purge activity logs older than 365 days
+    async with async_session() as session:
+        from app.models.activity import ActivityLog
+        await session.execute(
+            delete(ActivityLog).where(
+                ActivityLog.created_at < cutoff_365,
+            )
+        )
+        await session.commit()
+
+    logger.info("Stale records purged: sessions/notifications/errors/activity")

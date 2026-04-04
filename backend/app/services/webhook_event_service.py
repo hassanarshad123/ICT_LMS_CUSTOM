@@ -159,6 +159,7 @@ async def process_pending_deliveries(session: AsyncSession, batch_size: int = 50
         )
         .order_by(WebhookDelivery.next_retry_at)
         .limit(batch_size)
+        .with_for_update(skip_locked=True)
     )
     deliveries = result.scalars().all()
 
