@@ -61,7 +61,8 @@ async def list_lectures(
     per_page: int = Query(50, ge=1, le=100),
 ):
     # Verify user has access to this batch (enrollment, assignment, or admin)
-    await verify_batch_access(session, current_user, batch_id, check_active=True)
+    # check_expiry blocks expired students from browsing lecture lists
+    await verify_batch_access(session, current_user, batch_id, check_active=True, check_expiry=True)
 
     student_id = current_user.id if current_user.role.value == "student" else None
     items, total = await lecture_service.list_lectures(
