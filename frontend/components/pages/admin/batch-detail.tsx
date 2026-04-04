@@ -417,6 +417,18 @@ export default function AdminBatchDetail() {
                           <p>{student.email} {student.phone ? `\u00B7 ${student.phone}` : ''}</p>
                           <p className="text-gray-500">Enrolled: {student.enrolledAt ? new Date(student.enrolledAt).toLocaleDateString() : student.createdAt ? new Date(student.createdAt).toLocaleDateString() : '—'}</p>
                         </div>
+                        <div className="flex items-center justify-between mt-2">
+                          <span className="text-xs text-gray-500">
+                            Access: {(() => { const s = getAccessStatus(student); return <span className={s.color}>{s.label}</span>; })()}
+                          </span>
+                          <button
+                            onClick={() => setExtendingStudent({ id: student.studentId, name: student.name, effectiveEndDate: student.extendedEndDate || batch?.endDate })}
+                            className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-primary border border-primary/20 rounded-md hover:bg-primary/5"
+                          >
+                            <CalendarPlus size={10} />
+                            Extend
+                          </button>
+                        </div>
                       </div>
                     );
                   })}

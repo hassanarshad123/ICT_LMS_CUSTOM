@@ -346,6 +346,7 @@ async def list_batch_students(
             "status": u.status.value,
             "enrolled_at": sb.enrolled_at,
             "is_active": sb.is_active,
+            "extended_end_date": sb.extended_end_date.isoformat() if sb.extended_end_date else None,
         }
         for sb, u in rows
     ]
@@ -638,19 +639,25 @@ async def extend_student_access(
         raise ValueError("duration_days must be between 1 and 365")
 
     # Load batch
+    batch_filters = [Batch.id == batch_id, Batch.deleted_at.is_(None)]
+    if institute_id is not None:
+        batch_filters.append(Batch.institute_id == institute_id)
     batch = (await session.execute(
-        select(Batch).where(Batch.id == batch_id, Batch.deleted_at.is_(None))
+        select(Batch).where(*batch_filters)
     )).scalar_one_or_none()
     if not batch:
         raise ValueError("Batch not found")
 
     # Load enrollment
+    enroll_filters = [
+        StudentBatch.student_id == student_id,
+        StudentBatch.batch_id == batch_id,
+        StudentBatch.removed_at.is_(None),
+    ]
+    if institute_id is not None:
+        enroll_filters.append(StudentBatch.institute_id == institute_id)
     enrollment = (await session.execute(
-        select(StudentBatch).where(
-            StudentBatch.student_id == student_id,
-            StudentBatch.batch_id == batch_id,
-            StudentBatch.removed_at.is_(None),
-        )
+        select(StudentBatch).where(*enroll_filters)
     )).scalar_one_or_none()
     if not enrollment:
         raise ValueError("Student is not enrolled in this batch")
@@ -765,21 +772,27 @@ async def get_expiry_summary(
     Returns: { expiring_soon: [...], expired: [...], extended: [...] }
     """
     # Load batch
+    batch_filters = [Batch.id == batch_id, Batch.deleted_at.is_(None)]
+    if institute_id is not None:
+        batch_filters.append(Batch.institute_id == institute_id)
     batch = (await session.execute(
-        select(Batch).where(Batch.id == batch_id, Batch.deleted_at.is_(None))
+        select(Batch).where(*batch_filters)
     )).scalar_one_or_none()
     if not batch:
         raise ValueError("Batch not found")
 
     # Load all active enrollments with student names
+    enroll_filters = [
+        StudentBatch.batch_id == batch_id,
+        StudentBatch.removed_at.is_(None),
+        StudentBatch.is_active.is_(True),
+    ]
+    if institute_id is not None:
+        enroll_filters.append(StudentBatch.institute_id == institute_id)
     result = await session.execute(
         select(StudentBatch, User.name, User.email).join(
             User, User.id == StudentBatch.student_id
-        ).where(
-            StudentBatch.batch_id == batch_id,
-            StudentBatch.removed_at.is_(None),
-            StudentBatch.is_active.is_(True),
-        )
+        ).where(*enroll_filters)
     )
     rows = result.all()
 
