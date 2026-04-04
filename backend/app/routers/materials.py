@@ -33,7 +33,7 @@ async def list_materials(
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=1, le=100),
 ):
-    await verify_batch_access(session, current_user, batch_id, check_active=True)
+    await verify_batch_access(session, current_user, batch_id, check_active=True, check_expiry=True)
     items, total = await material_service.list_materials(
         session, batch_id, course_id=course_id, page=page, per_page=per_page,
         institute_id=current_user.institute_id,
