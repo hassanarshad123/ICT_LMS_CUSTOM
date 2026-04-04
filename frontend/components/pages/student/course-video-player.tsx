@@ -118,7 +118,7 @@ export interface CourseVideoPlayerProps {
   activeLecture: LectureOut | null;
   activeRecording: ZoomClassOut | null;
   nowPlaying: NowPlayingInfo | null;
-  watermark: string;
+  watermark?: string;
 }
 
 /* ─── Component ──────────────────────────────────────────────────── */

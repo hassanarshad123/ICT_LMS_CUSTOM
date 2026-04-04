@@ -13,6 +13,7 @@ import { listMaterials, getDownloadUrl } from '@/lib/api/materials';
 import { listClasses } from '@/lib/api/zoom';
 import { listQuizzes, listMyAttempts } from '@/lib/api/quizzes';
 import { getBatch } from '@/lib/api/batches';
+import { useBranding } from '@/lib/branding-context';
 import { PageLoading, PageError } from '@/components/shared/page-states';
 import { AccessExpiredBanner } from '@/components/shared/access-expired-banner';
 import { statusColors } from '@/lib/constants';
@@ -38,6 +39,7 @@ export default function CourseDetailPage() {
   const courseId = params.courseId as string;
   const { name, email, id: studentId, batchIds } = useAuth();
   const basePath = useBasePath();
+  const { watermarkEnabled } = useBranding();
 
   const [expandedModule, setExpandedModule] = useState<string | null>(null);
   const [playlistTab, setPlaylistTab] = useState<'lectures' | 'recordings'>('lectures');
@@ -299,7 +301,7 @@ export default function CourseDetailPage() {
         activeLecture={activeLecture}
         activeRecording={activeRecording}
         nowPlaying={nowPlaying}
-        watermark={email}
+        watermark={watermarkEnabled ? email : undefined}
       />}
 
       {/* Curriculum Modules */}
