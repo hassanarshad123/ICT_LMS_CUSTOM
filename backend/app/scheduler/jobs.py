@@ -641,4 +641,15 @@ async def purge_stale_records():
         )
         await session.commit()
 
-    logger.info("Stale records purged: sessions/notifications/errors/activity")
+    # 7. Purge delivered/failed webhook deliveries older than 30 days
+    async with async_session() as session:
+        from app.models.api_integration import WebhookDelivery
+        await session.execute(
+            delete(WebhookDelivery).where(
+                WebhookDelivery.status.in_(["delivered", "failed"]),
+                WebhookDelivery.created_at < cutoff_30,
+            )
+        )
+        await session.commit()
+
+    logger.info("Stale records purged: sessions/notifications/errors/activity/webhooks")
