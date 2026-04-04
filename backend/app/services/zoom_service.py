@@ -724,18 +724,36 @@ async def get_zoom_analytics(
     if institute_id is not None:
         base_filter.append(ZoomClass.institute_id == institute_id)
 
-    # Class counts by status
-    r = await session.execute(
-        select(ZoomClass.status, func.count(ZoomClass.id))
-        .where(*base_filter)
-        .group_by(ZoomClass.status)
-    )
-    status_counts = {row[0].value: row[1] for row in r.all()}
+    # Class counts by status — apply the same time-based override as list_classes
+    # so stale "upcoming" classes past their end time count as completed, not upcoming
+    from zoneinfo import ZoneInfo
+    now_local = datetime.now(ZoneInfo("Asia/Karachi")).replace(tzinfo=None)
 
-    total_classes = sum(status_counts.values())
-    upcoming = status_counts.get("upcoming", 0) + status_counts.get("scheduled", 0)
-    live = status_counts.get("live", 0)
-    completed = status_counts.get("completed", 0)
+    r = await session.execute(
+        select(ZoomClass.status, ZoomClass.scheduled_date, ZoomClass.scheduled_time, ZoomClass.duration)
+        .where(*base_filter)
+    )
+    rows = r.all()
+
+    upcoming = 0
+    live = 0
+    completed = 0
+    for row in rows:
+        effective_status = row[0].value
+        if effective_status in ("upcoming", "scheduled") and row[1] and row[2]:
+            scheduled_dt = datetime.combine(row[1], row[2])
+            class_end = scheduled_dt + timedelta(minutes=(row[3] or 60) + 15)
+            if now_local > class_end:
+                effective_status = "completed"
+
+        if effective_status in ("upcoming", "scheduled"):
+            upcoming += 1
+        elif effective_status == "live":
+            live += 1
+        elif effective_status == "completed":
+            completed += 1
+
+    total_classes = upcoming + live + completed
 
     # Total recordings (ClassRecording has no deleted_at — filter via parent class)
     rec_query = select(func.count(ClassRecording.id))
