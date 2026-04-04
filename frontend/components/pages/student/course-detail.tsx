@@ -299,7 +299,7 @@ export default function CourseDetailPage() {
         activeLecture={activeLecture}
         activeRecording={activeRecording}
         nowPlaying={nowPlaying}
-        watermark={studentId}
+        watermark={email}
       />}
 
       {/* Curriculum Modules */}
