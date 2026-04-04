@@ -134,4 +134,15 @@ class AuthRepository {
     final data = response.data as Map<String, dynamic>;
     return data['detail'] as String? ?? '';
   }
+
+  /// POST /auth/resend-verification
+  ///
+  /// Body: { email }
+  /// Always returns 200 (prevents email enumeration).
+  Future<void> resendVerification(String email) async {
+    await _dio.post(
+      '${ApiConstants.authPrefix}/resend-verification',
+      data: {'email': email},
+    );
+  }
 }
