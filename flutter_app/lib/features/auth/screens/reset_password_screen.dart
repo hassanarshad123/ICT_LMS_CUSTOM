@@ -53,6 +53,10 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
       final repo = ref.read(authRepositoryProvider);
       await repo.resetPassword(widget.token!, password);
       setState(() { _success = true; _loading = false; });
+      // Auto-redirect to login after 3 seconds
+      Future.delayed(const Duration(seconds: 3), () {
+        if (mounted) context.go('/login');
+      });
     } catch (e) {
       setState(() { _error = e.toString(); _loading = false; });
     }

@@ -63,7 +63,7 @@ class AuthInterceptor extends Interceptor {
           return handler.next(err);
         }
       } else {
-        onForceLogout();
+        onForceLogout('Your session has expired. Please log in again.');
       }
     }
 

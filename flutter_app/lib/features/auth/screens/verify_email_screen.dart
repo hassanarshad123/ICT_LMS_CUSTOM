@@ -35,6 +35,10 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
       final repo = ref.read(authRepositoryProvider);
       await repo.verifyEmail(widget.token!);
       setState(() { _success = true; _loading = false; });
+      // Auto-redirect to login after 3 seconds
+      Future.delayed(const Duration(seconds: 3), () {
+        if (mounted) context.go('/login');
+      });
     } catch (e) {
       setState(() { _error = e.toString(); _loading = false; });
     }
