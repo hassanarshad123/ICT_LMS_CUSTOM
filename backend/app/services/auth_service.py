@@ -52,8 +52,14 @@ async def authenticate_user(
         # Increment failed attempts if user exists
         if user:
             user.failed_login_attempts += 1
-            if user.failed_login_attempts >= 10:
-                user.locked_until = datetime.now(timezone.utc) + timedelta(minutes=15)
+            # Progressive lockout: 5 attempts → 5 min, 10 → 30 min, 15+ → 60 min
+            attempts = user.failed_login_attempts
+            if attempts >= 15:
+                user.locked_until = datetime.now(timezone.utc) + timedelta(minutes=60)
+            elif attempts >= 10:
+                user.locked_until = datetime.now(timezone.utc) + timedelta(minutes=30)
+            elif attempts >= 5:
+                user.locked_until = datetime.now(timezone.utc) + timedelta(minutes=5)
             session.add(user)
             await session.commit()
         raise ValueError("Invalid email or password")
