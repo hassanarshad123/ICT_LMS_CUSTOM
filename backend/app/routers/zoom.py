@@ -250,6 +250,13 @@ async def create_class(
         )
         await session.commit()
 
+    # Notify enrolled students + teacher
+    try:
+        from app.services.zoom_notification_service import notify_class_scheduled
+        await notify_class_scheduled(session, zc, batch.name, teacher.name)
+    except Exception as e:
+        logger.warning("Failed to send class-scheduled notifications: %s", e)
+
     from app.utils.formatters import format_duration
 
     return ZoomClassOut(
@@ -288,6 +295,17 @@ async def update_class(
             raise HTTPException(status_code=403, detail="You can only update classes in your own batches")
 
     update_fields = body.model_dump(exclude_unset=True)
+
+    # Capture old schedule for rescheduled notification
+    old_date = old_time = None
+    if any(k in update_fields for k in ("scheduled_date", "scheduled_time")):
+        from sqlmodel import select as sel2
+        from app.models.zoom import ZoomClass as ZC2
+        r2 = await session.execute(sel2(ZC2).where(ZC2.id == class_id, ZC2.deleted_at.is_(None)))
+        old_zc = r2.scalar_one_or_none()
+        if old_zc:
+            old_date = str(old_zc.scheduled_date)
+            old_time = old_zc.scheduled_time.strftime("%H:%M") if old_zc.scheduled_time else None
 
     try:
         zc = await zoom_service.update_class(session, class_id, institute_id=current_user.institute_id, **update_fields)
@@ -329,6 +347,14 @@ async def update_class(
     r = await session.execute(select(User.name).where(User.id == zc.teacher_id))
     teacher_name = r.scalar_one_or_none()
 
+    # Send rescheduled notification if date/time changed
+    if old_date is not None and (str(old_date) != str(zc.scheduled_date) or str(old_time) != str(zc.scheduled_time)):
+        try:
+            from app.services.zoom_notification_service import notify_class_rescheduled
+            await notify_class_rescheduled(session, zc, batch_name, old_date, old_time)
+        except Exception as e:
+            logger.warning("Failed to send class-rescheduled notifications: %s", e)
+
     return ZoomClassOut(
         id=zc.id, title=zc.title, batch_id=zc.batch_id, batch_name=batch_name,
         teacher_id=zc.teacher_id, teacher_name=teacher_name,
@@ -361,10 +387,39 @@ async def delete_class(
         if not r.scalar_one_or_none():
             raise HTTPException(status_code=403, detail="You can only delete classes in your own batches")
 
+    # Snapshot class data before deletion for cancellation notification
+    from sqlmodel import select as sel_del
+    from app.models.zoom import ZoomClass as ZC_del
+    from app.models.batch import Batch as B_del
+    r_del = await session.execute(
+        sel_del(ZC_del, B_del.name).join(B_del, ZC_del.batch_id == B_del.id, isouter=True).where(
+            ZC_del.id == class_id, ZC_del.deleted_at.is_(None)
+        )
+    )
+    del_row = r_del.one_or_none()
+    # Snapshot scalar values before soft-delete expires the ORM object
+    notif_snapshot = None
+    if del_row:
+        zc_obj, b_name = del_row
+        notif_snapshot = {
+            "title": zc_obj.title, "batch_id": zc_obj.batch_id,
+            "teacher_id": zc_obj.teacher_id, "institute_id": zc_obj.institute_id,
+            "scheduled_date": zc_obj.scheduled_date, "scheduled_time": zc_obj.scheduled_time,
+            "batch_name": b_name,
+        }
+
     try:
         await zoom_service.soft_delete_class(session, class_id, institute_id=current_user.institute_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+    # Send cancellation notification using snapshot (ORM object may be expired after commit)
+    if notif_snapshot:
+        try:
+            from app.services.zoom_notification_service import notify_class_cancelled_from_snapshot
+            await notify_class_cancelled_from_snapshot(session, notif_snapshot)
+        except Exception as e:
+            logger.warning("Failed to send class-cancelled notifications: %s", e)
 
 
 @router.get("/classes/{class_id}/attendance", response_model=list[AttendanceOut])
@@ -587,7 +642,13 @@ async def zoom_webhook(request: Request):
     from app.database import async_session
     async with async_session() as session:
         if event == "meeting.started":
-            await zoom_service.update_class_status(session, meeting_id, ZoomClassStatus.live)
+            zc_live = await zoom_service.update_class_status(session, meeting_id, ZoomClassStatus.live)
+            if zc_live:
+                try:
+                    from app.services.zoom_notification_service import notify_class_live
+                    await notify_class_live(session, zc_live)
+                except Exception as e:
+                    logger.warning("Failed to send class-live notifications: %s", e)
 
         elif event == "meeting.ended":
             await zoom_service.update_class_status(session, meeting_id, ZoomClassStatus.completed)
