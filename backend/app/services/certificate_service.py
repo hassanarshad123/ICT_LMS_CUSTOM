@@ -181,14 +181,17 @@ async def get_student_dashboard(
     threshold = await get_completion_threshold(session, institute_id=institute_id)
 
     # Query 1: All active enrollments with batch info (1 query)
+    enroll_filters = [
+        StudentBatch.student_id == student_id,
+        StudentBatch.removed_at.is_(None),
+        Batch.deleted_at.is_(None),
+    ]
+    if institute_id is not None:
+        enroll_filters.append(Batch.institute_id == institute_id)
     enrolled_q = (
         select(StudentBatch.batch_id, Batch.name.label("batch_name"))
         .join(Batch, StudentBatch.batch_id == Batch.id)
-        .where(
-            StudentBatch.student_id == student_id,
-            StudentBatch.removed_at.is_(None),
-            Batch.deleted_at.is_(None),
-        )
+        .where(*enroll_filters)
     )
     enrolled_result = await session.execute(enrolled_q)
     enrollments = enrolled_result.all()
