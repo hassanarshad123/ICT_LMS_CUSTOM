@@ -8,8 +8,10 @@ import 'package:ict_lms_student/models/course_out.dart';
 import 'package:ict_lms_student/models/lecture_out.dart';
 import 'package:ict_lms_student/models/curriculum_module_out.dart';
 import 'package:ict_lms_student/models/material_out.dart';
+import 'package:ict_lms_student/models/batch_out.dart';
 import 'package:ict_lms_student/models/paginated_response.dart';
 import 'package:ict_lms_student/models/quiz_out.dart';
+import 'package:ict_lms_student/data/repositories/batch_repository.dart';
 import 'package:ict_lms_student/providers/auth_provider.dart';
 
 class CourseDetailData {
@@ -19,6 +21,7 @@ class CourseDetailData {
   final List<MaterialOut> materials;
   final List<QuizOut> quizzes;
   final String resolvedBatchId;
+  final BatchOut? batch;
 
   const CourseDetailData({
     required this.course,
@@ -27,7 +30,18 @@ class CourseDetailData {
     required this.materials,
     this.quizzes = const [],
     required this.resolvedBatchId,
+    this.batch,
   });
+
+  bool get isAccessExpired => batch?.accessExpired == true;
+
+  DateTime? get effectiveEndDate => batch?.effectiveEndDate ?? batch?.endDate;
+
+  int? get daysLeft {
+    final end = effectiveEndDate;
+    if (end == null) return null;
+    return end.difference(DateTime.now()).inDays;
+  }
 }
 
 final courseDetailProvider = FutureProvider.autoDispose
@@ -37,6 +51,7 @@ final courseDetailProvider = FutureProvider.autoDispose
   final curriculumRepo = ref.watch(curriculumRepositoryProvider);
   final materialRepo = ref.watch(materialRepositoryProvider);
   final quizRepo = ref.watch(quizRepositoryProvider);
+  final batchRepo = ref.watch(batchRepositoryProvider);
 
   // Fetch the course first to get its batchIds.
   final course = await courseRepo.getCourse(courseId);
@@ -54,6 +69,16 @@ final courseDetailProvider = FutureProvider.autoDispose
       (id) => userBatchIds.contains(id),
       orElse: () => courseBatchIds.first,
     );
+  }
+
+  // Fetch batch info for access expiry check (best-effort).
+  BatchOut? batch;
+  if (resolvedBatchId.isNotEmpty) {
+    try {
+      batch = await batchRepo.getBatch(resolvedBatchId);
+    } catch (_) {
+      // Best-effort — batch info unavailable won't break the page
+    }
   }
 
   // Fetch lectures, curriculum, and materials in parallel.
@@ -86,5 +111,6 @@ final courseDetailProvider = FutureProvider.autoDispose
     materials: materialResult.data,
     quizzes: quizzes,
     resolvedBatchId: resolvedBatchId,
+    batch: batch,
   );
 });

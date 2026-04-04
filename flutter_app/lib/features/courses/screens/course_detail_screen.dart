@@ -1,15 +1,17 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
 import 'package:ict_lms_student/core/constants/app_spacing.dart';
 import 'package:ict_lms_student/core/theme/app_text_styles.dart';
+import 'package:ict_lms_student/core/utils/responsive.dart';
 import 'package:ict_lms_student/features/courses/providers/course_detail_provider.dart';
 import 'package:ict_lms_student/features/courses/widgets/lecture_item.dart';
 import 'package:ict_lms_student/features/courses/widgets/curriculum_module_item.dart';
 import 'package:ict_lms_student/features/courses/widgets/material_item.dart';
 import 'package:ict_lms_student/features/quizzes/screens/quiz_list_tab.dart';
+import 'package:ict_lms_student/shared/widgets/access_expired_banner.dart';
+import 'package:ict_lms_student/shared/widgets/shimmer_loading.dart';
 
 class CourseDetailScreen extends ConsumerWidget {
   final String courseId;
@@ -24,7 +26,7 @@ class CourseDetailScreen extends ConsumerWidget {
       loading: () => Scaffold(
         backgroundColor: AppColors.scaffoldBg,
         appBar: AppBar(title: const Text('Course')),
-        body: const Center(child: CupertinoActivityIndicator(radius: 14)),
+        body: const ShimmerList(itemCount: 6, itemHeight: 72),
       ),
       error: (error, _) => Scaffold(
         backgroundColor: AppColors.scaffoldBg,
@@ -59,9 +61,17 @@ class CourseDetailScreen extends ConsumerWidget {
         child: Scaffold(
           backgroundColor: AppColors.scaffoldBg,
           appBar: AppBar(
-            title: Text(
-              data.course.title,
-              overflow: TextOverflow.ellipsis,
+            title: Hero(
+              tag: 'course-${data.course.id}',
+              child: Material(
+                type: MaterialType.transparency,
+                child: Text(
+                  data.course.title,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).appBarTheme.titleTextStyle ??
+                      Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
             ),
             bottom: const TabBar(
               isScrollable: true,
@@ -94,28 +104,44 @@ class CourseDetailScreen extends ConsumerWidget {
                         ],
                       ),
                     )
-                  : ListView.builder(
-                      padding: const EdgeInsets.only(
-                        left: AppSpacing.screenH,
-                        right: AppSpacing.screenH,
-                        top: AppSpacing.screenH,
-                        bottom: 80,
-                      ),
-                      itemCount: data.lectures.length,
-                      itemBuilder: (context, index) {
-                        final lecture = data.lectures[index];
-                        return Padding(
-                          padding: const EdgeInsets.only(
-                            bottom: AppSpacing.space8,
-                          ),
-                          child: LectureItem(
-                            lecture: lecture,
-                            onTap: () => context.push(
-                              '/courses/${data.course.id}/lecture/${lecture.id}',
+                  : Responsive.constrainWidth(
+                      context,
+                      child: ListView.builder(
+                        padding: EdgeInsets.only(
+                          left: Responsive.screenPadding(context),
+                          right: Responsive.screenPadding(context),
+                          top: Responsive.screenPadding(context),
+                          bottom: 80,
+                        ),
+                        itemCount: data.lectures.length + (data.isAccessExpired || (data.daysLeft != null && data.daysLeft! <= 7) ? 1 : 0),
+                        itemBuilder: (context, index) {
+                          // Show expiry banner as first item
+                          if ((data.isAccessExpired || (data.daysLeft != null && data.daysLeft! <= 7)) && index == 0) {
+                            return AccessExpiredBanner(
+                              isExpired: data.isAccessExpired,
+                              effectiveEndDate: data.effectiveEndDate,
+                            );
+                          }
+                          final lectureIndex = (data.isAccessExpired || (data.daysLeft != null && data.daysLeft! <= 7)) ? index - 1 : index;
+                          final lecture = data.lectures[lectureIndex];
+                          return Padding(
+                            padding: const EdgeInsets.only(
+                              bottom: AppSpacing.space8,
                             ),
-                          ),
-                        );
-                      },
+                            child: Opacity(
+                              opacity: data.isAccessExpired ? 0.5 : 1.0,
+                              child: LectureItem(
+                                lecture: lecture,
+                                onTap: data.isAccessExpired
+                                    ? null
+                                    : () => context.push(
+                                          '/courses/${data.course.id}/lecture/${lecture.id}',
+                                        ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                     ),
               // Curriculum tab.
               data.modules.isEmpty
@@ -136,19 +162,22 @@ class CourseDetailScreen extends ConsumerWidget {
                         ],
                       ),
                     )
-                  : ListView.builder(
-                      padding: const EdgeInsets.only(
-                        left: AppSpacing.screenH,
-                        right: AppSpacing.screenH,
-                        top: AppSpacing.screenH,
-                        bottom: 80,
+                  : Responsive.constrainWidth(
+                      context,
+                      child: ListView.builder(
+                        padding: EdgeInsets.only(
+                          left: Responsive.screenPadding(context),
+                          right: Responsive.screenPadding(context),
+                          top: Responsive.screenPadding(context),
+                          bottom: 80,
+                        ),
+                        itemCount: data.modules.length,
+                        itemBuilder: (context, index) {
+                          return CurriculumModuleItem(
+                            module: data.modules[index],
+                          );
+                        },
                       ),
-                      itemCount: data.modules.length,
-                      itemBuilder: (context, index) {
-                        return CurriculumModuleItem(
-                          module: data.modules[index],
-                        );
-                      },
                     ),
               // Materials tab.
               data.materials.isEmpty
@@ -169,24 +198,27 @@ class CourseDetailScreen extends ConsumerWidget {
                         ],
                       ),
                     )
-                  : ListView.builder(
-                      padding: const EdgeInsets.only(
-                        left: AppSpacing.screenH,
-                        right: AppSpacing.screenH,
-                        top: AppSpacing.screenH,
-                        bottom: 80,
+                  : Responsive.constrainWidth(
+                      context,
+                      child: ListView.builder(
+                        padding: EdgeInsets.only(
+                          left: Responsive.screenPadding(context),
+                          right: Responsive.screenPadding(context),
+                          top: Responsive.screenPadding(context),
+                          bottom: 80,
+                        ),
+                        itemCount: data.materials.length,
+                        itemBuilder: (context, index) {
+                          return Padding(
+                            padding: const EdgeInsets.only(
+                              bottom: AppSpacing.space8,
+                            ),
+                            child: MaterialItem(
+                              material: data.materials[index],
+                            ),
+                          );
+                        },
                       ),
-                      itemCount: data.materials.length,
-                      itemBuilder: (context, index) {
-                        return Padding(
-                          padding: const EdgeInsets.only(
-                            bottom: AppSpacing.space8,
-                          ),
-                          child: MaterialItem(
-                            material: data.materials[index],
-                          ),
-                        );
-                      },
                     ),
               // Quizzes tab.
               QuizListTab(courseId: data.course.id),
