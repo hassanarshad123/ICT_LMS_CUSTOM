@@ -7,11 +7,12 @@ import math
 from dataclasses import dataclass
 from typing import Annotated, Optional, Union
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File, Form, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, func, col
 
 from app.database import get_session
+from app.utils.rate_limit import limiter
 from app.schemas.user import UserCreate, UserUpdate, UserOut, UserPublicOut, UserListResponse, StatusUpdate
 from app.schemas.common import PaginatedResponse
 from app.services.user_service import (
@@ -387,7 +388,9 @@ class PasswordResetBody(PydanticBaseModel):
 
 
 @router.post("/{user_id}/reset-password")
+@limiter.limit("10/minute")
 async def reset_password(
+    request: Request,
     user_id: uuid.UUID,
     body: PasswordResetBody,
     current_user: AdminUser,
@@ -399,8 +402,11 @@ async def reset_password(
     if user.institute_id != current_user.institute_id:
         raise HTTPException(status_code=404, detail="User not found")
 
-    if len(body.new_password) < 4:
-        raise HTTPException(status_code=400, detail="Password must be at least 4 characters")
+    from app.schemas.validators import validate_password_strength
+    try:
+        validate_password_strength(body.new_password)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     user.hashed_password = hash_password(body.new_password)
     session.add(user)

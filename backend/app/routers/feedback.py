@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
@@ -28,12 +28,16 @@ from app.models.user import User
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+from app.utils.rate_limit import limiter
+
 AllRoles = Annotated[User, Depends(get_current_user)]
 SA = Annotated[User, Depends(require_roles("super_admin"))]
 
 
 @router.post("/upload-url", response_model=FeedbackUploadUrlResponse)
+@limiter.limit("20/minute")
 async def get_upload_url(
+    request: Request,
     body: FeedbackUploadUrlRequest,
     user: AllRoles,
 ):

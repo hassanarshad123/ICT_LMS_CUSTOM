@@ -2,10 +2,11 @@ import uuid
 import math
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
+from app.utils.rate_limit import limiter
 from app.schemas.material import (
     MaterialUploadUrlRequest, MaterialUploadUrlResponse,
     MaterialCreate, MaterialOut, MaterialDownloadUrlResponse,
@@ -46,7 +47,9 @@ async def list_materials(
 
 
 @router.post("/upload-url", response_model=MaterialUploadUrlResponse)
+@limiter.limit("30/minute")
 async def get_upload_url(
+    request: Request,
     body: MaterialUploadUrlRequest,
     current_user: CCOrTeacher,
     session: Annotated[AsyncSession, Depends(get_session)],
