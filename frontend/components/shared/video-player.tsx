@@ -55,8 +55,8 @@ function WatermarkOverlay({ text }: { text: string }) {
         {tiles.map((_, i) => (
           <div key={i} className="flex items-center justify-center" style={{ transform: 'rotate(-25deg)' }}>
             <span
-              className="text-white/[0.18] text-xs sm:text-sm md:text-base font-semibold font-mono tracking-wider whitespace-nowrap"
-              style={{ textShadow: '0 0 4px rgba(0,0,0,0.3)' }}
+              className="text-white/25 text-xs sm:text-sm md:text-base font-semibold font-mono tracking-wider whitespace-nowrap"
+              style={{ textShadow: '1px 1px 0px rgba(0,0,0,0.5)' }}
             >
               {text}
             </span>
