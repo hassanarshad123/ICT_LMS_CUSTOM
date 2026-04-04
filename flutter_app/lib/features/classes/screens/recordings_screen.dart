@@ -6,6 +6,7 @@ import 'package:ict_lms_student/core/constants/app_spacing.dart';
 import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 import 'package:ict_lms_student/features/classes/providers/recordings_provider.dart';
 import 'package:ict_lms_student/features/classes/widgets/recording_card.dart';
+import 'package:ict_lms_student/core/services/screen_protection_service.dart';
 import 'package:ict_lms_student/providers/auth_provider.dart';
 import 'package:ict_lms_student/providers/branding_provider.dart';
 import 'package:ict_lms_student/providers/fullscreen_provider.dart';
@@ -51,6 +52,7 @@ class _RecordingsScreenState extends ConsumerState<RecordingsScreen> {
 
     final state = ref.read(recordingsProvider);
     if (state.signedUrl != null && state.signedUrl!.isNotEmpty) {
+      ScreenProtectionService.enable();
       setState(() {
         _playingUrl = state.signedUrl;
         _playingTitle = title;
@@ -66,6 +68,7 @@ class _RecordingsScreenState extends ConsumerState<RecordingsScreen> {
   }
 
   void _closePlayer() {
+    ScreenProtectionService.disable();
     setState(() {
       _playingUrl = null;
       _playingTitle = null;

@@ -6,6 +6,7 @@ import 'package:ict_lms_student/core/constants/app_spacing.dart';
 import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 import 'package:ict_lms_student/core/utils/responsive.dart';
 import 'package:ict_lms_student/features/courses/providers/lecture_player_provider.dart';
+import 'package:ict_lms_student/core/services/screen_protection_service.dart';
 import 'package:ict_lms_student/providers/auth_provider.dart';
 import 'package:ict_lms_student/providers/branding_provider.dart';
 import 'package:ict_lms_student/providers/fullscreen_provider.dart';
@@ -24,11 +25,20 @@ class LecturePlayerScreen extends ConsumerStatefulWidget {
 
 class _LecturePlayerScreenState extends ConsumerState<LecturePlayerScreen> {
   @override
+  void initState() {
+    super.initState();
+    // Prevent screenshots and screen recording while viewing lecture
+    ScreenProtectionService.enable();
+  }
+
+  @override
   void dispose() {
     // Post final progress before leaving.
     ref
         .read(lecturePlayerProvider(widget.lectureId).notifier)
         .postFinalProgress();
+    // Re-allow screenshots after leaving lecture
+    ScreenProtectionService.disable();
     super.dispose();
   }
 
