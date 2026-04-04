@@ -9,6 +9,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File,
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
+from app.utils.rate_limit import limiter
+
 from app.database import get_session
 from app.middleware.auth import require_roles, get_institute_slug_from_header
 from app.models.settings import SystemSetting
@@ -68,7 +70,9 @@ async def _resolve_institute_id(
 
 
 @router.get("/institutes")
+@limiter.limit("10/minute")
 async def list_public_institutes(
+    request: Request,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Public endpoint — returns name and slug of all active/trial institutes."""
