@@ -95,55 +95,47 @@ async def get_error_stats(
     result = await session.execute(q)
     unresolved = result.scalar() or 0
 
-    # Errors by hour (last 24h)
-    inst_clause = "" if is_super_admin else " AND institute_id = :inst_id"
-    params: dict = {"since": day_ago}
+    # Errors by hour (last 24h) — using SQLAlchemy instead of raw SQL
+    hour_col = func.date_trunc('hour', ErrorLog.created_at).label('hour')
+    q_hour = select(hour_col, func.count().label('count')).where(ErrorLog.created_at >= day_ago)
     if not is_super_admin and institute_id:
-        params["inst_id"] = str(institute_id)
-
-    result = await session.execute(text(f"""
-        SELECT date_trunc('hour', created_at) as hour, count(*) as count
-        FROM error_logs
-        WHERE created_at >= :since{inst_clause}
-        GROUP BY hour
-        ORDER BY hour
-    """), params)
+        q_hour = q_hour.where(ErrorLog.institute_id == institute_id)
+    q_hour = q_hour.group_by(hour_col).order_by(hour_col)
+    result = await session.execute(q_hour)
     errors_by_hour = [
         {"hour": row[0].isoformat() if row[0] else None, "count": row[1]}
         for row in result.fetchall()
     ]
 
     # Top error paths
-    result = await session.execute(text(f"""
-        SELECT request_path, count(*) as count
-        FROM error_logs
-        WHERE created_at >= :since AND request_path IS NOT NULL{inst_clause}
-        GROUP BY request_path
-        ORDER BY count DESC
-        LIMIT 10
-    """), params)
+    q_paths = (
+        select(ErrorLog.request_path, func.count().label('count'))
+        .where(ErrorLog.created_at >= day_ago, ErrorLog.request_path.is_not(None))
+    )
+    if not is_super_admin and institute_id:
+        q_paths = q_paths.where(ErrorLog.institute_id == institute_id)
+    q_paths = q_paths.group_by(ErrorLog.request_path).order_by(func.count().desc()).limit(10)
+    result = await session.execute(q_paths)
     top_paths = [
         {"path": row[0], "count": row[1]}
         for row in result.fetchall()
     ]
 
     # Errors by source
-    result = await session.execute(text(f"""
-        SELECT source, count(*) as count
-        FROM error_logs
-        WHERE created_at >= :since{inst_clause}
-        GROUP BY source
-    """), params)
+    q_source = select(ErrorLog.source, func.count().label('count')).where(ErrorLog.created_at >= day_ago)
+    if not is_super_admin and institute_id:
+        q_source = q_source.where(ErrorLog.institute_id == institute_id)
+    q_source = q_source.group_by(ErrorLog.source)
+    result = await session.execute(q_source)
     raw_source = {row[0]: row[1] for row in result.fetchall()}
     by_source = {"backend": 0, "frontend": 0, **raw_source}
 
     # Errors by level
-    result = await session.execute(text(f"""
-        SELECT level, count(*) as count
-        FROM error_logs
-        WHERE created_at >= :since{inst_clause}
-        GROUP BY level
-    """), params)
+    q_level = select(ErrorLog.level, func.count().label('count')).where(ErrorLog.created_at >= day_ago)
+    if not is_super_admin and institute_id:
+        q_level = q_level.where(ErrorLog.institute_id == institute_id)
+    q_level = q_level.group_by(ErrorLog.level)
+    result = await session.execute(q_level)
     raw_level = {row[0]: row[1] for row in result.fetchall()}
     by_level = {"critical": 0, "error": 0, "warning": 0, **raw_level}
 

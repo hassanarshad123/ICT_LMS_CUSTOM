@@ -301,38 +301,33 @@ async def list_invoices(
     page: int = 1,
     per_page: int = 20,
 ) -> tuple[list[dict], int]:
-    params: dict = {}
-    where_clauses = []
-
+    # Build filters with SQLAlchemy instead of raw SQL f-strings
+    filters = []
     if institute_id:
-        where_clauses.append("inv.institute_id = :iid")
-        params["iid"] = str(institute_id)
+        filters.append(Invoice.institute_id == institute_id)
     if status:
-        where_clauses.append("inv.status = :status")
-        params["status"] = status
+        filters.append(Invoice.status == status)
 
-    where_sql = (" AND " + " AND ".join(where_clauses)) if where_clauses else ""
-
-    r = await session.execute(
-        text(f"SELECT COUNT(*) FROM invoices inv WHERE 1=1{where_sql}"), params
-    )
+    count_q = select(func.count()).select_from(Invoice).where(*filters)
+    r = await session.execute(count_q)
     total = r.scalar() or 0
 
     offset = (page - 1) * per_page
-    params["lim"] = per_page
-    params["off"] = offset
 
-    r = await session.execute(text(f"""
-        SELECT inv.id, inv.institute_id, i.name, inv.invoice_number,
-               inv.period_start, inv.period_end, inv.base_amount,
-               inv.line_items, inv.total_amount, inv.status, inv.due_date,
-               inv.generated_by, inv.created_at
-        FROM invoices inv
-        LEFT JOIN institutes i ON i.id = inv.institute_id
-        WHERE 1=1{where_sql}
-        ORDER BY inv.created_at DESC
-        LIMIT :lim OFFSET :off
-    """), params)
+    data_q = (
+        select(
+            Invoice.id, Invoice.institute_id, Institute.name,
+            Invoice.invoice_number, Invoice.period_start, Invoice.period_end,
+            Invoice.base_amount, Invoice.line_items, Invoice.total_amount,
+            Invoice.status, Invoice.due_date, Invoice.generated_by,
+            Invoice.created_at,
+        )
+        .outerjoin(Institute, Institute.id == Invoice.institute_id)
+        .where(*filters)
+        .order_by(Invoice.created_at.desc())
+        .limit(per_page).offset(offset)
+    )
+    r = await session.execute(data_q)
 
     items = []
     for row in r.all():
@@ -402,31 +397,30 @@ async def list_payments(
     page: int = 1,
     per_page: int = 20,
 ) -> tuple[list[dict], int]:
-    params: dict = {}
-    inst_clause = ""
+    # Build filters with SQLAlchemy instead of raw SQL f-strings
+    filters = []
     if institute_id:
-        inst_clause = " AND p.institute_id = :iid"
-        params["iid"] = str(institute_id)
+        filters.append(Payment.institute_id == institute_id)
 
-    r = await session.execute(
-        text(f"SELECT COUNT(*) FROM payments p WHERE 1=1{inst_clause}"), params
-    )
+    count_q = select(func.count()).select_from(Payment).where(*filters)
+    r = await session.execute(count_q)
     total = r.scalar() or 0
 
     offset = (page - 1) * per_page
-    params["lim"] = per_page
-    params["off"] = offset
 
-    r = await session.execute(text(f"""
-        SELECT p.id, p.institute_id, i.name, p.invoice_id, p.amount,
-               p.payment_date, p.payment_method, p.status, p.reference_number,
-               p.notes, p.recorded_by, p.created_at
-        FROM payments p
-        LEFT JOIN institutes i ON i.id = p.institute_id
-        WHERE 1=1{inst_clause}
-        ORDER BY p.created_at DESC
-        LIMIT :lim OFFSET :off
-    """), params)
+    data_q = (
+        select(
+            Payment.id, Payment.institute_id, Institute.name,
+            Payment.invoice_id, Payment.amount, Payment.payment_date,
+            Payment.payment_method, Payment.status, Payment.reference_number,
+            Payment.notes, Payment.recorded_by, Payment.created_at,
+        )
+        .outerjoin(Institute, Institute.id == Payment.institute_id)
+        .where(*filters)
+        .order_by(Payment.created_at.desc())
+        .limit(per_page).offset(offset)
+    )
+    r = await session.execute(data_q)
 
     items = []
     for row in r.all():

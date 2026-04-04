@@ -28,53 +28,45 @@ async def get_activity_log(
     per_page: int = 20,
 ) -> tuple[list[dict], int]:
     """Cross-institute activity log with optional filters."""
-    params: dict = {}
-    where_clauses = []
-
+    # Build filters with SQLAlchemy instead of raw SQL f-strings
+    filters = []
     if institute_id:
-        where_clauses.append("a.institute_id = :inst_id")
-        params["inst_id"] = str(institute_id)
+        filters.append(ActivityLog.institute_id == institute_id)
     if action:
-        where_clauses.append("a.action = :action")
-        params["action"] = action
+        filters.append(ActivityLog.action == action)
     if entity_type:
-        where_clauses.append("a.entity_type = :entity_type")
-        params["entity_type"] = entity_type
+        filters.append(ActivityLog.entity_type == entity_type)
     if user_id:
-        where_clauses.append("a.user_id = :user_id")
-        params["user_id"] = str(user_id)
+        filters.append(ActivityLog.user_id == user_id)
     if date_from:
-        where_clauses.append("a.created_at >= :date_from")
-        params["date_from"] = date_from
+        filters.append(ActivityLog.created_at >= date_from)
     if date_to:
-        where_clauses.append("a.created_at <= :date_to")
-        params["date_to"] = date_to
-
-    where_sql = (" AND " + " AND ".join(where_clauses)) if where_clauses else ""
+        filters.append(ActivityLog.created_at <= date_to)
 
     # Count
-    r = await session.execute(
-        text(f"SELECT COUNT(*) FROM activity_log a WHERE 1=1{where_sql}"), params
-    )
+    count_q = select(func.count()).select_from(ActivityLog).where(*filters)
+    r = await session.execute(count_q)
     total = r.scalar() or 0
 
     # Data with user + institute joins
     offset = (page - 1) * per_page
-    params["lim"] = per_page
-    params["off"] = offset
 
-    r = await session.execute(text(f"""
-        SELECT a.id, a.user_id, a.action, a.entity_type, a.entity_id,
-               a.details, a.ip_address, a.institute_id, a.impersonated_by,
-               a.created_at, u.name AS user_name, u.email AS user_email,
-               i.name AS institute_name
-        FROM activity_log a
-        LEFT JOIN users u ON u.id = a.user_id
-        LEFT JOIN institutes i ON i.id = a.institute_id
-        WHERE 1=1{where_sql}
-        ORDER BY a.created_at DESC
-        LIMIT :lim OFFSET :off
-    """), params)
+    data_q = (
+        select(
+            ActivityLog.id, ActivityLog.user_id, ActivityLog.action,
+            ActivityLog.entity_type, ActivityLog.entity_id, ActivityLog.details,
+            ActivityLog.ip_address, ActivityLog.institute_id,
+            ActivityLog.impersonated_by, ActivityLog.created_at,
+            User.name.label('user_name'), User.email.label('user_email'),
+            Institute.name.label('institute_name'),
+        )
+        .outerjoin(User, User.id == ActivityLog.user_id)
+        .outerjoin(Institute, Institute.id == ActivityLog.institute_id)
+        .where(*filters)
+        .order_by(ActivityLog.created_at.desc())
+        .limit(per_page).offset(offset)
+    )
+    r = await session.execute(data_q)
 
     items = []
     for row in r.all():
@@ -326,32 +318,31 @@ async def list_active_sessions(
     per_page: int = 20,
 ) -> tuple[list[dict], int]:
     """List active user sessions, optionally filtered by institute."""
-    params: dict = {}
-    inst_clause = ""
+    # Build filters with SQLAlchemy instead of raw SQL f-strings
+    filters = [UserSession.is_active.is_(True)]
     if institute_id:
-        inst_clause = " AND s.institute_id = :inst_id"
-        params["inst_id"] = str(institute_id)
+        filters.append(UserSession.institute_id == institute_id)
 
-    r = await session.execute(
-        text(f"SELECT COUNT(*) FROM user_sessions s WHERE s.is_active = true{inst_clause}"),
-        params,
-    )
+    count_q = select(func.count()).select_from(UserSession).where(*filters)
+    r = await session.execute(count_q)
     total = r.scalar() or 0
 
     offset = (page - 1) * per_page
-    params["lim"] = per_page
-    params["off"] = offset
 
-    r = await session.execute(text(f"""
-        SELECT s.id, s.user_id, u.name, u.email, s.device_info,
-               s.ip_address, s.logged_in_at, s.last_active_at, i.name AS inst_name
-        FROM user_sessions s
-        LEFT JOIN users u ON u.id = s.user_id
-        LEFT JOIN institutes i ON i.id = s.institute_id
-        WHERE s.is_active = true{inst_clause}
-        ORDER BY s.last_active_at DESC
-        LIMIT :lim OFFSET :off
-    """), params)
+    data_q = (
+        select(
+            UserSession.id, UserSession.user_id, User.name, User.email,
+            UserSession.device_info, UserSession.ip_address,
+            UserSession.logged_in_at, UserSession.last_active_at,
+            Institute.name.label('inst_name'),
+        )
+        .outerjoin(User, User.id == UserSession.user_id)
+        .outerjoin(Institute, Institute.id == UserSession.institute_id)
+        .where(*filters)
+        .order_by(UserSession.last_active_at.desc())
+        .limit(per_page).offset(offset)
+    )
+    r = await session.execute(data_q)
 
     items = []
     for row in r.all():
