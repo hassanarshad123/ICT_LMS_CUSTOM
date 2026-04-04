@@ -20,6 +20,7 @@ class BrandingResponse(BaseModel):
     logo_url: Optional[str] = None
     favicon_url: Optional[str] = None
     preset_theme: Optional[str] = None
+    watermark_enabled: bool = True
 
 
 class BrandingUpdate(BaseModel):

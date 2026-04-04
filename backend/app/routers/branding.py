@@ -41,6 +41,7 @@ BRANDING_KEYS = {
     "branding_logo_url":       "logo_url",
     "branding_favicon_url":    "favicon_url",
     "branding_preset_theme":   "preset_theme",
+    "branding_watermark_enabled": "watermark_enabled",
 }
 
 DEFAULTS = BrandingResponse()
@@ -114,7 +115,11 @@ async def get_branding(
     for db_key, field_name in BRANDING_KEYS.items():
         value = settings.get(db_key)
         if value is not None:
-            data[field_name] = value
+            # Convert string booleans for bool fields
+            if field_name == "watermark_enabled":
+                data[field_name] = value.lower() != "false"
+            else:
+                data[field_name] = value
         else:
             data[field_name] = getattr(DEFAULTS, field_name)
 

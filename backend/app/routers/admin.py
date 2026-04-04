@@ -152,6 +152,11 @@ async def update_settings(
         institute_id=current_user.institute_id,
         settings=body.settings,
     )
+    # Invalidate branding cache if a branding-related setting was changed
+    if any(k.startswith("branding_") for k in body.settings):
+        from app.core.cache import cache
+        if current_user.institute_id:
+            await cache.delete(cache.branding_key(str(current_user.institute_id)))
     return SettingsResponse(settings=settings_dict)
 
 
