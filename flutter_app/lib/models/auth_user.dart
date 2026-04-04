@@ -12,6 +12,7 @@ class AuthUser {
   final List<String> batchNames;
   final String? instituteId;
   final String? instituteSlug;
+  final bool emailVerified;
 
   const AuthUser({
     required this.id,
@@ -25,6 +26,7 @@ class AuthUser {
     this.batchNames = const [],
     this.instituteId,
     this.instituteSlug,
+    this.emailVerified = true,
   });
 
   factory AuthUser.fromJson(Map<String, dynamic> json) {
@@ -46,6 +48,7 @@ class AuthUser {
           [],
       instituteId: json['instituteId']?.toString(),
       instituteSlug: json['instituteSlug'] as String?,
+      emailVerified: json['emailVerified'] as bool? ?? true,
     );
   }
 
@@ -62,6 +65,7 @@ class AuthUser {
       'batchNames': batchNames,
       'instituteId': instituteId,
       'instituteSlug': instituteSlug,
+      'emailVerified': emailVerified,
     };
   }
 
@@ -77,6 +81,7 @@ class AuthUser {
     List<String>? batchNames,
     String? instituteId,
     String? instituteSlug,
+    bool? emailVerified,
   }) {
     return AuthUser(
       id: id ?? this.id,
@@ -90,6 +95,7 @@ class AuthUser {
       batchNames: batchNames ?? this.batchNames,
       instituteId: instituteId ?? this.instituteId,
       instituteSlug: instituteSlug ?? this.instituteSlug,
+      emailVerified: emailVerified ?? this.emailVerified,
     );
   }
 
