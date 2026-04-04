@@ -343,6 +343,10 @@ async def start_attempt(
     if (enrolled_result.scalar() or 0) == 0:
         raise ValueError("Student is not enrolled in the course for this quiz")
 
+    # Check batch expiry — prevents expired students from starting new attempts
+    from app.middleware.access_control import check_student_batch_expiry
+    await check_student_batch_expiry(session, student_id, quiz.course_id)
+
     attempt = QuizAttempt(
         quiz_id=quiz_id,
         student_id=student_id,
