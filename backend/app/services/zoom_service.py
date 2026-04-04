@@ -633,6 +633,9 @@ async def process_recording(session: AsyncSession, recording_id: uuid.UUID) -> N
     if not rec or not rec.original_download_url:
         return
 
+    # Save IDs before any commit expires ORM attributes
+    zoom_class_id = rec.zoom_class_id
+
     # Get the class and its account
     zc_result = await session.execute(
         select(ZoomClass).where(ZoomClass.id == rec.zoom_class_id)
@@ -658,10 +661,11 @@ async def process_recording(session: AsyncSession, recording_id: uuid.UUID) -> N
                 token = await _get_access_token(
                     account.account_id, account.client_id, account.client_secret
                 )
-                resp = await _httpx.AsyncClient(timeout=15).get(
-                    f"https://api.zoom.us/v2/meetings/{zc.zoom_meeting_id}/recordings",
-                    headers={"Authorization": f"Bearer {token}"},
-                )
+                async with _httpx.AsyncClient(timeout=15) as _client:
+                    resp = await _client.get(
+                        f"https://api.zoom.us/v2/meetings/{zc.zoom_meeting_id}/recordings",
+                        headers={"Authorization": f"Bearer {token}"},
+                    )
                 if resp.status_code == 200:
                     for rf in resp.json().get("recording_files", []):
                         if rf.get("file_type") == "MP4" and rf.get("download_url"):
@@ -690,6 +694,19 @@ async def process_recording(session: AsyncSession, recording_id: uuid.UUID) -> N
         session.add(rec)
         await session.commit()
         logger.info("Recording %s uploaded to Bunny: %s", recording_id, bunny_result["video_id"])
+
+        # Notify students that recording is available
+        # Use saved zoom_class_id (rec attributes may be expired after commit)
+        try:
+            from app.services.zoom_notification_service import notify_recording_available
+            zc_result = await session.execute(
+                select(ZoomClass).where(ZoomClass.id == zoom_class_id)
+            )
+            zc_notif = zc_result.scalar_one_or_none()
+            if zc_notif:
+                await notify_recording_available(session, zc_notif)
+        except Exception as notif_err:
+            logger.warning("Failed to send recording notification: %s", notif_err)
 
     except Exception as e:
         logger.error("Failed to process recording %s: %s", recording_id, e)

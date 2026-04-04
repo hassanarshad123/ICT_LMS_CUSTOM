@@ -158,7 +158,16 @@ async def verify_zoom_class_access(
             detail="Class not found",
         )
 
-    # Delegate batch-level access check
+    # Teachers assigned to the class itself get access even if they
+    # are not the batch-level teacher (ZoomClass.teacher_id may differ
+    # from Batch.teacher_id).
+    if (
+        current_user.role.value == "teacher"
+        and zoom_class.teacher_id == current_user.id
+    ):
+        return zoom_class
+
+    # Delegate batch-level access check for all other cases
     await verify_batch_access(session, current_user, zoom_class.batch_id)
 
     return zoom_class

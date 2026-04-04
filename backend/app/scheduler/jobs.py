@@ -110,9 +110,10 @@ async def send_zoom_reminders():
                     logger.error("Failed to send reminder to teacher for class %s: %s", zc.title, e)
 
                 # Send to enrolled students
+                student_ids = []
                 try:
                     student_result = await session.execute(
-                        select(User.email).join(
+                        select(User.id, User.email).join(
                             StudentBatch, StudentBatch.student_id == User.id
                         ).where(
                             StudentBatch.batch_id == zc.batch_id,
@@ -120,14 +121,32 @@ async def send_zoom_reminders():
                             User.deleted_at.is_(None),
                         )
                     )
-                    student_emails = [row[0] for row in student_result.all()]
-                    for student_email in student_emails:
+                    student_rows = student_result.all()
+                    student_ids = [row[0] for row in student_rows]
+                    for _, student_email in student_rows:
                         try:
                             send_zoom_reminder(student_email, zc.title, meeting_url, scheduled_str)
                         except Exception as e:
                             logger.error("Failed to send reminder to %s for class %s: %s", student_email, zc.title, e)
                 except Exception as e:
                     logger.error("Failed to query students for class %s: %s", zc.title, e)
+
+                # In-app notification for teacher + students
+                try:
+                    from app.services import notification_service
+                    all_ids = ([zc.teacher_id] if zc.teacher_id else []) + student_ids
+                    if all_ids:
+                        await notification_service.create_bulk_notifications(
+                            session,
+                            user_ids=all_ids,
+                            type="class_reminder",
+                            title="Class Starting Soon",
+                            message=f"'{zc.title}' starts in ~15 minutes at {scheduled_str}",
+                            link="/classes",
+                            institute_id=zc.institute_id,
+                        )
+                except Exception as e:
+                    logger.warning("Failed to create reminder notifications for %s: %s", zc.title, e)
 
                 logger.info("Sent reminders for class %s", zc.title)
 

@@ -1,4 +1,5 @@
 """Branded HTML email templates for all student lifecycle events."""
+from html import escape as _e
 from typing import Optional
 
 
@@ -288,7 +289,173 @@ Hi {student_name}, your quiz <strong>{quiz_title}</strong> has been graded.
     )
 
 
-# ── 8. Email Verification ──────────────────────────────────────
+# ── 9. Class Scheduled ─────────────────────────────────────────
+
+def class_scheduled_email(
+    student_name: str,
+    class_title: str,
+    batch_name: str,
+    teacher_name: str,
+    scheduled_date: str,
+    scheduled_time: str,
+    duration: int,
+    login_url: str = "",
+    institute_name: str = "",
+    logo_url: Optional[str] = None,
+    accent_color: str = "#C5D86D",
+) -> tuple[str, str]:
+    body = f"""
+<h2 style="margin:0 0 8px;color:#1a1a1a;font-size:22px;">New Class Scheduled</h2>
+<p style="color:#52525b;font-size:15px;line-height:1.6;">
+Hi {_e(student_name)}, a new live class has been scheduled for your batch.
+</p>
+<table style="background-color:#f4f4f5;border-radius:8px;padding:16px;width:100%;margin:16px 0;" cellpadding="8" cellspacing="0">
+<tr><td style="color:#71717a;font-size:13px;width:100px;">Class</td><td style="color:#1a1a1a;font-size:14px;font-weight:bold;">{_e(class_title)}</td></tr>
+<tr><td style="color:#71717a;font-size:13px;">Batch</td><td style="color:#1a1a1a;font-size:14px;">{_e(batch_name)}</td></tr>
+<tr><td style="color:#71717a;font-size:13px;">Teacher</td><td style="color:#1a1a1a;font-size:14px;">{_e(teacher_name)}</td></tr>
+<tr><td style="color:#71717a;font-size:13px;">Date</td><td style="color:#1a1a1a;font-size:14px;">{scheduled_date}</td></tr>
+<tr><td style="color:#71717a;font-size:13px;">Time</td><td style="color:#1a1a1a;font-size:14px;">{scheduled_time}</td></tr>
+<tr><td style="color:#71717a;font-size:13px;">Duration</td><td style="color:#1a1a1a;font-size:14px;">{duration} minutes</td></tr>
+</table>
+<p style="margin:20px 0;text-align:center;">
+{_button("View Classes", login_url, accent_color)}
+</p>
+"""
+    return (
+        f"New Class: {class_title} on {scheduled_date}",
+        _base_template(body, institute_name, logo_url, accent_color, login_url),
+    )
+
+
+# ── 10. Class Live ────────────────────────────────────────────
+
+def class_live_email(
+    student_name: str,
+    class_title: str,
+    join_url: str,
+    login_url: str = "",
+    institute_name: str = "",
+    logo_url: Optional[str] = None,
+    accent_color: str = "#C5D86D",
+) -> tuple[str, str]:
+    body = f"""
+<h2 style="margin:0 0 8px;color:#16A34A;font-size:22px;">Class is LIVE!</h2>
+<p style="color:#52525b;font-size:15px;line-height:1.6;">
+Hi {_e(student_name)}, <strong>{_e(class_title)}</strong> is happening right now. Join before you miss it!
+</p>
+<p style="margin:24px 0;text-align:center;">
+{_button("Join Class Now", join_url, "#16A34A")}
+</p>
+<p style="color:#a1a1aa;font-size:12px;text-align:center;">
+If the button doesn't work, copy this link into your browser:<br>
+<a href="{join_url}" style="color:#6366f1;word-break:break-all;">{join_url}</a>
+</p>
+"""
+    return (
+        f"LIVE NOW: {class_title}",
+        _base_template(body, institute_name, logo_url, accent_color, login_url),
+    )
+
+
+# ── 11. Class Cancelled ───────────────────────────────────────
+
+def class_cancelled_email(
+    student_name: str,
+    class_title: str,
+    batch_name: str,
+    scheduled_date: str,
+    scheduled_time: str,
+    login_url: str = "",
+    institute_name: str = "",
+    logo_url: Optional[str] = None,
+    accent_color: str = "#C5D86D",
+) -> tuple[str, str]:
+    body = f"""
+<h2 style="margin:0 0 8px;color:#DC2626;font-size:22px;">Class Cancelled</h2>
+<p style="color:#52525b;font-size:15px;line-height:1.6;">
+Hi {_e(student_name)}, the following class has been cancelled:
+</p>
+<table style="background-color:#f4f4f5;border-radius:8px;padding:16px;width:100%;margin:16px 0;" cellpadding="8" cellspacing="0">
+<tr><td style="color:#71717a;font-size:13px;width:100px;">Class</td><td style="color:#1a1a1a;font-size:14px;font-weight:bold;">{_e(class_title)}</td></tr>
+<tr><td style="color:#71717a;font-size:13px;">Batch</td><td style="color:#1a1a1a;font-size:14px;">{_e(batch_name)}</td></tr>
+<tr><td style="color:#71717a;font-size:13px;">Was Scheduled</td><td style="color:#DC2626;font-size:14px;">{scheduled_date} at {scheduled_time}</td></tr>
+</table>
+<p style="color:#52525b;font-size:14px;">
+If you have any questions, please contact your instructor or administrator.
+</p>
+"""
+    return (
+        f"Class Cancelled: {class_title}",
+        _base_template(body, institute_name, logo_url, accent_color, login_url),
+    )
+
+
+# ── 12. Class Rescheduled ─────────────────────────────────────
+
+def class_rescheduled_email(
+    student_name: str,
+    class_title: str,
+    batch_name: str,
+    old_date: str,
+    old_time: str,
+    new_date: str,
+    new_time: str,
+    duration: int,
+    login_url: str = "",
+    institute_name: str = "",
+    logo_url: Optional[str] = None,
+    accent_color: str = "#C5D86D",
+) -> tuple[str, str]:
+    body = f"""
+<h2 style="margin:0 0 8px;color:#F59E0B;font-size:22px;">Class Rescheduled</h2>
+<p style="color:#52525b;font-size:15px;line-height:1.6;">
+Hi {_e(student_name)}, a class in <strong>{_e(batch_name)}</strong> has been moved to a new time:
+</p>
+<table style="background-color:#f4f4f5;border-radius:8px;padding:16px;width:100%;margin:16px 0;" cellpadding="8" cellspacing="0">
+<tr><td style="color:#71717a;font-size:13px;width:120px;">Class</td><td style="color:#1a1a1a;font-size:14px;font-weight:bold;">{_e(class_title)}</td></tr>
+<tr><td style="color:#71717a;font-size:13px;">Previous Time</td><td style="color:#DC2626;font-size:14px;text-decoration:line-through;">{old_date} at {old_time}</td></tr>
+<tr><td style="color:#71717a;font-size:13px;">New Time</td><td style="color:#16A34A;font-size:14px;font-weight:bold;">{new_date} at {new_time}</td></tr>
+<tr><td style="color:#71717a;font-size:13px;">Duration</td><td style="color:#1a1a1a;font-size:14px;">{duration} minutes</td></tr>
+</table>
+<p style="margin:20px 0;text-align:center;">
+{_button("View Updated Schedule", login_url, accent_color)}
+</p>
+"""
+    return (
+        f"Class Rescheduled: {class_title}",
+        _base_template(body, institute_name, logo_url, accent_color, login_url),
+    )
+
+
+# ── 13. Recording Available ───────────────────────────────────
+
+def recording_available_email(
+    student_name: str,
+    class_title: str,
+    login_url: str = "",
+    institute_name: str = "",
+    logo_url: Optional[str] = None,
+    accent_color: str = "#C5D86D",
+) -> tuple[str, str]:
+    body = f"""
+<h2 style="margin:0 0 8px;color:#1a1a1a;font-size:22px;">Recording Available</h2>
+<p style="color:#52525b;font-size:15px;line-height:1.6;">
+Hi {_e(student_name)}, the recording for <strong>{_e(class_title)}</strong> is now ready to watch.
+</p>
+<p style="color:#52525b;font-size:14px;">
+You can watch it anytime from your classes page.
+</p>
+<p style="margin:24px 0;text-align:center;">
+{_button("Watch Recording", login_url, accent_color)}
+</p>
+"""
+    return (
+        f"Recording Ready: {class_title}",
+        _base_template(body, institute_name, logo_url, accent_color, login_url),
+    )
+
+
+# ── 14. Email Verification ──────────────────────────────────────
 
 def email_verification_email(
     user_name: str,
@@ -322,3 +489,5 @@ This link expires in 24 hours. If you didn't create this account, you can safely
         "Verify your email address",
         _base_template(body, institute_name, logo_url, accent_color),
     )
+
+
