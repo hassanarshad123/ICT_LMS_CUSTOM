@@ -1,3 +1,5 @@
+import os
+
 from starlette.requests import Request
 from slowapi import Limiter
 
@@ -24,4 +26,7 @@ def _get_real_ip(request: Request) -> str:
     return request.client.host if request.client else "127.0.0.1"
 
 
-limiter = Limiter(key_func=_get_real_ip)
+# Use Redis for shared rate limit state across blue-green containers.
+# Falls back to in-memory if REDIS_URL is not set.
+_storage_uri = os.getenv("REDIS_URL", "memory://")
+limiter = Limiter(key_func=_get_real_ip, storage_uri=_storage_uri)

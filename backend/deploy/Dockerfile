@@ -33,6 +33,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     APP_ENV=production \
     APP_DEBUG=false
 
+# Run as non-root user for security
+RUN useradd -m -u 1000 appuser
+USER appuser
+
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

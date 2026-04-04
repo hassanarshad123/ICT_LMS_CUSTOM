@@ -149,7 +149,7 @@ app.add_middleware(
     allow_origin_regex=allow_origin_regex,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
+    allow_headers=["Content-Type", "Authorization", "X-Institute-Slug", "X-API-Key", "X-Request-ID"],
 )
 
 # API v1 Routers
