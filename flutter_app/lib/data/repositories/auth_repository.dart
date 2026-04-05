@@ -1,5 +1,7 @@
 import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/api_constants.dart';
+import '../../core/network/api_client.dart';
 import '../../models/auth_user.dart';
 import '../../models/login_response.dart';
 
@@ -146,3 +148,9 @@ class AuthRepository {
     );
   }
 }
+
+/// Provider for [AuthRepository] using the authenticated Dio client.
+final authRepositoryProvider = Provider<AuthRepository>((ref) {
+  final dio = ref.watch(dioProvider);
+  return AuthRepository(dio);
+});

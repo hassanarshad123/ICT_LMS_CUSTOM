@@ -49,6 +49,7 @@ async def list_batches(
         sub = select(StudentBatch.batch_id).where(
             StudentBatch.student_id == current_user.id,
             StudentBatch.removed_at.is_(None),
+            StudentBatch.is_active.is_(True),
         )
         query = query.where(Batch.id.in_(sub))
         count_query = count_query.where(Batch.id.in_(sub))

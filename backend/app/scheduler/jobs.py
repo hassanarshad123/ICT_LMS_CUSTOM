@@ -118,6 +118,7 @@ async def send_zoom_reminders():
                         ).where(
                             StudentBatch.batch_id == zc.batch_id,
                             StudentBatch.removed_at.is_(None),
+                            StudentBatch.is_active.is_(True),
                             User.deleted_at.is_(None),
                         )
                     )

@@ -146,7 +146,9 @@ async def list_classes(
         base_filters.append(ZoomClass.teacher_id == current_user.id)
     elif current_user.role == UserRole.student:
         my_batches = select(StudentBatch.batch_id).where(
-            StudentBatch.student_id == current_user.id, StudentBatch.removed_at.is_(None)
+            StudentBatch.student_id == current_user.id,
+            StudentBatch.removed_at.is_(None),
+            StudentBatch.is_active.is_(True),
         )
         base_filters.append(ZoomClass.batch_id.in_(my_batches))
     elif current_user.role == UserRole.course_creator:
@@ -419,7 +421,9 @@ async def list_all_recordings(
         base_filters.append(ZoomClass.teacher_id == current_user.id)
     elif current_user.role == UserRole.student:
         my_batches = select(StudentBatch.batch_id).where(
-            StudentBatch.student_id == current_user.id, StudentBatch.removed_at.is_(None)
+            StudentBatch.student_id == current_user.id,
+            StudentBatch.removed_at.is_(None),
+            StudentBatch.is_active.is_(True),
         )
         base_filters.append(ZoomClass.batch_id.in_(my_batches))
     elif current_user.role == UserRole.course_creator:

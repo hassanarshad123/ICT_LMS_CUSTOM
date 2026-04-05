@@ -30,6 +30,7 @@ async def _get_class_recipients(
         .where(
             StudentBatch.batch_id == zoom_class.batch_id,
             StudentBatch.removed_at.is_(None),
+            StudentBatch.is_active.is_(True),
             User.deleted_at.is_(None),
         )
     )
@@ -221,6 +222,7 @@ async def notify_class_cancelled_from_snapshot(
             .where(
                 StudentBatch.batch_id == batch_id,
                 StudentBatch.removed_at.is_(None),
+                StudentBatch.is_active.is_(True),
                 User.deleted_at.is_(None),
             )
         )

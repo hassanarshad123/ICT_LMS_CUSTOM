@@ -111,7 +111,7 @@ async def verify_batch_access(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not enrolled in this batch",
             )
-        if check_active and not student_batch.is_active:
+        if not student_batch.is_active:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Your enrollment in this batch is currently inactive",
