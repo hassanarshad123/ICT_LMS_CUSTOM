@@ -70,7 +70,7 @@ async def _build_user_brief(session: AsyncSession, user: User) -> UserBrief:
 
 
 @router.post("/login", response_model=LoginResponse)
-@limiter.limit("5/minute")
+@limiter.limit("15/minute")
 async def login(
     request: Request,
     body: LoginRequest,
