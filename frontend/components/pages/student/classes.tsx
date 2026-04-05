@@ -14,7 +14,7 @@ import { trackClassJoin } from '@/lib/analytics';
 
 function formatRelativeTime(dateStr: string, timeStr: string): string {
   try {
-    const classTime = new Date(`${dateStr}T${timeStr}`);
+    const classTime = new Date(`${dateStr}T${timeStr}+05:00`);
     const now = new Date();
     const diff = classTime.getTime() - now.getTime();
     if (diff <= 0) {
@@ -35,7 +35,7 @@ function formatRelativeTime(dateStr: string, timeStr: string): string {
 
 function formatFriendlyDate(dateStr: string): string {
   try {
-    const d = new Date(dateStr + 'T00:00:00');
+    const d = new Date(dateStr + 'T00:00:00+05:00');
     return d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
   } catch {
     return dateStr;

@@ -62,8 +62,10 @@ export default function StudentDashboard() {
   useEffect(() => {
     if (!nextClass?.scheduledDate || !nextClass?.scheduledTime) return;
     const update = () => {
-      const classTime = new Date(`${nextClass.scheduledDate}T${nextClass.scheduledTime}`);
+      const classTime = new Date(`${nextClass.scheduledDate}T${nextClass.scheduledTime}+05:00`);
       const now = new Date();
+      const endTime = classTime.getTime() + ((nextClass.duration || 60) * 60000);
+      if (now.getTime() > endTime) { setCountdown(''); return; }
       const diff = classTime.getTime() - now.getTime();
       if (diff <= 0) { setCountdown('Starting now!'); return; }
       const hours = Math.floor(diff / 3600000);
