@@ -8,15 +8,15 @@ const CSP_DIRECTIVES = [
   // 'unsafe-inline' required because Next.js 13 injects inline scripts without nonce support.
   // 'unsafe-eval' only in dev mode for Fast Refresh / HMR.
   // TODO: migrate to nonce-based CSP after upgrading to Next.js 14+
-  `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}`,
+  `script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}`,
   // Keep unsafe-inline for styles — Tailwind, Radix, chart.tsx dynamic CSS, branding system
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com",
-  "img-src 'self' data: blob: https://*.bunny.net https://*.bunnycdn.com https://*.b-cdn.net https://*.mediadelivery.net https://*.amazonaws.com",
+  "img-src 'self' data: blob: https://*.bunny.net https://*.bunnycdn.com https://*.b-cdn.net https://*.mediadelivery.net https://*.amazonaws.com https://www.google-analytics.com https://www.googletagmanager.com",
   "media-src 'self' blob: https://*.bunny.net https://*.bunnycdn.com https://*.b-cdn.net https://*.mediadelivery.net",
   "frame-src 'self' https://*.bunny.net https://*.mediadelivery.net https://www.youtube.com https://player.vimeo.com https://*.zoom.us",
   // Restrict WebSocket to specific domains (was bare wss:/ws: before)
-  "connect-src 'self' https://*.bunny.net https://*.bunnycdn.com https://*.b-cdn.net https://*.mediadelivery.net https://*.amazonaws.com wss://*.zensbot.site wss://*.zensbot.online ws://localhost:*",
+  "connect-src 'self' https://*.bunny.net https://*.bunnycdn.com https://*.b-cdn.net https://*.mediadelivery.net https://*.amazonaws.com wss://*.zensbot.site wss://*.zensbot.online ws://localhost:* https://www.google-analytics.com https://analytics.google.com https://*.google-analytics.com https://*.analytics.google.com",
   "frame-ancestors 'none'",
 ].join('; ');
 

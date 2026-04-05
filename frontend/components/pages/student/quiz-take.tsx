@@ -13,6 +13,7 @@ import {
 import type { QuizAttempt, QuizQuestion } from '@/lib/api/quizzes';
 import { PageLoading, PageError } from '@/components/shared/page-states';
 import { toast } from 'sonner';
+import { trackQuizStart, trackQuizComplete } from '@/lib/analytics';
 import { QuizStartPhase } from './quiz-start-phase';
 import { QuizTakingPhase } from './quiz-taking-phase';
 import { QuizResultsPhase } from './quiz-results-phase';
@@ -122,6 +123,7 @@ export default function QuizTake({ quizId, courseId }: QuizTakeProps) {
         setTimeRemaining(quiz.timeLimitMinutes * 60);
       }
       setPhase('taking');
+      trackQuizStart(quizId, courseId);
     } catch (err: any) {
       toast.error(err.message);
     }
@@ -142,6 +144,7 @@ export default function QuizTake({ quizId, courseId }: QuizTakeProps) {
       setTimeRemaining(null);
       if (timerRef.current) clearTimeout(timerRef.current);
       refetchAttempts();
+      trackQuizComplete(quizId, courseId, result.percentage);
       toast.success('Quiz submitted successfully');
     } catch (err: any) {
       toast.error(err.message);

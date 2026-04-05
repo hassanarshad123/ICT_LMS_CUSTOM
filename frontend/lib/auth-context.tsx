@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { UserRole } from './types';
 import { login as apiLogin, logout as apiLogout, getMe, AuthUser } from './api/auth';
 import { initErrorReporter } from './utils/error-reporter';
+import { setAnalyticsUser, clearAnalyticsUser, trackLogin, trackLogout } from './analytics';
+import { getInstituteSlug } from './utils/subdomain';
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -43,6 +45,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       initErrorReporter();
       errorReporterInit.current = true;
     }
+    // Restore analytics user properties for returning sessions
+    const initialUser = getInitialUser();
+    if (initialUser) {
+      setAnalyticsUser(initialUser.id, initialUser.role, getInstituteSlug());
+    }
   }, []);
 
   const login = useCallback(async (email: string, password: string): Promise<AuthUser> => {
@@ -52,6 +59,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('refresh_token', res.refreshToken);
     localStorage.setItem('user', JSON.stringify(res.user));
     setUser(res.user);
+    setAnalyticsUser(res.user.id, res.user.role, getInstituteSlug());
+    trackLogin();
     return res.user;
   }, []);
 
@@ -80,6 +89,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.warn('Backend logout failed (session may remain active server-side):', err);
       }
     }
+    trackLogout();
+    clearAnalyticsUser();
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('user');

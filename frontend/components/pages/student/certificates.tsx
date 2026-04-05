@@ -13,6 +13,7 @@ import DashboardLayout from '@/components/layout/dashboard-layout';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { Award, Download, Loader2, BookOpen, Clock, CheckCircle2, XCircle, Send } from 'lucide-react';
 import { toast } from 'sonner';
+import { trackCertificateDownload } from '@/lib/analytics';
 import {
   Dialog,
   DialogContent,
@@ -87,6 +88,7 @@ export default function StudentCertificates() {
     try {
       const res = await doDownload(course.certificateId);
       window.open(res.downloadUrl, '_blank');
+      trackCertificateDownload(course.certificateId, course.courseId);
     } catch (err: any) {
       toast.error(err.message || 'Failed to download certificate');
     }

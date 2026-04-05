@@ -10,6 +10,7 @@ import { PageLoading, PageError, EmptyState } from '@/components/shared/page-sta
 import { Video, ExternalLink, Clock, Calendar, PlayCircle } from 'lucide-react';
 import AttendancePanel from '@/components/shared/attendance-panel';
 import Link from 'next/link';
+import { trackClassJoin } from '@/lib/analytics';
 
 function formatRelativeTime(dateStr: string, timeStr: string): string {
   try {
@@ -102,6 +103,7 @@ export default function StudentZoom() {
                           href={cls.zoomMeetingUrl}
                           target="_blank"
                           rel="noopener noreferrer"
+                          onClick={() => trackClassJoin(cls.id)}
                           className="px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors flex items-center gap-2 flex-shrink-0 w-full sm:w-auto justify-center"
                         >
                           <ExternalLink size={14} />

@@ -2,6 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrandingProvider } from '@/lib/branding-context';
+import RouteTracker from '@/components/analytics/route-tracker';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -18,6 +19,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <BrandingProvider>
+        <RouteTracker />
         {children}
       </BrandingProvider>
     </QueryClientProvider>

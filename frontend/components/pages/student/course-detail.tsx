@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { CourseVideoPlayer } from './course-video-player';
+import { trackCourseView, trackLectureStart } from '@/lib/analytics';
 
 import { CourseMaterialsSection } from './course-materials-section';
 import { CourseQuizzesSection } from './course-quizzes-section';
@@ -114,6 +115,15 @@ export default function CourseDetailPage() {
   const recordings = recordingsData?.data || [];
   const publishedQuizzes = (quizzesData?.data || []).filter((q) => q.isPublished);
   const myAttempts = myAttemptsData?.data || [];
+
+  // Track course view when course data loads
+  const trackedRef = useRef(false);
+  useEffect(() => {
+    if (course && !trackedRef.current) {
+      trackedRef.current = true;
+      trackCourseView(courseId, course.title);
+    }
+  }, [course, courseId]);
 
   // Auto-resume: select last in-progress lecture, or first unlocked lecture
   const autoResumedRef = useRef(false);
@@ -296,7 +306,10 @@ export default function CourseDetailPage() {
         recordings={recordings}
         selectedLecture={selectedLecture}
         selectedRecording={selectedRecording}
-        onSelectLecture={setSelectedLecture}
+        onSelectLecture={(id: string) => {
+          setSelectedLecture(id);
+          trackLectureStart(id, courseId);
+        }}
         onSelectRecording={setSelectedRecording}
         activeLecture={activeLecture}
         activeRecording={activeRecording}
