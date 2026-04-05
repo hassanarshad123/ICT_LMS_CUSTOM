@@ -45,7 +45,9 @@ async def list_announcements(
     # Role scoping for students/teachers
     if current_user.role == UserRole.student:
         my_batch_ids = select(StudentBatch.batch_id).where(
-            StudentBatch.student_id == current_user.id, StudentBatch.removed_at.is_(None)
+            StudentBatch.student_id == current_user.id,
+            StudentBatch.removed_at.is_(None),
+            StudentBatch.is_active.is_(True),
         )
         my_course_ids = select(BatchCourse.course_id).where(
             BatchCourse.batch_id.in_(my_batch_ids), BatchCourse.deleted_at.is_(None)

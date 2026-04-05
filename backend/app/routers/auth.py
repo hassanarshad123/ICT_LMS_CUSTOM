@@ -38,6 +38,7 @@ async def _build_user_brief(session: AsyncSession, user: User) -> UserBrief:
             .where(
                 StudentBatch.student_id == user.id,
                 StudentBatch.removed_at.is_(None),
+                StudentBatch.is_active.is_(True),
                 Batch.deleted_at.is_(None),
             )
         )
