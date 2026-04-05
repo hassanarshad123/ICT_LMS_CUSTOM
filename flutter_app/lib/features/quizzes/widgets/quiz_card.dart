@@ -4,6 +4,7 @@ import 'package:ict_lms_student/core/constants/app_shadows.dart';
 import 'package:ict_lms_student/core/constants/app_spacing.dart';
 import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 import 'package:ict_lms_student/models/quiz_out.dart';
+import 'package:ict_lms_student/shared/widgets/tap_scale.dart';
 
 class QuizCard extends StatelessWidget {
   final QuizOut quiz;
@@ -15,7 +16,7 @@ class QuizCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final accent = Theme.of(context).colorScheme.primary;
 
-    return GestureDetector(
+    return TapScale(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.cardPadding),
@@ -50,9 +51,15 @@ class QuizCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: AppSpacing.space12),
-            Text(
-              quiz.title,
-              style: AppTextStyles.headline,
+            Hero(
+              tag: 'quiz-${quiz.id}',
+              child: Material(
+                type: MaterialType.transparency,
+                child: Text(
+                  quiz.title,
+                  style: AppTextStyles.headline,
+                ),
+              ),
             ),
             if (quiz.description != null && quiz.description!.isNotEmpty) ...[
               const SizedBox(height: 4),

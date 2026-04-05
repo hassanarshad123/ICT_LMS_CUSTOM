@@ -19,6 +19,7 @@ class AnnouncementPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AccentCard(
+      useGlass: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

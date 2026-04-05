@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import '../constants/api_constants.dart';
@@ -9,6 +10,8 @@ class WebSocketService {
   WebSocketChannel? _announcementChannel;
   Timer? _reconnectTimer;
   bool _disposed = false;
+  int _reconnectAttempts = 0;
+  static const int _maxReconnectDelay = 60;
 
   final _announcementController = StreamController<Map<String, dynamic>>.broadcast();
 
@@ -23,6 +26,7 @@ class WebSocketService {
       );
       _announcementChannel = WebSocketChannel.connect(uri);
 
+      _reconnectAttempts = 0; // Reset on successful connection
       _announcementChannel!.stream.listen(
         (message) {
           try {
@@ -51,7 +55,13 @@ class WebSocketService {
   void _scheduleReconnect(String userId, String token) {
     _reconnectTimer?.cancel();
     if (_disposed) return;
-    _reconnectTimer = Timer(const Duration(seconds: 5), () {
+    // Exponential backoff: 2^attempts seconds, capped at 60s
+    final delay = math.min(
+      math.pow(2, _reconnectAttempts).toInt(),
+      _maxReconnectDelay,
+    );
+    _reconnectAttempts++;
+    _reconnectTimer = Timer(Duration(seconds: delay), () {
       connectAnnouncements(userId, token);
     });
   }

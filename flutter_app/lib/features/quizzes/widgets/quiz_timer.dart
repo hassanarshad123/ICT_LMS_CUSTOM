@@ -42,20 +42,36 @@ class QuizTimer extends StatelessWidget {
         ? (remainingSeconds <= 10 ? AppColors.error : AppColors.warning)
         : AppColors.textPrimary;
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(Icons.timer_outlined, size: 18, color: color),
-        const SizedBox(width: 4),
-        Text(
-          formatted,
-          style: AppTextStyles.subheadline.copyWith(
-            color: color,
-            fontWeight: FontWeight.w600,
-            fontFeatures: const [FontFeature.tabularFigures()],
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: color.withValues(alpha: 0.15),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.timer_outlined, size: 18, color: color),
+              const SizedBox(width: 4),
+              Text(
+                formatted,
+                style: AppTextStyles.subheadline.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w600,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
 }

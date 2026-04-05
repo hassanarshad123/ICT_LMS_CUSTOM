@@ -21,6 +21,7 @@ class UpcomingClassCard extends StatelessWidget {
     final accentColor = Theme.of(context).colorScheme.primary;
 
     return AccentCard(
+      useGlass: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 
+/// Flat colored pill badge — no glass morphism blur.
 class StatusBadge extends StatelessWidget {
   final String status;
   final double fontSize;
@@ -20,7 +21,7 @@ class StatusBadge extends StatelessWidget {
         vertical: fontSize < 12 ? 3 : 4,
       ),
       decoration: BoxDecoration(
-        color: config.color.withValues(alpha: 0.12),
+        color: config.color.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(100),
       ),
       child: Text(
@@ -28,7 +29,7 @@ class StatusBadge extends StatelessWidget {
         style: TextStyle(
           color: config.color,
           fontSize: fontSize,
-          fontWeight: FontWeight.w500,
+          fontWeight: FontWeight.w600,
           height: 1.2,
         ),
       ),

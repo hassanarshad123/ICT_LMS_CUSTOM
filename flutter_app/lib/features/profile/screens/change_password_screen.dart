@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:ict_lms_student/core/constants/app_animations.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
 import 'package:ict_lms_student/core/constants/app_spacing.dart';
 import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 import 'package:ict_lms_student/core/network/api_client.dart';
+import 'package:ict_lms_student/core/utils/responsive.dart';
 import 'package:ict_lms_student/data/repositories/auth_repository.dart';
 import 'package:ict_lms_student/providers/auth_provider.dart';
 
@@ -34,6 +36,7 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
   }
 
   Future<void> _changePassword() async {
+    AppAnimations.hapticMedium();
     if (!_formKey.currentState!.validate() || _isSaving) return;
 
     setState(() => _isSaving = true);
@@ -90,13 +93,13 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
       body: GestureDetector(
         onTap: () => FocusScope.of(context).unfocus(),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.screenH,
+          padding: EdgeInsets.fromLTRB(
+            Responsive.screenPadding(context),
             AppSpacing.space20,
-            AppSpacing.screenH,
+            Responsive.screenPadding(context),
             80,
           ),
-          child: Form(
+          child: Responsive.constrainWidth(context, child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -222,7 +225,7 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
                 ),
               ],
             ),
-          ),
+          )),
         ),
       ),
     );

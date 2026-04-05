@@ -1,7 +1,8 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/constants/app_animations.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -32,6 +33,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
 
   Future<void> _onSubmit() async {
     if (!_formKey.currentState!.validate()) return;
+    AppAnimations.hapticMedium();
 
     // Dismiss keyboard
     FocusScope.of(context).unfocus();
@@ -123,7 +125,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                       size: 32,
                       color: AppColors.textTertiary,
                     ),
-                  ),
+                  ).animate().fadeIn(duration: AppAnimations.slow, curve: AppAnimations.curveEnter).scale(begin: const Offset(0.8, 0.8), end: const Offset(1, 1), duration: AppAnimations.slow, curve: AppAnimations.curveEnter),
                   const SizedBox(height: AppSpacing.space24),
 
                   // Title
@@ -131,7 +133,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                     'Reset Password',
                     style: AppTextStyles.title2,
                     textAlign: TextAlign.center,
-                  ),
+                  ).animate(delay: 100.ms).fadeIn(duration: AppAnimations.normal, curve: AppAnimations.curveEnter).slideY(begin: 0.1, end: 0, duration: AppAnimations.normal, curve: AppAnimations.curveEnter),
                   const SizedBox(height: AppSpacing.space8),
 
                   // Description
@@ -139,7 +141,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                     'Enter your email address and we\'ll send you a link to reset your password.',
                     style: AppTextStyles.subheadline,
                     textAlign: TextAlign.center,
-                  ),
+                  ).animate(delay: 150.ms).fadeIn(duration: AppAnimations.normal, curve: AppAnimations.curveEnter).slideY(begin: 0.1, end: 0, duration: AppAnimations.normal, curve: AppAnimations.curveEnter),
                   const SizedBox(height: AppSpacing.space32),
 
                   // Email field
@@ -168,7 +170,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                       return null;
                     },
                     onFieldSubmitted: (_) => _onSubmit(),
-                  ),
+                  ).animate(delay: 200.ms).fadeIn(duration: AppAnimations.normal, curve: AppAnimations.curveEnter).slideY(begin: 0.1, end: 0, duration: AppAnimations.normal, curve: AppAnimations.curveEnter),
                   const SizedBox(height: AppSpacing.space24),
 
                   // Submit button
@@ -176,18 +178,28 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                     height: 50,
                     child: ElevatedButton(
                       onPressed: _isSubmitting ? null : _onSubmit,
-                      child: _isSubmitting
-                          ? const CupertinoActivityIndicator(
-                              color: Colors.white,
-                            )
-                          : Text(
-                              'Send Reset Link',
-                              style: AppTextStyles.bodyMedium.copyWith(
-                                color: Colors.white,
-                              ),
-                            ),
+                      child: AnimatedSwitcher(
+                          duration: AppAnimations.fast,
+                          child: _isSubmitting
+                              ? const SizedBox(
+                                  key: ValueKey('loading'),
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Text(
+                                  'Send Reset Link',
+                                  key: const ValueKey('text'),
+                                  style: AppTextStyles.bodyMedium.copyWith(
+                                    color: Colors.white,
+                                  ),
+                                ),
+                        ),
                     ),
-                  ),
+                  ).animate(delay: 300.ms).fadeIn(duration: AppAnimations.normal, curve: AppAnimations.curveEnter).slideY(begin: 0.1, end: 0, duration: AppAnimations.normal, curve: AppAnimations.curveEnter),
                 ],
               ),
             ),

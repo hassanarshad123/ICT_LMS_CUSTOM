@@ -1,10 +1,13 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../core/utils/responsive.dart';
+import '../../../core/constants/app_animations.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/branding_provider.dart';
 import '../../../providers/institute_slug_provider.dart';
@@ -37,6 +40,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _onLogin() async {
+    AppAnimations.hapticMedium();
     if (!_formKey.currentState!.validate()) return;
 
     // Dismiss keyboard
@@ -89,8 +93,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space32),
-            child: Form(
+            padding: EdgeInsets.symmetric(
+              horizontal: Responsive.screenPadding(context),
+            ),
+            child: Responsive.constrainWidth(
+              context,
+              child: Form(
               key: _formKey,
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -99,7 +107,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const SizedBox(height: AppSpacing.space32),
 
                   // Institute logo
-                  _buildLogo(branding, accentColor),
+                  _buildLogo(branding, accentColor)
+                      .animate()
+                      .fadeIn(duration: AppAnimations.slow, curve: AppAnimations.curveEnter)
+                      .scale(
+                        begin: const Offset(0.8, 0.8),
+                        end: const Offset(1.0, 1.0),
+                        duration: AppAnimations.slow,
+                        curve: AppAnimations.curveEnter,
+                      ),
                   const SizedBox(height: AppSpacing.space20),
 
                   // Institute name
@@ -107,7 +123,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     branding.instituteName ?? 'LMS',
                     style: AppTextStyles.title2,
                     textAlign: TextAlign.center,
-                  ),
+                  )
+                      .animate(delay: 100.ms)
+                      .fadeIn(duration: AppAnimations.normal, curve: AppAnimations.curveEnter)
+                      .slideY(
+                        begin: 0.1,
+                        end: 0,
+                        duration: AppAnimations.normal,
+                        curve: AppAnimations.curveEnter,
+                      ),
                   const SizedBox(height: AppSpacing.space4),
 
                   // Tagline
@@ -117,7 +141,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       branding.tagline!,
                       style: AppTextStyles.subheadline,
                       textAlign: TextAlign.center,
-                    ),
+                    )
+                        .animate(delay: 100.ms)
+                        .fadeIn(duration: AppAnimations.normal, curve: AppAnimations.curveEnter)
+                        .slideY(
+                          begin: 0.1,
+                          end: 0,
+                          duration: AppAnimations.normal,
+                          curve: AppAnimations.curveEnter,
+                        ),
                     const SizedBox(height: AppSpacing.space40),
                   ] else
                     const SizedBox(height: AppSpacing.space40),
@@ -152,7 +184,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     onFieldSubmitted: (_) {
                       _passwordFocusNode.requestFocus();
                     },
-                  ),
+                  )
+                      .animate(delay: 200.ms)
+                      .fadeIn(duration: AppAnimations.normal, curve: AppAnimations.curveEnter)
+                      .slideY(
+                        begin: 0.1,
+                        end: 0,
+                        duration: AppAnimations.normal,
+                        curve: AppAnimations.curveEnter,
+                      ),
                   const SizedBox(height: AppSpacing.space16),
 
                   // Password field
@@ -189,7 +229,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       return null;
                     },
                     onFieldSubmitted: (_) => _onLogin(),
-                  ),
+                  )
+                      .animate(delay: 250.ms)
+                      .fadeIn(duration: AppAnimations.normal, curve: AppAnimations.curveEnter)
+                      .slideY(
+                        begin: 0.1,
+                        end: 0,
+                        duration: AppAnimations.normal,
+                        curve: AppAnimations.curveEnter,
+                      ),
                   const SizedBox(height: AppSpacing.space32),
 
                   // Sign In button
@@ -198,18 +246,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     height: 50,
                     child: ElevatedButton(
                       onPressed: _isLoggingIn ? null : _onLogin,
-                      child: _isLoggingIn
-                          ? const CupertinoActivityIndicator(
-                              color: Colors.white,
-                            )
-                          : Text(
-                              'Sign In',
-                              style: AppTextStyles.bodyMedium.copyWith(
+                      child: AnimatedSwitcher(
+                        duration: AppAnimations.fast,
+                        child: _isLoggingIn
+                            ? const CupertinoActivityIndicator(
+                                key: ValueKey('login_loading'),
                                 color: Colors.white,
+                              )
+                            : Text(
+                                'Sign In',
+                                key: const ValueKey('login_text'),
+                                style: AppTextStyles.bodyMedium.copyWith(
+                                  color: Colors.white,
+                                ),
                               ),
-                            ),
+                      ),
                     ),
-                  ),
+                  )
+                      .animate(delay: 300.ms)
+                      .fadeIn(duration: AppAnimations.normal, curve: AppAnimations.curveEnter)
+                      .slideY(
+                        begin: 0.1,
+                        end: 0,
+                        duration: AppAnimations.normal,
+                        curve: AppAnimations.curveEnter,
+                      ),
                   const SizedBox(height: AppSpacing.space16),
 
                   // Forgot password link
@@ -228,7 +289,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         color: accentColor,
                       ),
                     ),
-                  ),
+                  )
+                      .animate(delay: 400.ms)
+                      .fadeIn(duration: AppAnimations.normal, curve: AppAnimations.curveEnter),
                   const SizedBox(height: AppSpacing.space32),
 
                   // Change institute link
@@ -242,7 +305,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         color: AppColors.textTertiary,
                       ),
                     ),
-                  ),
+                  )
+                      .animate(delay: 400.ms)
+                      .fadeIn(duration: AppAnimations.normal, curve: AppAnimations.curveEnter),
                   const SizedBox(height: 24),
                   Text(
                     'Powered by Zensbot.com',
@@ -255,6 +320,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const SizedBox(height: AppSpacing.space16),
                 ],
               ),
+            ),
             ),
           ),
         ),

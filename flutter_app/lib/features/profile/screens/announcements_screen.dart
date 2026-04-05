@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:ict_lms_student/core/constants/app_animations.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
 import 'package:ict_lms_student/core/constants/app_shadows.dart';
 import 'package:ict_lms_student/core/constants/app_spacing.dart';
+import 'package:ict_lms_student/core/utils/responsive.dart';
 import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 import 'package:ict_lms_student/core/utils/error_utils.dart';
 import 'package:ict_lms_student/data/repositories/announcement_repository.dart';
 import 'package:ict_lms_student/models/announcement_out.dart';
+import 'package:ict_lms_student/shared/widgets/shimmer_loading.dart';
 import 'package:ict_lms_student/shared/widgets/status_badge.dart';
 import 'package:intl/intl.dart';
 
@@ -162,17 +165,13 @@ class _AnnouncementsScreenState extends ConsumerState<AnnouncementsScreen> {
 
   Widget _buildBody(AnnouncementsState state) {
     if (state.isLoading && state.items.isEmpty) {
-      return Center(
-        child: CircularProgressIndicator(
-          color: Theme.of(context).colorScheme.primary,
-        ),
-      );
+      return const ShimmerList(itemCount: 5, itemHeight: 110);
     }
 
     if (state.error != null && state.items.isEmpty) {
       return Center(
         child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.screenH),
+          padding: EdgeInsets.all(Responsive.screenPadding(context)),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -218,7 +217,11 @@ class _AnnouncementsScreenState extends ConsumerState<AnnouncementsScreen> {
     }
 
     return RefreshIndicator(
-      onRefresh: () => ref.read(announcementsProvider.notifier).refresh(),
+      color: Theme.of(context).colorScheme.primary,
+      onRefresh: () {
+        AppAnimations.hapticLight();
+        return ref.read(announcementsProvider.notifier).refresh();
+      },
       child: ListView.builder(
         controller: _scrollController,
         padding: const EdgeInsets.fromLTRB(

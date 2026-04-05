@@ -10,7 +10,7 @@ class AppTextStyles {
         fontSize: 34,
         fontWeight: FontWeight.w700,
         height: 41 / 34,
-        letterSpacing: 0.37,
+        letterSpacing: -0.5,
         color: AppColors.textPrimary,
       );
 
@@ -20,15 +20,15 @@ class AppTextStyles {
         fontSize: 28,
         fontWeight: FontWeight.w700,
         height: 34 / 28,
-        letterSpacing: 0.36,
+        letterSpacing: -0.4,
         color: AppColors.textPrimary,
       );
 
-  // Title 2 — section headings (iOS: 22pt bold)
+  // Title 2 — section headings (iOS: 22pt bold) — stronger weight for visual anchoring
   static const TextStyle title2 = TextStyle(
         fontFamily: 'Inter',
         fontSize: 22,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w800,
         height: 28 / 22,
         letterSpacing: 0.35,
         color: AppColors.textPrimary,
@@ -44,11 +44,11 @@ class AppTextStyles {
         color: AppColors.textPrimary,
       );
 
-  // Headline — emphasized body (iOS: 17pt semibold)
+  // Headline — card titles (iOS: 17pt bold) — stronger for card contrast
   static const TextStyle headline = TextStyle(
         fontFamily: 'Inter',
         fontSize: 17,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.w700,
         height: 22 / 17,
         letterSpacing: -0.41,
         color: AppColors.textPrimary,

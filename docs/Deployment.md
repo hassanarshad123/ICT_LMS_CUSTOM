@@ -413,156 +413,91 @@ curl -X POST 'https://api.resend.com/emails' \
 
 ---
 
-## 8. Deploy FastAPI to EC2
+## 8. Deploy Backend to EC2 (Docker Blue-Green)
+
+The backend runs as Docker containers with zero-downtime blue-green deployment. See `docs/blue-green.md` for the full architecture.
 
 ### 8.1 Clone Repository
 
 ```bash
-ssh ubuntu@<elastic-ip>
-
+ssh -i LMS_CUSTOM.pem ubuntu@13.204.107.220
 cd /home/ubuntu
-git clone https://github.com/org/ICT_LMS_CUSTOM.git
+git clone https://github.com/hassanarshad123/ICT_LMS_CUSTOM.git
 cd ICT_LMS_CUSTOM/backend
 ```
 
-### 8.2 Set Up Python Environment
-
-```bash
-python3.11 -m venv venv
-source venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-### 8.3 Configure Environment
+### 8.2 Configure Environment
 
 ```bash
 cp .env.example .env
 nano .env
-# Fill in all values from the services set up above
+# Fill in all values from the services set up above (RDS, S3, Bunny, Zoom, Resend, JWT)
 ```
 
-### 8.4 Generate Security Keys
+Generate security keys:
+```bash
+# JWT signing key
+python3 -c "import secrets; print(secrets.token_hex(32))"
+
+# Fernet encryption key (for Zoom credentials)
+python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+### 8.3 One-Time Docker Setup
 
 ```bash
-# Generate SECRET_KEY (JWT signing)
-python -c "import secrets; print(secrets.token_hex(32))"
-
-# Generate ENCRYPTION_KEY (Fernet for Zoom secrets)
-python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+cd /home/ubuntu/ICT_LMS_CUSTOM/backend/deploy
+chmod +x setup-docker.sh deploy-bg.sh rollback.sh
+./setup-docker.sh  # Installs Docker, creates /var/log/lms, disables old systemd service
 ```
 
-### 8.5 Run Migrations
+Logout and login again (for Docker group to take effect).
+
+### 8.4 First Deploy
 
 ```bash
-# Ensure DATABASE_URL in .env points to the RDS instance
-alembic upgrade head
-
-# Seed initial data
-python -m app.scripts.seed
+cd /home/ubuntu/ICT_LMS_CUSTOM/backend/deploy
+./deploy-bg.sh
 ```
 
-### 8.6 Test Locally
+This will: build Docker image, start first container (green on port 8001), run migrations, health check, configure nginx, and write `.active-slot`.
+
+### 8.5 Key Files on EC2
+
+| File | Purpose |
+|------|---------|
+| `backend/.active-slot` | Tracks active container (blue or green) |
+| `backend/.env` | Environment variables (shared by both containers) |
+| `backend/deploy/deploy-bg.sh` | 10-step blue-green deploy orchestrator |
+| `backend/deploy/rollback.sh` | Instant rollback (~10 seconds) |
+| `backend/deploy/Dockerfile` | Multi-stage Python 3.11 build |
+| `backend/deploy/docker-compose.yml` | Blue (port 8000) + Green (port 8001) services |
+| `/var/log/lms/deploy-*.log` | Timestamped deploy logs |
+
+### 8.6 Manual Deploy / Rollback
 
 ```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8000
-# Visit http://<elastic-ip>:8000/docs to verify
-# Ctrl+C when done
+# Deploy latest code
+cd /home/ubuntu/ICT_LMS_CUSTOM/backend/deploy
+./deploy-bg.sh
+
+# Instant rollback to previous version
+./rollback.sh
 ```
 
-### 8.7 Create systemd Service
+### 8.7 Nginx Configuration
+
+Located at `/etc/nginx/sites-available/ict-lms-api`. The deploy script automatically switches `proxy_pass` between ports 8000 (blue) and 8001 (green) using sed + `nginx -s reload`. No manual nginx changes needed.
+
+### 8.8 Monitoring
 
 ```bash
-sudo nano /etc/systemd/system/ict-lms-api.service
-```
-
-Contents:
-```ini
-[Unit]
-Description=ICT LMS FastAPI Backend
-After=network.target
-
-[Service]
-User=ubuntu
-Group=ubuntu
-WorkingDirectory=/home/ubuntu/ICT_LMS_CUSTOM/backend
-Environment="PATH=/home/ubuntu/ICT_LMS_CUSTOM/backend/venv/bin:/usr/bin"
-EnvironmentFile=/home/ubuntu/ICT_LMS_CUSTOM/backend/.env
-ExecStart=/home/ubuntu/ICT_LMS_CUSTOM/backend/venv/bin/uvicorn app.main:app --workers 2 --host 127.0.0.1 --port 8000
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable and start:
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable ict-lms-api
-sudo systemctl start ict-lms-api
-sudo systemctl status ict-lms-api  # Should show "active (running)"
-```
-
-### 8.8 Configure Nginx
-
-```bash
-sudo nano /etc/nginx/sites-available/ict-lms-api
-```
-
-Contents:
-```nginx
-server {
-    listen 80;
-    server_name api.ictlms.com;
-
-    # Redirect HTTP to HTTPS (after SSL setup)
-    return 301 https://$server_name$request_uri;
-}
-
-server {
-    listen 443 ssl;
-    server_name api.ictlms.com;
-
-    client_max_body_size 110M;  # For video/material uploads
-
-    # API routes
-    location / {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-
-        # Timeout for long uploads
-        proxy_read_timeout 300s;
-        proxy_connect_timeout 60s;
-    }
-
-    # WebSocket routes
-    location /ws/ {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_read_timeout 86400s;  # Keep WS alive for 24h
-    }
-
-    # SSL certificates (added by Certbot)
-    ssl_certificate /etc/letsencrypt/live/api.ictlms.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/api.ictlms.com/privkey.pem;
-    include /etc/letsencrypt/options-ssl-nginx.conf;
-}
-```
-
-Enable the site:
-```bash
-sudo ln -s /etc/nginx/sites-available/ict-lms-api /etc/nginx/sites-enabled/
-sudo rm /etc/nginx/sites-enabled/default
-sudo nginx -t  # Test config
-sudo systemctl restart nginx
+docker ps                                    # container status
+docker logs lms-green --tail 50             # container logs
+cat backend/.active-slot                     # active slot
+redis-cli GET "lms:scheduler:owner"         # scheduler ownership
+curl -sf http://127.0.0.1:8000/api/health   # blue health
+curl -sf http://127.0.0.1:8001/api/health   # green health
 ```
 
 ---
@@ -622,73 +557,43 @@ Certbot auto-renews every 90 days via a systemd timer.
 
 ---
 
-## 11. CI/CD Pipeline
+## 11. CI/CD Pipeline (Blue-Green Auto-Deploy)
 
-### GitHub Actions Workflow
+The workflow is defined in `.github/workflows/deploy-backend.yml` and triggers automatically on push to `main` with `backend/**` changes.
 
-Create `.github/workflows/deploy-backend.yml`:
+### Pipeline Flow
 
-```yaml
-name: Deploy Backend
+1. **CI Job (Validate Backend):**
+   - Python 3.11 + pip cache
+   - `python -m compileall -q app/ main.py` (syntax check)
+   - Import validation: walks all `app.*` submodules to catch broken imports
 
-on:
-  push:
-    branches: [main]
-    paths: ['backend/**']
+2. **Deploy Job (Blue-Green via SSH):**
+   - Requires CI to pass; only runs on push (not PRs)
+   - SSHs into EC2 using `appleboy/ssh-action@v1`
+   - Runs `deploy-bg.sh` which handles the full 10-step blue-green process
+   - External health check: `curl https://apiict.zensbot.site/api/health`
+   - Auto-rollback: if health fails 60s after switch, reverts automatically
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        run: |
-          cd backend
-          pip install -r requirements.txt
-
-      - name: Run tests
-        env:
-          DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
-          SECRET_KEY: test-secret-key-for-ci
-          ALGORITHM: HS256
-        run: |
-          cd backend
-          pytest tests/ -v
-
-  deploy:
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Deploy to EC2
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ubuntu
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            cd /home/ubuntu/ICT_LMS_CUSTOM
-            git pull origin main
-            cd backend
-            source venv/bin/activate
-            pip install -r requirements.txt
-            alembic upgrade head
-            sudo systemctl restart ict-lms-api
-            echo "Deploy complete"
-```
-
-### GitHub Secrets to Configure
+### GitHub Secrets Required
 
 | Secret | Value |
 |--------|-------|
-| `EC2_HOST` | Elastic IP of the EC2 instance |
-| `EC2_SSH_KEY` | Private key (PEM) for SSH |
-| `TEST_DATABASE_URL` | RDS PostgreSQL connection string (test database) |
+| `EC2_HOST` | `13.204.107.220` (Elastic IP) |
+| `EC2_USERNAME` | `ubuntu` |
+| `EC2_SSH_KEY` | Private key (PEM contents) for SSH |
+
+### GitHub Environment
+
+The deploy job uses a `production` environment with URL `https://apiict.zensbot.site`. Configure this in GitHub repo Settings → Environments.
+
+### How the Deploy Works
+
+See `docs/blue-green.md` for the full 10-step architecture. Key points:
+- Zero downtime: new container starts, health checks pass, nginx switches, old container drains
+- Instant rollback: `./rollback.sh` switches back in ~10 seconds
+- Scheduler deduplication: only one container runs APScheduler jobs (tracked via Redis)
+- Deploy logs: `/var/log/lms/deploy-YYYYMMDD-HHMMSS.log`
 
 ---
 
@@ -732,8 +637,13 @@ npx wscat -c "wss://api.ictlms.com/ws/class-status/test?token=..."
 ### Set Up Monitoring
 
 ```bash
-# On EC2 — check logs
-sudo journalctl -u ict-lms-api -f  # Live API logs
+# On EC2 — check Docker container logs
+docker logs lms-green --tail 50 -f   # or lms-blue, depending on active slot
+cat backend/.active-slot              # check which container is active
+
+# Deploy logs
+ls -lt /var/log/lms/                  # list deploy logs
+tail -50 /var/log/lms/deploy-*.log    # latest deploy output
 
 # Nginx access/error logs
 sudo tail -f /var/log/nginx/access.log

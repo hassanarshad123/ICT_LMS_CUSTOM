@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import '../../core/constants/app_animations.dart';
 import '../../core/constants/app_colors.dart';
 
 class OfflineBanner extends StatefulWidget {
@@ -49,7 +50,7 @@ class _OfflineBannerState extends State<OfflineBanner> {
     return Column(
       children: [
         AnimatedSize(
-          duration: const Duration(milliseconds: 250),
+          duration: AppAnimations.fast,
           curve: Curves.easeInOut,
           child: _isOffline
               ? Container(

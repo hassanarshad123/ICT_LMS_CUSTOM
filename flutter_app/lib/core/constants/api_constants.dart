@@ -2,6 +2,7 @@ class ApiConstants {
   ApiConstants._();
 
   static const String baseUrl = 'https://apiict.zensbot.site/api/v1';
+  static const String wsBaseUrl = 'wss://apiict.zensbot.site/ws';
   static const Duration requestTimeout = Duration(seconds: 30);
   static const Duration connectTimeout = Duration(seconds: 15);
 

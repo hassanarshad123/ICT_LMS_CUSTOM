@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:ict_lms_student/core/constants/app_animations.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
 import 'package:ict_lms_student/core/constants/app_spacing.dart';
 import 'package:ict_lms_student/core/theme/app_text_styles.dart';
+import 'package:ict_lms_student/core/utils/responsive.dart';
 import 'package:ict_lms_student/data/repositories/user_repository.dart';
 import 'package:ict_lms_student/providers/auth_provider.dart';
 import 'package:ict_lms_student/shared/widgets/avatar_widget.dart';
@@ -36,6 +38,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   }
 
   Future<void> _save() async {
+    AppAnimations.hapticMedium();
     if (!_formKey.currentState!.validate() || _isSaving) return;
 
     setState(() => _isSaving = true);
@@ -96,22 +99,25 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       body: GestureDetector(
         onTap: () => FocusScope.of(context).unfocus(),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.screenH,
+          padding: EdgeInsets.fromLTRB(
+            Responsive.screenPadding(context),
             AppSpacing.space24,
-            AppSpacing.screenH,
+            Responsive.screenPadding(context),
             80,
           ),
-          child: Form(
+          child: Responsive.constrainWidth(context, child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 // Avatar at top.
-                AvatarWidget(
-                  imageUrl: user?.avatarUrl,
-                  name: user?.name ?? '',
-                  radius: 48,
+                Hero(
+                  tag: 'profile-avatar',
+                  child: AvatarWidget(
+                    imageUrl: user?.avatarUrl,
+                    name: user?.name ?? '',
+                    radius: 48,
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.space32),
                 // Email (read-only).
@@ -265,7 +271,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 ),
               ],
             ),
-          ),
+          )),
         ),
       ),
     );

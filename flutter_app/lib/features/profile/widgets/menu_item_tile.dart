@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
 import 'package:ict_lms_student/core/theme/app_text_styles.dart';
+import 'package:ict_lms_student/shared/widgets/tap_scale.dart';
 
 class MenuItemTile extends StatelessWidget {
   final IconData icon;
@@ -30,9 +31,11 @@ class MenuItemTile extends StatelessWidget {
     final effectiveIconColor =
         isDanger ? AppColors.error : (iconColor ?? accentColor);
 
-    return ListTile(
+    return TapScale(
+      scaleDown: 0.98,
       onTap: onTap,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+      child: ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       leading: Container(
         width: 36,
         height: 36,
@@ -70,6 +73,7 @@ class MenuItemTile extends StatelessWidget {
                   size: 20,
                 )
               : null),
+      ),
     );
   }
 }

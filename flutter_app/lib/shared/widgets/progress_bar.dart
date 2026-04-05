@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/constants/app_animations.dart';
 import '../../core/constants/app_colors.dart';
 
 class ProgressBar extends StatelessWidget {
@@ -41,7 +42,7 @@ class ProgressBar extends StatelessWidget {
                 ),
                 // Animated fill
                 AnimatedFractionallySizedBox(
-                  duration: const Duration(milliseconds: 400),
+                  duration: AppAnimations.normal,
                   curve: Curves.easeInOut,
                   widthFactor: clampedPercentage / 100,
                   alignment: Alignment.centerLeft,

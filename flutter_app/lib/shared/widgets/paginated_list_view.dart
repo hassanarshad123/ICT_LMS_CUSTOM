@@ -19,6 +19,7 @@ class PaginatedListView<T> extends StatefulWidget {
   final Widget? header;
   final double? itemExtent;
   final ScrollPhysics? physics;
+  final int gridColumns;
 
   const PaginatedListView({
     super.key,
@@ -37,6 +38,7 @@ class PaginatedListView<T> extends StatefulWidget {
     this.header,
     this.itemExtent,
     this.physics,
+    this.gridColumns = 1,
   });
 
   @override

@@ -13,8 +13,8 @@ class AppSpacing {
   static const double space48 = 48;
   static const double space64 = 64;
 
-  // Screen horizontal padding (iOS standard: 16px)
-  static const double screenH = space16;
+  // Screen horizontal padding — slightly more breathing room
+  static const double screenH = space20;
 
   // Card internal padding
   static const double cardPadding = space16;
@@ -30,4 +30,13 @@ class AppSpacing {
 
   // Bottom nav height
   static const double bottomNavHeight = 64;
+
+  // Section gap — Notion-like generous breathing room
+  static const double sectionGap = 40;
+
+  // List item gap (12dp minimum between list items)
+  static const double listItemGap = 12;
+
+  // Card internal padding — slightly more generous for glass cards
+  static const double glassCardPadding = 20;
 }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
 import 'package:ict_lms_student/core/constants/app_spacing.dart';
+import 'package:ict_lms_student/core/utils/responsive.dart';
 import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 import 'package:ict_lms_student/features/quizzes/providers/quiz_list_provider.dart';
 import 'package:ict_lms_student/features/quizzes/widgets/quiz_card.dart';
@@ -60,10 +61,10 @@ class QuizListTab extends ConsumerWidget {
         }
 
         return ListView.builder(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.screenH,
+          padding: EdgeInsets.fromLTRB(
+            Responsive.screenPadding(context),
             AppSpacing.space16,
-            AppSpacing.screenH,
+            Responsive.screenPadding(context),
             80,
           ),
           itemCount: quizzes.length,

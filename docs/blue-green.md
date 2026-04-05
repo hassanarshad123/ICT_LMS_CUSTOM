@@ -200,8 +200,19 @@ sudo grep "protected-mode" /etc/redis/redis.conf
 
 | Resource | Monthly |
 |----------|---------|
-| EC2 t3.medium | ~$30 |
+| EC2 t3.small | ~$15 |
 | RDS db.t4g.micro | ~$15 |
 | Redis (same EC2) | $0 |
 | Docker | $0 |
-| **Total** | **~$45/mo** |
+| **Total** | **~$30/mo** |
+
+---
+
+## Changelog
+
+- **2026-03-25:** Systemd service (`ict-lms-api`) permanently disabled. Docker-only deployment.
+- **2026-03-25:** GitHub Actions auto-deploy verified working end-to-end (CI → SSH → deploy-bg.sh → health check).
+- **2026-03-25:** Admin content management feature (PR #35) — admin role now has full course creator powers across all 9 routers.
+- **2026-03-25:** CSP fix for Bunny video pipeline (PR #34) — added `*.mediadelivery.net` (frame-src), `*.bunnycdn.com` (connect-src) to Content-Security-Policy.
+- **2026-03-25:** Synced 32 stuck video statuses from Bunny API to database, cleaned 15 orphaned Bunny entries.
+- **2026-03-25:** `.active-slot` state file located at `backend/.active-slot` (not `backend/deploy/.active-slot`).

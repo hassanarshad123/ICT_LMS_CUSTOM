@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
+import 'package:ict_lms_student/shared/widgets/tap_scale.dart';
 import 'package:ict_lms_student/core/constants/app_shadows.dart';
 import 'package:ict_lms_student/core/constants/app_spacing.dart';
 import 'package:ict_lms_student/core/theme/app_text_styles.dart';
@@ -27,23 +28,25 @@ class JobCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
         boxShadow: AppShadows.sm,
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
+      child: TapScale(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
-          splashColor: accentColor.withValues(alpha: 0.08),
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.cardPadding),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Title.
-                Text(
-                  job.title,
-                  style: AppTextStyles.headline,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                Hero(
+                  tag: 'job-${job.id}',
+                  child: Material(
+                    type: MaterialType.transparency,
+                    child: Text(
+                      job.title,
+                      style: AppTextStyles.headline,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.space8),
                 // Company + location.
@@ -113,7 +116,6 @@ class JobCard extends StatelessWidget {
               ],
             ),
           ),
-        ),
       ),
     );
   }

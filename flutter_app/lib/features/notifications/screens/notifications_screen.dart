@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:ict_lms_student/core/constants/app_animations.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
 import 'package:ict_lms_student/core/constants/app_spacing.dart';
 import 'package:ict_lms_student/core/theme/app_text_styles.dart';
+import 'package:ict_lms_student/core/utils/responsive.dart';
 import 'package:ict_lms_student/features/notifications/providers/notifications_provider.dart';
 import 'package:ict_lms_student/features/notifications/widgets/notification_card.dart';
 import 'package:ict_lms_student/providers/notification_count_provider.dart';
+import 'package:ict_lms_student/shared/widgets/shimmer_loading.dart';
 
 class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
@@ -76,13 +79,13 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             ),
         ],
       ),
-      body: _buildBody(state),
+      body: Responsive.constrainWidth(context, child: _buildBody(state)),
     );
   }
 
   Widget _buildBody(NotificationsState state) {
     if (state.isLoading && state.items.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const ShimmerList(itemCount: 6, itemHeight: 80);
     }
 
     if (state.error != null && state.items.isEmpty) {
@@ -130,26 +133,26 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     }
 
     return RefreshIndicator(
+      color: Theme.of(context).colorScheme.primary,
       onRefresh: () async {
+        AppAnimations.hapticLight();
         await ref.read(notificationsProvider.notifier).refresh();
         ref.read(notificationCountProvider.notifier).refresh();
       },
       child: ListView.builder(
         controller: _scrollController,
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.screenH,
+        padding: EdgeInsets.fromLTRB(
+          Responsive.screenPadding(context),
           AppSpacing.space16,
-          AppSpacing.screenH,
+          Responsive.screenPadding(context),
           80,
         ),
         itemCount: state.items.length + (state.isLoadingMore ? 1 : 0),
         itemBuilder: (context, index) {
           if (index == state.items.length) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(AppSpacing.space16),
-                child: CircularProgressIndicator(),
-              ),
+            return const Padding(
+              padding: EdgeInsets.all(AppSpacing.space16),
+              child: ShimmerCard(height: 80),
             );
           }
 

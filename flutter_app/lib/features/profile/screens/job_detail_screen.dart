@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
 import 'package:ict_lms_student/core/constants/app_shadows.dart';
 import 'package:ict_lms_student/core/constants/app_spacing.dart';
+import 'package:ict_lms_student/core/utils/responsive.dart';
 import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 import 'package:ict_lms_student/data/repositories/job_repository.dart';
 import 'package:ict_lms_student/features/profile/providers/jobs_provider.dart';
+import 'package:ict_lms_student/shared/widgets/shimmer_loading.dart';
 import 'package:ict_lms_student/features/profile/widgets/apply_bottom_sheet.dart';
 import 'package:ict_lms_student/models/job_out.dart';
 import 'package:ict_lms_student/shared/widgets/status_badge.dart';
@@ -68,12 +70,19 @@ class JobDetailScreen extends ConsumerWidget {
         elevation: 0,
       ),
       body: asyncData.when(
-        loading: () => Center(
-          child: CircularProgressIndicator(color: accentColor),
+        loading: () => Padding(
+          padding: const EdgeInsets.all(AppSpacing.space16),
+          child: Column(children: [
+            const ShimmerCard(height: 200),
+            const SizedBox(height: 12),
+            const ShimmerCard(height: 40),
+            const SizedBox(height: 12),
+            const ShimmerCard(height: 120),
+          ]),
         ),
         error: (error, _) => Center(
           child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.screenH),
+            padding: EdgeInsets.all(Responsive.screenPadding(context)),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -136,9 +145,15 @@ class _JobDetailContent extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Title.
-                Text(
-                  job.title,
-                  style: AppTextStyles.title2,
+                Hero(
+                  tag: 'job-${job.id}',
+                  child: Material(
+                    type: MaterialType.transparency,
+                    child: Text(
+                      job.title,
+                      style: AppTextStyles.title2,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.space12),
                 // Company + location row.

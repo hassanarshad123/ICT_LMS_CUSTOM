@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:ict_lms_student/core/constants/app_animations.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
 import 'package:ict_lms_student/core/constants/app_spacing.dart';
 import 'package:ict_lms_student/core/theme/app_text_styles.dart';
+import 'package:ict_lms_student/core/utils/responsive.dart';
 import 'package:ict_lms_student/features/quizzes/providers/quiz_attempt_provider.dart';
 import 'package:ict_lms_student/features/quizzes/providers/quiz_list_provider.dart';
 import 'package:ict_lms_student/features/quizzes/widgets/question_swipe_card.dart';
@@ -139,16 +141,26 @@ class _QuizTakingScreenState extends ConsumerState<QuizTakingScreen> {
               ),
           ],
         ),
-        body: Column(
+        body: Responsive.constrainWidth(
+          context,
+          child: Column(
           children: [
-            // Progress bar.
-            LinearProgressIndicator(
-              value: state.questions.isNotEmpty
-                  ? notifier.answeredCount / state.questions.length
-                  : 0,
-              backgroundColor: AppColors.border,
-              valueColor: AlwaysStoppedAnimation<Color>(accent),
-              minHeight: 3,
+            // Progress bar with smooth animation.
+            TweenAnimationBuilder<double>(
+              tween: Tween<double>(
+                begin: 0,
+                end: state.questions.isNotEmpty
+                    ? notifier.answeredCount / state.questions.length
+                    : 0,
+              ),
+              duration: AppAnimations.normal,
+              curve: AppAnimations.curveDefault,
+              builder: (context, value, _) => LinearProgressIndicator(
+                value: value,
+                backgroundColor: AppColors.border,
+                valueColor: AlwaysStoppedAnimation<Color>(accent),
+                minHeight: 3,
+              ),
             ),
             // Questions PageView
             Expanded(
@@ -171,8 +183,8 @@ class _QuizTakingScreenState extends ConsumerState<QuizTakingScreen> {
             ),
             // Bottom bar: dot indicators + progress + submit
             Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.screenH,
+              padding: EdgeInsets.symmetric(
+                  horizontal: Responsive.screenPadding(context),
                   vertical: AppSpacing.space12),
               decoration: BoxDecoration(
                 color: AppColors.cardBg,
@@ -201,7 +213,9 @@ class _QuizTakingScreenState extends ConsumerState<QuizTakingScreen> {
                                   duration: const Duration(milliseconds: 300),
                                   curve: Curves.easeInOut,
                                 ),
-                                child: Container(
+                                child: AnimatedContainer(
+                                  duration: AppAnimations.fast,
+                                  curve: AppAnimations.curveDefault,
                                   width: isCurrent ? 12 : 8,
                                   height: isCurrent ? 12 : 8,
                                   margin: const EdgeInsets.symmetric(
@@ -234,7 +248,10 @@ class _QuizTakingScreenState extends ConsumerState<QuizTakingScreen> {
                     ElevatedButton(
                       onPressed: state.isSubmitting
                           ? null
-                          : () => _confirmSubmit(context, state, notifier),
+                          : () {
+                              AppAnimations.hapticMedium();
+                              _confirmSubmit(context, state, notifier);
+                            },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: accent,
                         foregroundColor: Colors.white,
@@ -246,26 +263,32 @@ class _QuizTakingScreenState extends ConsumerState<QuizTakingScreen> {
                         ),
                         elevation: 0,
                       ),
-                      child: state.isSubmitting
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white),
-                            )
-                          : Text(
-                              'Submit',
-                              style: AppTextStyles.subheadline.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
+                      child: AnimatedSwitcher(
+                        duration: AppAnimations.fast,
+                        child: state.isSubmitting
+                            ? const SizedBox(
+                                key: ValueKey('submit_loading'),
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: Colors.white),
+                              )
+                            : Text(
+                                'Submit',
+                                key: const ValueKey('submit_text'),
+                                style: AppTextStyles.subheadline.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
-                            ),
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
           ],
+        ),
         ),
       ),
     );

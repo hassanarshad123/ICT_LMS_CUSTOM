@@ -1,14 +1,16 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:ict_lms_student/core/constants/app_animations.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
 import 'package:ict_lms_student/core/constants/app_spacing.dart';
 import 'package:ict_lms_student/core/theme/app_text_styles.dart';
+import 'package:ict_lms_student/core/utils/responsive.dart';
 import 'package:ict_lms_student/features/courses/providers/courses_list_provider.dart';
 import 'package:ict_lms_student/features/courses/widgets/batch_filter_chips.dart';
 import 'package:ict_lms_student/features/courses/widgets/course_card.dart';
 import 'package:ict_lms_student/providers/auth_provider.dart';
+import 'package:ict_lms_student/shared/widgets/shimmer_loading.dart';
 
 class CoursesListScreen extends ConsumerStatefulWidget {
   const CoursesListScreen({super.key});
@@ -84,7 +86,7 @@ class _CoursesListScreenState extends ConsumerState<CoursesListScreen> {
 
   Widget _buildBody(CoursesListState state) {
     if (state.isLoading && state.items.isEmpty) {
-      return const Center(child: CupertinoActivityIndicator(radius: 14));
+      return const ShimmerList(itemCount: 5, itemHeight: 110);
     }
 
     if (state.error != null && state.items.isEmpty) {
@@ -127,37 +129,77 @@ class _CoursesListScreenState extends ConsumerState<CoursesListScreen> {
       );
     }
 
-    return RefreshIndicator(
-      onRefresh: () => ref.read(coursesListProvider.notifier).refresh(),
-      child: ListView.builder(
-        controller: _scrollController,
-        padding: const EdgeInsets.only(
-          left: AppSpacing.screenH,
-          right: AppSpacing.screenH,
-          top: AppSpacing.screenH,
-          bottom: 80,
-        ),
-        itemCount: state.items.length + (state.isLoadingMore ? 1 : 0),
-        itemBuilder: (context, index) {
-          if (index == state.items.length) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(AppSpacing.space16),
-                child: CupertinoActivityIndicator(radius: 12),
-              ),
-            );
-          }
+    final hPad = Responsive.screenPadding(context);
+    final columns = Responsive.gridColumns(context);
 
-          final course = state.items[index];
-          return Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.space12),
-            child: CourseCard(
-              course: course,
-              onTap: () => context.push('/courses/${course.id}'),
+    return RefreshIndicator(
+      color: Theme.of(context).colorScheme.primary,
+      onRefresh: () {
+        AppAnimations.hapticLight();
+        return ref.read(coursesListProvider.notifier).refresh();
+      },
+      child: columns > 1
+          ? Responsive.constrainWidth(
+              context,
+              child: GridView.builder(
+                controller: _scrollController,
+                padding: EdgeInsets.only(
+                  left: hPad,
+                  right: hPad,
+                  top: hPad,
+                  bottom: 80,
+                ),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: columns,
+                  crossAxisSpacing: AppSpacing.listItemGap,
+                  mainAxisSpacing: AppSpacing.listItemGap,
+                  childAspectRatio: 2.4,
+                ),
+                itemCount:
+                    state.items.length + (state.isLoadingMore ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (index == state.items.length) {
+                    return const Padding(
+                      padding: EdgeInsets.all(AppSpacing.space16),
+                      child: ShimmerCard(height: 110),
+                    );
+                  }
+                  final course = state.items[index];
+                  return CourseCard(
+                    course: course,
+                    onTap: () => context.push('/courses/${course.id}'),
+                  );
+                },
+              ),
+            )
+          : ListView.builder(
+              controller: _scrollController,
+              padding: EdgeInsets.only(
+                left: hPad,
+                right: hPad,
+                top: hPad,
+                bottom: 80,
+              ),
+              itemCount:
+                  state.items.length + (state.isLoadingMore ? 1 : 0),
+              itemBuilder: (context, index) {
+                if (index == state.items.length) {
+                  return const Padding(
+                    padding: EdgeInsets.all(AppSpacing.space16),
+                    child: ShimmerCard(height: 110),
+                  );
+                }
+                final course = state.items[index];
+                return Padding(
+                  padding:
+                      const EdgeInsets.only(bottom: AppSpacing.space12),
+                  child: CourseCard(
+                    course: course,
+                    onTap: () => context.push('/courses/${course.id}'),
+                  ),
+                );
+              },
             ),
-          );
-        },
-      ),
     );
   }
 }

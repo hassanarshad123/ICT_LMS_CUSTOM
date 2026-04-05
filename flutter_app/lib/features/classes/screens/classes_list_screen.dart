@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:ict_lms_student/core/constants/app_animations.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
 import 'package:ict_lms_student/core/constants/app_spacing.dart';
 import 'package:ict_lms_student/core/theme/app_text_styles.dart';
+import 'package:ict_lms_student/core/utils/responsive.dart';
 import 'package:ict_lms_student/features/classes/providers/classes_provider.dart';
 import 'package:ict_lms_student/features/classes/widgets/class_card.dart';
+import 'package:ict_lms_student/shared/widgets/shimmer_loading.dart';
 
 class ClassesListScreen extends ConsumerWidget {
   const ClassesListScreen({super.key});
@@ -58,7 +61,7 @@ class ClassesListScreen extends ConsumerWidget {
         ],
       ),
       body: asyncData.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const ShimmerList(itemCount: 5, itemHeight: 100),
         error: (error, _) => Center(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space24),
@@ -100,44 +103,84 @@ class ClassesListScreen extends ConsumerWidget {
             );
           }
 
+          final hPad = Responsive.screenPadding(context);
+          final columns = Responsive.gridColumns(context);
+          final useGrid = columns > 1;
+
           return RefreshIndicator(
-            onRefresh: () async => ref.invalidate(classesProvider),
+            color: Theme.of(context).colorScheme.primary,
+            onRefresh: () async {
+              AppAnimations.hapticLight();
+              ref.invalidate(classesProvider);
+            },
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.screenH,
+              padding: EdgeInsets.fromLTRB(
+                hPad,
                 AppSpacing.space16,
-                AppSpacing.screenH,
+                hPad,
                 80,
               ),
               children: [
-                // Upcoming / Live section.
                 if (data.upcoming.isNotEmpty) ...[
                   _SectionHeader(
                     title: 'Upcoming & Live',
                     count: data.upcoming.length,
                   ),
                   const SizedBox(height: AppSpacing.space12),
-                  ...data.upcoming.map(
-                    (zoomClass) => ClassCard(
-                      zoomClass: zoomClass,
-                      onTap: () =>
-                          _joinClass(context, zoomClass.zoomMeetingUrl),
+                  if (useGrid)
+                    GridView.count(
+                      crossAxisCount: columns,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisSpacing: AppSpacing.listItemGap,
+                      mainAxisSpacing: AppSpacing.listItemGap,
+                      childAspectRatio: 2.2,
+                      children: [
+                        for (int i = 0; i < data.upcoming.length; i++)
+                          ClassCard(
+                            zoomClass: data.upcoming[i],
+                            onTap: () => _joinClass(
+                                context, data.upcoming[i].zoomMeetingUrl),
+                          ),
+                      ],
+                    )
+                  else
+                    ...data.upcoming.map(
+                      (zoomClass) => ClassCard(
+                        zoomClass: zoomClass,
+                        onTap: () =>
+                            _joinClass(context, zoomClass.zoomMeetingUrl),
+                      ),
                     ),
-                  ),
                   const SizedBox(height: AppSpacing.space24),
                 ],
-                // Past section.
                 if (data.past.isNotEmpty) ...[
                   _SectionHeader(
                     title: 'Past Classes',
                     count: data.past.length,
                   ),
                   const SizedBox(height: AppSpacing.space12),
-                  ...data.past.map(
-                    (zoomClass) => ClassCard(
-                      zoomClass: zoomClass,
+                  if (useGrid)
+                    GridView.count(
+                      crossAxisCount: columns,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisSpacing: AppSpacing.listItemGap,
+                      mainAxisSpacing: AppSpacing.listItemGap,
+                      childAspectRatio: 2.2,
+                      children: [
+                        for (int i = 0; i < data.past.length; i++)
+                          ClassCard(
+                            zoomClass: data.past[i],
+                          ),
+                      ],
+                    )
+                  else
+                    ...data.past.map(
+                      (zoomClass) => ClassCard(
+                        zoomClass: zoomClass,
+                      ),
                     ),
-                  ),
                 ],
               ],
             ),

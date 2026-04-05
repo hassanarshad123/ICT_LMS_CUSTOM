@@ -20,15 +20,22 @@ class CourseCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return AccentCard(
       onTap: onTap,
+      useGlass: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Title
-          Text(
-            course.title,
-            style: AppTextStyles.headline,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+          Hero(
+            tag: 'course-${course.id}',
+            child: Material(
+              type: MaterialType.transparency,
+              child: Text(
+                course.title,
+                style: AppTextStyles.headline,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ),
           // Description
           if (course.description != null &&

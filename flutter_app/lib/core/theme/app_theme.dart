@@ -173,19 +173,19 @@ ThemeData buildTheme(Color accentColor) {
       side: BorderSide(color: AppColors.border),
     ),
 
-    // Dialogs
+    // Dialogs — glass-aware
     dialogTheme: DialogThemeData(
-      backgroundColor: AppColors.cardBg,
+      backgroundColor: AppColors.cardBg.withValues(alpha: 0.92),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
       ),
     ),
 
-    // Bottom sheets
-    bottomSheetTheme: const BottomSheetThemeData(
-      backgroundColor: AppColors.cardBg,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+    // Bottom sheets — glass-aware
+    bottomSheetTheme: BottomSheetThemeData(
+      backgroundColor: AppColors.cardBg.withValues(alpha: 0.88),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
     ),
 

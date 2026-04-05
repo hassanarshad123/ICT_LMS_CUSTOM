@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:ict_lms_student/core/constants/app_animations.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
 import 'package:ict_lms_student/core/constants/app_spacing.dart';
+import 'package:ict_lms_student/core/utils/responsive.dart';
 import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 import 'package:ict_lms_student/features/profile/providers/jobs_provider.dart';
 import 'package:ict_lms_student/features/profile/widgets/application_card.dart';
 import 'package:ict_lms_student/features/profile/widgets/job_card.dart';
+import 'package:ict_lms_student/shared/widgets/shimmer_loading.dart';
 
 class JobsScreen extends ConsumerStatefulWidget {
   const JobsScreen({super.key});
@@ -90,17 +93,13 @@ class _JobsListTab extends ConsumerWidget {
     final state = ref.watch(jobsProvider);
 
     if (state.isLoading && state.items.isEmpty) {
-      return Center(
-        child: CircularProgressIndicator(
-          color: Theme.of(context).colorScheme.primary,
-        ),
-      );
+      return const ShimmerList(itemCount: 5, itemHeight: 100);
     }
 
     if (state.error != null && state.items.isEmpty) {
       return Center(
         child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.screenH),
+          padding: EdgeInsets.all(Responsive.screenPadding(context)),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -146,7 +145,11 @@ class _JobsListTab extends ConsumerWidget {
     }
 
     return RefreshIndicator(
-      onRefresh: () => ref.read(jobsProvider.notifier).refresh(),
+      color: Theme.of(context).colorScheme.primary,
+      onRefresh: () {
+        AppAnimations.hapticLight();
+        return ref.read(jobsProvider.notifier).refresh();
+      },
       child: ListView.builder(
         controller: scrollController,
         padding: const EdgeInsets.fromLTRB(
@@ -158,13 +161,9 @@ class _JobsListTab extends ConsumerWidget {
         itemCount: state.items.length + (state.isLoadingMore ? 1 : 0),
         itemBuilder: (context, index) {
           if (index == state.items.length) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.space16),
-                child: CircularProgressIndicator(
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
+            return const Padding(
+              padding: EdgeInsets.all(AppSpacing.space16),
+              child: ShimmerCard(height: 100),
             );
           }
 
@@ -187,14 +186,10 @@ class _ApplicationsTab extends ConsumerWidget {
     final asyncData = ref.watch(myApplicationsProvider);
 
     return asyncData.when(
-      loading: () => Center(
-        child: CircularProgressIndicator(
-          color: Theme.of(context).colorScheme.primary,
-        ),
-      ),
+      loading: () => const ShimmerList(itemCount: 4, itemHeight: 100),
       error: (error, _) => Center(
         child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.screenH),
+          padding: EdgeInsets.all(Responsive.screenPadding(context)),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -245,7 +240,11 @@ class _ApplicationsTab extends ConsumerWidget {
         }
 
         return RefreshIndicator(
-          onRefresh: () async => ref.invalidate(myApplicationsProvider),
+          color: Theme.of(context).colorScheme.primary,
+          onRefresh: () async {
+            AppAnimations.hapticLight();
+            ref.invalidate(myApplicationsProvider);
+          },
           child: ListView.builder(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.screenH,

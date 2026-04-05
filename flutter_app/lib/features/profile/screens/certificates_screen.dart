@@ -3,13 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:ict_lms_student/core/constants/app_animations.dart';
 import 'package:ict_lms_student/core/constants/app_colors.dart';
 import 'package:ict_lms_student/core/constants/app_spacing.dart';
+import 'package:ict_lms_student/core/utils/responsive.dart';
 import 'package:ict_lms_student/core/theme/app_text_styles.dart';
 import 'package:ict_lms_student/features/profile/providers/certificates_provider.dart';
 import 'package:ict_lms_student/features/profile/widgets/certificate_card.dart';
 import 'package:ict_lms_student/models/student_dashboard_course.dart';
 import 'package:ict_lms_student/providers/auth_provider.dart';
+import 'package:ict_lms_student/shared/widgets/shimmer_loading.dart';
 
 class CertificatesScreen extends ConsumerWidget {
   const CertificatesScreen({super.key});
@@ -41,6 +44,7 @@ class CertificatesScreen extends ConsumerWidget {
       );
 
       if (context.mounted) {
+        AppAnimations.hapticMedium();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Certificate requested successfully'),
@@ -130,14 +134,10 @@ class CertificatesScreen extends ConsumerWidget {
         elevation: 0,
       ),
       body: asyncData.when(
-        loading: () => Center(
-          child: CircularProgressIndicator(
-            color: Theme.of(context).colorScheme.primary,
-          ),
-        ),
+        loading: () => const ShimmerList(itemCount: 4, itemHeight: 120),
         error: (error, _) => Center(
           child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.screenH),
+            padding: EdgeInsets.all(Responsive.screenPadding(context)),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -190,8 +190,11 @@ class CertificatesScreen extends ConsumerWidget {
           }
 
           return RefreshIndicator(
-            onRefresh: () async =>
-                ref.invalidate(certificatesDashboardProvider),
+            color: Theme.of(context).colorScheme.primary,
+            onRefresh: () async {
+              AppAnimations.hapticLight();
+              ref.invalidate(certificatesDashboardProvider);
+            },
             child: ListView.builder(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.screenH,

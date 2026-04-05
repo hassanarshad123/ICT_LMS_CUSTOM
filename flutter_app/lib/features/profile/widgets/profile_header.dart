@@ -31,10 +31,13 @@ class ProfileHeader extends StatelessWidget {
     return Column(
       children: [
         // Avatar.
-        AvatarWidget(
-          imageUrl: avatarUrl,
-          name: name,
-          radius: 40,
+        Hero(
+          tag: 'profile-avatar',
+          child: AvatarWidget(
+            imageUrl: avatarUrl,
+            name: name,
+            radius: 40,
+          ),
         ),
         const SizedBox(height: AppSpacing.space16),
         // Name.

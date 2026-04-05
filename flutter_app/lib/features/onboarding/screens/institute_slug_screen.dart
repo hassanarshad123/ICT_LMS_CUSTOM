@@ -1,9 +1,12 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/constants/app_animations.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../core/utils/responsive.dart';
 import '../../../models/institute_item.dart';
 import '../../../providers/branding_provider.dart';
 import '../providers/onboarding_provider.dart';
@@ -19,6 +22,7 @@ class InstituteSlugScreen extends ConsumerStatefulWidget {
 
 class _InstituteSlugScreenState extends ConsumerState<InstituteSlugScreen> {
   Future<void> _onContinue() async {
+    AppAnimations.hapticMedium();
     final selected = ref.read(onboardingProvider).selectedInstitute;
     if (selected == null) {
       ref.read(onboardingProvider.notifier).selectInstitute(null);
@@ -72,8 +76,12 @@ class _InstituteSlugScreenState extends ConsumerState<InstituteSlugScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space32),
-            child: Column(
+            padding: EdgeInsets.symmetric(
+              horizontal: Responsive.isCompact(context) ? AppSpacing.space32 : AppSpacing.space48,
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
@@ -92,7 +100,15 @@ class _InstituteSlugScreenState extends ConsumerState<InstituteSlugScreen> {
                     size: 40,
                     color: accentColor,
                   ),
-                ),
+                )
+                    .animate()
+                    .fadeIn(duration: AppAnimations.slow, curve: AppAnimations.curveEnter)
+                    .scale(
+                      begin: const Offset(0.8, 0.8),
+                      end: const Offset(1.0, 1.0),
+                      duration: AppAnimations.slow,
+                      curve: AppAnimations.curveEnter,
+                    ),
                 const SizedBox(height: AppSpacing.space32),
 
                 // Welcome title
@@ -100,7 +116,15 @@ class _InstituteSlugScreenState extends ConsumerState<InstituteSlugScreen> {
                   'Welcome',
                   style: AppTextStyles.largeTitle,
                   textAlign: TextAlign.center,
-                ),
+                )
+                    .animate(delay: 50.ms)
+                    .fadeIn(duration: AppAnimations.normal, curve: AppAnimations.curveEnter)
+                    .slideY(
+                      begin: 0.1,
+                      end: 0,
+                      duration: AppAnimations.normal,
+                      curve: AppAnimations.curveEnter,
+                    ),
                 const SizedBox(height: AppSpacing.space8),
 
                 // Subtitle
@@ -108,7 +132,15 @@ class _InstituteSlugScreenState extends ConsumerState<InstituteSlugScreen> {
                   'Select your institute to continue',
                   style: AppTextStyles.subheadline,
                   textAlign: TextAlign.center,
-                ),
+                )
+                    .animate(delay: 100.ms)
+                    .fadeIn(duration: AppAnimations.normal, curve: AppAnimations.curveEnter)
+                    .slideY(
+                      begin: 0.1,
+                      end: 0,
+                      duration: AppAnimations.normal,
+                      curve: AppAnimations.curveEnter,
+                    ),
                 const SizedBox(height: AppSpacing.space40),
 
                 // Institute dropdown or loading state
@@ -119,8 +151,24 @@ class _InstituteSlugScreenState extends ConsumerState<InstituteSlugScreen> {
                   )
                 else if (onboardingState.institutes.isEmpty)
                   _buildEmptyState(accentColor)
+                      .animate(delay: 150.ms)
+                      .fadeIn(duration: AppAnimations.normal, curve: AppAnimations.curveEnter)
+                      .slideY(
+                        begin: 0.1,
+                        end: 0,
+                        duration: AppAnimations.normal,
+                        curve: AppAnimations.curveEnter,
+                      )
                 else
-                  _buildDropdown(onboardingState, accentColor),
+                  _buildDropdown(onboardingState, accentColor)
+                      .animate(delay: 150.ms)
+                      .fadeIn(duration: AppAnimations.normal, curve: AppAnimations.curveEnter)
+                      .slideY(
+                        begin: 0.1,
+                        end: 0,
+                        duration: AppAnimations.normal,
+                        curve: AppAnimations.curveEnter,
+                      ),
 
                 // Error text
                 if (onboardingState.error != null) ...[
@@ -157,9 +205,18 @@ class _InstituteSlugScreenState extends ConsumerState<InstituteSlugScreen> {
                             ),
                           ),
                   ),
-                ),
+                )
+                    .animate(delay: 200.ms)
+                    .fadeIn(duration: AppAnimations.normal, curve: AppAnimations.curveEnter)
+                    .slideY(
+                      begin: 0.1,
+                      end: 0,
+                      duration: AppAnimations.normal,
+                      curve: AppAnimations.curveEnter,
+                    ),
                 const SizedBox(height: AppSpacing.space48),
               ],
+            ),
             ),
           ),
         ),

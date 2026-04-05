@@ -7,8 +7,10 @@ import 'package:ict_lms_student/core/constants/app_colors.dart';
 import 'package:ict_lms_student/core/constants/app_shadows.dart';
 import 'package:ict_lms_student/core/constants/app_spacing.dart';
 import 'package:ict_lms_student/core/theme/app_text_styles.dart';
+import 'package:ict_lms_student/core/utils/responsive.dart';
 import 'package:ict_lms_student/features/search/providers/search_provider.dart';
 import 'package:ict_lms_student/models/search_result.dart';
+import 'package:ict_lms_student/shared/widgets/shimmer_loading.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -48,15 +50,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     return Scaffold(
       backgroundColor: AppColors.scaffoldBg,
       body: SafeArea(
-        child: Column(
+        child: Responsive.constrainWidth(
+          context,
+          child: Column(
           children: [
             // Search bar area with white background.
             Container(
               color: AppColors.cardBg,
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.screenH,
+              padding: EdgeInsets.fromLTRB(
+                Responsive.screenPadding(context),
                 AppSpacing.space8,
-                AppSpacing.screenH,
+                Responsive.screenPadding(context),
                 AppSpacing.space12,
               ),
               child: Row(
@@ -113,7 +117,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             // Results area
             Expanded(
               child: state.isLoading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const ShimmerList(itemCount: 5, itemHeight: 56)
                   : state.error != null
                       ? _ErrorView(
                           error: state.error!,
@@ -131,6 +135,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                 ),
             ),
           ],
+        ),
         ),
       ),
     );
@@ -215,11 +220,12 @@ class _ResultsList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final padding = Responsive.screenPadding(context);
     return ListView(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.screenH,
+      padding: EdgeInsets.fromLTRB(
+        padding,
         AppSpacing.space8,
-        AppSpacing.screenH,
+        padding,
         80,
       ),
       children: [
