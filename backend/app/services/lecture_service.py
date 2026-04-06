@@ -13,6 +13,87 @@ from app.utils.formatters import format_duration
 from app.utils.transformers import to_db
 
 
+async def list_in_progress_lectures(
+    session: AsyncSession,
+    student_id: uuid.UUID,
+    institute_id: Optional[uuid.UUID] = None,
+    limit: int = 10,
+) -> list[dict]:
+    """Return in-progress lectures across all active student batches,
+    ordered by most recently watched."""
+    from app.models.batch import Batch, StudentBatch
+    from app.models.course import Course, BatchCourse
+
+    # Join progress → lecture → student_batch → batch, filter active enrollments
+    query = (
+        select(
+            LectureProgress.watch_percentage,
+            LectureProgress.resume_position_seconds,
+            LectureProgress.updated_at.label("last_watched_at"),
+            Lecture.id.label("lecture_id"),
+            Lecture.title,
+            Lecture.thumbnail_url,
+            Lecture.video_type,
+            Lecture.video_url,
+            Lecture.video_status,
+            Lecture.duration,
+            Lecture.batch_id,
+            Lecture.course_id,
+            Batch.name.label("batch_name"),
+        )
+        .join(Lecture, LectureProgress.lecture_id == Lecture.id)
+        .join(StudentBatch, (StudentBatch.batch_id == Lecture.batch_id) & (StudentBatch.student_id == student_id))
+        .join(Batch, Batch.id == Lecture.batch_id)
+        .where(
+            LectureProgress.student_id == student_id,
+            LectureProgress.status == LectureWatchStatus.in_progress,
+            Lecture.deleted_at.is_(None),
+            Batch.deleted_at.is_(None),
+            StudentBatch.removed_at.is_(None),
+            StudentBatch.is_active.is_(True),
+        )
+        .order_by(LectureProgress.updated_at.desc())
+        .limit(limit)
+    )
+
+    if institute_id is not None:
+        query = query.where(LectureProgress.institute_id == institute_id)
+
+    result = await session.execute(query)
+    rows = result.all()
+
+    # Collect course IDs to fetch titles in bulk
+    course_ids = {r.course_id for r in rows if r.course_id}
+    course_titles: dict[uuid.UUID, str] = {}
+    if course_ids:
+        course_result = await session.execute(
+            select(Course.id, Course.title).where(Course.id.in_(course_ids))
+        )
+        course_titles = {cid: ctitle for cid, ctitle in course_result.all()}
+
+    items = []
+    for row in rows:
+        items.append({
+            "id": row.lecture_id,
+            "title": row.title,
+            "thumbnail_url": row.thumbnail_url,
+            "video_type": row.video_type.value if hasattr(row.video_type, "value") else row.video_type,
+            "video_url": row.video_url,
+            "video_status": row.video_status,
+            "duration": row.duration,
+            "duration_display": format_duration(row.duration),
+            "batch_id": row.batch_id,
+            "batch_name": row.batch_name,
+            "course_id": row.course_id,
+            "course_title": course_titles.get(row.course_id) if row.course_id else None,
+            "watch_percentage": row.watch_percentage,
+            "resume_position_seconds": row.resume_position_seconds,
+            "last_watched_at": row.last_watched_at,
+        })
+
+    return items
+
+
 async def list_lectures(
     session: AsyncSession,
     batch_id: uuid.UUID,
@@ -49,6 +130,7 @@ async def list_lectures(
     progress_map: dict[uuid.UUID, tuple[int, str]] = {}
     gating_enabled = False
     gating_threshold = 65
+    prev_lecture_map: dict[uuid.UUID, uuid.UUID] = {}  # lecture_id -> previous lecture_id
     if student_id:
         from app.models.batch import Batch
         batch = await session.get(Batch, batch_id)
@@ -56,19 +138,44 @@ async def list_lectures(
             gating_enabled = batch.enable_lecture_gating
             gating_threshold = batch.lecture_gating_threshold
 
+        # Build predecessor map from ALL lectures (not just current page)
+        # so gating works correctly across pagination boundaries.
+        if gating_enabled:
+            all_lec_query = select(Lecture.id, Lecture.course_id, Lecture.sequence_order).where(
+                Lecture.batch_id == batch_id, Lecture.deleted_at.is_(None),
+            )
+            if course_id:
+                all_lec_query = all_lec_query.where(Lecture.course_id == course_id)
+            if institute_id is not None:
+                all_lec_query = all_lec_query.where(Lecture.institute_id == institute_id)
+            all_lec_query = all_lec_query.order_by(Lecture.course_id, Lecture.sequence_order)
+            all_lec_result = await session.execute(all_lec_query)
+            all_lecs = all_lec_result.all()
+
+            # Group by course_id and link each lecture to its predecessor
+            from collections import defaultdict
+            by_course: dict[uuid.UUID | None, list[uuid.UUID]] = defaultdict(list)
+            for lid, cid, _seq in all_lecs:
+                by_course[cid].append(lid)
+            for ordered_ids in by_course.values():
+                for j in range(1, len(ordered_ids)):
+                    prev_lecture_map[ordered_ids[j]] = ordered_ids[j - 1]
+
+        # Fetch progress for lectures on this page + any predecessors needed for gating
         lecture_ids = [lec.id for lec in lectures]
-        if lecture_ids:
+        ids_to_fetch = set(lecture_ids) | set(prev_lecture_map.get(lid) for lid in lecture_ids if prev_lecture_map.get(lid))
+        if ids_to_fetch:
             prog_result = await session.execute(
                 select(LectureProgress).where(
                     LectureProgress.student_id == student_id,
-                    LectureProgress.lecture_id.in_(lecture_ids),
+                    LectureProgress.lecture_id.in_(ids_to_fetch),
                 )
             )
             for p in prog_result.scalars().all():
                 progress_map[p.lecture_id] = (p.watch_percentage, p.status.value)
 
     items = []
-    for i, lec in enumerate(lectures):
+    for lec in lectures:
         item = {
             "id": lec.id,
             "title": lec.title,
@@ -93,10 +200,12 @@ async def list_lectures(
             item["watch_percentage"] = wp
             item["progress_status"] = ps
             if gating_enabled:
-                if i == 0:
+                prev_id = prev_lecture_map.get(lec.id)
+                if prev_id is None:
+                    # First lecture in its course — always unlocked
                     item["is_locked"] = False
                 else:
-                    prev_wp, _ = progress_map.get(lectures[i - 1].id, (0, "unwatched"))
+                    prev_wp, _ = progress_map.get(prev_id, (0, "unwatched"))
                     item["is_locked"] = prev_wp < gating_threshold
             else:
                 item["is_locked"] = False
@@ -270,6 +379,7 @@ async def upsert_progress(
             watch_percentage=watch_percentage,
             resume_position_seconds=resume_position_seconds,
             status=status,
+            institute_id=institute_id,
         )
 
     session.add(progress)
