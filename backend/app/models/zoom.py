@@ -119,6 +119,11 @@ class ClassRecording(SQLModel, table=True):
         default=None,
         sa_column=Column(TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
     )
+    title: Optional[str] = Field(default=None, max_length=255)
+    description: Optional[str] = Field(default=None)
+    deleted_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(TIMESTAMP(timezone=True), nullable=True),
+    )
 
 
 class ZoomAttendance(SQLModel, table=True):

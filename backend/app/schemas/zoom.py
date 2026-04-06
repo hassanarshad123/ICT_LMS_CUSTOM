@@ -108,9 +108,16 @@ class RecordingOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class RecordingUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+
+
 class RecordingListOut(BaseModel):
     id: uuid.UUID
     class_title: str
+    title: Optional[str] = None
+    description: Optional[str] = None
     teacher_name: Optional[str] = None
     batch_name: Optional[str] = None
     scheduled_date: Optional[date] = None
@@ -119,6 +126,7 @@ class RecordingListOut(BaseModel):
     duration: Optional[int] = None
     file_size: Optional[int] = None
     status: str
+    deleted_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}

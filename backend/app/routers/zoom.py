@@ -16,6 +16,7 @@ from app.schemas.zoom import (
     ZoomAccountCreate, ZoomAccountUpdate, ZoomAccountOut, ZoomAccountAdminOut,
     ZoomClassCreate, ZoomClassUpdate, ZoomClassOut,
     AttendanceOut, RecordingOut, RecordingListOut, RecordingSignedUrlOut,
+    RecordingUpdate,
 )
 from app.schemas.common import PaginatedResponse
 from app.services import zoom_service, webhook_event_service
@@ -544,10 +545,12 @@ async def list_recordings(
     session: Annotated[AsyncSession, Depends(get_session)],
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
+    include_deleted: bool = Query(False),
 ):
     items, total = await zoom_service.list_all_recordings(
         session, current_user, page=page, per_page=per_page,
         institute_id=current_user.institute_id,
+        include_deleted=include_deleted,
     )
     return PaginatedResponse(
         data=[RecordingListOut(**item) for item in items],
@@ -581,6 +584,81 @@ async def get_recording_signed_url(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     return RecordingSignedUrlOut(**result)
+
+
+@router.patch("/recordings/{recording_id}", response_model=RecordingListOut)
+async def update_recording(
+    recording_id: uuid.UUID,
+    body: RecordingUpdate,
+    current_user: AdminOrCourseCreator,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    try:
+        await zoom_service.update_recording(
+            session, recording_id,
+            title=body.title, description=body.description,
+            institute_id=current_user.institute_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    # Re-fetch with joins for full response
+    items, _ = await zoom_service.list_all_recordings(
+        session, current_user, page=1, per_page=1,
+        institute_id=current_user.institute_id,
+    )
+    if items:
+        return RecordingListOut(**items[0])
+    raise HTTPException(status_code=404, detail="Recording not found after update")
+
+
+@router.delete("/recordings/{recording_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_recording(
+    recording_id: uuid.UUID,
+    current_user: AdminOrCourseCreator,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    try:
+        await zoom_service.soft_delete_recording(
+            session, recording_id, institute_id=current_user.institute_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.delete("/recordings/{recording_id}/permanent", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_recording_permanent(
+    recording_id: uuid.UUID,
+    current_user: AdminOrCourseCreator,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    try:
+        await zoom_service.hard_delete_recording(
+            session, recording_id, institute_id=current_user.institute_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/recordings/{recording_id}/restore", response_model=RecordingListOut)
+async def restore_recording(
+    recording_id: uuid.UUID,
+    current_user: AdminOrCourseCreator,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    try:
+        await zoom_service.restore_recording(
+            session, recording_id, institute_id=current_user.institute_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    items, _ = await zoom_service.list_all_recordings(
+        session, current_user, page=1, per_page=1,
+        institute_id=current_user.institute_id,
+        include_deleted=True,
+    )
+    if items:
+        return RecordingListOut(**items[0])
+    raise HTTPException(status_code=404, detail="Recording not found after restore")
 
 
 # --- Analytics ---

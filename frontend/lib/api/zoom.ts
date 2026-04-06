@@ -129,6 +129,8 @@ export async function getRecordings(classId: string) {
 export interface RecordingItem {
   id: string;
   classTitle: string;
+  title?: string;
+  description?: string;
   teacherName?: string;
   batchName?: string;
   scheduledDate?: string;
@@ -137,6 +139,7 @@ export interface RecordingItem {
   duration?: number;
   fileSize?: number;
   status: string;
+  deletedAt?: string;
   createdAt?: string;
 }
 
@@ -151,12 +154,32 @@ export interface PaginatedRecordings {
 export async function listRecordings(params?: {
   page?: number;
   per_page?: number;
+  include_deleted?: boolean;
 }): Promise<PaginatedRecordings> {
   return apiClient('/zoom/recordings', { params: params as Record<string, string | number | undefined> });
 }
 
 export async function getRecordingSignedUrl(recordingId: string): Promise<{ url: string; type: string; expiresAt?: number }> {
   return apiClient(`/zoom/recordings/${recordingId}/signed-url`, { method: 'POST' });
+}
+
+export async function updateRecording(id: string, data: { title?: string; description?: string }): Promise<RecordingItem> {
+  return apiClient(`/zoom/recordings/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteRecording(id: string): Promise<void> {
+  return apiClient(`/zoom/recordings/${id}`, { method: 'DELETE' });
+}
+
+export async function deleteRecordingPermanent(id: string): Promise<void> {
+  return apiClient(`/zoom/recordings/${id}/permanent`, { method: 'DELETE' });
+}
+
+export async function restoreRecording(id: string): Promise<RecordingItem> {
+  return apiClient(`/zoom/recordings/${id}/restore`, { method: 'POST' });
 }
 
 export interface ZoomAnalytics {
