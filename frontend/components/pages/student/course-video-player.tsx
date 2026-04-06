@@ -257,7 +257,7 @@ export function CourseVideoPlayer({
         </div>
 
         {/* Right: Playlist with toggle */}
-        <div className="w-full lg:w-80 lg:flex-shrink-0 max-h-[60vh] lg:max-h-[70vh]">
+        <div className="w-full lg:w-80 lg:flex-shrink-0 max-h-[60vh]">
           <div className="bg-white rounded-2xl card-shadow overflow-hidden h-full flex flex-col">
             {/* Two big toggle buttons */}
             <div className="grid grid-cols-2 gap-0">
