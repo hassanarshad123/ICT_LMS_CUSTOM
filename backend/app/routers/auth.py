@@ -4,6 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Header
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, func
+from datetime import date as date_type
 
 from app.database import get_session
 from app.schemas.auth import (
@@ -40,6 +41,7 @@ async def _build_user_brief(session: AsyncSession, user: User) -> UserBrief:
                 StudentBatch.removed_at.is_(None),
                 StudentBatch.is_active.is_(True),
                 Batch.deleted_at.is_(None),
+                func.coalesce(StudentBatch.extended_end_date, Batch.end_date) >= date_type.today(),
             )
         )
         for row in result.all():

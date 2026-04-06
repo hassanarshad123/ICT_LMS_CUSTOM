@@ -1,6 +1,6 @@
 import logging
 import uuid
-from datetime import datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -145,10 +145,15 @@ async def list_classes(
     if current_user.role == UserRole.teacher:
         base_filters.append(ZoomClass.teacher_id == current_user.id)
     elif current_user.role == UserRole.student:
-        my_batches = select(StudentBatch.batch_id).where(
-            StudentBatch.student_id == current_user.id,
-            StudentBatch.removed_at.is_(None),
-            StudentBatch.is_active.is_(True),
+        my_batches = (
+            select(StudentBatch.batch_id)
+            .join(Batch, StudentBatch.batch_id == Batch.id)
+            .where(
+                StudentBatch.student_id == current_user.id,
+                StudentBatch.removed_at.is_(None),
+                StudentBatch.is_active.is_(True),
+                func.coalesce(StudentBatch.extended_end_date, Batch.end_date) >= date.today(),
+            )
         )
         base_filters.append(ZoomClass.batch_id.in_(my_batches))
     elif current_user.role == UserRole.course_creator:
@@ -421,10 +426,15 @@ async def list_all_recordings(
     if current_user.role == UserRole.teacher:
         base_filters.append(ZoomClass.teacher_id == current_user.id)
     elif current_user.role == UserRole.student:
-        my_batches = select(StudentBatch.batch_id).where(
-            StudentBatch.student_id == current_user.id,
-            StudentBatch.removed_at.is_(None),
-            StudentBatch.is_active.is_(True),
+        my_batches = (
+            select(StudentBatch.batch_id)
+            .join(Batch, StudentBatch.batch_id == Batch.id)
+            .where(
+                StudentBatch.student_id == current_user.id,
+                StudentBatch.removed_at.is_(None),
+                StudentBatch.is_active.is_(True),
+                func.coalesce(StudentBatch.extended_end_date, Batch.end_date) >= date.today(),
+            )
         )
         base_filters.append(ZoomClass.batch_id.in_(my_batches))
     elif current_user.role == UserRole.course_creator:
