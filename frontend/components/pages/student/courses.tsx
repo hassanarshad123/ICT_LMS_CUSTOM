@@ -30,13 +30,10 @@ export default function StudentCourses() {
     return () => clearTimeout(t);
   }, [search]);
 
-  // Filter by first batch ID to scope courses to student's enrollment
-  const batchId = batchIds?.[0];
-
   const { data: courses, total, page, totalPages, loading, error, setPage, refetch } = usePaginatedApi(
-    ({ page: p, per_page: pp }) => listCourses({ page: p, per_page: pp, search: debouncedSearch || undefined, status: statusFilter || undefined, batch_id: batchId || undefined }),
+    ({ page: p, per_page: pp }) => listCourses({ page: p, per_page: pp, search: debouncedSearch || undefined, status: statusFilter || undefined }),
     12,
-    [debouncedSearch, statusFilter, batchId],
+    [debouncedSearch, statusFilter],
   );
 
   const statuses = [
