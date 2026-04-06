@@ -158,10 +158,12 @@ export default function StudentZoom() {
                           <p className="text-sm text-gray-600">{formatFriendlyDate(cls.scheduledDate)}</p>
                           <p className="text-xs text-gray-500">{cls.scheduledTime}</p>
                         </div>
-                        <Link href={`${basePath}/recordings`} className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-primary border border-primary/20 rounded-lg hover:bg-primary/5 transition-colors">
-                          <PlayCircle size={12} />
-                          Recordings
-                        </Link>
+                        {(cls.recordingCount ?? 0) > 0 && (
+                          <Link href={`${basePath}/recordings`} className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-primary border border-primary/20 rounded-lg hover:bg-primary/5 transition-colors">
+                            <PlayCircle size={12} />
+                            Recordings
+                          </Link>
+                        )}
                       </div>
                     </div>
                   </div>

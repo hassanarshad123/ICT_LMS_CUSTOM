@@ -200,6 +200,21 @@ async def list_classes(
     from zoneinfo import ZoneInfo
     now_local = datetime.now(ZoneInfo("Asia/Karachi")).replace(tzinfo=None)
 
+    # Batch-load recording counts for this page of classes
+    class_ids = [zc.id for zc, _, _ in rows]
+    rec_counts = {}
+    if class_ids:
+        rc_result = await session.execute(
+            select(ClassRecording.zoom_class_id, func.count().label("cnt"))
+            .where(
+                ClassRecording.zoom_class_id.in_(class_ids),
+                ClassRecording.status == RecordingStatus.ready,
+                ClassRecording.deleted_at.is_(None),
+            )
+            .group_by(ClassRecording.zoom_class_id)
+        )
+        rec_counts = {row[0]: row[1] for row in rc_result.all()}
+
     items = []
     for zc, batch_name, teacher_name in rows:
         # Time-based status override: if a class is still "upcoming" but its
@@ -228,6 +243,7 @@ async def list_classes(
             "status": effective_status,
             "zoom_account_id": zc.zoom_account_id,
             "created_at": zc.created_at,
+            "recording_count": rec_counts.get(zc.id, 0),
         })
 
     return items, total

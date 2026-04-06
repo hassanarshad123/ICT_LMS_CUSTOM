@@ -79,6 +79,7 @@ class ZoomClassOut(BaseModel):
     status: str
     zoom_account_id: uuid.UUID
     created_at: Optional[datetime] = None
+    recording_count: int = 0
 
     model_config = {"from_attributes": True}
 

@@ -25,6 +25,7 @@ export interface ZoomClassOut {
   status: string;
   zoomAccountId: string;
   createdAt?: string;
+  recordingCount?: number;
 }
 
 export interface PaginatedZoomClasses {
