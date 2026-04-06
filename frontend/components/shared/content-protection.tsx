@@ -2,6 +2,12 @@
 
 import { useEffect, useState, useRef, useCallback, ReactNode } from 'react';
 
+// Must stay in sync with CSP script-src in middleware.ts
+const ALLOWED_SCRIPT_HOSTS = [
+  'www.googletagmanager.com',
+  'www.google-analytics.com',
+] as const;
+
 interface ContentProtectionProps {
   children: ReactNode;
 }
@@ -64,10 +70,18 @@ export function ContentProtection({ children }: ContentProtectionProps) {
 
     // ── Phase 2: DevTools detection — window size heuristic ──────
     const checkWindowSize = (): boolean => {
-      const threshold = 160;
+      // Mobile browsers report misleading outerWidth/outerHeight values
+      // due to dynamic toolbars, safe area insets, and viewport quirks.
+      if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+        return false;
+      }
+
+      const threshold = 200;
       const widthDiff = window.outerWidth - window.innerWidth > threshold;
       const heightDiff = window.outerHeight - window.innerHeight > threshold;
-      return widthDiff || heightDiff;
+      // Require both axes — single-axis differences are common from
+      // browser chrome (bookmarks bar, extensions bar, DPI scaling).
+      return widthDiff && heightDiff;
     };
 
     // ── Phase 2: Combined DevTools poll (every 1s) ───────────────
@@ -87,17 +101,6 @@ export function ContentProtection({ children }: ContentProtectionProps) {
       try { console.clear(); } catch { /* ignore */ }
     }, 5000);
 
-    // ── Phase 3: Extension detection — known globals ─────────────
-    const checkExtensionGlobals = () => {
-      const w = window as any;
-      if (
-        w.__REACT_DEVTOOLS_GLOBAL_HOOK__ ||
-        w.__VUE_DEVTOOLS_GLOBAL_HOOK__
-      ) {
-        flagThreat();
-      }
-    };
-
     // ── Phase 3: Extension detection — MutationObserver ──────────
     const observer = new MutationObserver((mutations) => {
       for (const mutation of mutations) {
@@ -106,11 +109,21 @@ export function ContentProtection({ children }: ContentProtectionProps) {
           const node = mutation.addedNodes[i];
           if (node instanceof HTMLScriptElement) {
             const src = node.src || '';
-            // Allow our own scripts (Next.js chunks)
-            if (!src.startsWith(window.location.origin) && !src.startsWith('/') && src !== '') {
-              flagThreat();
-              return;
+            if (src === '') continue; // inline scripts — controlled by CSP
+
+            // Allow same-origin and relative scripts (Next.js chunks)
+            if (src.startsWith(window.location.origin) || src.startsWith('/')) continue;
+
+            // Allow known third-party domains (mirrors CSP script-src in middleware.ts)
+            try {
+              const scriptHost = new URL(src, window.location.origin).hostname;
+              if (ALLOWED_SCRIPT_HOSTS.includes(scriptHost)) continue;
+            } catch {
+              // Malformed URL — treat as suspicious
             }
+
+            flagThreat();
+            return;
           }
           // Detect extension-injected iframes
           if (node instanceof HTMLIFrameElement) {
@@ -119,15 +132,6 @@ export function ContentProtection({ children }: ContentProtectionProps) {
               flagThreat();
               return;
             }
-          }
-        }
-        // Detect attribute tampering on body/html (extensions often add classes/data attrs)
-        if (mutation.type === 'attributes' && mutation.target === document.body) {
-          const attr = mutation.attributeName || '';
-          if (attr.startsWith('data-') && !['data-theme', 'data-sonner-toaster'].includes(attr)) {
-            // Unknown data attribute injected on body — possible extension
-            flagThreat();
-            return;
           }
         }
       }
@@ -145,15 +149,10 @@ export function ContentProtection({ children }: ContentProtectionProps) {
     const devToolsInterval = setInterval(pollDevTools, 1000);
     pollDevTools(); // Initial check
 
-    // Check extension globals
-    checkExtensionGlobals();
-
     // Start mutation observer
     observer.observe(document.documentElement, {
       childList: true,
       subtree: true,
-      attributes: true,
-      attributeFilter: ['data-*', 'class', 'style'],
     });
 
     // ── Cleanup ──────────────────────────────────────────────────
