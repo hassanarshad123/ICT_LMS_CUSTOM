@@ -406,6 +406,7 @@ async def list_all_recordings(
     page: int = 1,
     per_page: int = 20,
     institute_id: Optional[uuid.UUID] = None,
+    include_deleted: bool = False,
 ) -> tuple[list[dict], int]:
     from app.models.enums import UserRole
 
@@ -435,6 +436,12 @@ async def list_all_recordings(
     # Only show ready recordings (or processing for admin/CC)
     if current_user.role in (UserRole.student, UserRole.teacher):
         base_filters.append(ClassRecording.status == RecordingStatus.ready)
+
+    # Soft-delete filtering
+    if current_user.role in (UserRole.student, UserRole.teacher):
+        base_filters.append(ClassRecording.deleted_at.is_(None))
+    elif not include_deleted:
+        base_filters.append(ClassRecording.deleted_at.is_(None))
 
     count_query = (
         select(func.count())
@@ -484,6 +491,9 @@ async def list_all_recordings(
             "duration": rec.duration,
             "file_size": rec.file_size,
             "status": rec.status.value,
+            "title": rec.title,
+            "description": rec.description,
+            "deleted_at": rec.deleted_at,
             "created_at": rec.created_at,
         })
 
@@ -796,3 +806,87 @@ async def get_zoom_analytics(
         "total_recordings": total_recordings,
         "average_attendance_rate": avg_attendance_rate,
     }
+
+
+async def update_recording(
+    session: AsyncSession,
+    recording_id: uuid.UUID,
+    title: Optional[str] = None,
+    description: Optional[str] = None,
+    institute_id: Optional[uuid.UUID] = None,
+) -> ClassRecording:
+    filters = [ClassRecording.id == recording_id, ClassRecording.deleted_at.is_(None)]
+    if institute_id is not None:
+        filters.append(ClassRecording.institute_id == institute_id)
+    result = await session.execute(select(ClassRecording).where(*filters))
+    rec = result.scalar_one_or_none()
+    if not rec:
+        raise ValueError("Recording not found")
+    if title is not None:
+        rec.title = title
+    if description is not None:
+        rec.description = description
+    rec.updated_at = datetime.now(timezone.utc)
+    session.add(rec)
+    await session.commit()
+    await session.refresh(rec)
+    return rec
+
+
+async def soft_delete_recording(
+    session: AsyncSession,
+    recording_id: uuid.UUID,
+    institute_id: Optional[uuid.UUID] = None,
+) -> None:
+    filters = [ClassRecording.id == recording_id, ClassRecording.deleted_at.is_(None)]
+    if institute_id is not None:
+        filters.append(ClassRecording.institute_id == institute_id)
+    result = await session.execute(select(ClassRecording).where(*filters))
+    rec = result.scalar_one_or_none()
+    if not rec:
+        raise ValueError("Recording not found")
+    rec.deleted_at = datetime.now(timezone.utc)
+    session.add(rec)
+    await session.commit()
+
+
+async def hard_delete_recording(
+    session: AsyncSession,
+    recording_id: uuid.UUID,
+    institute_id: Optional[uuid.UUID] = None,
+) -> None:
+    filters = [ClassRecording.id == recording_id, ClassRecording.deleted_at.isnot(None)]
+    if institute_id is not None:
+        filters.append(ClassRecording.institute_id == institute_id)
+    result = await session.execute(select(ClassRecording).where(*filters))
+    rec = result.scalar_one_or_none()
+    if not rec:
+        raise ValueError("Recording not found or not soft-deleted")
+    if rec.bunny_video_id:
+        from app.utils.bunny import delete_video
+        try:
+            await delete_video(rec.bunny_video_id)
+        except Exception as e:
+            logger.warning("Failed to delete Bunny video %s: %s", rec.bunny_video_id, e)
+    await session.delete(rec)
+    await session.commit()
+
+
+async def restore_recording(
+    session: AsyncSession,
+    recording_id: uuid.UUID,
+    institute_id: Optional[uuid.UUID] = None,
+) -> ClassRecording:
+    filters = [ClassRecording.id == recording_id, ClassRecording.deleted_at.isnot(None)]
+    if institute_id is not None:
+        filters.append(ClassRecording.institute_id == institute_id)
+    result = await session.execute(select(ClassRecording).where(*filters))
+    rec = result.scalar_one_or_none()
+    if not rec:
+        raise ValueError("Recording not found or not deleted")
+    rec.deleted_at = None
+    rec.updated_at = datetime.now(timezone.utc)
+    session.add(rec)
+    await session.commit()
+    await session.refresh(rec)
+    return rec
