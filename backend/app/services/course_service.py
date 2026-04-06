@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,10 +41,15 @@ async def list_courses(
         query = query.where(Course.id.in_(course_ids_q))
         count_query = count_query.where(Course.id.in_(course_ids_q))
     elif current_user.role == UserRole.student:
-        batch_ids_q = select(StudentBatch.batch_id).where(
-            StudentBatch.student_id == current_user.id,
-            StudentBatch.removed_at.is_(None),
-            StudentBatch.is_active.is_(True),
+        batch_ids_q = (
+            select(StudentBatch.batch_id)
+            .join(Batch, StudentBatch.batch_id == Batch.id)
+            .where(
+                StudentBatch.student_id == current_user.id,
+                StudentBatch.removed_at.is_(None),
+                StudentBatch.is_active.is_(True),
+                func.coalesce(StudentBatch.extended_end_date, Batch.end_date) >= date.today(),
+            )
         )
         course_ids_q = select(BatchCourse.course_id).where(
             BatchCourse.batch_id.in_(batch_ids_q), BatchCourse.deleted_at.is_(None)

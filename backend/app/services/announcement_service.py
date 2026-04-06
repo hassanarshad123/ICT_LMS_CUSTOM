@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -44,10 +44,15 @@ async def list_announcements(
 
     # Role scoping for students/teachers
     if current_user.role == UserRole.student:
-        my_batch_ids = select(StudentBatch.batch_id).where(
-            StudentBatch.student_id == current_user.id,
-            StudentBatch.removed_at.is_(None),
-            StudentBatch.is_active.is_(True),
+        my_batch_ids = (
+            select(StudentBatch.batch_id)
+            .join(Batch, StudentBatch.batch_id == Batch.id)
+            .where(
+                StudentBatch.student_id == current_user.id,
+                StudentBatch.removed_at.is_(None),
+                StudentBatch.is_active.is_(True),
+                func.coalesce(StudentBatch.extended_end_date, Batch.end_date) >= date.today(),
+            )
         )
         my_course_ids = select(BatchCourse.course_id).where(
             BatchCourse.batch_id.in_(my_batch_ids), BatchCourse.deleted_at.is_(None)

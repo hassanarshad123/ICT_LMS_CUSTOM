@@ -13,11 +13,12 @@ from app.models.user import User
 from app.models.enums import UserRole, BatchHistoryAction
 
 
-def _compute_status(start_date: date, end_date: date) -> str:
+def _compute_status(start_date: date, end_date: date, effective_end_date: date | None = None) -> str:
     today = date.today()
+    check_end = effective_end_date or end_date
     if today < start_date:
         return "upcoming"
-    elif today > end_date:
+    elif today > check_end:
         return "completed"
     return "active"
 
@@ -46,10 +47,16 @@ async def list_batches(
         query = query.where(Batch.teacher_id == current_user.id)
         count_query = count_query.where(Batch.teacher_id == current_user.id)
     elif current_user.role == UserRole.student:
-        sub = select(StudentBatch.batch_id).where(
-            StudentBatch.student_id == current_user.id,
-            StudentBatch.removed_at.is_(None),
-            StudentBatch.is_active.is_(True),
+        today = date.today()
+        sub = (
+            select(StudentBatch.batch_id)
+            .join(Batch, StudentBatch.batch_id == Batch.id)
+            .where(
+                StudentBatch.student_id == current_user.id,
+                StudentBatch.removed_at.is_(None),
+                StudentBatch.is_active.is_(True),
+                func.coalesce(StudentBatch.extended_end_date, Batch.end_date) >= today,
+            )
         )
         query = query.where(Batch.id.in_(sub))
         count_query = count_query.where(Batch.id.in_(sub))
@@ -114,6 +121,20 @@ async def list_batches(
     )
     course_counts = {row[0]: row[1] for row in cc_result.all()}
 
+    # For students, look up effective end dates (extension-aware)
+    effective_end_dates = {}
+    if current_user.role == UserRole.student:
+        eff_result = await session.execute(
+            select(StudentBatch.batch_id, StudentBatch.extended_end_date)
+            .where(
+                StudentBatch.student_id == current_user.id,
+                StudentBatch.removed_at.is_(None),
+                StudentBatch.is_active.is_(True),
+            )
+        )
+        for row in eff_result.all():
+            effective_end_dates[row[0]] = row[1]
+
     items = []
     for b in batches:
         items.append({
@@ -125,7 +146,7 @@ async def list_batches(
             "teacher_name": teacher_names.get(b.teacher_id),
             "student_count": student_counts.get(b.id, 0),
             "course_count": course_counts.get(b.id, 0),
-            "status": _compute_status(b.start_date, b.end_date),
+            "status": _compute_status(b.start_date, b.end_date, effective_end_dates.get(b.id)),
             "created_by": b.created_by,
             "created_at": b.created_at,
         })
