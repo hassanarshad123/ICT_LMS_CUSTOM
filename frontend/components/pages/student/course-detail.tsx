@@ -10,7 +10,8 @@ import { getCourse } from '@/lib/api/courses';
 import { listModules } from '@/lib/api/curriculum';
 import { listLectures } from '@/lib/api/lectures';
 import { listMaterials, getDownloadUrl } from '@/lib/api/materials';
-import { listClasses } from '@/lib/api/zoom';
+import { listRecordings, getRecordingSignedUrl } from '@/lib/api/zoom';
+import type { RecordingItem } from '@/lib/api/zoom';
 import { listQuizzes, listMyAttempts } from '@/lib/api/quizzes';
 import { getBatch } from '@/lib/api/batches';
 import { useBranding } from '@/lib/branding-context';
@@ -93,7 +94,7 @@ export default function CourseDetailPage() {
   // Fetch completed zoom class recordings
   const { data: recordingsData, loading: recordingsLoading } = useApi(
     () => studentBatchId
-      ? listClasses({ batch_id: studentBatchId, status: 'completed' })
+      ? listRecordings({ batch_id: studentBatchId, per_page: 50 })
       : Promise.resolve({ data: [], total: 0, page: 1, perPage: 50, totalPages: 0 }),
     [studentBatchId],
   );
@@ -154,7 +155,7 @@ export default function CourseDetailPage() {
 
   const nowPlaying = playlistTab === 'lectures'
     ? (activeLecture ? { title: activeLecture.title, subtitle: activeLecture.description || '', duration: activeLecture.durationDisplay || `${activeLecture.duration || 0}s`, date: `Uploaded ${activeLecture.uploadDate || ''}` } : null)
-    : (activeRecording ? { title: activeRecording.title, subtitle: `by ${activeRecording.teacherName || 'Teacher'}`, duration: activeRecording.durationDisplay || `${activeRecording.duration}min`, date: activeRecording.scheduledDate } : null);
+    : (activeRecording ? { title: activeRecording.title || activeRecording.classTitle, subtitle: `by ${activeRecording.teacherName || 'Teacher'}`, duration: activeRecording.duration ? `${activeRecording.duration}min` : '', date: activeRecording.scheduledDate || '' } : null);
 
   const loading = courseLoading;
 

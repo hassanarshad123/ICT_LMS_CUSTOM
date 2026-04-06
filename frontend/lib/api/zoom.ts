@@ -155,6 +155,7 @@ export async function listRecordings(params?: {
   page?: number;
   per_page?: number;
   include_deleted?: boolean;
+  batch_id?: string;
 }): Promise<PaginatedRecordings> {
   return apiClient('/zoom/recordings', { params: params as Record<string, string | number | undefined> });
 }

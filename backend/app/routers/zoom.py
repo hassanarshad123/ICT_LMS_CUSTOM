@@ -546,11 +546,13 @@ async def list_recordings(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
     include_deleted: bool = Query(False),
+    batch_id: Optional[uuid.UUID] = None,
 ):
     items, total = await zoom_service.list_all_recordings(
         session, current_user, page=page, per_page=per_page,
         institute_id=current_user.institute_id,
         include_deleted=include_deleted,
+        batch_id=batch_id,
     )
     return PaginatedResponse(
         data=[RecordingListOut(**item) for item in items],

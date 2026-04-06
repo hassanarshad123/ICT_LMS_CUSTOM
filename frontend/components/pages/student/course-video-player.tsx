@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   BookOpen,
   CheckCircle2,
@@ -11,7 +11,8 @@ import {
 } from 'lucide-react';
 import { VideoPlayer } from '@/components/shared/video-player';
 import type { LectureOut } from '@/lib/api/lectures';
-import type { ZoomClassOut } from '@/lib/api/zoom';
+import type { RecordingItem } from '@/lib/api/zoom';
+import { getRecordingSignedUrl } from '@/lib/api/zoom';
 
 /* ─── Types ──────────────────────────────────────────────────────── */
 
@@ -110,13 +111,13 @@ export interface CourseVideoPlayerProps {
   playlistTab: 'lectures' | 'recordings';
   onPlaylistTabChange: (tab: 'lectures' | 'recordings') => void;
   sortedLectures: LectureOut[];
-  recordings: ZoomClassOut[];
+  recordings: RecordingItem[];
   selectedLecture: string | null;
   selectedRecording: string | null;
   onSelectLecture: (id: string) => void;
   onSelectRecording: (id: string) => void;
   activeLecture: LectureOut | null;
-  activeRecording: ZoomClassOut | null;
+  activeRecording: RecordingItem | null;
   nowPlaying: NowPlayingInfo | null;
   watermark?: string;
 }
@@ -137,6 +138,29 @@ export function CourseVideoPlayer({
   nowPlaying,
   watermark,
 }: CourseVideoPlayerProps) {
+  const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
+  const [recordingLoading, setRecordingLoading] = useState(false);
+  const [recordingError, setRecordingError] = useState<string | null>(null);
+
+  // Fetch signed URL when a recording is selected
+  const prevRecIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (playlistTab !== 'recordings' || !activeRecording) {
+      setRecordingUrl(null);
+      return;
+    }
+    if (prevRecIdRef.current === activeRecording.id) return;
+    prevRecIdRef.current = activeRecording.id;
+
+    setRecordingLoading(true);
+    setRecordingError(null);
+    setRecordingUrl(null);
+    getRecordingSignedUrl(activeRecording.id)
+      .then((res) => setRecordingUrl(res.url))
+      .catch((err) => setRecordingError(err.message || 'Could not load recording'))
+      .finally(() => setRecordingLoading(false));
+  }, [playlistTab, activeRecording]);
+
   return (
     <>
       {/* Lecture / Recording Title Heading */}
@@ -201,20 +225,32 @@ export function CourseVideoPlayer({
                 watermark={watermark}
               />
             )
-          ) : (
-            <div className="aspect-video bg-gray-800 rounded-2xl flex items-center justify-center relative overflow-hidden">
-              {sortedLectures[0]?.thumbnailUrl && (
-                <img
-                  src={sortedLectures[0].thumbnailUrl}
-                  alt=""
-                  className="absolute inset-0 w-full h-full object-cover opacity-30 blur-sm"
+          ) : activeRecording ? (
+            <div className="aspect-video bg-black rounded-2xl overflow-hidden relative">
+              {recordingLoading && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
+              {recordingError && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <p className="text-white text-sm">{recordingError}</p>
+                </div>
+              )}
+              {recordingUrl && !recordingLoading && (
+                <iframe
+                  src={recordingUrl}
+                  className="w-full h-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+                  allowFullScreen
                 />
               )}
-              <div className="text-center relative z-10">
-                <PlayCircle size={64} className="text-accent mx-auto mb-3" />
-                <p className="text-white text-sm">
-                  {nowPlaying ? nowPlaying.title : 'Select a video to start watching'}
-                </p>
+            </div>
+          ) : (
+            <div className="aspect-video bg-gray-800 rounded-2xl flex items-center justify-center">
+              <div className="text-center">
+                <Video size={48} className="text-gray-500 mx-auto mb-3" />
+                <p className="text-gray-400 text-sm">Select a recording to start watching</p>
               </div>
             </div>
           )}
@@ -378,11 +414,11 @@ export function CourseVideoPlayer({
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className={`text-sm font-medium truncate ${isActive ? 'text-white' : 'text-primary'}`}>
-                              {recording.title}
+                              {recording.title || recording.classTitle}
                             </p>
                             <div className={`flex items-center gap-1 text-xs mt-0.5 ${isActive ? 'text-gray-300' : 'text-gray-400'}`}>
                               <Clock size={10} />
-                              {recording.durationDisplay || `${recording.duration}min`} &middot; {recording.scheduledDate}
+                              {recording.duration ? `${recording.duration}min` : ''} &middot; {recording.scheduledDate}
                             </div>
                           </div>
                           {isActive && <PlayCircle size={16} className="text-accent flex-shrink-0" />}

@@ -412,6 +412,7 @@ async def list_all_recordings(
     per_page: int = 20,
     institute_id: Optional[uuid.UUID] = None,
     include_deleted: bool = False,
+    batch_id: Optional[uuid.UUID] = None,
 ) -> tuple[list[dict], int]:
     from app.models.enums import UserRole
 
@@ -421,6 +422,9 @@ async def list_all_recordings(
 
     if institute_id is not None:
         base_filters.append(ZoomClass.institute_id == institute_id)
+
+    if batch_id is not None:
+        base_filters.append(ZoomClass.batch_id == batch_id)
 
     # Role scoping (same as list_classes)
     if current_user.role == UserRole.teacher:
