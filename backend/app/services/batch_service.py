@@ -149,6 +149,8 @@ async def list_batches(
             "status": _compute_status(b.start_date, b.end_date, effective_end_dates.get(b.id)),
             "created_by": b.created_by,
             "created_at": b.created_at,
+            "enable_lecture_gating": b.enable_lecture_gating,
+            "lecture_gating_threshold": b.lecture_gating_threshold,
         })
 
     return items, total
@@ -193,6 +195,8 @@ async def get_batch(
         "status": _compute_status(b.start_date, b.end_date),
         "created_by": b.created_by,
         "created_at": b.created_at,
+        "enable_lecture_gating": b.enable_lecture_gating,
+        "lecture_gating_threshold": b.lecture_gating_threshold,
     }
 
 
