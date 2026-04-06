@@ -11,18 +11,17 @@ import { Video, ExternalLink, Clock, Calendar, PlayCircle } from 'lucide-react';
 import Link from 'next/link';
 import { trackClassJoin } from '@/lib/analytics';
 
-function formatRelativeTime(dateStr: string, timeStr: string): string {
+function formatRelativeTime(dateStr: string, timeStr: string, duration?: number): string {
   try {
     const classTime = new Date(`${dateStr}T${timeStr}+05:00`);
     const now = new Date();
+    const endTime = classTime.getTime() + ((duration || 60) * 60000);
+    // Class has ended
+    if (now.getTime() > endTime) return 'Ended';
     const diff = classTime.getTime() - now.getTime();
-    if (diff <= 0) {
-      const pastMins = Math.floor(-diff / 60000);
-      if (pastMins < 5) return 'Starting now';
-      if (pastMins < 60) return `Started ${pastMins}m ago`;
-      const pastHours = Math.floor(pastMins / 60);
-      return `Started ${pastHours}h ${pastMins % 60}m ago`;
-    }
+    // Class is live (started but not ended)
+    if (diff <= 0) return 'Live now';
+    // Class is upcoming
     const hours = Math.floor(diff / 3600000);
     const mins = Math.floor((diff % 3600000) / 60000);
     if (hours >= 24) return `in ${Math.floor(hours / 24)}d ${hours % 24}h`;
@@ -50,7 +49,16 @@ export default function StudentZoom() {
   );
 
   const classes = classesData?.data || [];
-  const upcoming = classes.filter((z) => z.status === 'upcoming' || z.status === 'scheduled' || z.status === 'live');
+  const upcoming = classes.filter((z) => {
+    if (z.status === 'completed') return false;
+    if (z.status !== 'upcoming' && z.status !== 'scheduled' && z.status !== 'live') return false;
+    // Client-side end time check
+    if (z.scheduledDate && z.scheduledTime) {
+      const endTime = new Date(`${z.scheduledDate}T${z.scheduledTime}+05:00`).getTime() + ((z.duration || 60) * 60000);
+      if (Date.now() > endTime) return false;
+    }
+    return true;
+  });
   const completed = classes.filter((z) => z.status === 'completed');
 
   return (
@@ -93,7 +101,7 @@ export default function StudentZoom() {
                             </span>
                           </div>
                           <p className="text-xs font-medium text-primary mt-2">
-                            {formatRelativeTime(cls.scheduledDate, cls.scheduledTime)}
+                            {formatRelativeTime(cls.scheduledDate, cls.scheduledTime, cls.duration)}
                           </p>
                         </div>
                       </div>

@@ -54,7 +54,16 @@ export default function StudentDashboard() {
   const classes = classesData?.data || [];
   const announcements = announcementsData?.data || [];
 
-  const upcomingClasses = classes.filter((c) => c.status === 'upcoming' || c.status === 'scheduled');
+  const upcomingClasses = classes.filter((c) => {
+    if (c.status === 'live') return true;
+    if (c.status !== 'upcoming' && c.status !== 'scheduled') return false;
+    // Client-side end time check: hide classes that have ended but backend hasn't updated status yet
+    if (c.scheduledDate && c.scheduledTime) {
+      const endTime = new Date(`${c.scheduledDate}T${c.scheduledTime}+05:00`).getTime() + ((c.duration || 60) * 60000);
+      if (Date.now() > endTime) return false;
+    }
+    return true;
+  });
 
   // Next class countdown
   const nextClass = upcomingClasses[0] || null;
@@ -67,7 +76,7 @@ export default function StudentDashboard() {
       const endTime = classTime.getTime() + ((nextClass.duration || 60) * 60000);
       if (now.getTime() > endTime) { setCountdown(''); return; }
       const diff = classTime.getTime() - now.getTime();
-      if (diff <= 0) { setCountdown('Starting now!'); return; }
+      if (diff <= 0) { setCountdown('Live now!'); return; }
       const hours = Math.floor(diff / 3600000);
       const mins = Math.floor((diff % 3600000) / 60000);
       if (hours >= 24) { setCountdown(`in ${Math.floor(hours / 24)}d ${hours % 24}h`); return; }
@@ -105,7 +114,7 @@ export default function StudentDashboard() {
                 <div>
                   <p className="text-white text-sm font-semibold">{nextClass.title}</p>
                   <p className="text-gray-300 text-xs mt-0.5">
-                    {nextClass.teacherName ? `${nextClass.teacherName} · ` : ''}Starts {countdown}
+                    {nextClass.teacherName ? `${nextClass.teacherName} · ` : ''}{countdown.startsWith('Live') ? countdown : `Starts ${countdown}`}
                   </p>
                 </div>
               </div>
