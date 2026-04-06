@@ -54,19 +54,34 @@ export default function StudentDashboard() {
   const classes = classesData?.data || [];
   const announcements = announcementsData?.data || [];
 
-  const upcomingClasses = classes.filter((c) => {
-    if (c.status === 'live') return true;
-    if (c.status !== 'upcoming' && c.status !== 'scheduled') return false;
-    // Client-side end time check: hide classes that have ended but backend hasn't updated status yet
-    if (c.scheduledDate && c.scheduledTime) {
-      const endTime = new Date(`${c.scheduledDate}T${c.scheduledTime}+05:00`).getTime() + ((c.duration || 60) * 60000);
-      if (Date.now() > endTime) return false;
-    }
-    return true;
-  });
+  const upcomingClasses = classes
+    .filter((c) => {
+      if (c.status === 'live') return true;
+      if (c.status !== 'upcoming' && c.status !== 'scheduled') return false;
+      if (c.scheduledDate && c.scheduledTime) {
+        const endTime = new Date(`${c.scheduledDate}T${c.scheduledTime}+05:00`).getTime() + ((c.duration || 60) * 60000);
+        if (Date.now() > endTime) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      const tA = new Date(`${a.scheduledDate}T${a.scheduledTime}+05:00`).getTime();
+      const tB = new Date(`${b.scheduledDate}T${b.scheduledTime}+05:00`).getTime();
+      return tA - tB; // nearest class first
+    });
 
-  // Next class countdown
-  const nextClass = upcomingClasses[0] || null;
+  // Next class banner — only show if class is within 3 hours or already live
+  const nextClass = (() => {
+    const cls = upcomingClasses[0];
+    if (!cls) return null;
+    if (cls.status === 'live') return cls;
+    if (cls.scheduledDate && cls.scheduledTime) {
+      const classTime = new Date(`${cls.scheduledDate}T${cls.scheduledTime}+05:00`).getTime();
+      const threeHours = 3 * 60 * 60 * 1000;
+      if (classTime - Date.now() > threeHours) return null;
+    }
+    return cls;
+  })();
   const [countdown, setCountdown] = useState('');
   useEffect(() => {
     if (!nextClass?.scheduledDate || !nextClass?.scheduledTime) return;
