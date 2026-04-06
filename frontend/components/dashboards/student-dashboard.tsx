@@ -100,7 +100,7 @@ export default function StudentDashboard() {
     update();
     const interval = setInterval(update, 60000);
     return () => clearInterval(interval);
-  }, [nextClass?.scheduledDate, nextClass?.scheduledTime]);
+  }, [nextClass?.scheduledDate, nextClass?.scheduledTime, nextClass?.duration]);
 
   // Find courses with progress for "Continue Learning"
   const inProgressCourses = courses.filter((c) => {
