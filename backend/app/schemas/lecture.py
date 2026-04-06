@@ -75,6 +75,26 @@ class BulkReorderRequest(BaseModel):
         return self
 
 
+class InProgressLectureOut(BaseModel):
+    id: uuid.UUID
+    title: str
+    thumbnail_url: Optional[str] = None
+    video_type: str
+    video_url: Optional[str] = None
+    video_status: Optional[str] = None
+    duration: Optional[int] = None
+    duration_display: Optional[str] = None
+    batch_id: uuid.UUID
+    batch_name: str
+    course_id: Optional[uuid.UUID] = None
+    course_title: Optional[str] = None
+    watch_percentage: int
+    resume_position_seconds: int
+    last_watched_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
 class ProgressUpdate(BaseModel):
     watch_percentage: int = Field(ge=0, le=100)
     resume_position_seconds: int = Field(default=0, ge=0)
