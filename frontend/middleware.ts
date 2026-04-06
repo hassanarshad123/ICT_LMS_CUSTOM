@@ -8,6 +8,7 @@ const CSP_DIRECTIVES = [
   // 'unsafe-inline' required because Next.js 13 injects inline scripts without nonce support.
   // 'unsafe-eval' only in dev mode for Fast Refresh / HMR.
   // TODO: migrate to nonce-based CSP after upgrading to Next.js 14+
+  // NOTE: Also update ALLOWED_SCRIPT_HOSTS in components/shared/content-protection.tsx
   `script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}`,
   // Keep unsafe-inline for styles — Tailwind, Radix, chart.tsx dynamic CSS, branding system
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
