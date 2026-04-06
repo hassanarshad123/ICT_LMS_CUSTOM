@@ -8,7 +8,6 @@ import { useApi } from '@/hooks/use-api';
 import { listClasses } from '@/lib/api/zoom';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { Video, ExternalLink, Clock, Calendar, PlayCircle } from 'lucide-react';
-import AttendancePanel from '@/components/shared/attendance-panel';
 import Link from 'next/link';
 import { trackClassJoin } from '@/lib/analytics';
 
@@ -157,7 +156,6 @@ export default function StudentZoom() {
                         </Link>
                       </div>
                     </div>
-                    <AttendancePanel classId={cls.id} />
                   </div>
                 ))}
               </div>
