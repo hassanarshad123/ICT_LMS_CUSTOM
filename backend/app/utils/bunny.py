@@ -71,8 +71,11 @@ def generate_embed_token(video_id: str, expires_in: int = 18000) -> tuple[str, i
     return embed_url, expires_at
 
 
-async def get_video_status(video_id: str) -> str:
-    """Poll Bunny API for encoding status. Returns our status string."""
+async def get_video_status(video_id: str) -> tuple[str, int]:
+    """Poll Bunny API for encoding status and duration.
+
+    Returns (status_string, duration_seconds).
+    """
     library_id = settings.BUNNY_LIBRARY_ID
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.get(
@@ -80,8 +83,10 @@ async def get_video_status(video_id: str) -> str:
             headers={"AccessKey": settings.BUNNY_API_KEY},
         )
         resp.raise_for_status()
-        bunny_status = resp.json().get("status", 0)
-        return _BUNNY_STATUS_MAP.get(bunny_status, "processing")
+        data = resp.json()
+        bunny_status = data.get("status", 0)
+        duration = int(data.get("length", 0))
+        return _BUNNY_STATUS_MAP.get(bunny_status, "processing"), duration
 
 
 async def create_video_from_url(title: str, source_url: str) -> dict:

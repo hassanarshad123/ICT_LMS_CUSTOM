@@ -359,13 +359,15 @@ async def sync_stuck_video_statuses():
         fixed = 0
         for lecture in stuck:
             try:
-                bunny_status = await get_video_status(lecture.bunny_video_id)
+                bunny_status, bunny_duration = await get_video_status(lecture.bunny_video_id)
                 if bunny_status in ("ready", "failed"):
                     lecture.video_status = bunny_status
                     if bunny_status == "ready":
                         thumb = get_thumbnail_url(lecture.bunny_video_id)
                         if thumb:
                             lecture.thumbnail_url = thumb
+                        if bunny_duration > 0 and not lecture.duration:
+                            lecture.duration = bunny_duration
                     lecture.updated_at = datetime.now(timezone.utc)
                     session.add(lecture)
                     fixed += 1
@@ -375,6 +377,47 @@ async def sync_stuck_video_statuses():
         if fixed:
             await session.commit()
             logger.info("Synced %d stuck video statuses from Bunny (%d total checked)", fixed, len(stuck))
+
+
+@sentry_job_wrapper("backfill_video_durations")
+async def backfill_video_durations():
+    """One-time backfill: fetch duration from Bunny for ready videos with no duration.
+
+    Safe to run repeatedly — skips lectures that already have a duration.
+    Can be removed once all existing videos have durations populated.
+    """
+    from sqlmodel import select
+    from app.models.course import Lecture
+    from app.utils.bunny import get_video_status
+
+    async with async_session() as session:
+        result = await session.execute(
+            select(Lecture).where(
+                Lecture.video_status == "ready",
+                Lecture.bunny_video_id.isnot(None),
+                Lecture.deleted_at.is_(None),
+                (Lecture.duration.is_(None)) | (Lecture.duration == 0),
+            )
+        )
+        lectures = result.scalars().all()
+        if not lectures:
+            return
+
+        updated = 0
+        for lecture in lectures:
+            try:
+                _, duration = await get_video_status(lecture.bunny_video_id)
+                if duration > 0:
+                    lecture.duration = duration
+                    lecture.updated_at = datetime.now(timezone.utc)
+                    session.add(lecture)
+                    updated += 1
+            except Exception as e:
+                logger.warning("Backfill duration failed for %s: %s", lecture.bunny_video_id, e)
+
+        if updated:
+            await session.commit()
+            logger.info("Backfilled duration for %d/%d lectures", updated, len(lectures))
 
 
 @sentry_job_wrapper("recalculate_all_usage")

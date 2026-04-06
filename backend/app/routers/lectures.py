@@ -16,6 +16,7 @@ from app.database import get_session
 from app.schemas.lecture import (
     LectureCreate, LectureUpdate, LectureOut, UploadInitRequest,
     LectureReorderRequest, ProgressUpdate, ProgressOut, BulkReorderRequest,
+    InProgressLectureOut,
 )
 from app.schemas.common import PaginatedResponse
 from app.services import lecture_service
@@ -49,6 +50,23 @@ def _lecture_out(lecture) -> LectureOut:
         thumbnail_url=lecture.thumbnail_url, upload_date=lecture.created_at,
         created_at=lecture.created_at,
     )
+
+
+@router.get("/in-progress", response_model=list[InProgressLectureOut])
+async def list_in_progress_lectures(
+    current_user: Student,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    limit: int = Query(10, ge=1, le=50),
+):
+    """Return the student's in-progress lectures across all active batches,
+    ordered by most recently watched. Used for the 'Continue Watching' section."""
+    items = await lecture_service.list_in_progress_lectures(
+        session,
+        student_id=current_user.id,
+        institute_id=current_user.institute_id,
+        limit=limit,
+    )
+    return [InProgressLectureOut(**item) for item in items]
 
 
 @router.get("", response_model=PaginatedResponse[LectureOut])
@@ -214,15 +232,20 @@ async def bunny_webhook(request: Request):
 
     from app.database import async_session
 
-    # Compute thumbnail URL when video is ready
+    # Compute thumbnail URL and fetch duration when video is ready
     thumbnail_url = None
+    duration = None
     if new_status == "ready":
-        from app.utils.bunny import get_thumbnail_url
+        from app.utils.bunny import get_thumbnail_url, get_video_status as _get_bunny_status
         thumbnail_url = get_thumbnail_url(video_guid)
+        try:
+            _, duration = await _get_bunny_status(video_guid)
+        except Exception:
+            pass  # Duration fetch is best-effort; status update still proceeds
 
     async with async_session() as session:
         await lecture_service.update_lecture_status(
-            session, video_guid, new_status, thumbnail_url=thumbnail_url
+            session, video_guid, new_status, thumbnail_url=thumbnail_url, duration=duration,
         )
 
     logger.info("Bunny webhook: video %s → %s", video_guid[:12], new_status)
@@ -318,13 +341,15 @@ async def get_lecture_status(
         from app.utils.bunny import get_video_status
         _STATUS_RANK = {"pending": 0, "processing": 1, "ready": 2, "failed": 2}
         try:
-            new_status = await get_video_status(lecture.bunny_video_id)
+            new_status, new_duration = await get_video_status(lecture.bunny_video_id)
             # Only upgrade status (never downgrade ready→processing)
             if (
                 new_status != current_status
                 and _STATUS_RANK.get(new_status, 0) > _STATUS_RANK.get(current_status, 0)
             ):
                 lecture.video_status = new_status
+                if new_duration > 0 and not lecture.duration:
+                    lecture.duration = new_duration
                 session.add(lecture)
                 await session.commit()
                 current_status = new_status

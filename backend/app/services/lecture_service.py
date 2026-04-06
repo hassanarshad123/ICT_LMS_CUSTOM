@@ -396,8 +396,9 @@ async def update_lecture_status(
     bunny_video_id: str,
     status: str,
     thumbnail_url: Optional[str] = None,
+    duration: Optional[int] = None,
 ) -> None:
-    """Find lecture by bunny_video_id and update its video_status (and optionally thumbnail).
+    """Find lecture by bunny_video_id and update its video_status (and optionally thumbnail/duration).
 
     Called from Bunny webhook (HMAC-signed, no auth context). Queries globally by
     bunny_video_id which is unique per video. The HMAC signature on the webhook
@@ -424,6 +425,8 @@ async def update_lecture_status(
         lecture.video_status = status
         if thumbnail_url:
             lecture.thumbnail_url = thumbnail_url
+        if duration is not None and duration > 0:
+            lecture.duration = duration
         lecture.updated_at = datetime.now(timezone.utc)
         session.add(lecture)
         await session.commit()
