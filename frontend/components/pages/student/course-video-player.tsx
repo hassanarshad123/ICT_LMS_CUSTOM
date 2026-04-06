@@ -108,39 +108,75 @@ function LectureThumbnail({
   );
 }
 
-/* ─── No-thumbnail placeholder ─────────────────────────────────── */
+/* ─── No-thumbnail placeholder (mirrors LectureThumbnail layout) ── */
 
 function LecturePlaceholder({
   index,
   isLocked,
   isCompleted,
   isActive,
+  watchPercentage,
+  durationDisplay,
 }: {
   index: number;
   isLocked: boolean;
   isCompleted: boolean;
   isActive: boolean;
+  watchPercentage?: number;
+  durationDisplay?: string;
 }) {
   return (
-    <div
-      className={`w-[120px] h-[68px] sm:w-[160px] sm:h-[90px] rounded-lg flex-shrink-0 flex items-center justify-center ${
-        isLocked
-          ? 'bg-gray-200'
-          : isActive
-            ? 'bg-primary/10'
-            : isCompleted
-              ? 'bg-green-50'
-              : 'bg-gray-100'
-      }`}
-    >
-      {isLocked ? (
-        <Lock size={24} className="text-gray-400" />
-      ) : isCompleted ? (
-        <CheckCircle2 size={24} className="text-green-500" />
-      ) : isActive ? (
-        <PlayCircle size={24} className="text-primary" />
-      ) : (
-        <span className="text-lg font-bold text-gray-400">{index + 1}</span>
+    <div className="w-[120px] h-[68px] sm:w-[160px] sm:h-[90px] rounded-lg overflow-hidden flex-shrink-0 relative bg-gray-800">
+      {/* Centered icon */}
+      <div className="absolute inset-0 flex items-center justify-center">
+        {isLocked ? (
+          <Lock size={24} className="text-white/40" />
+        ) : (
+          <PlayCircle size={28} className="text-white/30" />
+        )}
+      </div>
+
+      {/* Sequence number — top left */}
+      <span className="absolute top-1 left-1 bg-black/60 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
+        {index + 1}
+      </span>
+
+      {/* Duration — bottom right */}
+      {durationDisplay && !isLocked && (
+        <span className="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded">
+          {durationDisplay}
+        </span>
+      )}
+
+      {/* Lock overlay */}
+      {isLocked && (
+        <div className="absolute inset-0 bg-black/30" />
+      )}
+
+      {/* Completed badge — bottom right */}
+      {isCompleted && !isActive && !isLocked && (
+        <div className="absolute bottom-1 right-1 bg-green-500 text-white rounded-full p-0.5">
+          <CheckCircle2 size={10} />
+        </div>
+      )}
+
+      {/* Now playing indicator — bottom left */}
+      {isActive && !isLocked && (
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/50 to-transparent h-6 flex items-end px-1.5 pb-1">
+          <span className="text-white text-[9px] font-semibold flex items-center gap-0.5">
+            <PlayCircle size={9} /> Playing
+          </span>
+        </div>
+      )}
+
+      {/* Watch progress bar — bottom edge */}
+      {watchPercentage != null && watchPercentage > 0 && !isCompleted && !isLocked && (
+        <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-black/20">
+          <div
+            className="h-full bg-blue-500 rounded-r-full"
+            style={{ width: `${Math.min(watchPercentage, 100)}%` }}
+          />
+        </div>
       )}
     </div>
   );
@@ -392,6 +428,8 @@ export function CourseVideoPlayer({
                       isLocked={isLocked}
                       isCompleted={isCompleted}
                       isActive={isActive}
+                      watchPercentage={lecture.watchPercentage ?? undefined}
+                      durationDisplay={lecture.durationDisplay || undefined}
                     />
                   )}
 
