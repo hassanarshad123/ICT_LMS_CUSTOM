@@ -1,18 +1,22 @@
 import { apiClient } from './client';
 
+export type PlanTier = 'free' | 'starter' | 'basic' | 'pro' | 'enterprise';
+
 export interface InstituteOut {
   id: string;
   name: string;
   slug: string;
   status: string;
-  planTier: string;
+  planTier: PlanTier;
   maxUsers: number;
+  maxStudents: number;
   maxStorageGb: number;
   maxVideoGb: number;
   contactEmail: string;
   expiresAt: string | null;
   createdAt: string | null;
   currentUsers: number;
+  currentStudents: number;
   currentStorageGb: number;
   currentVideoGb: number;
 }
@@ -27,6 +31,7 @@ export interface PlatformDashboard {
   totalVideoGb: number;
   institutesByPlan: {
     free: number;
+    starter: number;
     basic: number;
     pro: number;
     enterprise: number;
@@ -36,7 +41,7 @@ export interface PlatformDashboard {
     name: string;
     slug: string;
     status: string;
-    planTier: string;
+    planTier: PlanTier;
     createdAt: string | null;
   }>;
 }
@@ -45,8 +50,9 @@ export interface InstituteCreate {
   name: string;
   slug: string;
   contactEmail: string;
-  planTier?: string;
+  planTier?: PlanTier;
   maxUsers?: number;
+  maxStudents?: number;
   maxStorageGb?: number;
   maxVideoGb?: number;
   expiresAt?: string | null;

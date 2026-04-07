@@ -62,6 +62,7 @@ export default function InstituteDetailPage() {
         contactEmail: data.contactEmail,
         planTier: data.planTier,
         maxUsers: data.maxUsers,
+        maxStudents: data.maxStudents,
         maxStorageGb: data.maxStorageGb,
         maxVideoGb: data.maxVideoGb,
       });
@@ -197,7 +198,8 @@ export default function InstituteDetailPage() {
           {/* Usage */}
           <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 space-y-4">
             <h2 className="font-semibold text-gray-900">Usage</h2>
-            <UsageBar label="Users" current={institute.currentUsers} max={institute.maxUsers} />
+            <UsageBar label="Students" current={institute.currentStudents} max={institute.maxStudents} />
+            <UsageBar label="Total Users (inc. staff)" current={institute.currentUsers} max={institute.maxUsers} />
             <UsageBar label="Storage" current={parseFloat(institute.currentStorageGb.toFixed(2))} max={institute.maxStorageGb} unit=" GB" />
             <UsageBar label="Video" current={parseFloat(institute.currentVideoGb.toFixed(2))} max={institute.maxVideoGb} unit=" GB" />
           </div>
@@ -221,8 +223,9 @@ export default function InstituteDetailPage() {
                 { label: 'Slug', key: 'slug', type: 'text' },
                 { label: 'Status', key: 'status', type: 'readonly' },
                 { label: 'Contact Email', key: 'contactEmail', type: 'email' },
-                { label: 'Plan', key: 'planTier', type: 'select', options: ['free', 'basic', 'pro', 'enterprise'] },
-                { label: 'Max Users', key: 'maxUsers', type: 'number' },
+                { label: 'Plan', key: 'planTier', type: 'select', options: ['free', 'starter', 'basic', 'pro', 'enterprise'] },
+                { label: 'Max Students', key: 'maxStudents', type: 'number' },
+                { label: 'Max Users (staff+students)', key: 'maxUsers', type: 'number' },
                 { label: 'Max Storage (GB)', key: 'maxStorageGb', type: 'number' },
                 { label: 'Max Video (GB)', key: 'maxVideoGb', type: 'number' },
               ].map(({ label, key, type, options }) => (

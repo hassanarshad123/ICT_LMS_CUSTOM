@@ -47,8 +47,23 @@ export default function SABillingPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <SAKpiCard label="Total Collected" value={formatPKR(revenue.totalCollected)} icon={CreditCard} color="bg-green-500" />
           <SAKpiCard label="Outstanding" value={formatPKR(revenue.totalOutstanding)} icon={AlertCircle} color="bg-amber-500" />
-          <SAKpiCard label="Free Tier" value={formatPKR(revenue.revenueByPlan.free || 0)} icon={Receipt} color="bg-zinc-500" />
-          <SAKpiCard label="Paid Plans" value={formatPKR((revenue.revenueByPlan.basic || 0) + (revenue.revenueByPlan.pro || 0) + (revenue.revenueByPlan.enterprise || 0))} icon={TrendingUp} color="bg-purple-500" />
+          <SAKpiCard
+            label="Free Trial"
+            value={formatPKR(revenue.revenueByPlan.free || 0)}
+            icon={Receipt}
+            color="bg-zinc-500"
+          />
+          <SAKpiCard
+            label="Paid Plans"
+            value={formatPKR(
+              (revenue.revenueByPlan.starter || 0) +
+              (revenue.revenueByPlan.basic || 0) +
+              (revenue.revenueByPlan.pro || 0) +
+              (revenue.revenueByPlan.enterprise || 0)
+            )}
+            icon={TrendingUp}
+            color="bg-purple-500"
+          />
         </div>
       )}
 

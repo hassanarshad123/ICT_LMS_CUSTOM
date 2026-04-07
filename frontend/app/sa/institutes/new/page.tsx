@@ -23,6 +23,7 @@ export default function NewInstitutePage() {
     contactEmail: '',
     planTier: 'free',
     maxUsers: 50,
+    maxStudents: 15,
     maxStorageGb: 10,
     maxVideoGb: 50,
     expiresAt: '',
@@ -47,8 +48,9 @@ export default function NewInstitutePage() {
         name: form.name,
         slug: form.slug,
         contactEmail: form.contactEmail,
-        planTier: form.planTier,
+        planTier: form.planTier as 'free' | 'starter' | 'basic' | 'pro' | 'enterprise',
         maxUsers: form.maxUsers,
+        maxStudents: form.maxStudents,
         maxStorageGb: form.maxStorageGb,
         maxVideoGb: form.maxVideoGb,
         expiresAt: form.expiresAt || null,
@@ -145,17 +147,28 @@ export default function NewInstitutePage() {
                 onChange={(e) => setForm((f) => ({ ...f, planTier: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-gray-400"
               >
-                <option value="free">Free</option>
-                <option value="basic">Basic</option>
-                <option value="pro">Pro</option>
-                <option value="enterprise">Enterprise</option>
+                <option value="free">Free (14-day trial)</option>
+                <option value="starter">Starter — Rs 2,500/mo</option>
+                <option value="basic">Basic — Rs 5,000/mo</option>
+                <option value="pro">Pro — Rs 15,000/mo</option>
+                <option value="enterprise">Enterprise — Custom</option>
               </select>
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-4 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Max Users</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Max Students</label>
+              <input
+                type="number"
+                value={form.maxStudents}
+                onChange={(e) => setForm((f) => ({ ...f, maxStudents: parseInt(e.target.value) || 0 }))}
+                min={1}
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-gray-400"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Max Users (staff)</label>
               <input
                 type="number"
                 value={form.maxUsers}

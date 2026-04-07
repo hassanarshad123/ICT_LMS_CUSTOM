@@ -26,13 +26,21 @@ function StatusBadge({ status }: { status: string }) {
 function PlanBadge({ plan }: { plan: string }) {
   const colors: Record<string, string> = {
     free: 'bg-gray-100 text-gray-700',
+    starter: 'bg-emerald-100 text-emerald-700',
     basic: 'bg-blue-100 text-blue-700',
     pro: 'bg-purple-100 text-purple-700',
     enterprise: 'bg-indigo-100 text-indigo-700',
   };
+  const labels: Record<string, string> = {
+    free: 'Trial',
+    starter: 'Starter',
+    basic: 'Basic',
+    pro: 'Pro',
+    enterprise: 'Enterprise',
+  };
   return (
-    <span className={`text-xs px-2 py-1 rounded-full font-medium capitalize ${colors[plan] ?? 'bg-gray-100 text-gray-700'}`}>
-      {plan}
+    <span className={`text-xs px-2 py-1 rounded-full font-medium ${colors[plan] ?? 'bg-gray-100 text-gray-700'}`}>
+      {labels[plan] ?? plan}
     </span>
   );
 }
@@ -153,7 +161,8 @@ export default function InstitutesPage() {
           className="px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm"
         >
           <option value="">All Plans</option>
-          <option value="free">Free</option>
+          <option value="free">Trial</option>
+          <option value="starter">Starter</option>
           <option value="basic">Basic</option>
           <option value="pro">Pro</option>
           <option value="enterprise">Enterprise</option>
