@@ -129,7 +129,7 @@ function ScreenDashboard() {
       <div className="flex-1 p-4">
         <div className="text-[10px] font-semibold text-white/80 mb-3">Admin Dashboard</div>
         <div className="grid grid-cols-3 gap-2 mb-4">
-          {[{ l: "Students", v: "298", c: "text-blue-400" }, { l: "Courses", v: "12", c: "text-emerald-400" }, { l: "Revenue", v: "$4,820", c: "text-amber-400" }].map(s => (
+          {[{ l: "Students", v: "298", c: "text-blue-400" }, { l: "Courses", v: "12", c: "text-emerald-400" }, { l: "Revenue", v: "Rs 4.8L", c: "text-amber-400" }].map(s => (
             <div key={s.l} className="widget-depth rounded-lg p-2.5">
               <div className="text-[7px] text-white/30 mb-1">{s.l}</div>
               <div className={`text-[13px] font-bold ${s.c}`}>{s.v}</div>

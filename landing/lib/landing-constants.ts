@@ -13,64 +13,95 @@ export const STATS = [
 export interface PricingTier {
   name: string;
   price: string;
+  priceYearly: string;
   period: string;
+  yearlyNote?: string;
   description: string;
   highlighted: boolean;
   badge?: string;
   features: string[];
   href: string;
+  ctaLabel: string;
 }
 
 export const PRICING_TIERS: readonly PricingTier[] = [
   {
-    name: "Free",
-    price: "$0",
+    name: "Starter",
+    price: "Rs 2,500",
+    priceYearly: "Rs 25,000",
     period: "/mo",
-    description: "For small institutes getting started.",
+    yearlyNote: "Save Rs 5,000/year",
+    description: "For freelance tutors and small coaching centers.",
     highlighted: false,
     features: [
       "Up to 50 students",
-      "5 courses",
-      "5 GB storage",
-      "Basic branding",
+      "Unlimited courses & batches",
+      "3 GB storage, 15 GB video",
+      "Zoom integration",
+      "White-label branding",
+      "Certificates",
       "Email support",
     ],
     href: REGISTER_URL,
+    ctaLabel: "Start 14-day free trial",
+  },
+  {
+    name: "Basic",
+    price: "Rs 5,000",
+    priceYearly: "Rs 50,000",
+    period: "/mo",
+    yearlyNote: "Save Rs 10,000/year",
+    description: "For growing academies with 100–250 students.",
+    highlighted: true,
+    badge: "Best Value",
+    features: [
+      "Up to 250 students",
+      "Everything in Starter",
+      "10 GB storage, 75 GB video",
+      "Priority email support",
+      "Only Rs 20/student",
+    ],
+    href: REGISTER_URL,
+    ctaLabel: "Start 14-day free trial",
   },
   {
     name: "Pro",
-    price: "$49",
+    price: "Rs 15,000",
+    priceYearly: "Rs 150,000",
     period: "/mo",
-    description: "For growing institutes that need more.",
-    highlighted: true,
-    badge: "Most Popular",
+    yearlyNote: "Save Rs 30,000/year",
+    description: "For established institutes that need AI and integrations.",
+    highlighted: false,
     features: [
-      "Up to 500 students",
-      "Unlimited courses",
-      "50 GB storage",
-      "Full white-label branding",
-      "Zoom integration",
-      "AI-powered tools",
-      "Priority support",
+      "Up to 1,000 students",
+      "Everything in Basic",
+      "50 GB storage, 300 GB video",
+      "AI quiz generation (coming 2026)",
+      "AI tutor for students (coming 2026)",
+      "API access + webhooks",
+      "Only Rs 15/student",
     ],
     href: REGISTER_URL,
+    ctaLabel: "Start 14-day free trial",
   },
   {
     name: "Enterprise",
-    price: "Custom",
-    period: "",
-    description: "For organizations at scale.",
+    price: "From Rs 50,000",
+    priceYearly: "From Rs 500,000",
+    period: "/mo",
+    description: "For universities, multi-branch institutes, and corporate training.",
     highlighted: false,
     features: [
       "Unlimited students",
-      "Unlimited courses",
-      "Unlimited storage",
-      "Dedicated subdomain",
+      "Unlimited storage & video",
+      "Custom domain",
       "SLA guarantee",
       "Dedicated support manager",
       "Custom integrations",
+      "Multi-branch management",
     ],
     href: `mailto:${CONTACT_EMAIL}`,
+    ctaLabel: "Contact us",
   },
 ];
 
@@ -93,12 +124,17 @@ export const FAQS = [
   {
     question: "What AI features are available?",
     answer:
-      "AI tools include automatic quiz generation from lecture PDFs, AI-assisted course curriculum building, and an AI tutor for student Q&A. Available on the Pro plan and above.",
+      "AI tools include automatic quiz generation from lecture PDFs, AI-assisted course curriculum building, and an AI tutor for student Q&A. Available on the Pro plan and Enterprise. AI features are rolling out through 2026.",
   },
   {
-    question: "Is there a free plan?",
+    question: "Is there a free trial?",
     answer:
-      "Yes. The free plan supports up to 50 students, 5 courses, and 5 GB of storage. No credit card required. You can upgrade anytime as your institute grows.",
+      "Yes. Every new institute gets a 14-day free trial with up to 15 students and the full Starter feature set — Zoom, white-label branding, unlimited courses, and certificates. No credit card required. After 14 days, pick a plan starting at Rs 2,500/month or your trial institute is paused until you upgrade.",
+  },
+  {
+    question: "How do I pay?",
+    answer:
+      "We accept bank transfer, JazzCash, and Easypaisa. When you're ready to upgrade, click 'Upgrade' in your admin dashboard, pick your plan and billing cycle (monthly or yearly), and you'll get payment instructions with a unique reference code. Once we verify your payment, your plan is activated. No credit card required, no international fees.",
   },
   {
     question: "How do certificates work?",

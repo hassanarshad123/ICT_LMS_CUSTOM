@@ -48,7 +48,7 @@ const testimonials: Testimonial[] = [
     role: "EdTech Founder, Peshawar",
   },
   {
-    text: "As a freelance educator, I couldn't afford Rs. 14,000/month for an international LMS. The pay-per-student model means I only pay Rs. 1,800/month for my 30 students. Game changer.",
+    text: "As a freelance educator, I couldn't afford Rs. 14,000/month for an international LMS. Zensbot's Starter plan at Rs. 2,500/month gave me everything I needed for my 30 students — branded portal, Zoom, certificates. Game changer.",
     image: "https://randomuser.me/api/portraits/women/56.jpg",
     name: "Zainab Noor",
     role: "Freelance Educator, Lahore",
