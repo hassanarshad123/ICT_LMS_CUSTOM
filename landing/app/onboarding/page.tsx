@@ -21,7 +21,7 @@ declare global {
 
 const TURNSTILE_SITE_KEY = '0x4AAAAAAC1pfHbt2LQkZdD-';
 
-const STEPS = ['Institute Details', 'Branding'];
+const STEPS = ['Institute Details', 'Branding', 'Setting Up'];
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -146,32 +146,42 @@ export default function OnboardingPage() {
         }
       }
 
-      // 4. Create handoff token for cross-domain redirect
+      // 4. Build target subdomain URL
+      const isLocal = window.location.hostname === 'localhost' ||
+                      window.location.hostname.includes('.localhost');
+      const appPort = process.env.NEXT_PUBLIC_APP_PORT || '3000';
+      const targetDomain = isLocal
+        ? `${institute.slug}.localhost:${appPort}`
+        : `${institute.slug}.zensbot.online`;
+      const protocol = window.location.protocol;
+      const targetBase = `${protocol}//${targetDomain}`;
+
+      // 5. Wait for subdomain to be reachable (SSL provisioning can take 30-60s)
+      setStep(2); // Show "Setting up your LMS" screen
+      const maxWaitMs = 120_000; // 2 minutes max
+      const pollInterval = 3_000; // check every 3s
+      const startTime = Date.now();
+
+      while (Date.now() - startTime < maxWaitMs) {
+        try {
+          await fetch(`${targetBase}/login`, { mode: 'no-cors', cache: 'no-store' });
+          break; // reachable
+        } catch {
+          await new Promise((r) => setTimeout(r, pollInterval));
+        }
+      }
+
+      // 6. Create handoff token and redirect
       try {
         const handoff = await createHandoffToken(accessToken);
-
-        // 5. Clear sessionStorage
         sessionStorage.removeItem('signup_user');
-
-        // 6. Redirect to app subdomain
-        const isLocal = window.location.hostname === 'localhost' ||
-                        window.location.hostname.includes('.localhost');
-        const appPort = process.env.NEXT_PUBLIC_APP_PORT || '3000';
-        const targetDomain = isLocal
-          ? `${institute.slug}.localhost:${appPort}`
-          : `${institute.slug}.zensbot.online`;
-
-        const protocol = window.location.protocol;
-        window.location.href = `${protocol}//${targetDomain}/auth-callback?token=${handoff.handoffToken}`;
+        window.location.href = `${targetBase}/auth-callback?token=${handoff.handoffToken}`;
       } catch {
         // Fallback: if handoff fails, redirect to app login
         sessionStorage.removeItem('signup_user');
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
         toast.success('Account created! Please log in at your institute URL.');
-        const isLocal = window.location.hostname === 'localhost' ||
-                        window.location.hostname.includes('.localhost');
-        const appPort = process.env.NEXT_PUBLIC_APP_PORT || '3000';
         const loginUrl = isLocal
           ? `http://localhost:${appPort}/login`
           : 'https://zensbot.online/login';
@@ -231,6 +241,15 @@ export default function OnboardingPage() {
             <div ref={turnstileRef} />
           </div>
         </>
+      )}
+      {step === 2 && (
+        <div className="flex flex-col items-center justify-center py-16 gap-4">
+          <div className="h-10 w-10 border-4 border-gray-200 border-t-zen-purple rounded-full animate-spin" />
+          <h2 className="text-lg font-semibold text-gray-800">Setting up your LMS...</h2>
+          <p className="text-sm text-gray-500 text-center max-w-xs">
+            We&apos;re preparing your institute. This usually takes a few seconds.
+          </p>
+        </div>
       )}
     </OnboardingShell>
   );
