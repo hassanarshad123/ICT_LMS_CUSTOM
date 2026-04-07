@@ -2,7 +2,7 @@ import uuid
 import math
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -14,6 +14,7 @@ from app.middleware.auth import require_roles, get_current_user
 from app.models.user import User
 from app.models.course import Course
 from app.utils.s3 import upload_object, delete_object, generate_view_url, _prefix
+from app.utils.rate_limit import limiter
 
 router = APIRouter()
 
@@ -45,11 +46,19 @@ async def list_courses(
 
 
 @router.post("", response_model=CourseOut, status_code=status.HTTP_201_CREATED)
+@limiter.limit("30/minute")
 async def create_course(
+    request: Request,
     body: CourseCreate,
     current_user: CC,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
+    from app.utils.plan_limits import check_creation_limit
+    try:
+        await check_creation_limit(session, current_user.institute_id, "courses")
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
     course = await course_service.create_course(
         session, title=body.title, description=body.description,
         created_by=current_user.id, institute_id=current_user.institute_id,
@@ -98,11 +107,19 @@ async def delete_course(
 
 
 @router.post("/{course_id}/clone", response_model=CourseOut, status_code=status.HTTP_201_CREATED)
+@limiter.limit("30/minute")
 async def clone_course(
+    request: Request,
     course_id: uuid.UUID,
     current_user: CC,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
+    from app.utils.plan_limits import check_creation_limit
+    try:
+        await check_creation_limit(session, current_user.institute_id, "courses")
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
     try:
         course = await course_service.clone_course(
             session, course_id, current_user.id, institute_id=current_user.institute_id,
@@ -118,7 +135,9 @@ _MAX_COVER_SIZE = 5 * 1024 * 1024  # 5MB
 
 
 @router.post("/{course_id}/cover")
+@limiter.limit("10/hour")
 async def upload_course_cover(
+    request: Request,
     course_id: uuid.UUID,
     file: UploadFile = File(...),
     current_user: AdminOrCC = None,

@@ -47,11 +47,19 @@ async def list_quizzes(
 
 
 @router.post("", response_model=QuizOut, status_code=status.HTTP_201_CREATED)
+@limiter.limit("20/minute")
 async def create_quiz(
+    request: Request,
     body: QuizCreate,
     current_user: CC,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
+    from app.utils.plan_limits import check_creation_limit
+    try:
+        await check_creation_limit(session, current_user.institute_id, "quizzes")
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
     try:
         quiz = await quiz_service.create_quiz(
             session, data=body.model_dump(), user_id=current_user.id,

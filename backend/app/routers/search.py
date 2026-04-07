@@ -1,7 +1,7 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
@@ -9,6 +9,7 @@ from sqlmodel import select
 from app.database import get_session
 from app.middleware.auth import get_current_user
 from app.models.user import User
+from app.utils.rate_limit import limiter
 from app.models.batch import Batch, StudentBatch
 from app.models.course import Course, BatchCourse
 from app.models.announcement import Announcement
@@ -20,7 +21,9 @@ AllRoles = Annotated[User, Depends(get_current_user)]
 
 
 @router.get("")
+@limiter.limit("60/minute")
 async def global_search(
+    request: Request,
     q: str = Query(..., min_length=1),
     limit: int = Query(5, ge=1, le=10),
     current_user: AllRoles = None,

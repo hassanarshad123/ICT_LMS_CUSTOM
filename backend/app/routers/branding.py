@@ -134,6 +134,7 @@ async def get_branding(
 
 
 @router.patch("", response_model=BrandingResponse)
+@limiter.limit("10/hour")
 async def update_branding(
     request: Request,
     body: BrandingUpdate,
@@ -170,7 +171,9 @@ async def update_branding(
 
 
 @router.post("/logo-upload")
+@limiter.limit("10/hour")
 async def upload_logo(
+    request: Request,
     current_user: Admin,
     session: Annotated[AsyncSession, Depends(get_session)],
     file: UploadFile = File(...),
@@ -288,6 +291,7 @@ async def get_certificate_design(
 
 
 @router.patch("/certificate-design", response_model=CertificateDesignResponse)
+@limiter.limit("10/hour")
 async def update_certificate_design(
     request: Request,
     body: CertificateDesignUpdate,
@@ -320,7 +324,9 @@ async def update_certificate_design(
 
 
 @router.post("/signature-upload")
+@limiter.limit("10/hour")
 async def upload_signature(
+    request: Request,
     current_user: Admin,
     session: Annotated[AsyncSession, Depends(get_session)],
     file: UploadFile = File(...),

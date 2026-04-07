@@ -3,7 +3,7 @@ import uuid
 import math
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
@@ -12,6 +12,7 @@ from app.schemas.common import PaginatedResponse
 from app.services import announcement_service, notification_service
 from app.middleware.auth import get_current_user, require_roles
 from app.models.user import User
+from app.utils.rate_limit import limiter
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -188,11 +189,20 @@ async def list_announcements(
 
 
 @router.post("", response_model=AnnouncementOut, status_code=status.HTTP_201_CREATED)
+@limiter.limit("10/hour")
 async def create_announcement(
+    request: Request,
     body: AnnouncementCreate,
     current_user: AdminCCTeacher,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
+    # Free-tier daily announcement cap
+    from app.utils.plan_limits import check_creation_limit
+    try:
+        await check_creation_limit(session, current_user.institute_id, "announcements_per_day")
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
     # Teachers can only post batch-scoped announcements (not institute-wide)
     from app.models.enums import UserRole
     if current_user.role == UserRole.teacher and body.scope == "institute":

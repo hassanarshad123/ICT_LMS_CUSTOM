@@ -95,7 +95,9 @@ async def list_lectures(
 
 
 @router.post("", response_model=LectureOut, status_code=status.HTTP_201_CREATED)
+@limiter.limit("30/minute")
 async def create_lecture(
+    request: Request,
     body: LectureCreate,
     current_user: CC,
     session: Annotated[AsyncSession, Depends(get_session)],

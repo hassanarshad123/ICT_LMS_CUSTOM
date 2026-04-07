@@ -172,7 +172,9 @@ async def approve_certificate(
 
 
 @router.post("/approve-batch", response_model=list[CertificateOut])
+@limiter.limit("5/minute")
 async def approve_batch_certificates(
+    request: Request,
     body: CertificateBatchApproveRequest,
     current_user: CC,
     batch_id: uuid.UUID = Query(...),

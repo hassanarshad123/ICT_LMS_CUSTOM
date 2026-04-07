@@ -2,7 +2,7 @@ import math
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
@@ -14,6 +14,7 @@ from app.schemas.webhook import (
     WebhookTestResult, WebhookDeliveryOut,
 )
 from app.services import webhook_service
+from app.utils.rate_limit import limiter
 
 router = APIRouter()
 
@@ -21,12 +22,20 @@ Admin = Annotated[User, Depends(require_roles("admin"))]
 
 
 @router.post("", response_model=WebhookOut, status_code=status.HTTP_201_CREATED)
+@limiter.limit("5/hour")
 async def create_webhook(
+    request: Request,
     body: WebhookCreate,
     current_user: Admin,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Create a new webhook endpoint."""
+    from app.utils.plan_limits import check_creation_limit
+    try:
+        await check_creation_limit(session, current_user.institute_id, "webhooks")
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
     try:
         webhook = await webhook_service.create_webhook(
             session,
@@ -98,7 +107,9 @@ async def delete_webhook(
 
 
 @router.post("/{webhook_id}/test", response_model=WebhookTestResult)
+@limiter.limit("5/hour")
 async def test_webhook(
+    request: Request,
     webhook_id: uuid.UUID,
     current_user: Admin,
     session: Annotated[AsyncSession, Depends(get_session)],

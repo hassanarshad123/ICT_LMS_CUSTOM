@@ -63,7 +63,9 @@ async def get_upload_url(
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
+@limiter.limit("10/minute")
 async def submit_feedback(
+    request: Request,
     body: FeedbackCreate,
     user: AllRoles,
     session: AsyncSession = Depends(get_session),

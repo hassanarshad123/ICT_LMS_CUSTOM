@@ -2,11 +2,12 @@ import uuid
 import math
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.database import get_session
+from app.utils.rate_limit import limiter
 from app.schemas.batch import (
     BatchCreate, BatchUpdate, BatchOut, BatchStudentEnroll, BatchCourseLink,
     EnrollmentToggle, ExtendAccessRequest, ExtensionOut, ExtensionHistoryItem, ExpirySummary,
@@ -47,11 +48,19 @@ async def list_batches(
 
 
 @router.post("", response_model=BatchOut, status_code=status.HTTP_201_CREATED)
+@limiter.limit("30/minute")
 async def create_batch(
+    request: Request,
     body: BatchCreate,
     current_user: AdminOrCC,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
+    from app.utils.plan_limits import check_creation_limit
+    try:
+        await check_creation_limit(session, current_user.institute_id, "batches")
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
     batch = await batch_service.create_batch(
         session, name=body.name, start_date=body.start_date,
         end_date=body.end_date, teacher_id=body.teacher_id,
@@ -156,7 +165,9 @@ async def list_batch_students(
 
 
 @router.post("/{batch_id}/students", status_code=status.HTTP_201_CREATED)
+@limiter.limit("30/minute")
 async def enroll_student(
+    request: Request,
     batch_id: uuid.UUID,
     body: BatchStudentEnroll,
     current_user: AdminOrCC,
