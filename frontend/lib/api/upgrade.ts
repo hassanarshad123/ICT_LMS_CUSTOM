@@ -27,14 +27,15 @@ export interface UpgradeRequestBody {
   paymentMethod: UpgradePaymentMethod;
 }
 
+/**
+ * Payment method shape as stored by the SA settings page.
+ * `details` holds type-specific fields (bank_name/account_number/iban for
+ * bank_transfer, phone/account_title for jazzcash/easypaisa, instructions for custom).
+ */
 export interface PaymentInstruction {
-  type?: string;
-  label?: string;
-  account_title?: string;
-  account_number?: string;
-  bank_name?: string;
-  iban?: string;
-  [key: string]: unknown;
+  type: string;
+  label: string;
+  details: Record<string, string | undefined>;
 }
 
 export interface UpgradeResponse {

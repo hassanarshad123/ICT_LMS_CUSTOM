@@ -281,32 +281,46 @@ export function UpgradeModal({ institute, onClose }: Props) {
               </div>
 
               {result.paymentInstructions.length > 0 && (
-                <div className="bg-white border border-gray-200 rounded-xl p-4">
-                  <h4 className="text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">
+                <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-4">
+                  <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
                     Send payment to
                   </h4>
-                  {result.paymentInstructions.map((inst, i) => (
-                    <div key={i} className="space-y-1.5 text-sm">
-                      {Object.entries(inst).map(([k, v]) =>
-                        v && typeof v === 'string' ? (
-                          <div key={k} className="flex items-center justify-between">
-                            <span className="text-xs text-gray-500 capitalize">
-                              {k.replace(/_/g, ' ')}
-                            </span>
-                            <div className="flex items-center gap-1">
-                              <span className="font-medium text-gray-900">{v}</span>
-                              <button
-                                onClick={() => handleCopy(v, k)}
-                                className="p-1 text-gray-400 hover:text-gray-700"
-                              >
-                                <Copy size={12} />
-                              </button>
-                            </div>
+                  {result.paymentInstructions.map((inst, i) => {
+                    const entries = Object.entries(inst.details || {}).filter(
+                      ([, v]) => typeof v === 'string' && v.trim().length > 0,
+                    );
+                    return (
+                      <div key={i} className={i > 0 ? 'pt-3 border-t border-gray-100' : ''}>
+                        {inst.label && (
+                          <div className="text-xs font-semibold text-gray-900 mb-2">{inst.label}</div>
+                        )}
+                        {entries.length === 0 ? (
+                          <p className="text-xs text-gray-500 italic">
+                            Payment details not filled in yet. Contact support@zensbot.com.
+                          </p>
+                        ) : (
+                          <div className="space-y-1.5 text-sm">
+                            {entries.map(([k, v]) => (
+                              <div key={k} className="flex items-center justify-between gap-2">
+                                <span className="text-xs text-gray-500 capitalize">
+                                  {k.replace(/_/g, ' ')}
+                                </span>
+                                <div className="flex items-center gap-1 min-w-0">
+                                  <span className="font-medium text-gray-900 truncate">{v as string}</span>
+                                  <button
+                                    onClick={() => handleCopy(v as string, k.replace(/_/g, ' '))}
+                                    className="p-1 text-gray-400 hover:text-gray-700 flex-shrink-0"
+                                  >
+                                    <Copy size={12} />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                        ) : null,
-                      )}
-                    </div>
-                  ))}
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
