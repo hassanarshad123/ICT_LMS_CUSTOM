@@ -41,6 +41,19 @@ async def register(
             content={"access_token": "", "refresh_token": "", "user": {}, "institute": {}},
         )
 
+    # Cloudflare Turnstile CAPTCHA verification
+    # Skipped when CF_TURNSTILE_SECRET_KEY is empty (dev/test)
+    if settings.CF_TURNSTILE_SECRET_KEY:
+        if not body.cf_turnstile_token:
+            raise HTTPException(status_code=400, detail="CAPTCHA verification required")
+        from app.utils.captcha import verify_turnstile
+        is_valid = await verify_turnstile(
+            body.cf_turnstile_token,
+            remote_ip=request.client.host if request.client else None,
+        )
+        if not is_valid:
+            raise HTTPException(status_code=400, detail="CAPTCHA verification failed")
+
     try:
         institute, user = await create_institute_with_admin(
             session=session,
