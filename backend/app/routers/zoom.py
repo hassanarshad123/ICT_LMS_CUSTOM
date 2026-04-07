@@ -70,6 +70,12 @@ async def create_account(
     current_user: Admin,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
+    from app.utils.plan_limits import check_creation_limit
+    try:
+        await check_creation_limit(session, current_user.institute_id, "zoom_classes")
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
     from app.utils.encryption import encrypt
     account = await zoom_service.create_account(
         session, institute_id=current_user.institute_id,
@@ -180,6 +186,12 @@ async def create_class(
     current_user: CourseCreator,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
+    from app.utils.plan_limits import check_creation_limit
+    try:
+        await check_creation_limit(session, current_user.institute_id, "zoom_classes")
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
     # Get zoom account for API call
     account = await zoom_service.get_account(session, body.zoom_account_id)
     if not account or not check_institute_ownership(current_user.institute_id, account.institute_id):
