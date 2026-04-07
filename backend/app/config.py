@@ -63,11 +63,14 @@ class Settings(BaseSettings):
     SUPER_ADMIN_EMAIL: str = ""
 
     # Signup / Trial
-    TRIAL_DURATION_DAYS: int = 30
-    FREE_PLAN_MAX_USERS: int = 50
-    FREE_PLAN_MAX_STORAGE_GB: float = 5.0
-    FREE_PLAN_MAX_VIDEO_GB: float = 5.0
+    TRIAL_DURATION_DAYS: int = 14
+    FREE_PLAN_MAX_USERS: int = 5
+    FREE_PLAN_MAX_STORAGE_GB: float = 0.5
+    FREE_PLAN_MAX_VIDEO_GB: float = 0.5
     SIGNUP_ENABLED: bool = True
+
+    # Cloudflare Turnstile (CAPTCHA)
+    CF_TURNSTILE_SECRET_KEY: str = ""  # empty = skip verification (dev/test)
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

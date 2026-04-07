@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class CertificateOut(BaseModel):
@@ -59,7 +59,7 @@ class CertificateRequestBody(BaseModel):
 
 
 class CertificateBatchApproveRequest(BaseModel):
-    student_ids: list[uuid.UUID]
+    student_ids: list[uuid.UUID] = Field(..., max_length=25)
 
 
 class CertificateRevokeRequest(BaseModel):

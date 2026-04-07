@@ -1,3 +1,4 @@
+import re
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -26,7 +27,23 @@ RESERVED_SLUGS = frozenset({
     "test", "staging", "dev", "demo", "sandbox",
     # Common subdomains
     "ns1", "ns2", "mx", "pop", "imap", "webmail",
+    # Major brands (prevent impersonation)
+    "google", "microsoft", "facebook", "amazon", "apple", "netflix",
+    "meta", "twitter", "instagram", "tiktok", "whatsapp", "linkedin",
+    "github", "openai", "zensbot",
+    # Competitors (prevent confusion)
+    "coursera", "udemy", "edx", "canvas", "moodle", "blackboard",
+    "classroom", "teachable", "thinkific", "skillshare", "khan",
+    # System / abuse prevention
+    "root", "null", "undefined", "system", "moderator",
+    "billing", "payment", "security", "verify", "official", "secure",
+    "account", "certificate", "webhook", "notify", "email",
 })
+
+# Block patterns like admin123, test42, demo-1, free99, etc.
+_BLOCKED_SLUG_PATTERN = re.compile(
+    r"^(admin|test|demo|free|trial|premium|temp|fake|www|api)\d*(-\d+)?$"
+)
 
 
 def validate_slug_format(slug: str) -> tuple[bool, str]:
@@ -36,6 +53,8 @@ def validate_slug_format(slug: str) -> tuple[bool, str]:
     if "--" in slug:
         return False, "Slug cannot contain consecutive hyphens"
     if slug in RESERVED_SLUGS:
+        return False, "This slug is reserved"
+    if _BLOCKED_SLUG_PATTERN.match(slug):
         return False, "This slug is reserved"
     return True, "Valid format"
 
