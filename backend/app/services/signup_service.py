@@ -5,12 +5,15 @@ from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import or_, func
 from sqlmodel import select
 
 from app.models.institute import Institute, InstituteUsage, InstituteStatus, PlanTier
 from app.models.user import User
 from app.models.enums import UserRole
+from app.models.activity import ActivityLog
 from app.utils.security import hash_password
+from app.utils.plan_limits import PLAN_LIMITS
 from app.config import get_settings
 from app.schemas.validators import _SLUG_RE
 
@@ -77,6 +80,57 @@ async def check_slug_availability(session: AsyncSession, slug: str) -> tuple[boo
     return True, "Available"
 
 
+async def _check_signup_cooldown(
+    session: AsyncSession,
+    email: str,
+    phone: Optional[str],
+    cooldown_days: int,
+) -> None:
+    """Block re-signup from the same email or phone within the cooldown window.
+
+    Prevents the "signup → 14-day trial → let expire → signup again with same
+    contact info" abuse pattern. Checks ActivityLog for prior
+    institute_self_registered events.
+
+    Raises ValueError with a user-friendly message if a prior signup exists.
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(days=cooldown_days)
+
+    # Look for any previous self-signup with this email as the admin.
+    # The signup router logs: action='institute_self_registered' with
+    # details={'admin_email': ..., 'slug': ...}
+    filters = [
+        ActivityLog.action == "institute_self_registered",
+        ActivityLog.created_at >= cutoff,
+        func.lower(ActivityLog.details["admin_email"].astext) == email.lower(),
+    ]
+
+    result = await session.execute(
+        select(ActivityLog.id).where(*filters).limit(1)
+    )
+    if result.scalar_one_or_none() is not None:
+        raise ValueError(
+            f"An account with this email signed up within the last {cooldown_days} days. "
+            f"Please wait before creating another trial, or contact support@zensbot.com."
+        )
+
+    # Also check by phone if provided
+    if phone:
+        phone_filters = [
+            ActivityLog.action == "institute_self_registered",
+            ActivityLog.created_at >= cutoff,
+            ActivityLog.details["admin_phone"].astext == phone,
+        ]
+        result = await session.execute(
+            select(ActivityLog.id).where(*phone_filters).limit(1)
+        )
+        if result.scalar_one_or_none() is not None:
+            raise ValueError(
+                f"An account with this phone number signed up within the last "
+                f"{cooldown_days} days. Please wait before creating another trial."
+            )
+
+
 async def create_institute_with_admin(
     session: AsyncSession,
     name: str,
@@ -90,10 +144,19 @@ async def create_institute_with_admin(
     email = email.strip().lower()
     settings = get_settings()
 
+    # Re-signup cooldown: block repeat trials from the same contact info.
+    await _check_signup_cooldown(
+        session, email, phone, settings.TRIAL_COOLDOWN_DAYS,
+    )
+
     trial_days = settings.TRIAL_DURATION_DAYS
-    max_users = settings.FREE_PLAN_MAX_USERS
-    max_storage_gb = settings.FREE_PLAN_MAX_STORAGE_GB
-    max_video_gb = settings.FREE_PLAN_MAX_VIDEO_GB
+    # Source trial defaults from the authoritative PLAN_LIMITS dict
+    trial_limits = PLAN_LIMITS[PlanTier.free]
+    max_students = trial_limits["students"]
+    max_storage_gb = trial_limits["storage_gb"]
+    max_video_gb = trial_limits["video_gb"]
+    # max_users stays generous (staff uncounted); not the enforcement lever
+    max_users = max_students + 5
 
     # Create institute
     institute = Institute(
@@ -103,6 +166,7 @@ async def create_institute_with_admin(
         status=InstituteStatus.trial,
         plan_tier=PlanTier.free,
         max_users=max_users,
+        max_students=max_students,
         max_storage_gb=max_storage_gb,
         max_video_gb=max_video_gb,
         expires_at=datetime.now(timezone.utc) + timedelta(days=trial_days),

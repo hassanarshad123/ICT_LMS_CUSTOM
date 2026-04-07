@@ -111,24 +111,75 @@ async def _lock_usage(session: AsyncSession, institute_id: uuid.UUID) -> Institu
     return usage
 
 
-async def check_and_increment_user_quota(
+async def check_and_increment_student_quota(
     session: AsyncSession, institute_id: uuid.UUID,
 ) -> None:
-    """Atomically lock, check, and increment user count.
+    """Atomically lock, count students, check against max_students, increment usage.
 
-    Call BEFORE create_user() so the service's internal commit
-    also persists this increment.
+    Only users with role=student count toward the cap. Staff roles
+    (admin/teacher/course_creator) are uncapped — use
+    increment_staff_usage() for those.
+
+    Call BEFORE create_user() so the service's internal commit also
+    persists this increment.
+
+    Raises ValueError if the student cap would be exceeded.
     """
+    # Lock the usage row first so concurrent requests serialize
     usage = await _lock_usage(session, institute_id)
     institute = await session.get(Institute, institute_id)
     if not institute:
         return
-    if usage.current_users >= institute.max_users:
-        raise ValueError(
-            f"User limit reached ({institute.max_users}). Upgrade your plan to add more users."
+
+    # Count actual students (not all users) to honor the tier cap exactly.
+    # Recounting on every create is cheap (indexed by institute_id + role).
+    student_count_result = await session.execute(
+        select(func.count(User.id)).where(
+            User.institute_id == institute_id,
+            User.role == UserRole.student,
+            User.deleted_at.is_(None),
         )
+    )
+    current_students = student_count_result.scalar_one() or 0
+
+    if current_students >= institute.max_students:
+        from app.utils.plan_limits import TIER_LABELS
+        tier_label = TIER_LABELS.get(institute.plan_tier, institute.plan_tier.value)
+        raise ValueError(
+            f"{tier_label} plan limit reached: maximum {institute.max_students} students. "
+            f"Please upgrade to add more."
+        )
+
+    # Track total users for SA visibility. current_users is advisory now,
+    # not a gate — max_students is the authoritative cap.
     usage.current_users += 1
     session.add(usage)
+
+
+async def increment_staff_usage(
+    session: AsyncSession, institute_id: uuid.UUID,
+) -> None:
+    """Track a new staff user (admin/teacher/course_creator) for SA visibility.
+
+    Staff roles are uncapped in the 5-tier model — only students count
+    toward the tier cap. This function just bumps current_users for the
+    SA dashboard and does not raise.
+    """
+    usage = await _lock_usage(session, institute_id)
+    usage.current_users += 1
+    session.add(usage)
+
+
+async def check_and_increment_user_quota(
+    session: AsyncSession, institute_id: uuid.UUID,
+) -> None:
+    """DEPRECATED — kept for backwards compatibility with pre-Phase-2 callers.
+
+    This function assumes student creation and routes to
+    check_and_increment_student_quota. New code should call the specific
+    helper directly based on the role being created.
+    """
+    await check_and_increment_student_quota(session, institute_id)
 
 
 async def check_and_increment_storage_quota(
@@ -223,19 +274,31 @@ async def create_institute(
     contact_email: str,
     plan_tier: str = "free",
     max_users: int = 10,
+    max_students: int = 15,
     max_storage_gb: float = 1.0,
     max_video_gb: float = 5.0,
     expires_at: Optional[datetime] = None,
 ) -> Institute:
     from app.models.institute import PlanTier
+    from app.utils.plan_limits import PLAN_LIMITS
+
+    # If caller didn't specify quotas, source sensible defaults from
+    # PLAN_LIMITS for the requested tier. Explicit args still override.
+    tier_enum = PlanTier(plan_tier)
+    tier_defaults = PLAN_LIMITS.get(tier_enum, {})
+    resolved_max_students = max_students if max_students != 15 else (tier_defaults.get("students") or 15)
+    resolved_max_storage = max_storage_gb if max_storage_gb != 1.0 else (tier_defaults.get("storage_gb") or 1.0)
+    resolved_max_video = max_video_gb if max_video_gb != 5.0 else (tier_defaults.get("video_gb") or 5.0)
+
     institute = Institute(
         name=name,
         slug=slug,
         contact_email=contact_email,
-        plan_tier=PlanTier(plan_tier),
+        plan_tier=tier_enum,
         max_users=max_users,
-        max_storage_gb=max_storage_gb,
-        max_video_gb=max_video_gb,
+        max_students=resolved_max_students,
+        max_storage_gb=resolved_max_storage,
+        max_video_gb=resolved_max_video,
         expires_at=expires_at,
     )
     session.add(institute)
@@ -336,6 +399,7 @@ async def get_platform_stats(session: AsyncSession) -> dict:
         "total_video_gb": total_video_gb,
         "institutes_by_plan": {
             "free": plan_counts.get("free", 0),
+            "starter": plan_counts.get("starter", 0),
             "basic": plan_counts.get("basic", 0),
             "pro": plan_counts.get("pro", 0),
             "enterprise": plan_counts.get("enterprise", 0),

@@ -64,9 +64,9 @@ class Settings(BaseSettings):
 
     # Signup / Trial
     TRIAL_DURATION_DAYS: int = 14
-    FREE_PLAN_MAX_USERS: int = 5
-    FREE_PLAN_MAX_STORAGE_GB: float = 0.5
-    FREE_PLAN_MAX_VIDEO_GB: float = 0.5
+    TRIAL_COOLDOWN_DAYS: int = 90  # re-signup blocked this long after trial expiry
+    # Trial tier defaults now sourced from PLAN_LIMITS[PlanTier.free] in
+    # backend/app/utils/plan_limits.py. Override per-tier values there.
     SIGNUP_ENABLED: bool = True
 
     # Cloudflare Turnstile (CAPTCHA)

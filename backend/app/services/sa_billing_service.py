@@ -463,9 +463,11 @@ async def get_revenue_dashboard(session: AsyncSession) -> dict:
         WHERE p.status IN ('received', 'verified')
         GROUP BY i.plan_tier
     """))
-    revenue_by_plan = {"free": 0, "basic": 0, "pro": 0, "enterprise": 0}
+    revenue_by_plan = {"free": 0, "starter": 0, "basic": 0, "pro": 0, "enterprise": 0}
     for row in r.all():
-        revenue_by_plan[row[0]] = row[1]
+        # Defensive: handle any tier value we might add in the future
+        if row[0] in revenue_by_plan:
+            revenue_by_plan[row[0]] = row[1]
 
     # Monthly trend (last 12 months)
     r = await session.execute(text("""

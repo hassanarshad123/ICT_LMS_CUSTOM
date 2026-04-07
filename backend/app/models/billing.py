@@ -16,6 +16,8 @@ class BillingCycle(str, enum.Enum):
 
 class PaymentMethod(str, enum.Enum):
     bank_transfer = "bank_transfer"
+    jazzcash = "jazzcash"
+    easypaisa = "easypaisa"
     cheque = "cheque"
     cash = "cash"
     online = "online"

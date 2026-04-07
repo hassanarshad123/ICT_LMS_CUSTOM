@@ -21,7 +21,7 @@ from app.schemas.public_api import (
     PublicJobOut,
 )
 from app.services import user_service, webhook_event_service, public_service
-from app.services.institute_service import check_and_increment_user_quota
+from app.services.institute_service import check_and_increment_student_quota
 
 router = APIRouter()
 
@@ -92,7 +92,7 @@ async def create_student(
 
     # Atomically check quota and pre-increment before create (locked with FOR UPDATE)
     try:
-        await check_and_increment_user_quota(session, auth.institute_id)
+        await check_and_increment_student_quota(session, auth.institute_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

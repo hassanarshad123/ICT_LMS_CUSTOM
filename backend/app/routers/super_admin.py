@@ -19,7 +19,7 @@ from app.schemas.common import PaginatedResponse
 from app.services.institute_service import (
     create_institute, create_admin_for_institute, get_platform_stats,
     recalculate_usage, get_or_create_usage,
-    check_and_increment_user_quota,
+    increment_staff_usage,
 )
 from app.utils.security import create_impersonation_token
 from app.utils.rate_limit import limiter
@@ -33,6 +33,16 @@ SA = Annotated[User, Depends(require_roles("super_admin"))]
 
 async def _institute_to_out(session: AsyncSession, institute: Institute) -> InstituteOut:
     usage = await get_or_create_usage(session, institute.id)
+    # Count only users with role=student for the per-tier cap display.
+    # Incremental tracking added in Phase 2 (see check_and_increment_student_quota).
+    student_count_result = await session.execute(
+        select(func.count(User.id)).where(
+            User.institute_id == institute.id,
+            User.role == UserRole.student,
+            User.deleted_at.is_(None),
+        )
+    )
+    current_students = student_count_result.scalar_one() or 0
     return InstituteOut(
         id=institute.id,
         name=institute.name,
@@ -40,12 +50,14 @@ async def _institute_to_out(session: AsyncSession, institute: Institute) -> Inst
         status=institute.status.value,
         plan_tier=institute.plan_tier.value,
         max_users=institute.max_users,
+        max_students=institute.max_students,
         max_storage_gb=institute.max_storage_gb,
         max_video_gb=institute.max_video_gb,
         contact_email=institute.contact_email,
         expires_at=institute.expires_at,
         created_at=institute.created_at,
         current_users=usage.current_users,
+        current_students=current_students,
         current_storage_gb=round(usage.current_storage_bytes / (1024 ** 3), 3),
         current_video_gb=round(usage.current_video_bytes / (1024 ** 3), 3),
     )
@@ -113,6 +125,7 @@ async def create_institute_endpoint(
         contact_email=body.contact_email,
         plan_tier=body.plan_tier,
         max_users=body.max_users,
+        max_students=body.max_students,
         max_storage_gb=body.max_storage_gb,
         max_video_gb=body.max_video_gb,
         expires_at=body.expires_at,
@@ -228,11 +241,9 @@ async def create_admin(
     if existing.scalar_one_or_none():
         raise HTTPException(400, "Email already in use in this institute")
 
-    # Atomically check quota and pre-increment before create (locked with FOR UPDATE)
-    try:
-        await check_and_increment_user_quota(session, institute_id)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    # Admins are uncapped in the 5-tier model (staff uncounted).
+    # Track in current_users for SA visibility only.
+    await increment_staff_usage(session, institute_id)
 
     user = await create_admin_for_institute(
         session=session,

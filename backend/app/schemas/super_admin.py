@@ -22,6 +22,7 @@ class InstituteCreate(BaseModel):
     contact_email: ValidatedEmail
     plan_tier: PlanTierField = "free"
     max_users: int = 10
+    max_students: int = 15
     max_storage_gb: float = 1.0
     max_video_gb: float = 5.0
     expires_at: Optional[datetime] = None
@@ -35,6 +36,7 @@ class InstituteUpdate(BaseModel):
     contact_email: Optional[ValidatedEmail] = None
     plan_tier: Optional[PlanTierField] = None
     max_users: Optional[int] = None
+    max_students: Optional[int] = None
     max_storage_gb: Optional[float] = None
     max_video_gb: Optional[float] = None
     expires_at: Optional[datetime] = None
@@ -49,12 +51,14 @@ class InstituteOut(BaseModel):
     status: str
     plan_tier: str
     max_users: int
+    max_students: int
     max_storage_gb: float
     max_video_gb: float
     contact_email: str
     expires_at: Optional[datetime]
     created_at: Optional[datetime]
     current_users: int = 0
+    current_students: int = 0
     current_storage_gb: float = 0.0
     current_video_gb: float = 0.0
 

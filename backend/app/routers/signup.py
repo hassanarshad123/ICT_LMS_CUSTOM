@@ -64,8 +64,18 @@ async def register(
             institute_name=body.institute_name,
             institute_slug=body.institute_slug,
         )
-    except ValueError:
-        raise HTTPException(status_code=409, detail="Registration failed. This slug or email may already be in use.")
+    except ValueError as e:
+        # Cooldown violations and duplicate-email checks both raise ValueError.
+        # The cooldown message is user-friendly and safe to surface; the
+        # duplicate-slug/email message is generic by design to prevent enumeration.
+        msg = str(e)
+        if "within the last" in msg and "days" in msg:
+            # Re-signup cooldown — show the specific message
+            raise HTTPException(status_code=429, detail=msg)
+        raise HTTPException(
+            status_code=409,
+            detail="Registration failed. This slug or email may already be in use.",
+        )
 
     # Generate tokens
     settings_obj = get_settings()
@@ -86,7 +96,10 @@ async def register(
     )
     session.add(user_session)
 
-    # Audit log for self-service signup
+    # Audit log for self-service signup.
+    # admin_email + admin_phone are used by the cooldown check in
+    # signup_service._check_signup_cooldown — do not rename these keys
+    # without updating the lookup there.
     from app.models.activity import ActivityLog
     signup_log = ActivityLog(
         user_id=user.id,
@@ -94,7 +107,12 @@ async def register(
         entity_type="institute",
         entity_id=institute.id,
         institute_id=institute.id,
-        details={"institute_name": institute.name, "slug": institute.slug, "admin_email": user.email},
+        details={
+            "institute_name": institute.name,
+            "slug": institute.slug,
+            "admin_email": user.email,
+            "admin_phone": user.phone,
+        },
         ip_address=request.client.host if request.client else None,
     )
     session.add(signup_log)

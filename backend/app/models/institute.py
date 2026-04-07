@@ -15,10 +15,11 @@ class InstituteStatus(str, enum.Enum):
 
 
 class PlanTier(str, enum.Enum):
-    free = "free"
-    basic = "basic"
-    pro = "pro"
-    enterprise = "enterprise"
+    free = "free"          # 14-day trial (auto-suspend on expiry)
+    starter = "starter"    # Rs 2,500/mo — 50 students
+    basic = "basic"        # Rs 5,000/mo — 250 students
+    pro = "pro"            # Rs 15,000/mo — 1,000 students
+    enterprise = "enterprise"  # From Rs 50,000/mo — unlimited
 
 
 class Institute(SQLModel, table=True):
@@ -45,7 +46,8 @@ class Institute(SQLModel, table=True):
             server_default="free",
         )
     )
-    max_users: int = Field(default=10, nullable=False)
+    max_users: int = Field(default=10, nullable=False)  # total users (students + staff) — SA visibility only, not a gate
+    max_students: int = Field(default=15, nullable=False)  # student-only cap; gated in check_and_increment_student_quota
     max_storage_gb: float = Field(default=1.0, nullable=False)
     max_video_gb: float = Field(default=5.0, nullable=False)
     contact_email: str = Field(nullable=False)

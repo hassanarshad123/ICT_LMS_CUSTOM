@@ -33,7 +33,11 @@ from app.models.enums import UserRole, UserStatus
 from app.utils.security import hash_password
 from app.utils.transformers import to_db
 from app.services import webhook_event_service
-from app.services.institute_service import check_and_increment_user_quota, decrement_usage
+from app.services.institute_service import (
+    check_and_increment_student_quota,
+    increment_staff_usage,
+    decrement_usage,
+)
 from app.services.batch_service import enroll_student, get_batch
 from app.models.settings import SystemSetting
 from pydantic import BaseModel as PydanticBaseModel
@@ -223,12 +227,16 @@ async def create_user_endpoint(
             raise HTTPException(status_code=400, detail="Password is required for non-student roles")
         password = body.password
 
-    # Atomically check quota and pre-increment before create (locked with FOR UPDATE)
+    # Students are capped (max_students); staff (admin/teacher/course_creator)
+    # are uncapped but still tracked in current_users for SA visibility.
     if current_user.institute_id:
-        try:
-            await check_and_increment_user_quota(session, current_user.institute_id)
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
+        if db_role == "student":
+            try:
+                await check_and_increment_student_quota(session, current_user.institute_id)
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+        else:
+            await increment_staff_usage(session, current_user.institute_id)
 
     try:
         user = await create_user(
@@ -725,14 +733,19 @@ async def bulk_import(
             continue
 
         # New user — create + enroll (original behavior)
+        # Students are capped (max_students); staff are uncapped but tracked.
         quota_incremented = False
         if current_user.institute_id:
-            try:
-                await check_and_increment_user_quota(session, current_user.institute_id)
+            if row.role == "student":
+                try:
+                    await check_and_increment_student_quota(session, current_user.institute_id)
+                    quota_incremented = True
+                except ValueError as e:
+                    errors.append({"row": row.row_num, "error": str(e)})
+                    continue
+            else:
+                await increment_staff_usage(session, current_user.institute_id)
                 quota_incremented = True
-            except ValueError as e:
-                errors.append({"row": row.row_num, "error": str(e)})
-                continue
 
         try:
             user = await create_user(
