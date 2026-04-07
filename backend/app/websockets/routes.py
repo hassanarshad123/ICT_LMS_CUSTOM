@@ -73,7 +73,7 @@ async def class_status_ws(websocket: WebSocket, batch_id: uuid.UUID):
         return
 
     channel = f"class-status:{batch_id}"
-    connected = await manager.connect(websocket, channel)
+    connected = await manager.connect(websocket, channel, user_id=str(user.id))
     if not connected:
         return
     _set_ws_sentry_context(user, channel)
@@ -104,7 +104,7 @@ async def announcements_ws(websocket: WebSocket, user_id: uuid.UUID):
         return
 
     channel = f"announcements:{user_id}"
-    connected = await manager.connect(websocket, channel)
+    connected = await manager.connect(websocket, channel, user_id=str(user.id))
     if not connected:
         return
     _set_ws_sentry_context(user, channel)
@@ -135,7 +135,7 @@ async def notifications_ws(websocket: WebSocket, user_id: uuid.UUID):
         return
 
     channel = f"notifications:{user_id}"
-    connected = await manager.connect(websocket, channel)
+    connected = await manager.connect(websocket, channel, user_id=str(user.id))
     if not connected:
         return
     _set_ws_sentry_context(user, channel)
@@ -172,7 +172,7 @@ async def session_ws(websocket: WebSocket, session_id: uuid.UUID):
         return
 
     channel = f"session:{session_id}"
-    connected = await manager.connect(websocket, channel)
+    connected = await manager.connect(websocket, channel, user_id=str(user.id))
     if not connected:
         return
     _set_ws_sentry_context(user, channel)
