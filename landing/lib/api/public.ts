@@ -8,6 +8,7 @@ export interface SignupData {
   instituteName: string;
   instituteSlug: string;
   website?: string;
+  cfTurnstileToken?: string;
 }
 
 export interface SignupResponse {
@@ -60,6 +61,7 @@ export async function signup(data: SignupData): Promise<SignupResponse> {
       institute_name: data.instituteName,
       institute_slug: data.instituteSlug,
       website: data.website || null,
+      cf_turnstile_token: data.cfTurnstileToken || null,
     }),
   });
   if (!res.ok) {

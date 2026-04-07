@@ -53,6 +53,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer />
+      </head>
       <body className={`${instrumentSerif.variable} ${dmSans.variable} font-sans`}>
         {children}
         <Toaster position="top-right" richColors />

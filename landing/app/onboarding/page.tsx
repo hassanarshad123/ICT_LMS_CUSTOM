@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { OnboardingShell } from '@/components/signup/onboarding-shell';
@@ -8,6 +8,18 @@ import { StepInstitute } from '@/components/signup/step-institute';
 import { StepBranding } from '@/components/signup/step-branding';
 import { signup, createHandoffToken } from '@/lib/api/public';
 import { uploadLogo, updateBranding } from '@/lib/api/branding';
+
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (container: string | HTMLElement, options: Record<string, unknown>) => string;
+      reset: (widgetId: string) => void;
+      remove: (widgetId: string) => void;
+    };
+  }
+}
+
+const TURNSTILE_SITE_KEY = '0x4AAAAAAC1pfHbt2LQkZdD-';
 
 const STEPS = ['Institute Details', 'Branding'];
 
@@ -27,6 +39,35 @@ export default function OnboardingPage() {
   const [tagline, setTagline] = useState('');
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+
+  // Turnstile CAPTCHA
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const turnstileRef = useRef<HTMLDivElement>(null);
+  const widgetIdRef = useRef<string | null>(null);
+
+  const renderTurnstile = useCallback(() => {
+    if (!turnstileRef.current || !window.turnstile || widgetIdRef.current) return;
+    widgetIdRef.current = window.turnstile.render(turnstileRef.current, {
+      sitekey: TURNSTILE_SITE_KEY,
+      callback: (token: string) => setTurnstileToken(token),
+      'expired-callback': () => setTurnstileToken(null),
+      'error-callback': () => setTurnstileToken(null),
+      theme: 'light',
+    });
+  }, []);
+
+  useEffect(() => {
+    if (step === 1) {
+      // Wait for Turnstile script to load then render
+      const interval = setInterval(() => {
+        if (window.turnstile) {
+          renderTurnstile();
+          clearInterval(interval);
+        }
+      }, 200);
+      return () => clearInterval(interval);
+    }
+  }, [step, renderTurnstile]);
 
   // Ensure user data exists from /register
   useEffect(() => {
@@ -48,6 +89,11 @@ export default function OnboardingPage() {
       return;
     }
 
+    if (!turnstileToken) {
+      toast.error('Please complete the CAPTCHA verification');
+      return;
+    }
+
     setSubmitting(true);
     try {
       const userData = JSON.parse(storedUser);
@@ -61,6 +107,7 @@ export default function OnboardingPage() {
         instituteName,
         instituteSlug: slug,
         website: userData.website,
+        cfTurnstileToken: turnstileToken,
       });
 
       const { accessToken, institute } = signupRes;
@@ -132,6 +179,11 @@ export default function OnboardingPage() {
       }
     } catch (err: unknown) {
       setSubmitting(false);
+      // Reset Turnstile so user can retry
+      if (widgetIdRef.current && window.turnstile) {
+        window.turnstile.reset(widgetIdRef.current);
+        setTurnstileToken(null);
+      }
       const message = err instanceof Error ? err.message : 'Signup failed. Please try again.';
       toast.error(message);
     }
@@ -175,6 +227,9 @@ export default function OnboardingPage() {
             onSubmit={handleFinalSubmit}
             submitting={submitting}
           />
+          <div className="mt-4 flex justify-center">
+            <div ref={turnstileRef} />
+          </div>
         </>
       )}
     </OnboardingShell>
