@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { OnboardingShell } from '@/components/signup/onboarding-shell';
@@ -10,6 +10,8 @@ import { signup, createHandoffToken } from '@/lib/api/public';
 import { uploadLogo, updateBranding } from '@/lib/api/branding';
 import { trackMetaEvent } from '@/lib/meta-pixel';
 import { SHOW_ONBOARDING_ANIMATION } from '@/lib/feature-flags';
+import { OnboardingAnimation } from '@/components/signup/onboarding-animation';
+import { ErrorBoundary } from '@/components/shared/error-boundary';
 
 declare global {
   interface Window {
@@ -46,6 +48,29 @@ export default function OnboardingPage() {
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const turnstileRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string | null>(null);
+
+  // Setup-step state — used by the personalized onboarding animation.
+  // subdomainReady flips true when the polling loop reaches the new
+  // subdomain. redirectContext holds the data the animation's onComplete
+  // callback needs to perform the final navigation.
+  const [subdomainReady, setSubdomainReady] = useState(false);
+  const [redirectContext, setRedirectContext] = useState<{
+    accessToken: string;
+    targetBase: string;
+    isLocal: boolean;
+    appPort: string;
+  } | null>(null);
+  const firstName = useMemo(() => {
+    if (typeof window === 'undefined') return '';
+    const stored = sessionStorage.getItem('signup_user');
+    if (!stored) return '';
+    try {
+      const parsed = JSON.parse(stored);
+      return ((parsed.name as string) || '').split(' ')[0] || '';
+    } catch {
+      return '';
+    }
+  }, []);
 
   const renderTurnstile = useCallback(() => {
     if (!turnstileRef.current || !window.turnstile || widgetIdRef.current) return;
@@ -93,6 +118,36 @@ export default function OnboardingPage() {
     setLogoFile(file);
     setLogoPreview(preview);
   };
+
+  /**
+   * Performs the final navigation to the user's newly-provisioned LMS
+   * subdomain. Used both by the legacy spinner path (called inline after
+   * polling completes) and by the animation's onComplete callback (called
+   * after the 3-2-1 countdown).
+   *
+   * Idempotent: safe to call multiple times — only the first call wins
+   * because window.location.href is a one-shot navigation.
+   */
+  const performRedirect = useCallback(
+    async (ctx: { accessToken: string; targetBase: string; isLocal: boolean; appPort: string }) => {
+      try {
+        const handoff = await createHandoffToken(ctx.accessToken);
+        sessionStorage.removeItem('signup_user');
+        window.location.href = `${ctx.targetBase}/auth-callback?token=${handoff.handoffToken}`;
+      } catch {
+        // Fallback: if handoff fails, redirect to app login
+        sessionStorage.removeItem('signup_user');
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        toast.success('Account created! Please log in at your institute URL.');
+        const loginUrl = ctx.isLocal
+          ? `http://localhost:${ctx.appPort}/login`
+          : 'https://zensbot.online/login';
+        window.location.href = loginUrl;
+      }
+    },
+    [],
+  );
 
   const handleFinalSubmit = async () => {
     const storedUser = sessionStorage.getItem('signup_user');
@@ -190,8 +245,13 @@ export default function OnboardingPage() {
       const protocol = window.location.protocol;
       const targetBase = `${protocol}//${targetDomain}`;
 
-      // 5. Wait for subdomain to be reachable (SSL provisioning can take 30-60s)
-      setStep(2); // Show "Setting up your LMS" screen
+      // Capture context the animation's onComplete callback (or the
+      // legacy spinner path) needs to perform the final redirect.
+      setRedirectContext({ accessToken, targetBase, isLocal, appPort });
+
+      // 5. Show step 2 (animation OR spinner) and start polling for the
+      // newly-provisioned subdomain. SSL provisioning can take 30-90s.
+      setStep(2);
       const maxWaitMs = 120_000; // 2 minutes max
       const pollInterval = 3_000; // check every 3s
       const startTime = Date.now();
@@ -204,22 +264,13 @@ export default function OnboardingPage() {
           await new Promise((r) => setTimeout(r, pollInterval));
         }
       }
+      setSubdomainReady(true);
 
-      // 6. Create handoff token and redirect
-      try {
-        const handoff = await createHandoffToken(accessToken);
-        sessionStorage.removeItem('signup_user');
-        window.location.href = `${targetBase}/auth-callback?token=${handoff.handoffToken}`;
-      } catch {
-        // Fallback: if handoff fails, redirect to app login
-        sessionStorage.removeItem('signup_user');
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        toast.success('Account created! Please log in at your institute URL.');
-        const loginUrl = isLocal
-          ? `http://localhost:${appPort}/login`
-          : 'https://zensbot.online/login';
-        window.location.href = loginUrl;
+      // 6. If the animation is OFF, redirect immediately (legacy behavior).
+      // If the animation is ON, do nothing here — the animation's onComplete
+      // callback will fire performRedirect() after its 3-2-1 countdown.
+      if (!SHOW_ONBOARDING_ANIMATION) {
+        await performRedirect({ accessToken, targetBase, isLocal, appPort });
       }
     } catch (err: unknown) {
       setSubmitting(false);
@@ -286,18 +337,39 @@ export default function OnboardingPage() {
         </div>
       )}
       {step === 2 && SHOW_ONBOARDING_ANIMATION && (
-        // Phase 2 will replace this placeholder with the personalized
-        // <OnboardingAnimation /> component. Flag is OFF by default in prod,
-        // so this branch only renders when the Vercel env var is flipped on.
-        <div className="flex flex-col items-center justify-center py-16 gap-4">
-          <div className="h-10 w-10 border-4 border-gray-200 border-t-zen-purple rounded-full animate-spin" />
-          <h2 className="text-lg font-semibold text-gray-800">
-            [Phase 2 placeholder] Animation will render here
-          </h2>
-          <p className="text-sm text-gray-500 text-center max-w-xs">
-            Setting up your LMS...
-          </p>
-        </div>
+        // Personalized "Hero's Welcome" animation. Plays for ~60 seconds
+        // while the new subdomain provisions in the background. Wrapped in
+        // an error boundary that falls back to the original spinner if
+        // anything in the animation crashes (Sentry captures the error).
+        <ErrorBoundary
+          context="onboarding-animation"
+          fallback={
+            <div className="flex flex-col items-center justify-center py-16 gap-4">
+              <div className="h-10 w-10 border-4 border-gray-200 border-t-zen-purple rounded-full animate-spin" />
+              <h2 className="text-lg font-semibold text-gray-800">Setting up your LMS...</h2>
+              <p className="text-sm text-gray-500 text-center max-w-xs">
+                We&apos;re preparing your institute. This usually takes a few seconds.
+              </p>
+            </div>
+          }
+        >
+          <OnboardingAnimation
+            firstName={firstName || 'Friend'}
+            instituteName={instituteName || 'your new institute'}
+            primaryColor={primaryColor}
+            accentColor={accentColor}
+            backgroundColor={backgroundColor}
+            tagline={tagline}
+            logoPreview={logoPreview}
+            slug={slug}
+            isReadyToRedirect={subdomainReady}
+            onComplete={() => {
+              if (redirectContext) {
+                void performRedirect(redirectContext);
+              }
+            }}
+          />
+        </ErrorBoundary>
       )}
     </OnboardingShell>
   );
