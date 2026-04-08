@@ -8,6 +8,8 @@ import { StepInstitute } from '@/components/signup/step-institute';
 import { StepBranding } from '@/components/signup/step-branding';
 import { signup, createHandoffToken } from '@/lib/api/public';
 import { uploadLogo, updateBranding } from '@/lib/api/branding';
+import { trackMetaEvent } from '@/lib/meta-pixel';
+import { SHOW_ONBOARDING_ANIMATION } from '@/lib/feature-flags';
 
 declare global {
   interface Window {
@@ -77,6 +79,16 @@ export default function OnboardingPage() {
     }
   }, [router]);
 
+  // Fire Meta Pixel ViewContent per onboarding step
+  useEffect(() => {
+    const stepNames = ['Institute Details', 'Branding', 'Setting Up'];
+    void trackMetaEvent('ViewContent', {
+      content_name: `Onboarding — ${stepNames[step] || 'Unknown'}`,
+      content_category: 'Signup Funnel',
+      content_type: 'onboarding_step',
+    });
+  }, [step]);
+
   const handleLogoChange = (file: File | null, preview: string | null) => {
     setLogoFile(file);
     setLogoPreview(preview);
@@ -115,6 +127,28 @@ export default function OnboardingPage() {
       // Store tokens temporarily for branding API calls
       localStorage.setItem('access_token', accessToken);
       localStorage.setItem('refresh_token', signupRes.refreshToken);
+
+      // THE CONVERSION EVENT — fire Meta Pixel CompleteRegistration.
+      // This is what Meta campaigns optimize for.
+      void trackMetaEvent(
+        'CompleteRegistration',
+        {
+          content_name: 'LMS Created',
+          content_category: 'Free Signup',
+          status: 'completed',
+          currency: 'PKR',
+          value: 0,
+          institute_slug: institute.slug,
+          institute_name: instituteName,
+        },
+        {
+          email: userData.email,
+          firstName: (userData.name || '').split(' ')[0],
+          lastName: (userData.name || '').split(' ').slice(1).join(' ') || undefined,
+          phone: userData.phone,
+          externalId: signupRes.user?.id ? String(signupRes.user.id) : institute.slug,
+        },
+      );
 
       // 2. Upload logo if selected
       if (logoFile) {
@@ -242,12 +276,26 @@ export default function OnboardingPage() {
           </div>
         </>
       )}
-      {step === 2 && (
+      {step === 2 && !SHOW_ONBOARDING_ANIMATION && (
         <div className="flex flex-col items-center justify-center py-16 gap-4">
           <div className="h-10 w-10 border-4 border-gray-200 border-t-zen-purple rounded-full animate-spin" />
           <h2 className="text-lg font-semibold text-gray-800">Setting up your LMS...</h2>
           <p className="text-sm text-gray-500 text-center max-w-xs">
             We&apos;re preparing your institute. This usually takes a few seconds.
+          </p>
+        </div>
+      )}
+      {step === 2 && SHOW_ONBOARDING_ANIMATION && (
+        // Phase 2 will replace this placeholder with the personalized
+        // <OnboardingAnimation /> component. Flag is OFF by default in prod,
+        // so this branch only renders when the Vercel env var is flipped on.
+        <div className="flex flex-col items-center justify-center py-16 gap-4">
+          <div className="h-10 w-10 border-4 border-gray-200 border-t-zen-purple rounded-full animate-spin" />
+          <h2 className="text-lg font-semibold text-gray-800">
+            [Phase 2 placeholder] Animation will render here
+          </h2>
+          <p className="text-sm text-gray-500 text-center max-w-xs">
+            Setting up your LMS...
           </p>
         </div>
       )}

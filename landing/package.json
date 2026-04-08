@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.12",
+    "@sentry/nextjs": "^8.55.1",
     "@studio-freight/lenis": "^1.0.42",
     "autoprefixer": "10.4.15",
     "clsx": "^2.1.1",

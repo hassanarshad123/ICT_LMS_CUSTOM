@@ -1,8 +1,18 @@
 'use client';
 
+import { useEffect } from 'react';
 import { RegisterForm } from '@/components/signup/register-form';
+import { trackMetaEvent } from '@/lib/meta-pixel';
 
 export default function RegisterPage() {
+  useEffect(() => {
+    void trackMetaEvent('ViewContent', {
+      content_name: 'Register Page',
+      content_category: 'Signup Funnel',
+      content_type: 'signup_form',
+    });
+  }, []);
+
   return (
     <div className="min-h-screen bg-zen-bg flex items-center justify-center p-4">
       <div className="w-full max-w-lg">

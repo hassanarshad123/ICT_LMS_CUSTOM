@@ -1,5 +1,6 @@
 import { Instrument_Serif, DM_Sans } from 'next/font/google';
 import { Toaster } from 'sonner';
+import { MetaPixel } from '@/components/analytics/MetaPixel';
 import './globals.css';
 import './landing.css';
 
@@ -57,6 +58,7 @@ export default function RootLayout({
         <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer />
       </head>
       <body className={`${instrumentSerif.variable} ${dmSans.variable} font-sans`}>
+        <MetaPixel />
         {children}
         <Toaster position="top-right" richColors />
       </body>

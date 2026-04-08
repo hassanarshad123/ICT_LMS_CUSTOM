@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, ChevronRight, Loader2 } from 'lucide-react';
 import { LOGIN_URL } from '@/lib/landing-constants';
+import { trackMetaEvent } from '@/lib/meta-pixel';
 
 export function RegisterForm() {
   const router = useRouter();
@@ -40,6 +41,24 @@ export function RegisterForm() {
         phone: phone.trim() || undefined,
         website: website || undefined,
       }));
+
+      // Fire Meta Pixel Lead event — user has committed to signing up
+      void trackMetaEvent(
+        'Lead',
+        {
+          content_name: 'LMS Signup — Account Form',
+          content_category: 'Signup',
+          currency: 'PKR',
+          value: 0,
+        },
+        {
+          email: email.trim(),
+          firstName: name.trim().split(' ')[0],
+          lastName: name.trim().split(' ').slice(1).join(' ') || undefined,
+          phone: phone.trim() || undefined,
+        },
+      );
+
       router.push('/onboarding');
     } catch {
       setError('Something went wrong');
