@@ -1,4 +1,27 @@
 import { apiClient } from './client';
+import type { PaginatedResponse } from '@/lib/types/api';
+
+// ── Device management ───────────────────────────────────────
+
+export interface DeviceSession {
+  id: string;
+  deviceInfo: string | null;
+  ipAddress: string | null;
+  loggedInAt: string | null;
+  lastActiveAt: string | null;
+}
+
+export interface UserDeviceSummary {
+  userId: string;
+  userName: string;
+  userEmail: string;
+  userRole: string;
+  activeSessions: DeviceSession[];
+}
+
+export type DevicesListResponse = PaginatedResponse<UserDeviceSummary> & {
+  deviceLimit: number;
+};
 
 // ── Dashboard typed interfaces ──────────────────────────────
 
@@ -81,7 +104,7 @@ export async function listDevices(params?: {
   search?: string;
   page?: number;
   per_page?: number;
-}) {
+}): Promise<DevicesListResponse> {
   return apiClient('/admin/devices', { params: params as Record<string, string | number | undefined> });
 }
 

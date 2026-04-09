@@ -74,6 +74,7 @@ const navConfig: Record<UserRole, NavItem[]> = {
     { label: 'Courses', path: '/courses', icon: 'book-open', navId: 'nav-courses' },
     { label: 'Batches', path: '/batches', icon: 'layers', navId: 'nav-batches' },
     { label: 'Upload Videos', path: '/upload', icon: 'upload', navId: 'nav-upload' },
+    { label: 'Devices', path: '/devices', icon: 'smartphone', navId: 'nav-devices' },
     { label: 'Schedule Class', path: '/schedule', icon: 'calendar', navId: 'nav-schedule' },
     { label: 'Recordings', path: '/recordings', icon: 'play-circle', navId: 'nav-recordings' },
     { label: 'Certificates', path: '/certificates', icon: 'award', navId: 'nav-certificates' },

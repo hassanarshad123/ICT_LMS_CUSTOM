@@ -90,6 +90,15 @@ class UserDeviceSummary(BaseModel):
     active_sessions: list[SessionOut]
 
 
+class DevicesListResponse(BaseModel):
+    data: list[UserDeviceSummary]
+    total: int
+    page: int
+    per_page: int
+    total_pages: int
+    device_limit: int
+
+
 class SettingsResponse(BaseModel):
     settings: dict[str, str]
 

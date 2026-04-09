@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_session
 from app.schemas.admin import (
     DashboardResponse, InsightsResponse,
-    UserDeviceSummary, SettingsResponse, SettingsUpdate,
+    UserDeviceSummary, DevicesListResponse, SettingsResponse, SettingsUpdate,
     ActivityLogOut, ExportResponse,
 )
 from app.schemas.common import PaginatedResponse
@@ -19,6 +19,7 @@ from app.models.user import User
 router = APIRouter()
 
 Admin = Annotated[User, Depends(require_roles("admin"))]
+AdminOrCC = Annotated[User, Depends(require_roles("admin", "course_creator"))]
 
 
 @router.get("/dashboard", response_model=DashboardResponse)
@@ -89,9 +90,9 @@ async def insights_engagement(
     return await analytics_service.get_engagement_analytics(session, current_user.institute_id, period)
 
 
-@router.get("/devices", response_model=PaginatedResponse[UserDeviceSummary])
+@router.get("/devices", response_model=DevicesListResponse)
 async def list_devices(
-    current_user: Admin,
+    current_user: AdminOrCC,
     session: Annotated[AsyncSession, Depends(get_session)],
     role: Optional[str] = None,
     search: Optional[str] = None,
@@ -101,6 +102,7 @@ async def list_devices(
     return await admin_service.list_devices(
         session,
         institute_id=current_user.institute_id,
+        caller_role=current_user.role.value,
         role=role,
         search=search,
         page=page,
@@ -111,11 +113,14 @@ async def list_devices(
 @router.delete("/devices/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def terminate_session(
     session_id: uuid.UUID,
-    current_user: Admin,
+    current_user: AdminOrCC,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     found = await admin_service.terminate_session(
-        session, session_id=session_id, institute_id=current_user.institute_id,
+        session,
+        session_id=session_id,
+        institute_id=current_user.institute_id,
+        caller_role=current_user.role.value,
     )
     if not found:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -124,12 +129,17 @@ async def terminate_session(
 @router.delete("/devices/user/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def terminate_all_user_sessions(
     user_id: uuid.UUID,
-    current_user: Admin,
+    current_user: AdminOrCC,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    await admin_service.terminate_all_user_sessions(
-        session, user_id=user_id, institute_id=current_user.institute_id,
+    found = await admin_service.terminate_all_user_sessions(
+        session,
+        user_id=user_id,
+        institute_id=current_user.institute_id,
+        caller_role=current_user.role.value,
     )
+    if not found:
+        raise HTTPException(status_code=404, detail="User not found")
 
 
 @router.get("/settings", response_model=SettingsResponse)

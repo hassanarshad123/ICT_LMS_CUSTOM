@@ -5,7 +5,7 @@ import AdminDevices from '@/components/pages/admin/devices';
 
 export default function DevicesPage() {
   return (
-    <RoleGuard allowed={['admin']}>
+    <RoleGuard allowed={['admin', 'course-creator']}>
       <AdminDevices />
     </RoleGuard>
   );

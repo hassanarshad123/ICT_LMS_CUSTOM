@@ -9,11 +9,19 @@ interface UsePaginatedApiResult<T> {
   total: number;
   page: number;
   totalPages: number;
+  /**
+   * Extra top-level fields returned by the endpoint beyond the paging envelope.
+   * Endpoints that only return the envelope leave this as an empty object.
+   * Callers that expect extra fields should cast: `(extra as { myField?: T })`.
+   */
+  extra: Record<string, unknown>;
   loading: boolean;
   error: string | null;
   setPage: (page: number) => void;
   refetch: () => void;
 }
+
+const PAGINATION_KEYS = new Set(['data', 'total', 'page', 'perPage', 'totalPages']);
 
 export function usePaginatedApi<T>(
   fetcher: (params: { page: number; per_page: number }) => Promise<PaginatedResponse<T>>,
@@ -46,11 +54,23 @@ export function usePaginatedApi<T>(
     setPageState(newPage);
   }, []);
 
+  // Everything on the response that isn't part of the standard paging envelope
+  // becomes `extra`. Most endpoints leave this as an empty object; the devices
+  // endpoint, for example, returns a `deviceLimit` field here.
+  const extra: Record<string, unknown> = result
+    ? Object.fromEntries(
+        Object.entries(result as Record<string, unknown>).filter(
+          ([key]) => !PAGINATION_KEYS.has(key),
+        ),
+      )
+    : {};
+
   return {
     data: result?.data ?? [],
     total: result?.total ?? 0,
     page: result?.page ?? page,
     totalPages: result?.totalPages ?? Math.max(1, Math.ceil((result?.total ?? 0) / perPage)),
+    extra,
     // loading = true when data hasn't arrived yet (preserves old behavior)
     loading: result === undefined,
     error: error ? (error as Error).message : null,

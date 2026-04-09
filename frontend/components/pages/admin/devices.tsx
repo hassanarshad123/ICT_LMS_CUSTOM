@@ -6,8 +6,13 @@ import DashboardHeader from '@/components/layout/dashboard-header';
 import { useAuth } from '@/lib/auth-context';
 import { useBasePath } from '@/hooks/use-base-path';
 import { usePaginatedApi } from '@/hooks/use-paginated-api';
-import { useMutation, useApi } from '@/hooks/use-api';
-import { listDevices, terminateSession, terminateAllUserSessions, getSettings } from '@/lib/api/admin';
+import { useMutation } from '@/hooks/use-api';
+import {
+  listDevices,
+  terminateSession,
+  terminateAllUserSessions,
+  type UserDeviceSummary,
+} from '@/lib/api/admin';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
 import { Search, Trash2, ChevronDown, ChevronRight, Monitor } from 'lucide-react';
@@ -23,25 +28,40 @@ import {
 } from '@/components/ui/alert-dialog';
 import { roleBadgeColors, roleLabels } from '@/lib/constants';
 
-const roleOptions = [
+const ALL_ROLE_OPTIONS = [
   { value: 'all', label: 'All' },
   { value: 'student', label: 'Student' },
   { value: 'teacher', label: 'Teacher' },
   { value: 'course-creator', label: 'Course Creator' },
 ];
 
+// Course creators can only manage student + teacher device sessions.
+const CC_ROLE_OPTIONS = ALL_ROLE_OPTIONS.filter(
+  (opt) => opt.value !== 'course-creator',
+);
+
 export default function AdminDevicesPage() {
-  const { name } = useAuth();
+  const { name, role: currentRole } = useAuth();
   const basePath = useBasePath();
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ userId: string; sessionId: string | null } | null>(null);
 
-  const { data: settingsData } = useApi(getSettings);
-  const deviceLimit = parseInt(settingsData?.settings?.max_device_limit || '2', 10);
+  const isCourseCreator = currentRole === 'course-creator';
+  const roleOptions = isCourseCreator ? CC_ROLE_OPTIONS : ALL_ROLE_OPTIONS;
 
-  const { data: deviceList, total, page, totalPages, loading, error, setPage, refetch } = usePaginatedApi(
+  const {
+    data: deviceList,
+    total,
+    page,
+    totalPages,
+    extra,
+    loading,
+    error,
+    setPage,
+    refetch,
+  } = usePaginatedApi<UserDeviceSummary>(
     (params) => listDevices({
       ...params,
       role: roleFilter !== 'all' ? roleFilter : undefined,
@@ -50,6 +70,8 @@ export default function AdminDevicesPage() {
     15,
     [roleFilter, search],
   );
+
+  const deviceLimit = (extra.deviceLimit as number | undefined) ?? 2;
 
   const { execute: doTerminate } = useMutation(terminateSession);
   const { execute: doTerminateAll } = useMutation(terminateAllUserSessions);
