@@ -57,9 +57,11 @@ export function usePaginatedApi<T>(
   // Everything on the response that isn't part of the standard paging envelope
   // becomes `extra`. Most endpoints leave this as an empty object; the devices
   // endpoint, for example, returns a `deviceLimit` field here.
+  // Double-cast through `unknown` because PaginatedResponse<T> lacks a string
+  // index signature under strict TS settings.
   const extra: Record<string, unknown> = result
     ? Object.fromEntries(
-        Object.entries(result as Record<string, unknown>).filter(
+        Object.entries(result as unknown as Record<string, unknown>).filter(
           ([key]) => !PAGINATION_KEYS.has(key),
         ),
       )
