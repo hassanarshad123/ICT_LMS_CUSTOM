@@ -9,10 +9,39 @@ from app.config import get_settings
 from app.models.user import User
 from app.models.session import UserSession
 from app.models.settings import SystemSetting
-from app.models.enums import UserStatus, UserRole
+from app.models.enums import UserStatus, UserRole, DeviceLimitMode
 from app.utils.security import verify_password, create_access_token, create_refresh_token, decode_token
 
 settings = get_settings()
+
+
+class DeviceLimitRequiresApproval(Exception):
+    """Raised when a non-exempt user hits the hard device limit.
+
+    The router catches this and returns a structured 403 so the frontend can
+    surface a "request access" prompt instead of a normal error toast.
+    """
+
+    def __init__(
+        self,
+        user: "User",
+        device_info: str | None,
+        ip_address: str | None,
+    ) -> None:
+        self.user = user
+        self.device_info = device_info
+        self.ip_address = ip_address
+        super().__init__(
+            f"Device limit exceeded for user {user.id}; approval required."
+        )
+
+
+# Roles that are always allowed to evict-oldest, even under require_approval mode.
+# Prevents a lockout deadlock where the only admin of a tenant cannot self-approve.
+_HARD_MODE_EXEMPT_ROLES: tuple[UserRole, ...] = (
+    UserRole.super_admin,
+    UserRole.admin,
+)
 
 
 def _hash_token(token_id: str) -> str:
@@ -73,8 +102,10 @@ async def authenticate_user(
         user.locked_until = None
         session.add(user)
 
-    # Enforce device limit (scoped to institute for per-tenant settings)
-    await _enforce_device_limit(session, user.id, institute_id=user.institute_id)
+    # Enforce device limit (may raise DeviceLimitRequiresApproval in hard mode)
+    await _enforce_device_limit(
+        session, user, device_info=device_info, ip_address=ip_address,
+    )
 
     # Create tokens (embed token_version for revocation — Fix 1)
     access_token = create_access_token(user.id, user.role.value, user.token_version)
@@ -211,28 +242,67 @@ async def logout_all(session: AsyncSession, user_id: uuid.UUID) -> int:
     return count
 
 
-async def _enforce_device_limit(
-    session: AsyncSession, user_id: uuid.UUID, institute_id: uuid.UUID | None = None,
-) -> None:
-    """If user has too many active sessions, deactivate the oldest.
+async def _resolve_device_policy(
+    session: AsyncSession,
+    institute_id: uuid.UUID | None,
+) -> tuple[int, DeviceLimitMode]:
+    """Return ``(max_device_limit, mode)`` for this user's institute.
 
-    Uses SELECT FOR UPDATE to prevent TOCTOU race conditions on concurrent logins.
+    Falls back to ``settings.DEVICE_LIMIT`` (typically 2) and
+    ``DeviceLimitMode.evict_oldest`` when no institute-scoped row exists.
+    Unknown mode strings also fall back to ``evict_oldest`` to keep existing
+    tenants unaffected.
     """
-    # Get device limit from system settings (scoped to institute)
-    setting_query = select(SystemSetting).where(SystemSetting.setting_key == "max_device_limit")
+    base_query = select(SystemSetting).where(
+        SystemSetting.setting_key.in_(["max_device_limit", "device_limit_mode"]),
+    )
     if institute_id is not None:
-        setting_query = setting_query.where(SystemSetting.institute_id == institute_id)
+        base_query = base_query.where(SystemSetting.institute_id == institute_id)
     else:
-        setting_query = setting_query.where(SystemSetting.institute_id.is_(None))
-    result = await session.execute(setting_query)
-    setting = result.scalar_one_or_none()
-    device_limit = int(setting.value) if setting else settings.DEVICE_LIMIT
+        base_query = base_query.where(SystemSetting.institute_id.is_(None))
+
+    result = await session.execute(base_query)
+    rows = result.scalars().all()
+    by_key = {row.setting_key: row.value for row in rows}
+
+    raw_limit = by_key.get("max_device_limit")
+    try:
+        limit = int(raw_limit) if raw_limit is not None else settings.DEVICE_LIMIT
+    except (TypeError, ValueError):
+        limit = settings.DEVICE_LIMIT
+
+    raw_mode = by_key.get("device_limit_mode")
+    try:
+        mode = DeviceLimitMode(raw_mode) if raw_mode else DeviceLimitMode.evict_oldest
+    except ValueError:
+        mode = DeviceLimitMode.evict_oldest
+
+    return limit, mode
+
+
+async def _enforce_device_limit(
+    session: AsyncSession,
+    user: User,
+    device_info: str | None = None,
+    ip_address: str | None = None,
+) -> None:
+    """Enforce the per-institute device limit for this user.
+
+    Behavior matrix:
+        mode=evict_oldest      → silently deactivate the oldest session(s)
+        mode=require_approval  → admins/SAs still evict (exempt);
+                                 other roles raise DeviceLimitRequiresApproval
+
+    Uses SELECT FOR UPDATE to prevent TOCTOU race conditions on concurrent
+    logins from the same user.
+    """
+    limit, mode = await _resolve_device_policy(session, user.institute_id)
 
     # Lock and fetch all active sessions atomically to prevent race conditions
     result = await session.execute(
         select(UserSession)
         .where(
-            UserSession.user_id == user_id,
+            UserSession.user_id == user.id,
             UserSession.is_active.is_(True),
         )
         .with_for_update()
@@ -241,9 +311,23 @@ async def _enforce_device_limit(
     active_sessions = result.scalars().all()
     count = len(active_sessions)
 
-    if count >= device_limit:
-        # Deactivate oldest sessions to make room
-        to_deactivate = count - device_limit + 1
-        for s in active_sessions[:to_deactivate]:
-            s.is_active = False
-            session.add(s)
+    if count < limit:
+        return  # under the cap — nothing to do
+
+    use_hard_mode = (
+        mode == DeviceLimitMode.require_approval
+        and user.role not in _HARD_MODE_EXEMPT_ROLES
+    )
+
+    if use_hard_mode:
+        # Let the caller rollback and surface a structured 403 — do NOT evict
+        # anything; the waiting user will request admin approval.
+        raise DeviceLimitRequiresApproval(
+            user=user, device_info=device_info, ip_address=ip_address,
+        )
+
+    # Soft path: silently deactivate the oldest session(s) to make room
+    to_deactivate = count - limit + 1
+    for s in active_sessions[:to_deactivate]:
+        s.is_active = False
+        session.add(s)

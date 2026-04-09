@@ -11,11 +11,15 @@ import {
   listDevices,
   terminateSession,
   terminateAllUserSessions,
+  listDeviceRequests,
+  approveDeviceRequest,
+  rejectDeviceRequest,
   type UserDeviceSummary,
+  type PendingDeviceRequest,
 } from '@/lib/api/admin';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
-import { Search, Trash2, ChevronDown, ChevronRight, Monitor } from 'lucide-react';
+import { Search, Trash2, ChevronDown, ChevronRight, Monitor, ShieldCheck, X } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,13 +44,22 @@ const CC_ROLE_OPTIONS = ALL_ROLE_OPTIONS.filter(
   (opt) => opt.value !== 'course-creator',
 );
 
+type DevicesTab = 'active' | 'pending';
+
 export default function AdminDevicesPage() {
   const { name, role: currentRole } = useAuth();
   const basePath = useBasePath();
+  const [activeTab, setActiveTab] = useState<DevicesTab>('active');
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ userId: string; sessionId: string | null } | null>(null);
+
+  // Pending review modal state
+  const [reviewTarget, setReviewTarget] = useState<PendingDeviceRequest | null>(null);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [showRejectInput, setShowRejectInput] = useState(false);
 
   const isCourseCreator = currentRole === 'course-creator';
   const roleOptions = isCourseCreator ? CC_ROLE_OPTIONS : ALL_ROLE_OPTIONS;
@@ -73,8 +86,65 @@ export default function AdminDevicesPage() {
 
   const deviceLimit = (extra.deviceLimit as number | undefined) ?? 2;
 
+  // Pending device-limit approval requests (for hard-mode institutes)
+  const {
+    data: pendingRequests,
+    total: pendingTotal,
+    page: pendingPage,
+    totalPages: pendingTotalPages,
+    loading: pendingLoading,
+    error: pendingError,
+    setPage: setPendingPage,
+    refetch: refetchPending,
+  } = usePaginatedApi<PendingDeviceRequest>(
+    (params) => listDeviceRequests(params),
+    15,
+    [],
+  );
+
   const { execute: doTerminate } = useMutation(terminateSession);
   const { execute: doTerminateAll } = useMutation(terminateAllUserSessions);
+  const { execute: doApproveRequest } = useMutation(approveDeviceRequest);
+  const { execute: doRejectRequest } = useMutation(rejectDeviceRequest);
+
+  const openReview = (req: PendingDeviceRequest) => {
+    setReviewTarget(req);
+    setSelectedSessionId(req.activeSessions[0]?.id || null);
+    setRejectReason('');
+    setShowRejectInput(false);
+  };
+
+  const closeReview = () => {
+    setReviewTarget(null);
+    setSelectedSessionId(null);
+    setRejectReason('');
+    setShowRejectInput(false);
+  };
+
+  const handleApproveReview = async () => {
+    if (!reviewTarget || !selectedSessionId) return;
+    try {
+      await doApproveRequest(reviewTarget.id, selectedSessionId);
+      toast.success('Request approved — user will be logged in automatically');
+      closeReview();
+      refetchPending();
+      refetch();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const handleRejectReview = async () => {
+    if (!reviewTarget) return;
+    try {
+      await doRejectRequest(reviewTarget.id, rejectReason.trim() || undefined);
+      toast.success('Request rejected');
+      closeReview();
+      refetchPending();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
 
   const handleRemoveSession = async (userId: string, sessionId: string) => {
     try {
@@ -130,6 +200,29 @@ export default function AdminDevicesPage() {
     <DashboardLayout>
       <DashboardHeader greeting="Devices" subtitle="Manage user device sessions" />
 
+      {/* Tab bar */}
+      <div className="flex gap-1 bg-white rounded-xl p-1 card-shadow w-fit mb-6">
+        <button
+          onClick={() => setActiveTab('active')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'active' ? 'bg-primary text-white' : 'text-gray-500 hover:text-primary'}`}
+        >
+          Active devices
+        </button>
+        <button
+          onClick={() => setActiveTab('pending')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${activeTab === 'pending' ? 'bg-primary text-white' : 'text-gray-500 hover:text-primary'}`}
+        >
+          Pending requests
+          {pendingTotal > 0 && (
+            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${activeTab === 'pending' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700'}`}>
+              {pendingTotal}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {activeTab === 'active' && (
+      <>
       <div className="flex flex-col sm:flex-row gap-3 mb-6">
         <div className="relative">
           <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -287,6 +380,66 @@ export default function AdminDevicesPage() {
           )}
         </div>
       )}
+      </>
+      )}
+
+      {activeTab === 'pending' && (
+        <div>
+          {pendingLoading && <PageLoading variant="table" />}
+          {pendingError && <PageError message={pendingError} onRetry={refetchPending} />}
+
+          {!pendingLoading && !pendingError && pendingRequests.length === 0 && (
+            <EmptyState
+              icon={<ShieldCheck size={28} className="text-gray-400" />}
+              title="No pending requests"
+              description="Device access requests from users at their hard limit will appear here."
+            />
+          )}
+
+          {!pendingLoading && !pendingError && pendingRequests.length > 0 && (
+            <div className="bg-white rounded-2xl card-shadow overflow-hidden">
+              <div className="divide-y divide-gray-100">
+                {pendingRequests.map((req) => (
+                  <div key={req.id} className="p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center gap-4">
+                    <div className="w-10 h-10 rounded-full bg-accent flex items-center justify-center text-sm font-semibold text-primary shrink-0">
+                      {req.userName?.charAt(0) || '?'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-semibold text-primary truncate">{req.userName}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${roleBadgeColors[req.userRole] || 'bg-gray-100 text-gray-600'}`}>
+                          {roleLabels[req.userRole] || req.userRole}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 truncate">{req.userEmail}</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {req.requestedDeviceInfo || 'Unknown device'} &middot; IP {req.requestedIp || '—'}
+                      </p>
+                      <p className="text-xs text-gray-400">Requested {formatDateTime(req.createdAt)}</p>
+                    </div>
+                    <button
+                      onClick={() => openReview(req)}
+                      className="px-4 py-2 rounded-lg text-xs font-semibold bg-primary text-white hover:bg-primary/90 transition-colors shrink-0"
+                    >
+                      Review
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {pendingTotalPages > 1 && (
+                <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
+                  <p className="text-sm text-gray-500">Page {pendingPage} of {pendingTotalPages}</p>
+                  <div className="flex gap-2">
+                    <button onClick={() => setPendingPage(pendingPage - 1)} disabled={pendingPage === 1} className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">Previous</button>
+                    <button onClick={() => setPendingPage(pendingPage + 1)} disabled={pendingPage === pendingTotalPages} className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">Next</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
@@ -300,6 +453,121 @@ export default function AdminDevicesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Review pending request modal */}
+      {reviewTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={closeReview}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between p-5 border-b border-gray-100">
+              <div>
+                <h3 className="text-lg font-semibold text-primary">Review device request</h3>
+                <p className="text-xs text-gray-500 mt-1">Pick which existing device to remove before approving.</p>
+              </div>
+              <button onClick={closeReview} className="p-1 text-gray-400 hover:text-gray-600">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="bg-gray-50 rounded-xl p-3">
+                <p className="text-sm font-medium text-primary">{reviewTarget.userName}</p>
+                <p className="text-xs text-gray-500">{reviewTarget.userEmail}</p>
+                <p className="text-xs text-gray-400 mt-2">New device: {reviewTarget.requestedDeviceInfo || 'Unknown'}</p>
+                <p className="text-xs text-gray-400">IP: {reviewTarget.requestedIp || '—'}</p>
+              </div>
+
+              <div>
+                <p className="text-sm font-medium text-gray-700 mb-2">
+                  Select an existing device to remove ({reviewTarget.activeSessions.length})
+                </p>
+                {reviewTarget.activeSessions.length === 0 ? (
+                  <p className="text-xs text-gray-500 italic">
+                    This user has no active sessions. Approve to let the new device log in directly.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {reviewTarget.activeSessions.map((sess) => (
+                      <label
+                        key={sess.id}
+                        className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                          selectedSessionId === sess.id ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="session-to-drop"
+                          value={sess.id}
+                          checked={selectedSessionId === sess.id}
+                          onChange={() => setSelectedSessionId(sess.id)}
+                          className="mt-1"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-primary truncate">{sess.deviceInfo || 'Unknown device'}</p>
+                          <p className="text-xs text-gray-500">IP: {sess.ipAddress || '—'}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            Logged in: {sess.loggedInAt ? formatDateTime(sess.loggedInAt) : '—'}
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            Last active: {sess.lastActiveAt ? formatDateTime(sess.lastActiveAt) : '—'}
+                          </p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {showRejectInput && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Reason (optional)</label>
+                  <textarea
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    placeholder="Tell the user why the request was denied..."
+                    rows={3}
+                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2 p-5 border-t border-gray-100">
+              {!showRejectInput ? (
+                <>
+                  <button
+                    onClick={() => setShowRejectInput(true)}
+                    className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    Reject
+                  </button>
+                  <button
+                    onClick={handleApproveReview}
+                    disabled={!selectedSessionId}
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Approve
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => { setShowRejectInput(false); setRejectReason(''); }}
+                    className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleRejectReview}
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700"
+                  >
+                    Confirm reject
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }

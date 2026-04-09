@@ -11,10 +11,17 @@ from app.schemas.admin import (
     UserDeviceSummary, DevicesListResponse, SettingsResponse, SettingsUpdate,
     ActivityLogOut, ExportResponse,
 )
+from app.schemas.device_request import (
+    PendingDeviceRequestOut,
+    DeviceRequestApprove,
+    DeviceRequestReject,
+)
 from app.schemas.common import PaginatedResponse
-from app.services import analytics_service, admin_service
+from app.services import analytics_service, admin_service, device_request_service
+from app.services.device_request_service import DeviceRequestError
 from app.middleware.auth import require_roles
 from app.models.user import User
+import math
 
 router = APIRouter()
 
@@ -140,6 +147,82 @@ async def terminate_all_user_sessions(
     )
     if not found:
         raise HTTPException(status_code=404, detail="User not found")
+
+
+# ── Device limit approval requests ─────────────────────────────────────────
+
+
+@router.get(
+    "/device-requests",
+    response_model=PaginatedResponse[PendingDeviceRequestOut],
+)
+async def list_device_requests(
+    current_user: AdminOrCC,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+):
+    items, total = await device_request_service.list_pending_for_reviewer(
+        session,
+        reviewer=current_user,
+        page=page,
+        per_page=per_page,
+    )
+    return PaginatedResponse(
+        data=[PendingDeviceRequestOut(**item) for item in items],
+        total=total,
+        page=page,
+        per_page=per_page,
+        total_pages=math.ceil(total / per_page) if total else 0,
+    )
+
+
+@router.post(
+    "/device-requests/{request_id}/approve",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def approve_device_request(
+    request_id: uuid.UUID,
+    body: DeviceRequestApprove,
+    current_user: AdminOrCC,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    try:
+        await device_request_service.approve_request(
+            session,
+            reviewer=current_user,
+            request_id=request_id,
+            terminated_session_id=body.terminated_session_id,
+        )
+    except DeviceRequestError as exc:
+        raise HTTPException(
+            status_code=exc.http_status,
+            detail={"code": exc.code, "message": exc.message},
+        )
+
+
+@router.post(
+    "/device-requests/{request_id}/reject",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def reject_device_request(
+    request_id: uuid.UUID,
+    body: DeviceRequestReject,
+    current_user: AdminOrCC,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    try:
+        await device_request_service.reject_request(
+            session,
+            reviewer=current_user,
+            request_id=request_id,
+            reason=body.reason,
+        )
+    except DeviceRequestError as exc:
+        raise HTTPException(
+            status_code=exc.http_status,
+            detail={"code": exc.code, "message": exc.message},
+        )
 
 
 @router.get("/settings", response_model=SettingsResponse)

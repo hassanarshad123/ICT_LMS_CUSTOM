@@ -14,7 +14,19 @@ from app.schemas.auth import (
 )
 from app.schemas.common import MessageResponse
 from app.config import get_settings
-from app.services.auth_service import authenticate_user, refresh_access_token, logout, logout_all
+from app.services.auth_service import (
+    authenticate_user,
+    refresh_access_token,
+    logout,
+    logout_all,
+    DeviceLimitRequiresApproval,
+)
+from app.services import device_request_service
+from app.services.device_request_service import DeviceRequestError
+from app.schemas.device_request import (
+    DeviceRequestCreate,
+    DeviceRequestCreateResponse,
+)
 from app.middleware.auth import get_current_user
 from app.models.user import User
 from app.models.institute import Institute
@@ -22,6 +34,7 @@ from app.models.batch import StudentBatch, Batch
 from app.models.enums import UserRole
 from app.utils.security import verify_password, hash_password, create_password_reset_token, create_access_token, create_refresh_token, decode_token
 from app.utils.rate_limit import limiter
+import uuid
 
 router = APIRouter()
 
@@ -104,6 +117,18 @@ async def login(
             device_info=body.device_info,
             ip_address=request.client.host if request.client else None,
             institute_id=institute_id,
+        )
+    except DeviceLimitRequiresApproval as exc:
+        # Credentials were valid but the institute is in hard mode and this
+        # user is not exempt. Surface a structured 403 so the frontend can
+        # swap to the "request access" prompt instead of a generic error.
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "device_limit_requires_approval",
+                "message": "You have reached your device limit. Request access from an admin.",
+                "user_id": str(exc.user.id),
+            },
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
@@ -492,3 +517,87 @@ async def exchange_handoff(
         "token_type": "bearer",
         "user": user_brief.model_dump(),
     }
+
+
+# ───────────────────────────── Device limit request flow ────────────────────
+
+
+@router.post("/device-request", response_model=DeviceRequestCreateResponse)
+@limiter.limit("10/hour")
+async def create_device_request(
+    request: Request,
+    body: DeviceRequestCreate,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    x_institute_slug: Optional[str] = Header(default=None, alias="X-Institute-Slug"),
+):
+    """Create a device-limit approval request for a user at their hard cap.
+
+    This is called by the login page AFTER /login returns a 403 with
+    ``code=device_limit_requires_approval``. We re-validate the credentials
+    here so a stolen ``user_id`` alone isn't enough to spam admins.
+    """
+    institute_id = None
+    if x_institute_slug:
+        result = await session.execute(
+            select(Institute).where(
+                Institute.slug == x_institute_slug,
+                Institute.deleted_at.is_(None),
+            )
+        )
+        institute = result.scalar_one_or_none()
+        if not institute:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Institute '{x_institute_slug}' not found",
+            )
+        institute_id = institute.id
+
+    device_info_header = request.headers.get("user-agent")
+
+    try:
+        request_row, polling_token = await device_request_service.create_request(
+            session,
+            email=body.email,
+            password=body.password,
+            device_info=device_info_header,
+            ip_address=request.client.host if request.client else None,
+            institute_id=institute_id,
+        )
+    except DeviceRequestError as exc:
+        raise HTTPException(
+            status_code=exc.http_status,
+            detail={"code": exc.code, "message": exc.message},
+        )
+
+    return DeviceRequestCreateResponse(
+        request_id=request_row.id,
+        polling_token=polling_token,
+    )
+
+
+@router.get("/device-request/{request_id}/status")
+@limiter.limit("30/minute")
+async def get_device_request_status(
+    request: Request,
+    request_id: uuid.UUID,
+    polling_token: str,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """Poll for the status of a pending device-limit request.
+
+    On the first poll after admin approval this mints the tokens for the
+    waiting device and flips status to ``consumed`` so they cannot be
+    redeemed again. Protected by a dedicated rate limit.
+    """
+    try:
+        payload = await device_request_service.get_request_status(
+            session,
+            request_id=request_id,
+            polling_token=polling_token,
+        )
+    except DeviceRequestError as exc:
+        raise HTTPException(
+            status_code=exc.http_status,
+            detail={"code": exc.code, "message": exc.message},
+        )
+    return payload

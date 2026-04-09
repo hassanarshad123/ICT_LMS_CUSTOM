@@ -9,6 +9,58 @@ interface RequestOptions extends RequestInit {
   timeout?: number;
 }
 
+/**
+ * Enriched error thrown for non-2xx API responses. Backward compatible with
+ * `Error` — callers that just read `.message` see the same string as before.
+ * Callers that need structured error payloads (e.g., the login page needs to
+ * detect `device_limit_requires_approval`) can read `.data` or `.status`.
+ */
+export class ApiError extends Error {
+  status: number;
+  /** Raw FastAPI detail. May be a string, an object, or an array of validation issues. */
+  detail: unknown;
+  /** Parsed structured detail when FastAPI sends a dict. */
+  data: Record<string, unknown> | null;
+
+  constructor(message: string, status: number, detail: unknown) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.detail = detail;
+    this.data =
+      detail && typeof detail === 'object' && !Array.isArray(detail)
+        ? (detail as Record<string, unknown>)
+        : null;
+  }
+}
+
+/**
+ * Extract a human-readable message from a FastAPI error body and wrap it in
+ * an ApiError so callers can still do ``err.message`` while advanced callers
+ * can reach into ``err.data`` for structured error codes.
+ */
+function buildApiError(
+  body: any,
+  fallback: string,
+  status: number,
+): ApiError {
+  const detail = body?.detail;
+  let message: string;
+  if (Array.isArray(detail)) {
+    message = detail
+      .map((e: any) => e.msg || e.message || JSON.stringify(e))
+      .join('; ');
+  } else if (detail && typeof detail === 'object') {
+    // Structured error: prefer an explicit human-facing message field
+    message = (detail.message as string) || (detail.code as string) || fallback;
+  } else if (typeof detail === 'string') {
+    message = detail;
+  } else {
+    message = fallback;
+  }
+  return new ApiError(message, status, detail);
+}
+
 function getAccessToken(): string | null {
   if (typeof window === 'undefined') return null;
   return localStorage.getItem('access_token');
@@ -155,7 +207,7 @@ export async function apiClient<T = any>(
     // Login endpoint returns 401 for bad credentials — don't redirect
     if (path === '/auth/login') {
       const error = await res.json().catch(() => ({ detail: 'Invalid email or password' }));
-      throw new Error(error.detail || 'Invalid email or password');
+      throw buildApiError(error, 'Invalid email or password', res.status);
     }
     if (isImpersonating) {
       // Impersonation tokens cannot be refreshed — clear and close tab
@@ -202,15 +254,12 @@ export async function apiClient<T = any>(
   // Handle 403 — access denied (don't logout, user may just lack permission for this endpoint)
   if (res.status === 403) {
     const error = await res.json().catch(() => ({ detail: 'Forbidden' }));
-    throw new Error(error.detail || 'Forbidden');
+    throw buildApiError(error, 'Forbidden', res.status);
   }
 
   if (!res.ok) {
     const error = await res.json().catch(() => ({ detail: 'Request failed' }));
-    const message = Array.isArray(error.detail)
-      ? error.detail.map((e: any) => e.msg || e.message || JSON.stringify(e)).join('; ')
-      : error.detail || `HTTP ${res.status}`;
-    throw new Error(message);
+    throw buildApiError(error, `HTTP ${res.status}`, res.status);
   }
 
   const json = await res.json();

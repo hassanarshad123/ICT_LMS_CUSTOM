@@ -116,6 +116,52 @@ export async function terminateAllUserSessions(userId: string): Promise<void> {
   return apiClient(`/admin/devices/user/${userId}`, { method: 'DELETE' });
 }
 
+// ── Device limit approval requests ─────────────────────────
+
+export interface PendingDeviceRequest {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  userRole: string;
+  requestedDeviceInfo: string | null;
+  requestedIp: string | null;
+  status: string;
+  createdAt: string;
+  reviewedAt: string | null;
+  rejectionReason: string | null;
+  activeSessions: DeviceSession[];
+}
+
+export async function listDeviceRequests(params?: {
+  page?: number;
+  per_page?: number;
+}): Promise<PaginatedResponse<PendingDeviceRequest>> {
+  return apiClient('/admin/device-requests', {
+    params: params as Record<string, string | number | undefined>,
+  });
+}
+
+export async function approveDeviceRequest(
+  requestId: string,
+  terminatedSessionId: string,
+): Promise<void> {
+  return apiClient(`/admin/device-requests/${requestId}/approve`, {
+    method: 'POST',
+    body: JSON.stringify({ terminated_session_id: terminatedSessionId }),
+  });
+}
+
+export async function rejectDeviceRequest(
+  requestId: string,
+  reason?: string,
+): Promise<void> {
+  return apiClient(`/admin/device-requests/${requestId}/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ reason: reason || null }),
+  });
+}
+
 export async function getSettings(): Promise<{ settings: Record<string, string> }> {
   return apiClient('/admin/settings', { skipConversion: true });
 }

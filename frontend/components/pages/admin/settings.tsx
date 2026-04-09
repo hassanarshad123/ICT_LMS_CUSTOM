@@ -132,6 +132,7 @@ export default function AdminSettings() {
 
   // Settings state
   const [deviceLimit, setDeviceLimit] = useState(2);
+  const [deviceLimitMode, setDeviceLimitMode] = useState<'evict_oldest' | 'require_approval'>('evict_oldest');
   const [certThreshold, setCertThreshold] = useState(70);
   const [defaultStudentPassword, setDefaultStudentPassword] = useState('changeme123');
   const [showDefaultPassword, setShowDefaultPassword] = useState(false);
@@ -156,6 +157,9 @@ export default function AdminSettings() {
     if (!settingsData?.settings) return;
     const s = settingsData.settings;
     if (s.max_device_limit) setDeviceLimit(parseInt(s.max_device_limit, 10) || 2);
+    if (s.device_limit_mode === 'require_approval' || s.device_limit_mode === 'evict_oldest') {
+      setDeviceLimitMode(s.device_limit_mode);
+    }
     if (s.certificate_completion_threshold) setCertThreshold(parseInt(s.certificate_completion_threshold, 10) || 70);
     if (s.default_student_password) setDefaultStudentPassword(s.default_student_password);
     setWatermarkEnabled((s.branding_watermark_enabled ?? 'true') !== 'false');
@@ -390,13 +394,51 @@ export default function AdminSettings() {
             <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
               <h3 className="text-lg font-semibold text-gray-900 mb-1">Session Settings</h3>
               <p className="text-sm text-gray-500 mb-5">Control how many devices users can be logged in on simultaneously</p>
-              {settingsLoading ? <div className="animate-pulse bg-gray-100 rounded-xl h-16" /> : (
-                <div className="flex items-center gap-4">
-                  <NumberStepper value={deviceLimit} onChange={setDeviceLimit} min={1} />
-                  <span className="text-sm text-gray-500">devices per user</span>
-                  <button onClick={async () => { try { await saveSettings({ max_device_limit: String(deviceLimit) }); toast.success('Device limit saved'); } catch (e: any) { toast.error(e.message); } }} disabled={savingSettings} className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 ml-auto">
-                    {savingSettings ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save
-                  </button>
+              {settingsLoading ? <div className="animate-pulse bg-gray-100 rounded-xl h-32" /> : (
+                <div className="space-y-5">
+                  <div className="flex items-center gap-4">
+                    <NumberStepper value={deviceLimit} onChange={setDeviceLimit} min={1} />
+                    <span className="text-sm text-gray-500">devices per user</span>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      When a user exceeds the limit
+                    </label>
+                    <select
+                      value={deviceLimitMode}
+                      onChange={(e) => setDeviceLimitMode(e.target.value as 'evict_oldest' | 'require_approval')}
+                      className={inputClass}
+                    >
+                      <option value="evict_oldest">Evict oldest device automatically (default)</option>
+                      <option value="require_approval">Require admin approval for new devices</option>
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1.5">
+                      {deviceLimitMode === 'evict_oldest'
+                        ? 'New logins succeed silently; the oldest existing session is terminated to make room.'
+                        : 'New logins are blocked until an admin (or course creator for students/teachers) approves the request from the Devices page. Admins and super-admins remain on "evict oldest" to prevent lockout.'}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-end">
+                    <button
+                      onClick={async () => {
+                        try {
+                          await saveSettings({
+                            max_device_limit: String(deviceLimit),
+                            device_limit_mode: deviceLimitMode,
+                          });
+                          toast.success('Session settings saved');
+                        } catch (e: any) {
+                          toast.error(e.message);
+                        }
+                      }}
+                      disabled={savingSettings}
+                      className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+                    >
+                      {savingSettings ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

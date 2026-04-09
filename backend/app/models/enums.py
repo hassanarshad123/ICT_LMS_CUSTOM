@@ -111,3 +111,20 @@ class FeedbackStatus(str, enum.Enum):
     in_progress = "in_progress"
     done = "done"
     declined = "declined"
+
+
+class DeviceLimitRequestStatus(str, enum.Enum):
+    pending = "pending"
+    approved = "approved"
+    rejected = "rejected"
+    consumed = "consumed"
+
+
+class DeviceLimitMode(str, enum.Enum):
+    """Institute-wide device limit enforcement mode.
+
+    Stored as a plain string in SystemSetting under key ``device_limit_mode``.
+    Kept here so the service layer can validate with a single source of truth.
+    """
+    evict_oldest = "evict_oldest"
+    require_approval = "require_approval"
