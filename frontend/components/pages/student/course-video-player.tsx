@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   BookOpen,
   CheckCircle2,
@@ -213,6 +213,17 @@ export function CourseVideoPlayer({
   nowPlaying,
   watermark,
 }: CourseVideoPlayerProps) {
+  const videoRef = useRef<HTMLDivElement>(null);
+  const [pulseKey, setPulseKey] = useState(0);
+
+  const scrollToPlayer = useCallback(() => {
+    setPulseKey((k) => k + 1);
+    // Small delay so the new video starts rendering before we scroll
+    requestAnimationFrame(() => {
+      videoRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }, []);
+
   const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
   const [recordingLoading, setRecordingLoading] = useState(false);
   const [recordingError, setRecordingError] = useState<string | null>(null);
@@ -238,8 +249,24 @@ export function CourseVideoPlayer({
 
   return (
     <div className="mb-6 sm:mb-8">
+      {/* Pulse animation for video switch feedback */}
+      <style>{`
+        @keyframes video-pulse {
+          0%   { box-shadow: 0 0 0 0 rgba(99,102,241,0.45); }
+          50%  { box-shadow: 0 0 0 6px rgba(99,102,241,0.18); }
+          100% { box-shadow: 0 0 0 0 rgba(99,102,241,0); }
+        }
+        .animate-video-pulse {
+          animation: video-pulse 700ms ease-out;
+        }
+      `}</style>
+
       {/* ─── Video Player (full width) ──────────────────────────── */}
-      <div className="rounded-xl sm:rounded-2xl overflow-hidden">
+      <div
+        key={pulseKey}
+        ref={videoRef}
+        className={`rounded-xl sm:rounded-2xl overflow-hidden${pulseKey > 0 ? ' animate-video-pulse' : ''}`}
+      >
         {playlistTab === 'lectures' && activeLecture ? (
           activeLecture.isLocked ? (
             <div className="aspect-video bg-gray-800 flex items-center justify-center relative overflow-hidden">
@@ -401,6 +428,7 @@ export function CourseVideoPlayer({
                   onClick={() => {
                     if (isLocked) return;
                     onSelectLecture(lecture.id);
+                    scrollToPlayer();
                   }}
                   disabled={isLocked}
                   className={`w-full flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl text-left transition-colors ${
@@ -510,7 +538,7 @@ export function CourseVideoPlayer({
               return (
                 <button
                   key={recording.id}
-                  onClick={() => onSelectRecording(recording.id)}
+                  onClick={() => { onSelectRecording(recording.id); scrollToPlayer(); }}
                   className={`w-full flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl text-left transition-colors ${
                     isActive
                       ? 'bg-primary/5 border-l-[3px] border-l-primary'
