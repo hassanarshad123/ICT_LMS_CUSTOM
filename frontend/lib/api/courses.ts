@@ -6,6 +6,8 @@ export interface CourseOut {
   description?: string;
   status: string;
   batchIds: string[];
+  batchId?: string;
+  batchName?: string;
   clonedFromId?: string;
   createdBy?: string;
   createdAt?: string;

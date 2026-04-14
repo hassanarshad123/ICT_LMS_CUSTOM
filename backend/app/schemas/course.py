@@ -21,6 +21,11 @@ class CourseOut(BaseModel):
     description: Optional[str] = None
     status: str
     batch_ids: list[uuid.UUID] = []
+    # Populated only on student course listings; identifies which specific
+    # student-batch this row represents when the student is enrolled in
+    # multiple batches of the same course.
+    batch_id: Optional[uuid.UUID] = None
+    batch_name: Optional[str] = None
     cloned_from_id: Optional[uuid.UUID] = None
     created_by: Optional[uuid.UUID] = None
     created_at: Optional[datetime] = None

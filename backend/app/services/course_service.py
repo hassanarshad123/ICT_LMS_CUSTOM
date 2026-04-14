@@ -41,21 +41,19 @@ async def list_courses(
         query = query.where(Course.id.in_(course_ids_q))
         count_query = count_query.where(Course.id.in_(course_ids_q))
     elif current_user.role == UserRole.student:
-        batch_ids_q = (
-            select(StudentBatch.batch_id)
-            .join(Batch, StudentBatch.batch_id == Batch.id)
-            .where(
-                StudentBatch.student_id == current_user.id,
-                StudentBatch.removed_at.is_(None),
-                StudentBatch.is_active.is_(True),
-                func.coalesce(StudentBatch.extended_end_date, Batch.end_date) >= date.today(),
-            )
+        # Students see one row per (course, active-batch) pair — so a student
+        # enrolled in two batches of the same course gets two cards with
+        # different batch badges. Short-circuit the generic list path.
+        return await _list_courses_for_student(
+            session=session,
+            current_user=current_user,
+            page=page,
+            per_page=per_page,
+            status_filter=status_filter,
+            batch_id=batch_id,
+            search=search,
+            institute_id=institute_id,
         )
-        course_ids_q = select(BatchCourse.course_id).where(
-            BatchCourse.batch_id.in_(batch_ids_q), BatchCourse.deleted_at.is_(None)
-        )
-        query = query.where(Course.id.in_(course_ids_q))
-        count_query = count_query.where(Course.id.in_(course_ids_q))
 
     if status_filter:
         db_status = to_db(status_filter)
@@ -103,6 +101,92 @@ async def list_courses(
             "description": c.description,
             "status": c.status.value,
             "batch_ids": batch_ids_map.get(c.id, []),
+            "cloned_from_id": c.cloned_from_id,
+            "created_by": c.created_by,
+            "created_at": c.created_at,
+            "cover_image_url": generate_view_url(c.cover_image_key) if c.cover_image_key else None,
+        })
+
+    return items, total
+
+
+async def _list_courses_for_student(
+    session: AsyncSession,
+    current_user: User,
+    page: int,
+    per_page: int,
+    status_filter: Optional[str],
+    batch_id: Optional[uuid.UUID],
+    search: Optional[str],
+    institute_id: Optional[uuid.UUID],
+) -> tuple[list[dict], int]:
+    """Return one row per (course, active student-batch) pair.
+
+    Keeps course-level data shared (progress, curriculum) while surfacing each
+    batch as a separate card with its own badge. Purely read-side — no schema
+    change, safe for blue-green deploy.
+    """
+    pair_q = (
+        select(Course, Batch.id, Batch.name)
+        .join(BatchCourse, BatchCourse.course_id == Course.id)
+        .join(Batch, Batch.id == BatchCourse.batch_id)
+        .join(StudentBatch, StudentBatch.batch_id == Batch.id)
+        .where(
+            Course.deleted_at.is_(None),
+            BatchCourse.deleted_at.is_(None),
+            Batch.deleted_at.is_(None),
+            StudentBatch.student_id == current_user.id,
+            StudentBatch.removed_at.is_(None),
+            StudentBatch.is_active.is_(True),
+            func.coalesce(StudentBatch.extended_end_date, Batch.end_date) >= date.today(),
+        )
+    )
+
+    if institute_id is not None:
+        pair_q = pair_q.where(Course.institute_id == institute_id)
+
+    if status_filter:
+        db_status = to_db(status_filter)
+        pair_q = pair_q.where(Course.status == CourseStatus(db_status))
+
+    if batch_id:
+        pair_q = pair_q.where(Batch.id == batch_id)
+
+    if search:
+        pattern = f"%{search}%"
+        pair_q = pair_q.where(col(Course.title).ilike(pattern))
+
+    count_q = select(func.count()).select_from(pair_q.subquery())
+    total = (await session.execute(count_q)).scalar() or 0
+
+    offset = (page - 1) * per_page
+    pair_q = pair_q.order_by(Course.created_at.desc(), Batch.name.asc()).offset(offset).limit(per_page)
+    rows = (await session.execute(pair_q)).all()
+
+    if not rows:
+        return [], total
+
+    # Still expose the full batch_ids array on each course (used by some
+    # non-student surfaces and for compat) — one query covering the page.
+    course_ids = list({c.id for c, _, _ in rows})
+    bc_result = await session.execute(
+        select(BatchCourse.course_id, BatchCourse.batch_id)
+        .where(BatchCourse.course_id.in_(course_ids), BatchCourse.deleted_at.is_(None))
+    )
+    batch_ids_map: dict = {}
+    for cid, bid in bc_result.all():
+        batch_ids_map.setdefault(cid, []).append(bid)
+
+    items = []
+    for c, bid, bname in rows:
+        items.append({
+            "id": c.id,
+            "title": c.title,
+            "description": c.description,
+            "status": c.status.value,
+            "batch_ids": batch_ids_map.get(c.id, []),
+            "batch_id": bid,
+            "batch_name": bname,
             "cloned_from_id": c.cloned_from_id,
             "created_by": c.created_by,
             "created_at": c.created_at,

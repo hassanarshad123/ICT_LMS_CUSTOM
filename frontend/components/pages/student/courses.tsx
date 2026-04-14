@@ -15,10 +15,19 @@ import Link from 'next/link';
 export default function StudentCourses() {
   const { batchIds, batchNames } = useAuth();
 
-  const getBatchName = (courseBatchIds?: string[]) => {
-    if (!courseBatchIds?.length || !batchIds?.length) return null;
-    const idx = batchIds.findIndex((b) => courseBatchIds.includes(b));
-    return idx >= 0 && batchNames?.[idx] ? batchNames[idx] : null;
+  // Fallback: older responses (or cached clients) may not carry batch_name
+  // on the item. Map the student's own batches to their names as a backup.
+  const resolveBatchName = (course: { batchId?: string; batchName?: string; batchIds?: string[] }) => {
+    if (course.batchName) return course.batchName;
+    if (course.batchId && batchIds?.length) {
+      const i = batchIds.indexOf(course.batchId);
+      if (i >= 0) return batchNames?.[i] || null;
+    }
+    if (course.batchIds?.length && batchIds?.length) {
+      const i = batchIds.findIndex((b) => course.batchIds!.includes(b));
+      if (i >= 0) return batchNames?.[i] || null;
+    }
+    return null;
   };
   const basePath = useBasePath();
   const [search, setSearch] = useState('');
@@ -94,9 +103,13 @@ export default function StudentCourses() {
           )}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {courses.map((course) => {
-              const bn = getBatchName(course.batchIds);
+              const bn = resolveBatchName(course);
+              const href = course.batchId
+                ? `${basePath}/courses/${course.id}?batch=${course.batchId}`
+                : `${basePath}/courses/${course.id}`;
+              const rowKey = course.batchId ? `${course.id}-${course.batchId}` : course.id;
               return (
-              <Link key={course.id} href={`${basePath}/courses/${course.id}`}>
+              <Link key={rowKey} href={href}>
                 <div className="bg-white rounded-2xl card-shadow hover:card-shadow-hover transition-all duration-200 cursor-pointer group overflow-hidden">
                   <div className="h-32 bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center relative overflow-hidden">
                     {course.coverImageUrl ? (

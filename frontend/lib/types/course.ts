@@ -4,6 +4,11 @@ export interface Course {
   description: string;
   batchIds: string[];
   status: 'active' | 'completed' | 'upcoming';
+  // Present on student course listings when the row represents a
+  // specific (course, student-batch) pair. A student enrolled in two
+  // batches of the same course receives two entries, one per batch.
+  batchId?: string;
+  batchName?: string;
 }
 
 export interface Lecture {

@@ -27,11 +27,20 @@ function SectionError({ message, onRetry }: { message: string; onRetry: () => vo
 export default function StudentDashboard() {
   const { name, batchIds, batchNames } = useAuth();
 
-  // Map a course's batchIds to the student's batch name
-  const getBatchName = (courseBatchIds?: string[]) => {
-    if (!courseBatchIds?.length || !batchIds?.length) return null;
-    const idx = batchIds.findIndex((b) => courseBatchIds.includes(b));
-    return idx >= 0 && batchNames?.[idx] ? batchNames[idx] : null;
+  // Prefer the batch_name carried on the course item (one row per
+  // course+batch pair for students). Fall back to resolving from the
+  // student's own batches if the server response omits it.
+  const resolveBatchName = (course: { batchId?: string; batchName?: string; batchIds?: string[] }) => {
+    if (course.batchName) return course.batchName;
+    if (course.batchId && batchIds?.length) {
+      const i = batchIds.indexOf(course.batchId);
+      if (i >= 0) return batchNames?.[i] || null;
+    }
+    if (course.batchIds?.length && batchIds?.length) {
+      const i = batchIds.findIndex((b) => course.batchIds!.includes(b));
+      if (i >= 0) return batchNames?.[i] || null;
+    }
+    return null;
   };
   const basePath = useBasePath();
 
@@ -53,6 +62,8 @@ export default function StudentDashboard() {
   const courses = coursesData?.data || [];
   const classes = classesData?.data || [];
   const announcements = announcementsData?.data || [];
+  // KPI shows distinct courses, not (course,batch) pairs.
+  const distinctCourseCount = new Set(courses.map((c) => c.id)).size;
 
   const upcomingClasses = classes
     .filter((c) => {
@@ -154,7 +165,7 @@ export default function StudentDashboard() {
                 <div className="w-12 h-12 bg-accent rounded-2xl flex items-center justify-center mb-4">
                   <BookOpen size={24} className="text-primary" />
                 </div>
-                <p className="text-2xl sm:text-3xl font-bold text-primary">{coursesError ? <span className="text-gray-300" title="Couldn't load">—</span> : courses.length}</p>
+                <p className="text-2xl sm:text-3xl font-bold text-primary">{coursesError ? <span className="text-gray-300" title="Couldn't load">—</span> : distinctCourseCount}</p>
                 <p className="text-sm text-gray-500 mt-1">Courses Enrolled</p>
               </div>
             </Link>
@@ -190,9 +201,13 @@ export default function StudentDashboard() {
               <div className="space-y-3">
                 {inProgressCourses.slice(0, 3).map((course) => {
                   const wp = (course as any).watchPercentage || 0;
-                  const bn = getBatchName(course.batchIds);
+                  const bn = resolveBatchName(course);
+                  const href = course.batchId
+                    ? `${basePath}/courses/${course.id}?batch=${course.batchId}`
+                    : `${basePath}/courses/${course.id}`;
+                  const rowKey = course.batchId ? `${course.id}-${course.batchId}` : course.id;
                   return (
-                    <Link key={course.id} href={`${basePath}/courses/${course.id}`}>
+                    <Link key={rowKey} href={href}>
                       <div className="flex items-center gap-4 p-4 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer">
                         <div className="w-10 h-10 bg-accent bg-opacity-30 rounded-xl flex items-center justify-center flex-shrink-0">
                           <BookOpen size={18} className="text-primary" />
@@ -240,9 +255,13 @@ export default function StudentDashboard() {
               ) : (
                 <div className="space-y-3">
                   {courses.slice(0, 4).map((course) => {
-                    const bn = getBatchName(course.batchIds);
+                    const bn = resolveBatchName(course);
+                    const href = course.batchId
+                      ? `${basePath}/courses/${course.id}?batch=${course.batchId}`
+                      : `${basePath}/courses/${course.id}`;
+                    const rowKey = course.batchId ? `${course.id}-${course.batchId}` : course.id;
                     return (
-                    <Link key={course.id} href={`${basePath}/courses/${course.id}`}>
+                    <Link key={rowKey} href={href}>
                       <div className="flex items-center justify-between p-4 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer">
                         <div className="flex items-center gap-4">
                           <div className="w-10 h-10 bg-accent bg-opacity-30 rounded-xl flex items-center justify-center">
