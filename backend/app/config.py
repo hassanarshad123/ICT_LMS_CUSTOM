@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     FRONTEND_BASE_DOMAIN: str = ""  # e.g. "zensbot.online" for tenant-aware reset URLs
     ALLOWED_ORIGINS: str = ""  # e.g. "https://zensbot.online,http://localhost:3000"
 
+    # Subdomain warmup — pre-warms Vercel wildcard SSL cert for new tenant subdomains
+    SUBDOMAIN_WARMUP_ENABLED: bool = True
+    SUBDOMAIN_WARMUP_MAX_ATTEMPTS: int = 5
+    SUBDOMAIN_WARMUP_DELAY_SECONDS: float = 3.0
+
     # AWS S3
     AWS_ACCESS_KEY_ID: str = ""
     AWS_SECRET_ACCESS_KEY: str = ""
