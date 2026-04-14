@@ -1,9 +1,12 @@
 import uuid
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
+from fastapi.responses import PlainTextResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select
+
+from app.utils.rate_limit import limiter
 
 from app.database import get_session
 from app.schemas.admin import (
@@ -311,3 +314,125 @@ async def export_data(
             "Content-Disposition": f"attachment; filename=export_{entity_type}.csv",
         },
     )
+
+
+# ─── Bulk CSV import (Phase 6) ───────────────────────────────────────
+# Accepts a multipart CSV upload and processes rows synchronously for up to
+# 5k rows. Large institutes onboarding 500+ legacy students/payments use this
+# before flipping Frappe sync on.
+
+@router.get("/bulk-import/template/{entity_type}", response_class=PlainTextResponse)
+async def bulk_import_template(
+    entity_type: str,
+    current_user: Admin,
+):
+    from app.services.bulk_import_service import TEMPLATES
+    if entity_type not in TEMPLATES:
+        raise HTTPException(status_code=404, detail="Unknown entity type")
+    return PlainTextResponse(
+        TEMPLATES[entity_type],
+        headers={"Content-Disposition": f"attachment; filename={entity_type}_template.csv"},
+    )
+
+
+@router.post("/bulk-import/{entity_type}")
+@limiter.limit("10/hour")
+async def bulk_import_upload(
+    request: Request,
+    entity_type: str,
+    current_user: Admin,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    file: Annotated[UploadFile, File(description="UTF-8 CSV with header row")],
+):
+    from app.services import bulk_import_service
+    from app.services.bulk_import_service import BulkImportError
+
+    csv_bytes = await file.read()
+    try:
+        job = await bulk_import_service.create_job(
+            session,
+            institute_id=current_user.institute_id,
+            created_by=current_user.id,
+            entity_type=entity_type,
+            csv_bytes=csv_bytes,
+        )
+        job = await bulk_import_service.run_job(
+            session, job_id=job.id, csv_bytes=csv_bytes,
+        )
+    except BulkImportError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return {
+        "job_id": str(job.id),
+        "entity_type": job.entity_type,
+        "status": job.status,
+        "total_rows": job.total_rows,
+        "success_rows": job.success_rows,
+        "failed_rows": job.failed_rows,
+        "errors": job.errors or [],
+    }
+
+
+@router.get("/bulk-import/jobs/{job_id}")
+async def bulk_import_job_status(
+    job_id: uuid.UUID,
+    current_user: Admin,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    from app.models.integration import BulkImportJob
+
+    job = await session.get(BulkImportJob, job_id)
+    if job is None or job.institute_id != current_user.institute_id:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return {
+        "job_id": str(job.id),
+        "entity_type": job.entity_type,
+        "status": job.status,
+        "total_rows": job.total_rows,
+        "processed_rows": job.processed_rows,
+        "success_rows": job.success_rows,
+        "failed_rows": job.failed_rows,
+        "errors": job.errors or [],
+        "created_at": job.created_at,
+        "started_at": job.started_at,
+        "completed_at": job.completed_at,
+    }
+
+
+@router.get("/bulk-import/jobs")
+async def bulk_import_jobs_list(
+    current_user: Admin,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+):
+    from app.models.integration import BulkImportJob
+
+    stmt = select(BulkImportJob).where(
+        BulkImportJob.institute_id == current_user.institute_id
+    ).order_by(BulkImportJob.created_at.desc())
+    total = (await session.execute(select(BulkImportJob).where(
+        BulkImportJob.institute_id == current_user.institute_id
+    ))).scalars().all()
+    rows = (await session.execute(
+        stmt.limit(per_page).offset((page - 1) * per_page)
+    )).scalars().all()
+
+    return {
+        "data": [
+            {
+                "job_id": str(r.id),
+                "entity_type": r.entity_type,
+                "status": r.status,
+                "total_rows": r.total_rows,
+                "success_rows": r.success_rows,
+                "failed_rows": r.failed_rows,
+                "created_at": r.created_at,
+                "completed_at": r.completed_at,
+            }
+            for r in rows
+        ],
+        "total": len(total),
+        "page": page,
+        "per_page": per_page,
+    }
