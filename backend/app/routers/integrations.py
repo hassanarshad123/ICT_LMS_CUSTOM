@@ -1,0 +1,297 @@
+"""Admin surface for ERP/CRM integrations. v1 covers Frappe/ERPNext only.
+
+All endpoints are admin-only. Super admin can also reach them (role guard is
+``require_roles("admin")`` which includes SA by project convention in
+``middleware.auth``).
+
+Sync log + inbound webhook receiver live here too; they share the same
+``/api/v1/integrations`` prefix so the frontend only has one namespace to
+remember.
+"""
+from __future__ import annotations
+
+import hashlib
+import hmac
+import logging
+import uuid
+from datetime import datetime, timedelta, timezone
+from typing import Annotated, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database import get_session
+from app.middleware.auth import require_roles
+from app.models.integration import (
+    InstituteIntegration,
+    IntegrationSyncLog,
+    IntegrationSyncTask,
+)
+from app.models.user import User
+from app.schemas.common import PaginatedResponse
+from app.schemas.integration import (
+    FrappeConfigIn,
+    FrappeConfigOut,
+    FrappeInboundSecretOut,
+    FrappeTestConnectionOut,
+    SyncLogItem,
+    SyncLogKPIs,
+)
+from app.services import integration_service
+from app.services.integration_service import IntegrationError
+from app.utils.encryption import decrypt
+from app.utils.rate_limit import limiter
+
+logger = logging.getLogger("ict_lms.integrations.router")
+
+router = APIRouter()
+
+Admin = Annotated[User, Depends(require_roles("admin"))]
+
+
+# ── Frappe config ──────────────────────────────────────────────────
+
+@router.get("/frappe", response_model=FrappeConfigOut)
+async def get_frappe(
+    current_user: Admin,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    return await integration_service.get_frappe_config(session, current_user.institute_id)
+
+
+@router.put("/frappe", response_model=FrappeConfigOut)
+@limiter.limit("20/minute")
+async def update_frappe(
+    request: Request,
+    body: FrappeConfigIn,
+    current_user: Admin,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    try:
+        return await integration_service.update_frappe_config(
+            session, current_user.institute_id, body
+        )
+    except IntegrationError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/frappe/test", response_model=FrappeTestConnectionOut)
+@limiter.limit("10/minute")
+async def test_frappe(
+    request: Request,
+    current_user: Admin,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    return await integration_service.test_frappe_connection(session, current_user.institute_id)
+
+
+@router.post("/frappe/inbound-secret/rotate", response_model=FrappeInboundSecretOut)
+@limiter.limit("5/hour")
+async def rotate_inbound_secret(
+    request: Request,
+    current_user: Admin,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """Generate a new inbound webhook secret. Plaintext is returned exactly
+    once — if lost, the admin must rotate again.
+    """
+    plaintext = await integration_service.rotate_inbound_secret(
+        session, current_user.institute_id
+    )
+    return FrappeInboundSecretOut(secret=plaintext)
+
+
+# ── Sync log (Phase 5 — dashboard & retry) ─────────────────────────
+
+@router.get("/sync-log", response_model=PaginatedResponse[SyncLogItem])
+async def list_sync_log(
+    current_user: Admin,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=1, le=200),
+    direction: Optional[str] = Query(None, pattern="^(inbound|outbound)$"),
+    status_filter: Optional[str] = Query(None, alias="status"),
+    entity_type: Optional[str] = None,
+):
+    stmt = select(IntegrationSyncLog).where(
+        IntegrationSyncLog.institute_id == current_user.institute_id
+    )
+    if direction:
+        stmt = stmt.where(IntegrationSyncLog.direction == direction)
+    if status_filter:
+        stmt = stmt.where(IntegrationSyncLog.status == status_filter)
+    if entity_type:
+        stmt = stmt.where(IntegrationSyncLog.entity_type == entity_type)
+
+    count_stmt = select(func.count()).select_from(stmt.subquery())
+    total = (await session.execute(count_stmt)).scalar_one()
+
+    rows = (await session.execute(
+        stmt.order_by(IntegrationSyncLog.created_at.desc())
+            .limit(per_page).offset((page - 1) * per_page)
+    )).scalars().all()
+
+    return PaginatedResponse(
+        data=[
+            SyncLogItem(
+                id=str(r.id),
+                direction=r.direction,
+                entity_type=r.entity_type,
+                event_type=r.event_type,
+                lms_entity_id=str(r.lms_entity_id) if r.lms_entity_id else None,
+                frappe_doc_name=r.frappe_doc_name,
+                status=r.status,
+                status_code=r.status_code,
+                error_message=r.error_message,
+                attempt_count=r.attempt_count,
+                next_retry_at=r.next_retry_at,
+                created_at=r.created_at,
+            )
+            for r in rows
+        ],
+        total=total,
+        page=page,
+        per_page=per_page,
+        total_pages=(total + per_page - 1) // per_page if total else 0,
+    )
+
+
+@router.get("/sync-log/kpis", response_model=SyncLogKPIs)
+async def sync_log_kpis(
+    current_user: Admin,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    now = datetime.now(timezone.utc)
+    since_24h = now - timedelta(hours=24)
+    since_7d = now - timedelta(days=7)
+
+    async def _count(where_extra) -> int:
+        stmt = select(func.count(IntegrationSyncLog.id)).where(
+            IntegrationSyncLog.institute_id == current_user.institute_id
+        ).where(where_extra)
+        return (await session.execute(stmt)).scalar_one()
+
+    success_24h = await _count(
+        (IntegrationSyncLog.created_at >= since_24h) & (IntegrationSyncLog.status == "success")
+    )
+    fail_24h = await _count(
+        (IntegrationSyncLog.created_at >= since_24h) & (IntegrationSyncLog.status == "failed")
+    )
+    pending_retries = (await session.execute(
+        select(func.count(IntegrationSyncTask.id)).where(
+            IntegrationSyncTask.institute_id == current_user.institute_id,
+            IntegrationSyncTask.status.in_(("pending", "running")),
+        )
+    )).scalar_one()
+    failures_7d = await _count(
+        (IntegrationSyncLog.created_at >= since_7d) & (IntegrationSyncLog.status == "failed")
+    )
+
+    total_24h = success_24h + fail_24h
+    success_rate = (success_24h / total_24h * 100.0) if total_24h else 100.0
+
+    return SyncLogKPIs(
+        success_rate_24h=round(success_rate, 2),
+        success_count_24h=success_24h,
+        failure_count_24h=fail_24h,
+        pending_retries=pending_retries,
+        failures_7d=failures_7d,
+    )
+
+
+@router.post("/sync-log/{log_id}/retry", status_code=status.HTTP_202_ACCEPTED)
+@limiter.limit("30/minute")
+async def retry_sync_log(
+    request: Request,
+    log_id: uuid.UUID,
+    current_user: Admin,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """Re-enqueue a failed outbound event. No-op for inbound rows (Frappe is
+    the producer of those)."""
+    row = await session.get(IntegrationSyncLog, log_id)
+    if row is None or row.institute_id != current_user.institute_id:
+        raise HTTPException(status_code=404, detail="Log entry not found")
+
+    if row.direction != "outbound":
+        raise HTTPException(
+            status_code=400,
+            detail="Only outbound events can be retried from the LMS side",
+        )
+
+    task = IntegrationSyncTask(
+        institute_id=row.institute_id,
+        provider="frappe",
+        event_type=row.event_type,
+        payload=(row.request_snapshot or {}),
+        status="pending",
+        next_run_at=datetime.now(timezone.utc),
+    )
+    session.add(task)
+    await session.commit()
+    return {"status": "queued", "task_id": str(task.id)}
+
+
+# ── Inbound Frappe webhook receiver (Phase 4) ──────────────────────
+
+@router.post("/frappe/webhook", status_code=status.HTTP_202_ACCEPTED)
+@limiter.limit("120/minute")
+async def inbound_frappe_webhook(
+    request: Request,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    x_institute_id: Annotated[Optional[str], Query(alias="institute_id")] = None,
+):
+    """Receive Payment Entry events from Frappe.
+
+    Auth: HMAC-SHA256 of the raw body, signed with the institute's inbound
+    secret, passed in the ``X-Frappe-Signature`` header. The institute_id is
+    sent as a query param because Frappe webhooks don't carry custom auth
+    context in a standard way.
+    """
+    if not x_institute_id:
+        raise HTTPException(status_code=400, detail="institute_id query param required")
+    try:
+        institute_id = uuid.UUID(x_institute_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="institute_id must be a UUID")
+
+    raw_body = await request.body()
+    signature = request.headers.get("x-frappe-signature") or ""
+    if not signature:
+        raise HTTPException(status_code=401, detail="Missing X-Frappe-Signature")
+
+    # Load inbound secret
+    result = await session.execute(
+        select(InstituteIntegration).where(
+            InstituteIntegration.institute_id == institute_id
+        )
+    )
+    cfg = result.scalar_one_or_none()
+    if cfg is None or not cfg.frappe_inbound_secret_ciphertext:
+        raise HTTPException(status_code=401, detail="Integration not configured")
+
+    expected = hmac.new(
+        decrypt(cfg.frappe_inbound_secret_ciphertext).encode(),
+        raw_body,
+        hashlib.sha256,
+    ).hexdigest()
+    if not hmac.compare_digest(expected, signature):
+        raise HTTPException(status_code=401, detail="Invalid signature")
+
+    # Delegate to sync service (lives in a separate module to avoid circular
+    # imports with fee_service / admissions_service).
+    from app.services import frappe_sync_service
+
+    try:
+        result_summary = await frappe_sync_service.handle_inbound_payment_entry(
+            session, institute_id=institute_id, raw_body=raw_body,
+        )
+    except frappe_sync_service.DuplicateEventError:
+        return {"status": "duplicate", "message": "Event already processed"}
+    except frappe_sync_service.ConflictError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except frappe_sync_service.InboundError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return {"status": "accepted", **result_summary}

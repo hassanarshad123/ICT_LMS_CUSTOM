@@ -290,6 +290,25 @@ async def process_webhook_deliveries():
             logger.error("Webhook delivery processing failed: %s", e)
 
 
+@sentry_job_wrapper("process_frappe_sync_tasks")
+async def process_frappe_sync_tasks():
+    """Drain pending Frappe outbound sync tasks (every 30s).
+
+    Each task calls the institute's Frappe instance. Failures get exponential-
+    backoff retry (1m, 5m, 30m, 2h, 12h) for up to 6 attempts total, same
+    cadence as webhook deliveries.
+    """
+    from app.services.frappe_sync_service import process_pending_tasks
+
+    async with async_session() as session:
+        try:
+            count = await process_pending_tasks(session, batch_size=25)
+            if count:
+                logger.info("Processed %d Frappe sync tasks", count)
+        except Exception as e:
+            logger.error("Frappe sync processing failed: %s", e)
+
+
 @sentry_job_wrapper("cleanup_stale_uploads")
 async def cleanup_stale_uploads():
     """Soft-delete lectures stuck in 'pending' for over 24 hours (daily).
@@ -696,6 +715,38 @@ async def send_fee_reminders():
                     logger.warning("Fee reminder student notif failed for %s: %s", student.id, e)
                     await session.rollback()
                     continue
+
+                # Fire overdue webhook event — same dedup as the notification.
+                # Only on transition-to-overdue (offset_days == 0) so retries
+                # within the day don't re-fire.
+                if window["offset_days"] == 0:
+                    try:
+                        from app.services import webhook_event_service
+                        from datetime import datetime as _dt, timezone as _tz
+
+                        await webhook_event_service.queue_webhook_event(
+                            session,
+                            plan.institute_id,
+                            "fee.installment_overdue",
+                            {
+                                "fee_plan_id": str(plan.id),
+                                "fee_installment_id": str(installment.id),
+                                "student_id": str(student.id),
+                                "batch_id": str(plan.batch_id),
+                                "student_batch_id": str(plan.student_batch_id),
+                                "installment_sequence": installment.sequence,
+                                "amount_due": amount_due,
+                                "currency": plan.currency,
+                                "due_date": installment.due_date.isoformat(),
+                                "occurred_at": _dt.now(_tz.utc).isoformat(),
+                            },
+                        )
+                        await session.commit()
+                    except Exception as e:
+                        logger.warning(
+                            "Fee overdue webhook emit failed for installment %s: %s",
+                            installment.id, e,
+                        )
 
                 # Also ping the admissions officer for overdue
                 if window["offset_days"] == 0:

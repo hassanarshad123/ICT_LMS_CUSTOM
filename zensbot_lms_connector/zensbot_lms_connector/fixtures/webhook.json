@@ -1,0 +1,31 @@
+{
+  "_comment": "TEMPLATE — import into Frappe via Settings > Webhook, then fill in webhook_url + webhook_secret with the values from your Zensbot LMS Integrations page. Frappe's Webhook UI won't import this file directly; it's here as a reference spec.",
+  "doctype": "Webhook",
+  "name": "Zensbot LMS — Payment Entry",
+  "webhook_doctype": "Payment Entry",
+  "webhook_docevent": "after_insert",
+  "request_method": "POST",
+  "request_url": "https://apiict.zensbot.site/api/v1/integrations/frappe/webhook?institute_id=<YOUR-INSTITUTE-UUID>",
+  "request_structure": "Form URL-Encoded",
+  "timeout": 15,
+  "condition": "doc.docstatus == 1",
+  "webhook_headers": [
+    {
+      "key": "X-Frappe-Signature",
+      "value": "{{ frappe.get_hooks('zensbot_sign')[0](doc, frappe.db.get_single_value('Zensbot LMS Settings', 'inbound_secret')) }}"
+    },
+    {
+      "key": "Content-Type",
+      "value": "application/json"
+    }
+  ],
+  "webhook_data": [
+    {"fieldname": "name", "key": "name"},
+    {"fieldname": "zensbot_fee_plan_id", "key": "zensbot_fee_plan_id"},
+    {"fieldname": "paid_amount", "key": "paid_amount"},
+    {"fieldname": "received_amount", "key": "received_amount"},
+    {"fieldname": "posting_date", "key": "posting_date"},
+    {"fieldname": "mode_of_payment", "key": "mode_of_payment"},
+    {"fieldname": "reference_no", "key": "reference_no"}
+  ]
+}

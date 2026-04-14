@@ -67,6 +67,15 @@ async def queue_webhook_event(
         )
         session.add(delivery)
 
+    # Fan-out to built-in ERP integrations (Frappe v1). No-op when disabled.
+    # Imported locally to avoid circular imports at module load.
+    try:
+        from app.services import frappe_sync_service
+
+        await frappe_sync_service.enqueue_from_event(session, institute_id, event_type, data)
+    except Exception:  # noqa: BLE001 — never let integrations break webhook delivery
+        logger.exception("Frappe sync enqueue failed for event %s", event_type)
+
     await session.flush()
 
 

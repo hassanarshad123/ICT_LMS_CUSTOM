@@ -36,6 +36,12 @@ ALLOWED_WEBHOOK_EVENTS = [
     "class.ended",
     "attendance.recorded",
     "recording.ready",
+    # Fee lifecycle (Phase 1 of Frappe/ERPNext integration)
+    "fee.plan_created",
+    "fee.payment_recorded",
+    "fee.installment_overdue",
+    "fee.plan_cancelled",
+    "fee.plan_completed",
 ]
 
 

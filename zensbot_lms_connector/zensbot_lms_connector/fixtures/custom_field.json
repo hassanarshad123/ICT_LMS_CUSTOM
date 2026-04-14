@@ -1,0 +1,40 @@
+[
+  {
+    "doctype": "Custom Field",
+    "name": "Sales Invoice-zensbot_fee_plan_id",
+    "dt": "Sales Invoice",
+    "fieldname": "zensbot_fee_plan_id",
+    "label": "Zensbot Fee Plan ID",
+    "fieldtype": "Data",
+    "unique": 1,
+    "read_only": 1,
+    "hidden": 0,
+    "insert_after": "naming_series",
+    "description": "Idempotency key used by the Zensbot LMS sync. Do not edit."
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Payment Entry-zensbot_fee_plan_id",
+    "dt": "Payment Entry",
+    "fieldname": "zensbot_fee_plan_id",
+    "label": "Zensbot Fee Plan ID",
+    "fieldtype": "Data",
+    "read_only": 1,
+    "hidden": 0,
+    "insert_after": "naming_series",
+    "description": "Links this payment back to a Zensbot LMS fee plan."
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Payment Entry-zensbot_payment_id",
+    "dt": "Payment Entry",
+    "fieldname": "zensbot_payment_id",
+    "label": "Zensbot Payment ID",
+    "fieldtype": "Data",
+    "unique": 1,
+    "read_only": 1,
+    "hidden": 0,
+    "insert_after": "zensbot_fee_plan_id",
+    "description": "Idempotency key used by the Zensbot LMS sync. Do not edit."
+  }
+]

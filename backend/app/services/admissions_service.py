@@ -199,6 +199,31 @@ async def onboard_student(
         action="admissions.student_onboarded",
     )
 
+    # ── Webhook event (pre-commit, same transaction) ──
+    from app.services import webhook_event_service
+
+    await webhook_event_service.queue_webhook_event(
+        session,
+        officer.institute_id,
+        "fee.plan_created",
+        {
+            "fee_plan_id": str(plan.id),
+            "student_id": str(student.id),
+            "student_email": student.email,
+            "student_name": student.name,
+            "batch_id": str(plan.batch_id),
+            "student_batch_id": str(plan.student_batch_id),
+            "plan_type": plan.plan_type,
+            "total_amount": plan.total_amount,
+            "final_amount": final_amount,
+            "currency": plan.currency,
+            "installment_count": len(installments),
+            "onboarded_by_user_id": str(officer.id),
+            "source": "onboarding",
+            "occurred_at": datetime.now(timezone.utc).isoformat(),
+        },
+    )
+
     await session.commit()
     await session.refresh(plan)
 
@@ -519,10 +544,26 @@ async def soft_delete_student(
         )
     )).scalars().all()
     now = datetime.now(timezone.utc)
+    from app.services import webhook_event_service
+
     for plan in plans:
         plan.status = FeePlanStatus.cancelled.value
         plan.deleted_at = now
         session.add(plan)
+        await webhook_event_service.queue_webhook_event(
+            session,
+            officer.institute_id,
+            "fee.plan_cancelled",
+            {
+                "fee_plan_id": str(plan.id),
+                "student_id": str(student_id),
+                "batch_id": str(plan.batch_id),
+                "student_batch_id": str(plan.student_batch_id),
+                "reason": "student_deleted",
+                "cancelled_by_user_id": str(officer.id),
+                "occurred_at": now.isoformat(),
+            },
+        )
 
     await soft_delete_user(session, student_id)
     await log_activity(
@@ -575,6 +616,30 @@ async def add_enrollment(
         action="admissions.enrollment_added",
     )
 
+    from app.services import webhook_event_service
+
+    await webhook_event_service.queue_webhook_event(
+        session,
+        officer.institute_id,
+        "fee.plan_created",
+        {
+            "fee_plan_id": str(plan.id),
+            "student_id": str(student.id),
+            "student_email": student.email,
+            "student_name": student.name,
+            "batch_id": str(plan.batch_id),
+            "student_batch_id": str(plan.student_batch_id),
+            "plan_type": plan.plan_type,
+            "total_amount": plan.total_amount,
+            "final_amount": final_amount,
+            "currency": plan.currency,
+            "installment_count": len(installments),
+            "onboarded_by_user_id": str(officer.id),
+            "source": "add_enrollment",
+            "occurred_at": datetime.now(timezone.utc).isoformat(),
+        },
+    )
+
     await session.commit()
     await session.refresh(plan)
     return plan
@@ -619,6 +684,23 @@ async def remove_enrollment(
         plan.status = FeePlanStatus.cancelled.value
         plan.deleted_at = now
         session.add(plan)
+
+        from app.services import webhook_event_service
+
+        await webhook_event_service.queue_webhook_event(
+            session,
+            officer.institute_id,
+            "fee.plan_cancelled",
+            {
+                "fee_plan_id": str(plan.id),
+                "student_id": str(student_id),
+                "batch_id": str(sb.batch_id),
+                "student_batch_id": str(student_batch_id),
+                "reason": "enrollment_removed",
+                "cancelled_by_user_id": str(officer.id),
+                "occurred_at": now.isoformat(),
+            },
+        )
 
     session.add(
         StudentBatchHistory(
