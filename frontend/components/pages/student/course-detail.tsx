@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { useAuth } from '@/lib/auth-context';
 import { useBasePath } from '@/hooks/use-base-path';
@@ -38,7 +38,12 @@ import { CourseQuizzesSection } from './course-quizzes-section';
 
 export default function CourseDetailPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const courseId = params.courseId as string;
+  // ?batch=<id> — set when the student has multiple batches for this course
+  // and clicks a specific card on the courses list / dashboard. Takes
+  // precedence over the fallback intersection below.
+  const batchFromQuery = searchParams?.get('batch') || null;
   const { name, email, id: studentId, batchIds } = useAuth();
   const basePath = useBasePath();
   const { watermarkEnabled } = useBranding();
@@ -55,12 +60,21 @@ export default function CourseDetailPage() {
     [courseId],
   );
 
-  // Find the batch that links this course to the student
-  // (intersection of student's batches and course's batches)
+  // Resolve which batch this course view is scoped to:
+  //  1. ?batch=<id> query param if it names a batch the student belongs to
+  //     AND that batch is actually linked to this course
+  //  2. otherwise, first intersection of the student's batches with the
+  //     course's batches (legacy single-card behavior)
   const studentBatchId = useMemo(() => {
-    if (!course?.batchIds?.length || !batchIds?.length) return batchIds?.[0];
-    return batchIds.find((b) => course.batchIds.includes(b)) || batchIds[0];
-  }, [course, batchIds]);
+    const courseBatches = course?.batchIds || [];
+    if (batchFromQuery && batchIds?.includes(batchFromQuery)) {
+      if (!courseBatches.length || courseBatches.includes(batchFromQuery)) {
+        return batchFromQuery;
+      }
+    }
+    if (!courseBatches.length || !batchIds?.length) return batchIds?.[0];
+    return batchIds.find((b) => courseBatches.includes(b)) || batchIds[0];
+  }, [course, batchIds, batchFromQuery]);
 
   // Fetch batch details for access status
   const { data: batchInfo } = useApi(
@@ -128,6 +142,15 @@ export default function CourseDetailPage() {
 
   // Auto-resume: select last in-progress lecture, or first unlocked lecture
   const autoResumedRef = useRef(false);
+
+  // Reset playback selection when the batch context changes (e.g. student
+  // switches from Batch-A card to Batch-B card without leaving the page).
+  useEffect(() => {
+    setSelectedLecture(null);
+    setSelectedRecording(null);
+    autoResumedRef.current = false;
+  }, [studentBatchId]);
+
   useEffect(() => {
     if (autoResumedRef.current || lectures.length === 0) return;
     autoResumedRef.current = true;
