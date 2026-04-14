@@ -37,12 +37,17 @@ import {
   listDeliveries,
   type WebhookOut, type WebhookDeliveryOut,
 } from '@/lib/api/webhooks';
+import FrappeTab from '@/components/integrations/frappe-tab';
+import SyncHealthTab from '@/components/integrations/sync-health-tab';
+import BulkImportTab from '@/components/integrations/bulk-import-tab';
+import { Activity, Upload } from 'lucide-react';
 
 const WEBHOOK_EVENTS = [
   { group: 'Student Lifecycle', events: ['user.created', 'user.updated', 'user.deactivated', 'user.deleted'] },
   { group: 'Enrollment', events: ['enrollment.created', 'enrollment.removed'] },
   { group: 'Certificates & Progress', events: ['certificate.requested', 'certificate.approved', 'certificate.issued', 'certificate.revoked', 'lecture.progress_updated'] },
   { group: 'Classes & Attendance', events: ['class.scheduled', 'class.started', 'class.ended', 'attendance.recorded', 'recording.ready'] },
+  { group: 'Fee Lifecycle', events: ['fee.plan_created', 'fee.payment_recorded', 'fee.installment_overdue', 'fee.plan_cancelled', 'fee.plan_completed'] },
 ];
 
 // ── Stat Card ───────────────────────────────────────────────
@@ -772,7 +777,7 @@ function IntegrationsContent() {
 
         {/* Tabs */}
         <Tabs defaultValue="api-keys" className="space-y-5">
-          <TabsList className="bg-gray-100/80 p-1 rounded-xl">
+          <TabsList className="bg-gray-100/80 p-1 rounded-xl flex-wrap h-auto">
             <TabsTrigger value="api-keys" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm gap-2 px-4">
               <Key size={15} />
               API Keys
@@ -780,6 +785,18 @@ function IntegrationsContent() {
             <TabsTrigger value="webhooks" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm gap-2 px-4">
               <Webhook size={15} />
               Webhooks
+            </TabsTrigger>
+            <TabsTrigger value="frappe" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm gap-2 px-4">
+              <Plug size={15} />
+              Frappe / ERPNext
+            </TabsTrigger>
+            <TabsTrigger value="sync-health" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm gap-2 px-4">
+              <Activity size={15} />
+              Sync Health
+            </TabsTrigger>
+            <TabsTrigger value="bulk-import" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm gap-2 px-4">
+              <Upload size={15} />
+              Bulk Import
             </TabsTrigger>
           </TabsList>
 
@@ -789,6 +806,18 @@ function IntegrationsContent() {
 
           <TabsContent value="webhooks">
             <WebhooksTab />
+          </TabsContent>
+
+          <TabsContent value="frappe">
+            <FrappeTab />
+          </TabsContent>
+
+          <TabsContent value="sync-health">
+            <SyncHealthTab />
+          </TabsContent>
+
+          <TabsContent value="bulk-import">
+            <BulkImportTab />
           </TabsContent>
         </Tabs>
       </div>
