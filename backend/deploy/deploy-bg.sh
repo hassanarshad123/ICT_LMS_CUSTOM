@@ -58,16 +58,12 @@ fi
 log "[3/10] Active: $ACTIVE_SLOT ($ACTIVE_PORT) -> Deploying: $DEPLOY_SLOT ($DEPLOY_PORT)"
 
 # ── Step 4: Start new container on standby port ──
+# Both slots start the scheduler — per-job Redis ownership check in
+# sentry_job_wrapper ensures exactly-once semantics. The ownership key is
+# transferred to the new slot at cutover (step 8).
 log "[4/10] Starting $DEPLOY_SLOT container..."
 export DEPLOY_IMAGE_TAG="$GIT_SHA"
 export GIT_SHA="$GIT_SHA_FULL"
-if [ "$DEPLOY_SLOT" = "blue" ]; then
-    export BLUE_SCHEDULER=false
-    export GREEN_SCHEDULER=true
-else
-    export BLUE_SCHEDULER=true
-    export GREEN_SCHEDULER=false
-fi
 
 docker compose -f deploy/docker-compose.yml up -d --force-recreate "lms-$DEPLOY_SLOT"
 log "$DEPLOY_SLOT container started"
@@ -118,15 +114,21 @@ if [ "$HEALTHY" != "true" ]; then
     die "Deployment aborted. $ACTIVE_SLOT still serving traffic."
 fi
 
-# ── Step 8: Switch traffic ──
-log "[8/10] Switching Nginx to $DEPLOY_SLOT (port $DEPLOY_PORT)..."
+# ── Step 8: Switch traffic + transfer scheduler ownership ──
+# Transfer scheduler ownership BEFORE nginx switch so new-slot background
+# jobs (webhook delivery, fee reminders, Frappe sync) pick up as soon as
+# their interval fires — no scheduler gap. Old slot's jobs will no-op on
+# their next fire (Redis ownership check in sentry_job_wrapper).
+# TTL=0 (no expiry) — only rewritten by the next deploy.
+log "[8/10] Transferring scheduler ownership to $DEPLOY_SLOT..."
+redis-cli SET "lms:scheduler:owner" "$DEPLOY_SLOT" > /dev/null 2>&1 || \
+    log "WARNING: scheduler ownership transfer failed (Redis unreachable); jobs will fail-open"
+
+log "Switching Nginx to $DEPLOY_SLOT (port $DEPLOY_PORT)..."
 sudo sed -i "s|proxy_pass http://127.0.0.1:[0-9]*;|proxy_pass http://127.0.0.1:$DEPLOY_PORT;|g" "$NGINX_CONF"
 sudo nginx -t || die "Nginx config test failed!"
 sudo nginx -s reload
 log "Nginx reloaded — traffic now on $DEPLOY_SLOT"
-
-# Transfer scheduler to new container
-redis-cli SET "lms:scheduler:owner" "$DEPLOY_SLOT" EX 86400 > /dev/null 2>&1 || true
 
 # ── Step 9: Post-deploy monitoring (60s) ──
 log "[9/10] Post-deploy monitoring (60s window)..."

@@ -63,7 +63,10 @@ async def lifespan(app: FastAPI):
     from app.websockets.pubsub import start_pubsub_listener
     pubsub_task = await start_pubsub_listener()
 
-    # Startup — start scheduler (only if SCHEDULER_ENABLED for blue-green dedup)
+    # Startup — start scheduler on every slot. Per-job Redis ownership check
+    # inside sentry_job_wrapper prevents duplicate runs during blue-green
+    # cutover. Set SCHEDULER_ENABLED=false only as an emergency kill-switch
+    # (e.g. to pause all recurring jobs without restarting both slots).
     if settings.SCHEDULER_ENABLED:
         try:
             from apscheduler.schedulers.asyncio import AsyncIOScheduler

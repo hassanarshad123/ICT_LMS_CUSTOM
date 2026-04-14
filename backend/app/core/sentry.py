@@ -158,12 +158,56 @@ def capture_exception_safe(exc: Exception) -> None:
         pass
 
 
+_SCHEDULER_OWNER_KEY = "lms:scheduler:owner"
+
+
+async def _is_scheduler_owner() -> bool:
+    """Check whether this container is the scheduler owner.
+
+    Returns True (fail-open) if Redis is unavailable or the ownership key is
+    unset — we'd rather have potential duplicates than miss jobs entirely.
+    The deploy script writes this key at cutover so only the active slot
+    runs recurring work.
+    """
+    try:
+        from app.config import get_settings
+        from app.core.redis import get_redis
+
+        redis = get_redis()
+        if redis is None:
+            return True  # Redis not available — fail open
+
+        raw = await redis.get(_SCHEDULER_OWNER_KEY)
+        if raw is None:
+            return True  # No owner set yet — fail open (first deploy case)
+
+        owner = raw.decode() if isinstance(raw, (bytes, bytearray)) else str(raw)
+        my_slot = get_settings().DEPLOY_SLOT
+        return owner == my_slot
+    except Exception:
+        return True  # Any unexpected error — fail open
+
+
 def sentry_job_wrapper(job_name: str):
-    """Decorator for APScheduler async jobs — captures exceptions to Sentry with job context."""
+    """Decorator for APScheduler async jobs — captures exceptions to Sentry
+    with job context AND enforces per-deploy scheduler ownership via Redis.
+
+    Ownership check prevents duplicate job runs during blue-green cutover:
+    both slots may have the scheduler started, but only the slot whose name
+    matches ``lms:scheduler:owner`` in Redis will actually execute jobs.
+    Fails open — missing/unreachable Redis → job runs anyway.
+    """
 
     def decorator(func):
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
+            # Skip if this container isn't the current scheduler owner.
+            # Returning early is NOT an error — it's the expected no-op on
+            # the non-owner slot. Logged at DEBUG to avoid log spam.
+            if not await _is_scheduler_owner():
+                logger.debug("Skipping %s — not scheduler owner", job_name)
+                return None
+
             try:
                 import sentry_sdk
             except ImportError:
