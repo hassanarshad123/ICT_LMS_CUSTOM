@@ -280,6 +280,16 @@ export async function getMyFees(): Promise<MyFeesResponse> {
   return apiClient('/admissions/me/fees');
 }
 
+export interface InstituteQuota {
+  maxStudents: number;
+  currentStudents: number;
+  slotsLeft: number;
+}
+
+export async function getMyQuota(): Promise<InstituteQuota> {
+  return apiClient('/admissions/me/quota');
+}
+
 export interface AdmissionsOfficerStat {
   officerId: string;
   name: string;
