@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, Request, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,6 +22,7 @@ router = APIRouter()
 @limiter.limit("10/hour")
 async def register(
     request: Request,
+    background_tasks: BackgroundTasks,
     body: SignupRequest,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
@@ -118,6 +119,11 @@ async def register(
     session.add(signup_log)
     await session.commit()
 
+    # Pre-warm the new tenant subdomain so Vercel provisions the wildcard
+    # SSL cert before the user clicks the verification email link.
+    from app.utils.subdomain_warmup import warmup_subdomain
+    background_tasks.add_task(warmup_subdomain, institute.slug)
+
     # Send email verification (fire-and-forget)
     try:
         from app.utils.security import create_email_verification_token
@@ -125,7 +131,11 @@ async def register(
         from app.utils.email_templates import email_verification_email
 
         verify_token = create_email_verification_token(user.id, user.email, user.token_version)
-        verify_url = f"{settings.FRONTEND_URL or 'https://zensbot.online'}/verify-email?token={verify_token}"
+        if settings.FRONTEND_BASE_DOMAIN:
+            base_url = f"https://{institute.slug}.{settings.FRONTEND_BASE_DOMAIN}"
+        else:
+            base_url = settings.FRONTEND_URL or "https://zensbot.online"
+        verify_url = f"{base_url}/verify-email?token={verify_token}"
         subject, html = email_verification_email(
             user_name=user.name,
             verification_url=verify_url,
