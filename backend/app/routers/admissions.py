@@ -512,6 +512,46 @@ async def remove_enrollment_endpoint(
     return Response(status_code=204)
 
 
+@router.get("/me/quota")
+async def admissions_quota_endpoint(
+    current_user: AdminOrAO,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """Institute student-quota for the wizard's step-1 banner.
+
+    Returns ``{max_students, current_students, slots_left}``. Live-counted
+    from the users table so the number is always accurate (institute sizes
+    are bounded; one extra COUNT per wizard open is fine).
+    """
+    from sqlalchemy import func as _func
+
+    from app.models.enums import UserRole, UserStatus
+    from app.models.institute import Institute
+
+    if current_user.institute_id is None:
+        raise HTTPException(status_code=403, detail="User has no institute")
+
+    institute = await session.get(Institute, current_user.institute_id)
+    max_students = int(institute.max_students) if institute and institute.max_students else 0
+
+    count_row = await session.execute(
+        select(_func.count())
+        .select_from(User)
+        .where(
+            User.institute_id == current_user.institute_id,
+            User.role == UserRole.student,
+            User.deleted_at.is_(None),
+        )
+    )
+    current_students = int(count_row.scalar_one() or 0)
+
+    return {
+        "max_students": max_students,
+        "current_students": current_students,
+        "slots_left": max(max_students - current_students, 0),
+    }
+
+
 @router.get("/me/fees")
 async def my_fees_endpoint(
     current_user: Annotated[User, Depends(get_current_user)],

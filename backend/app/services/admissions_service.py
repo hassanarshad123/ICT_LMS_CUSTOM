@@ -167,8 +167,10 @@ async def onboard_student(
     except ValueError as e:
         raise AdmissionsError(str(e))
 
-    # ── Generate temp password + create student account ──
-    temp_password = _generate_temp_password()
+    # ── Use institute's default student password (same as admin-created students) ──
+    from app.routers.users import _get_default_student_password
+
+    temp_password = await _get_default_student_password(session, officer.institute_id)
     try:
         student = await create_user(
             session,

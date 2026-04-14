@@ -8,12 +8,17 @@ import { useApi, useMutation } from '@/hooks/use-api';
 import { useBasePath } from '@/hooks/use-base-path';
 import { listBatches } from '@/lib/api/batches';
 import {
+  getMyQuota,
+  listAdmissionsStudents,
   onboardStudent,
   type FeePlanType,
   type InstallmentDraft,
   type OnboardStudentResult,
 } from '@/lib/api/admissions';
 import { formatMoney, formatDate } from '@/lib/utils/format';
+import { DatePopover } from '@/components/ui/date-popover';
+import BatchPicker from '@/components/admissions/batch-picker';
+import QuotaBanner from '@/components/admissions/quota-banner';
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
@@ -81,6 +86,29 @@ export default function OnboardWizard() {
   );
   const batches = batchesData?.data || [];
 
+  const { data: quotaData, loading: quotaLoading } = useApi(() => getMyQuota(), []);
+
+  const { data: rosterData } = useApi(
+    () => listAdmissionsStudents({ per_page: 100 }),
+    [],
+  );
+  const recentBatchIds = useMemo(() => {
+    const rows = rosterData?.data || [];
+    const sorted = [...rows].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const r of sorted) {
+      if (!seen.has(r.batchId)) {
+        seen.add(r.batchId);
+        out.push(r.batchId);
+      }
+      if (out.length >= 5) break;
+    }
+    return out;
+  }, [rosterData]);
+
   const { execute: submit, loading: submitting } = useMutation(onboardStudent);
 
   const totalNum = Number(fee.totalAmount) || 0;
@@ -134,46 +162,33 @@ export default function OnboardWizard() {
       <StepIndicator step={step} />
 
       {step === 1 && (
-        <StepCard title="Student details" subtitle="Who is the paying student?">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Full name" value={student.name} onChange={(v) => setStudent({ ...student, name: v })} placeholder="e.g. Ali Khan" />
-            <Field label="Email" value={student.email} onChange={(v) => setStudent({ ...student, email: v })} placeholder="student@email.com" type="email" />
-            <Field label="Phone" value={student.phone} onChange={(v) => setStudent({ ...student, phone: v })} placeholder="0300-1234567" />
-          </div>
-          <WizardNav
-            onBack={() => router.push(basePath)}
-            backLabel="Cancel"
-            onNext={() => setStep(2)}
-            nextDisabled={!canAdvanceStep1}
-          />
-        </StepCard>
+        <>
+          <QuotaBanner data={quotaData} loading={quotaLoading} />
+          <StepCard title="Student details" subtitle="Who is the paying student?">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="Full name" value={student.name} onChange={(v) => setStudent({ ...student, name: v })} placeholder="e.g. Ali Khan" />
+              <Field label="Email" value={student.email} onChange={(v) => setStudent({ ...student, email: v })} placeholder="student@email.com" type="email" />
+              <Field label="Phone" value={student.phone} onChange={(v) => setStudent({ ...student, phone: v })} placeholder="0300-1234567" />
+            </div>
+            <WizardNav
+              onBack={() => router.push(basePath)}
+              backLabel="Cancel"
+              onNext={() => setStep(2)}
+              nextDisabled={!canAdvanceStep1 || (!!quotaData && quotaData.slotsLeft === 0)}
+            />
+          </StepCard>
+        </>
       )}
 
       {step === 2 && (
         <StepCard title="Pick a batch" subtitle="Select the batch to enroll this student in">
-          {batchesLoading ? (
-            <div className="flex items-center gap-2 text-sm text-gray-500"><Loader2 size={14} className="animate-spin" /> Loading batches…</div>
-          ) : batches.length === 0 ? (
-            <p className="text-sm text-gray-500">No batches available. Ask an admin to create one first.</p>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {batches.map((b) => (
-                <button
-                  key={b.id}
-                  onClick={() => setBatchId(b.id)}
-                  className={`text-left p-4 rounded-xl border transition-all ${
-                    batchId === b.id ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-gray-300 bg-white'
-                  }`}
-                >
-                  <p className="font-semibold text-primary">{b.name}</p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {formatDate(b.startDate)} → {formatDate(b.endDate)}
-                  </p>
-                  <p className="text-xs text-gray-400 mt-1">{b.studentCount || 0} students enrolled</p>
-                </button>
-              ))}
-            </div>
-          )}
+          <BatchPicker
+            batches={batches}
+            selectedId={batchId}
+            onSelect={setBatchId}
+            recentBatchIds={recentBatchIds}
+            loading={batchesLoading}
+          />
           <WizardNav onBack={() => setStep(1)} onNext={() => setStep(3)} nextDisabled={!canAdvanceStep2} />
         </StepCard>
       )}
@@ -240,22 +255,26 @@ export default function OnboardWizard() {
                   type="text"
                   inputMode="numeric"
                 />
-                <Field
-                  label="First due date"
-                  value={fee.firstDueDate}
-                  onChange={(v) => setFee({ ...fee, firstDueDate: v })}
-                  type="date"
-                />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">First due date</label>
+                  <DatePopover
+                    value={fee.firstDueDate}
+                    onChange={(v) => setFee({ ...fee, firstDueDate: v })}
+                    placeholder="Pick a date"
+                  />
+                </div>
               </div>
             )}
 
             {fee.planType === 'one_time' && (
-              <Field
-                label="Payment due date"
-                value={fee.firstDueDate}
-                onChange={(v) => setFee({ ...fee, firstDueDate: v })}
-                type="date"
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Payment due date</label>
+                <DatePopover
+                  value={fee.firstDueDate}
+                  onChange={(v) => setFee({ ...fee, firstDueDate: v })}
+                  placeholder="Pick a date"
+                />
+              </div>
             )}
 
             <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-100">
@@ -565,12 +584,14 @@ function InstallmentEditor({
               placeholder="Amount"
               className="col-span-4 px-3 py-2 rounded-lg border border-gray-200 text-sm bg-gray-50"
             />
-            <input
-              type="date"
-              value={row.dueDate}
-              onChange={(e) => update(idx, { dueDate: e.target.value })}
-              className="col-span-4 px-3 py-2 rounded-lg border border-gray-200 text-sm bg-gray-50"
-            />
+            <div className="col-span-4">
+              <DatePopover
+                value={row.dueDate}
+                onChange={(v) => update(idx, { dueDate: v })}
+                placeholder="Due date"
+                className="py-2 px-3 rounded-lg"
+              />
+            </div>
             <input
               type="text"
               value={row.label || ''}
@@ -623,7 +644,7 @@ function SuccessCard({
       </p>
       <div className="bg-gray-50 rounded-xl p-4 text-left max-w-md mx-auto mb-6">
         <Row label="Email" value={result.email} />
-        <Row label="Temporary password" value={result.temporaryPassword} />
+        <Row label="Password" value={result.temporaryPassword} />
         <Row label="Amount due" value={formatMoney(result.finalAmount, result.currency)} />
         <Row label="Installments" value={String(result.installmentCount)} />
       </div>
