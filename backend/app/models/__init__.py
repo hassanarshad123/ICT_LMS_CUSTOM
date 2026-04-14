@@ -29,3 +29,9 @@ from app.models.quiz import Quiz, QuizQuestion, QuizAttempt, QuizAnswer  # noqa:
 from app.models.feedback import Feedback, FeedbackAttachment, FeedbackResponse  # noqa: F401
 from app.models.device_request import DeviceLimitRequest  # noqa: F401
 from app.models.fee import FeePlan, FeeInstallment, FeePayment, ReceiptCounter  # noqa: F401
+from app.models.integration import (  # noqa: F401
+    InstituteIntegration,
+    IntegrationSyncLog,
+    IntegrationSyncTask,
+    BulkImportJob,
+)
