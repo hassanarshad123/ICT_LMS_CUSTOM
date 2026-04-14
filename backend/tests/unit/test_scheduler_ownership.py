@@ -135,3 +135,101 @@ class TestSentryJobWrapperOwnershipGate:
 
             await job()
             mock_scope.assert_not_called()
+
+
+class TestMultiWorkerLock:
+    """Second dedup layer: serialize across uvicorn workers in a single
+    container. Each worker boots its own scheduler; only one should run a
+    given interval fire.
+    """
+
+    @pytest.mark.asyncio
+    async def test_acquired_lock_allows_job_to_run(self, monkeypatch):
+        monkeypatch.setattr(sentry_mod, "_is_scheduler_owner", AsyncMock(return_value=True))
+        fake_redis = MagicMock()
+        fake_redis.set = AsyncMock(return_value=True)   # NX succeeds
+        fake_redis.delete = AsyncMock()
+        monkeypatch.setattr("app.core.redis.get_redis", lambda: fake_redis)
+
+        runs = {"count": 0}
+
+        @sentry_mod.sentry_job_wrapper("j", lock_ttl_seconds=10)
+        async def job():
+            runs["count"] += 1
+
+        await job()
+        assert runs["count"] == 1
+        # Lock is released on success
+        fake_redis.delete.assert_called_once_with("lms:scheduler:lock:j")
+
+    @pytest.mark.asyncio
+    async def test_held_lock_causes_skip(self, monkeypatch):
+        monkeypatch.setattr(sentry_mod, "_is_scheduler_owner", AsyncMock(return_value=True))
+        fake_redis = MagicMock()
+        fake_redis.set = AsyncMock(return_value=False)  # NX fails — sibling holds it
+        fake_redis.delete = AsyncMock()
+        monkeypatch.setattr("app.core.redis.get_redis", lambda: fake_redis)
+
+        runs = {"count": 0}
+
+        @sentry_mod.sentry_job_wrapper("j")
+        async def job():
+            runs["count"] += 1
+
+        await job()
+        assert runs["count"] == 0  # skipped
+        # Didn't try to delete a lock we don't own
+        fake_redis.delete.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_redis_unavailable_fails_open(self, monkeypatch):
+        monkeypatch.setattr(sentry_mod, "_is_scheduler_owner", AsyncMock(return_value=True))
+        monkeypatch.setattr("app.core.redis.get_redis", lambda: None)
+
+        runs = {"count": 0}
+
+        @sentry_mod.sentry_job_wrapper("j")
+        async def job():
+            runs["count"] += 1
+
+        await job()
+        # No Redis → run anyway (better duplicates than silence)
+        assert runs["count"] == 1
+
+    @pytest.mark.asyncio
+    async def test_lock_released_on_exception(self, monkeypatch):
+        """If the job raises, the lock must STILL be released so the next
+        interval can acquire it."""
+        monkeypatch.setattr(sentry_mod, "_is_scheduler_owner", AsyncMock(return_value=True))
+        fake_redis = MagicMock()
+        fake_redis.set = AsyncMock(return_value=True)
+        fake_redis.delete = AsyncMock()
+        monkeypatch.setattr("app.core.redis.get_redis", lambda: fake_redis)
+
+        @sentry_mod.sentry_job_wrapper("j")
+        async def job():
+            raise RuntimeError("kaboom")
+
+        with pytest.raises(RuntimeError, match="kaboom"):
+            await job()
+        fake_redis.delete.assert_called_once_with("lms:scheduler:lock:j")
+
+    @pytest.mark.asyncio
+    async def test_lock_ttl_honored(self, monkeypatch):
+        """Lock SET call uses the configured TTL so a crashed worker can't
+        block forever."""
+        monkeypatch.setattr(sentry_mod, "_is_scheduler_owner", AsyncMock(return_value=True))
+        fake_redis = MagicMock()
+        fake_redis.set = AsyncMock(return_value=True)
+        fake_redis.delete = AsyncMock()
+        monkeypatch.setattr("app.core.redis.get_redis", lambda: fake_redis)
+
+        @sentry_mod.sentry_job_wrapper("j", lock_ttl_seconds=45)
+        async def job():
+            return None
+
+        await job()
+        # Called as set(key, value, nx=True, ex=45)
+        call = fake_redis.set.call_args
+        assert call.kwargs.get("nx") is True
+        assert call.kwargs.get("ex") == 45
