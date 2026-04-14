@@ -7,6 +7,7 @@ class UserRole(str, enum.Enum):
     course_creator = "course_creator"
     teacher = "teacher"
     student = "student"
+    admissions_officer = "admissions_officer"
 
 
 class UserStatus(str, enum.Enum):
@@ -128,3 +129,29 @@ class DeviceLimitMode(str, enum.Enum):
     """
     evict_oldest = "evict_oldest"
     require_approval = "require_approval"
+
+
+class FeePlanType(str, enum.Enum):
+    """Student fee plan shape. Picked per enrollment by the admissions officer."""
+    one_time = "one_time"
+    monthly = "monthly"
+    installment = "installment"
+
+
+class FeePlanStatus(str, enum.Enum):
+    active = "active"
+    completed = "completed"
+    cancelled = "cancelled"
+
+
+class FeeInstallmentStatus(str, enum.Enum):
+    pending = "pending"
+    partially_paid = "partially_paid"
+    paid = "paid"
+    overdue = "overdue"
+    waived = "waived"
+
+
+class FeeDiscountType(str, enum.Enum):
+    percent = "percent"
+    flat = "flat"

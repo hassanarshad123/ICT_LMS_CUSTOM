@@ -19,6 +19,7 @@ import {
   PlayCircle,
   PenTool,
   UserCog,
+  UserPlus,
   Smartphone,
   BarChart3,
   Award,
@@ -29,6 +30,7 @@ import {
   Megaphone,
   Plug,
   Upload,
+  Wallet,
   LogOut,
   Menu,
   X,
@@ -56,6 +58,8 @@ const navConfig: Record<UserRole, NavItem[]> = {
     { label: 'Students', path: '/students', icon: 'users', navId: 'nav-students' },
     { label: 'Teachers', path: '/teachers', icon: 'graduation-cap', navId: 'nav-teachers' },
     { label: 'Course Creators', path: '/course-creators', icon: 'pen-tool', navId: 'nav-course-creators' },
+    { label: 'Admissions Officers', path: '/admissions-officers', icon: 'user-plus', navId: 'nav-admissions-officers' },
+    { label: 'Admissions Team', path: '/admissions-team', icon: 'bar-chart-3', navId: 'nav-admissions-team' },
     { label: 'Devices', path: '/devices', icon: 'smartphone', navId: 'nav-devices' },
     { label: 'Insights', path: '/insights', icon: 'bar-chart-3', navId: 'nav-insights' },
     { label: 'Recordings', path: '/recordings', icon: 'play-circle', navId: 'nav-recordings' },
@@ -100,8 +104,14 @@ const navConfig: Record<UserRole, NavItem[]> = {
     { label: 'Recordings', path: '/recordings', icon: 'play-circle', navId: 'nav-recordings' },
     { label: 'Announcements', path: '/announcements', icon: 'megaphone', navId: 'nav-announcements' },
     { label: 'Certificates', path: '/certificates', icon: 'award', navId: 'nav-certificates' },
+    { label: 'My Fees', path: '/fees', icon: 'wallet', navId: 'nav-fees' },
     { label: 'Job Opportunities', path: '/jobs', icon: 'briefcase', navId: 'nav-jobs' },
     { label: 'Feedback', path: '/feedback', icon: 'message-square', navId: 'nav-feedback' },
+    { label: 'Settings', path: '/settings', icon: 'settings', navId: 'nav-settings' },
+  ],
+  'admissions-officer': [
+    { label: 'Dashboard', path: '', icon: 'home', navId: 'nav-dashboard' },
+    { label: 'Onboard Student', path: '/admissions/onboard', icon: 'user-plus', navId: 'nav-onboard' },
     { label: 'Settings', path: '/settings', icon: 'settings', navId: 'nav-settings' },
   ],
 };
@@ -118,6 +128,7 @@ const iconMap: Record<string, React.ReactNode> = {
   'play-circle': <PlayCircle size={20} />,
   'pen-tool': <PenTool size={20} />,
   'user-cog': <UserCog size={20} />,
+  'user-plus': <UserPlus size={20} />,
   smartphone: <Smartphone size={20} />,
   'bar-chart-3': <BarChart3 size={20} />,
   award: <Award size={20} />,
@@ -128,6 +139,7 @@ const iconMap: Record<string, React.ReactNode> = {
   megaphone: <Megaphone size={20} />,
   'message-square': <MessageSquare size={20} />,
   settings: <Settings size={20} />,
+  wallet: <Wallet size={20} />,
 };
 
 export function MobileTrigger() {
@@ -168,6 +180,7 @@ export default function Sidebar({ role, userName, onLogout }: SidebarProps) {
     'course-creator': 'Course Creator',
     teacher: 'Teacher',
     student: 'Student',
+    'admissions-officer': 'Admissions Officer',
   };
 
   return (

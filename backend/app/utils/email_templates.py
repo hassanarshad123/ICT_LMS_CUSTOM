@@ -491,3 +491,77 @@ This link expires in 24 hours. If you didn't create this account, you can safely
     )
 
 
+# ── 10. Fee Due Soon ────────────────────────────────────────────
+
+def fee_due_soon_email(
+    student_name: str,
+    batch_name: str,
+    amount_due: int,
+    currency: str,
+    due_date: str,
+    days_remaining: int,
+    login_url: str,
+    institute_name: str = "",
+    logo_url: Optional[str] = None,
+    accent_color: str = "#C5D86D",
+) -> tuple[str, str]:
+    urgency = "tomorrow" if days_remaining <= 1 else f"in {days_remaining} days"
+    amount_str = f"{currency} {amount_due:,}"
+    body = f"""
+<h2 style="margin:0 0 8px;color:#1a1a1a;font-size:22px;">Fee payment due {urgency}</h2>
+<p style="color:#52525b;font-size:15px;line-height:1.6;">
+Hi {_e(student_name)}, your next fee installment for <strong>{_e(batch_name)}</strong> is due <strong>{urgency}</strong>.
+</p>
+<table style="background-color:#f4f4f5;border-radius:8px;padding:16px;width:100%;margin:16px 0;" cellpadding="8" cellspacing="0">
+<tr><td style="color:#71717a;font-size:13px;width:120px;">Batch</td><td style="color:#1a1a1a;font-size:14px;font-weight:bold;">{_e(batch_name)}</td></tr>
+<tr><td style="color:#71717a;font-size:13px;">Amount Due</td><td style="color:#1a1a1a;font-size:14px;font-weight:bold;">{amount_str}</td></tr>
+<tr><td style="color:#71717a;font-size:13px;">Due Date</td><td style="color:#1a1a1a;font-size:14px;font-weight:bold;">{_e(due_date)}</td></tr>
+</table>
+<p style="color:#52525b;font-size:14px;">Please contact your admissions officer to arrange payment. You can review your fee history in the LMS.</p>
+<p style="margin:20px 0;text-align:center;">
+{_button("View My Fees", login_url, accent_color)}
+</p>
+"""
+    return (
+        f"Fee payment due {urgency} — {batch_name}",
+        _base_template(body, institute_name, logo_url, accent_color, login_url),
+    )
+
+
+# ── 11. Fee Overdue ─────────────────────────────────────────────
+
+def fee_overdue_email(
+    student_name: str,
+    batch_name: str,
+    amount_due: int,
+    currency: str,
+    due_date: str,
+    login_url: str,
+    institute_name: str = "",
+    logo_url: Optional[str] = None,
+    accent_color: str = "#C5D86D",
+) -> tuple[str, str]:
+    amount_str = f"{currency} {amount_due:,}"
+    body = f"""
+<h2 style="margin:0 0 8px;color:#DC2626;font-size:22px;">Your fees are overdue</h2>
+<p style="color:#52525b;font-size:15px;line-height:1.6;">
+Hi {_e(student_name)}, an installment for <strong>{_e(batch_name)}</strong> was due on
+<strong>{_e(due_date)}</strong>. Access to lectures, quizzes, live classes, and certificates is
+now temporarily locked until the balance is cleared.
+</p>
+<table style="background-color:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:16px;width:100%;margin:16px 0;" cellpadding="8" cellspacing="0">
+<tr><td style="color:#B91C1C;font-size:13px;width:120px;">Batch</td><td style="color:#7F1D1D;font-size:14px;font-weight:bold;">{_e(batch_name)}</td></tr>
+<tr><td style="color:#B91C1C;font-size:13px;">Amount Due</td><td style="color:#7F1D1D;font-size:14px;font-weight:bold;">{amount_str}</td></tr>
+<tr><td style="color:#B91C1C;font-size:13px;">Overdue Since</td><td style="color:#7F1D1D;font-size:14px;font-weight:bold;">{_e(due_date)}</td></tr>
+</table>
+<p style="color:#52525b;font-size:14px;">
+Contact your admissions officer to record a payment. Content access is restored automatically once the balance is cleared.
+</p>
+<p style="margin:20px 0;text-align:center;">
+{_button("View My Fees", login_url, "#DC2626")}
+</p>
+"""
+    return (
+        f"Overdue fees — {batch_name}",
+        _base_template(body, institute_name, logo_url, accent_color, login_url),
+    )

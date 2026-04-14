@@ -498,7 +498,10 @@ async def get_fresh_start_url(
     """Fetch a fresh start_url from Zoom with a valid zak token.
     The stored start_url expires after ~2 hours, so this endpoint
     fetches a new one on demand when the teacher clicks Start Class."""
-    await verify_zoom_class_access(session, current_user, class_id)
+    await verify_zoom_class_access(
+        session, current_user, class_id,
+        check_fee_overdue=True,
+    )
 
     from sqlmodel import select as sel
     from app.models.zoom import ZoomClass as ZC
@@ -590,8 +593,10 @@ async def get_recording_signed_url(
     class_id = rec_row.scalar_one_or_none()
     if not class_id:
         raise HTTPException(status_code=404, detail="Recording not found")
-    await verify_zoom_class_access(session, current_user, class_id,
-                                   check_active=True, check_expiry=True)
+    await verify_zoom_class_access(
+        session, current_user, class_id,
+        check_active=True, check_expiry=True, check_fee_overdue=True,
+    )
 
     try:
         result = await zoom_service.get_recording_signed_url(session, recording_id, institute_id=current_user.institute_id)

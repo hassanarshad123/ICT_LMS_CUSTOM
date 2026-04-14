@@ -604,6 +604,186 @@ async def send_batch_expiry_notifications():
             logger.info("Sent %d batch expiry notifications", total_sent)
 
 
+@sentry_job_wrapper("send_fee_reminders")
+async def send_fee_reminders():
+    """Daily fee reminders for the Admissions Officer portal.
+
+    Two rules:
+      1. Installment due in 7 days / 1 day → notify the student (in-app + email).
+      2. Installment went overdue today    → notify the student AND the
+         admissions officer who onboarded them (in-app only — the overdue
+         overlay will prompt the student inside the app).
+
+    Dedup: each in-app notification uses a ``type`` suffixed with the
+    installment UUID, so re-runs within the window won't double-send.
+    """
+    from datetime import date as _date_cls
+
+    from sqlmodel import select
+    from app.models.fee import FeePlan, FeeInstallment
+    from app.models.notification import Notification
+    from app.models.user import User
+    from app.models.batch import Batch
+    from app.services import notification_service
+
+    today = _date_cls.today()
+    windows = [
+        {"offset_days": 7, "title": "Fee payment due in 7 days", "kind": "fee_due_soon_7d"},
+        {"offset_days": 1, "title": "Fee payment due tomorrow", "kind": "fee_due_soon_1d"},
+        {"offset_days": 0, "title": "Fee is now overdue", "kind": "fee_overdue"},
+    ]
+
+    async with async_session() as session:
+        total_sent = 0
+
+        for window in windows:
+            target = today + timedelta(days=window["offset_days"])
+
+            q = (
+                select(FeeInstallment, FeePlan, Batch, User)
+                .join(FeePlan, FeePlan.id == FeeInstallment.fee_plan_id)
+                .join(Batch, Batch.id == FeePlan.batch_id)
+                .join(User, User.id == FeePlan.student_id)
+                .where(
+                    FeeInstallment.due_date == target,
+                    FeeInstallment.status.in_(["pending", "partially_paid", "overdue"]),
+                    FeePlan.deleted_at.is_(None),
+                    User.deleted_at.is_(None),
+                )
+            )
+            rows = (await session.execute(q)).all()
+            if not rows:
+                continue
+
+            for installment, plan, batch, student in rows:
+                dedup_type = f"{window['kind']}:{installment.id}"
+
+                # Skip if already sent for this installment (in-app dedup = single source of truth)
+                existing = await session.execute(
+                    select(Notification.id).where(
+                        Notification.user_id == student.id,
+                        Notification.type == dedup_type,
+                    ).limit(1)
+                )
+                if existing.scalar_one_or_none():
+                    continue
+
+                amount_due = max(int(installment.amount_due) - int(installment.amount_paid), 0)
+                due_str = installment.due_date.strftime("%b %d, %Y")
+
+                if window["offset_days"] > 0:
+                    student_msg = (
+                        f"{plan.currency} {amount_due:,} for {batch.name} is due on {due_str}."
+                    )
+                else:
+                    student_msg = (
+                        f"{plan.currency} {amount_due:,} for {batch.name} was due on {due_str}. "
+                        f"Content access is now locked."
+                    )
+
+                try:
+                    await notification_service.create_notification(
+                        session,
+                        user_id=student.id,
+                        type=dedup_type,
+                        title=window["title"],
+                        message=student_msg,
+                        link="/fees",
+                        institute_id=plan.institute_id,
+                    )
+                    total_sent += 1
+                except Exception as e:
+                    logger.warning("Fee reminder student notif failed for %s: %s", student.id, e)
+                    await session.rollback()
+                    continue
+
+                # Also ping the admissions officer for overdue
+                if window["offset_days"] == 0:
+                    officer_type = f"fee_overdue_alert:{installment.id}"
+                    officer_existing = await session.execute(
+                        select(Notification.id).where(
+                            Notification.user_id == plan.onboarded_by_user_id,
+                            Notification.type == officer_type,
+                        ).limit(1)
+                    )
+                    if not officer_existing.scalar_one_or_none():
+                        try:
+                            await notification_service.create_notification(
+                                session,
+                                user_id=plan.onboarded_by_user_id,
+                                type=officer_type,
+                                title="A student's fee is overdue",
+                                message=(
+                                    f"{student.name} owes {plan.currency} {amount_due:,} for {batch.name}."
+                                ),
+                                link=f"/admissions/students/{student.id}",
+                                institute_id=plan.institute_id,
+                            )
+                        except Exception as e:
+                            logger.warning(
+                                "Fee overdue officer notif failed for officer %s: %s",
+                                plan.onboarded_by_user_id, e,
+                            )
+
+                # Email to the student — best effort, respects preferences
+                try:
+                    from app.utils.email_sender import (
+                        send_email_background,
+                        get_institute_branding,
+                        build_login_url,
+                        should_send_email,
+                    )
+                    from app.utils.email_templates import fee_due_soon_email, fee_overdue_email
+
+                    pref_key = "email_fee_due" if window["offset_days"] > 0 else "email_fee_overdue"
+                    if plan.institute_id and not await should_send_email(
+                        session, plan.institute_id, student.id, pref_key
+                    ):
+                        continue
+
+                    branding = (
+                        await get_institute_branding(session, plan.institute_id)
+                        if plan.institute_id
+                        else {"name": "", "slug": "", "logo_url": None, "accent_color": "#C5D86D"}
+                    )
+                    login_url = build_login_url(branding["slug"]) if branding.get("slug") else ""
+
+                    if window["offset_days"] > 0:
+                        subj, html = fee_due_soon_email(
+                            student_name=student.name,
+                            batch_name=batch.name,
+                            amount_due=amount_due,
+                            currency=plan.currency,
+                            due_date=due_str,
+                            days_remaining=window["offset_days"],
+                            login_url=login_url,
+                            institute_name=branding.get("name", ""),
+                            logo_url=branding.get("logo_url"),
+                            accent_color=branding.get("accent_color", "#C5D86D"),
+                        )
+                    else:
+                        subj, html = fee_overdue_email(
+                            student_name=student.name,
+                            batch_name=batch.name,
+                            amount_due=amount_due,
+                            currency=plan.currency,
+                            due_date=due_str,
+                            login_url=login_url,
+                            institute_name=branding.get("name", ""),
+                            logo_url=branding.get("logo_url"),
+                            accent_color=branding.get("accent_color", "#C5D86D"),
+                        )
+                    if student.email:
+                        send_email_background(
+                            student.email, subj, html, from_name=branding.get("name", "")
+                        )
+                except Exception as e:
+                    logger.warning("Fee reminder email failed for %s: %s", student.id, e)
+
+        if total_sent:
+            logger.info("Sent %d fee reminders", total_sent)
+
+
 @sentry_job_wrapper("purge_stale_records")
 async def purge_stale_records():
     """Daily cleanup: delete old inactive sessions, read notifications, resolved errors, old activity logs.

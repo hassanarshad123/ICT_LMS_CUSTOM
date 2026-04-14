@@ -150,7 +150,9 @@ async def submit_attempt(
         quiz = await quiz_service.get_quiz(session, attempt_obj.quiz_id, institute_id=current_user.institute_id)
         if quiz:
             from app.middleware.access_control import check_student_batch_expiry
-            await check_student_batch_expiry(session, current_user.id, quiz.course_id)
+            await check_student_batch_expiry(
+                session, current_user.id, quiz.course_id, check_fee_overdue=True
+            )
 
     try:
         attempt = await quiz_service.submit_attempt(
@@ -302,11 +304,13 @@ async def start_attempt(
     current_user: Student,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    # Check batch expiry before allowing quiz start
+    # Check batch expiry + fee overdue before allowing quiz start
     quiz = await quiz_service.get_quiz(session, quiz_id, institute_id=current_user.institute_id)
     if quiz:
         from app.middleware.access_control import check_student_batch_expiry
-        await check_student_batch_expiry(session, current_user.id, quiz.course_id)
+        await check_student_batch_expiry(
+            session, current_user.id, quiz.course_id, check_fee_overdue=True
+        )
 
     try:
         attempt = await quiz_service.start_attempt(

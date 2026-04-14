@@ -44,6 +44,7 @@ async def verify_batch_access(
     batch_id: uuid.UUID,
     check_active: bool = False,
     check_expiry: bool = False,
+    check_fee_overdue: bool = False,
 ) -> Batch:
     """Verify current_user can access this batch. Returns the Batch or raises.
 
@@ -60,6 +61,11 @@ async def verify_batch_access(
     effective end date has not passed. Used for interactive endpoints (play video,
     download material, take quiz, request certificate). Students with expired
     access get 403 with a specific message so the frontend can show locked UI.
+
+    If check_fee_overdue=True and user is a student, also verifies they have no
+    overdue fee installments on this batch. Raises HTTP 402 Payment Required with
+    a structured detail ``{code: "fee_overdue", batch_id, ...}`` so the frontend
+    can show a soft-lock overlay instead of a hard 403.
     """
     result = await session.execute(
         select(Batch).where(
@@ -123,6 +129,8 @@ async def verify_batch_access(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Your access to this batch has expired",
                 )
+        if check_fee_overdue:
+            await _raise_if_fee_overdue(session, current_user.id, batch_id)
         return batch
 
     # Unknown role — deny by default
@@ -132,12 +140,61 @@ async def verify_batch_access(
     )
 
 
+async def _raise_if_fee_overdue(
+    session: AsyncSession,
+    student_id: uuid.UUID,
+    batch_id: uuid.UUID,
+) -> None:
+    """Raise HTTP 402 with structured detail if the student has overdue fees
+    for ``batch_id``. The frontend checks ``error.data.code == 'fee_overdue'`` to
+    render the soft-lock overlay instead of a generic error toast.
+    """
+    from datetime import date as _date_cls
+
+    from app.models.fee import FeeInstallment, FeePlan
+
+    overdue_row = await session.execute(
+        select(FeeInstallment, FeePlan)
+        .join(FeePlan, FeePlan.id == FeeInstallment.fee_plan_id)
+        .where(
+            FeePlan.student_id == student_id,
+            FeePlan.batch_id == batch_id,
+            FeePlan.deleted_at.is_(None),
+            FeeInstallment.due_date < _date_cls.today(),
+            FeeInstallment.status.in_(["pending", "partially_paid", "overdue"]),
+        )
+        .order_by(FeeInstallment.due_date.asc())
+        .limit(1)
+    )
+    row = overdue_row.first()
+    if row is None:
+        return
+
+    overdue_installment, plan = row
+    amount_due = int(overdue_installment.amount_due) - int(overdue_installment.amount_paid)
+
+    raise HTTPException(
+        status_code=402,
+        detail={
+            "code": "fee_overdue",
+            "message": "Your fees are overdue — please contact your admissions officer",
+            "batch_id": str(batch_id),
+            "fee_plan_id": str(plan.id),
+            "overdue_installment_id": str(overdue_installment.id),
+            "overdue_since": overdue_installment.due_date.isoformat(),
+            "amount_due": amount_due,
+            "currency": plan.currency,
+        },
+    )
+
+
 async def verify_zoom_class_access(
     session: AsyncSession,
     current_user: User,
     class_id: uuid.UUID,
     check_active: bool = False,
     check_expiry: bool = False,
+    check_fee_overdue: bool = False,
 ) -> ZoomClass:
     """Verify current_user can access this zoom class.
 
@@ -170,8 +227,12 @@ async def verify_zoom_class_access(
         return zoom_class
 
     # Delegate batch-level access check for all other cases
-    await verify_batch_access(session, current_user, zoom_class.batch_id,
-                              check_active=check_active, check_expiry=check_expiry)
+    await verify_batch_access(
+        session, current_user, zoom_class.batch_id,
+        check_active=check_active,
+        check_expiry=check_expiry,
+        check_fee_overdue=check_fee_overdue,
+    )
 
     return zoom_class
 
@@ -180,12 +241,16 @@ async def check_student_batch_expiry(
     session: AsyncSession,
     student_id: uuid.UUID,
     course_id: uuid.UUID,
+    check_fee_overdue: bool = False,
 ) -> None:
     """Check if the student's batch access for a given course has expired.
 
     Finds the student's active enrollment in a batch that contains this course,
     then checks the effective end date. Raises 403 if expired.
     Used for quiz and certificate endpoints where batch_id isn't directly available.
+
+    When ``check_fee_overdue=True``, also raises HTTP 402 with structured detail
+    if the student has any overdue installment on the matched batch's fee plan.
     """
     from app.models.course import BatchCourse
 
@@ -214,3 +279,6 @@ async def check_student_batch_expiry(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Your access to this batch has expired",
         )
+
+    if check_fee_overdue:
+        await _raise_if_fee_overdue(session, student_id, batch.id)
