@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Annotated
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, func
 
@@ -109,6 +109,7 @@ async def list_institutes(
 async def create_institute_endpoint(
     sa: SA,
     body: InstituteCreate,
+    background_tasks: BackgroundTasks,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     # Check slug uniqueness
@@ -133,6 +134,12 @@ async def create_institute_endpoint(
     await log_sa_action(session, sa.id, "institute_created", "institute", institute.id, details={"name": body.name, "slug": body.slug, "plan_tier": body.plan_tier})
     await session.commit()
     await session.refresh(institute)
+
+    # Pre-warm the new tenant subdomain so Vercel provisions the wildcard
+    # SSL cert before anyone visits the new institute for the first time.
+    from app.utils.subdomain_warmup import warmup_subdomain
+    background_tasks.add_task(warmup_subdomain, institute.slug)
+
     return await _institute_to_out(session, institute)
 
 
