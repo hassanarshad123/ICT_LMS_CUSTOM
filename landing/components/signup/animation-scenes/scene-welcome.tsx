@@ -107,12 +107,12 @@ export function SceneWelcome(props: Props) {
       </motion.h1>
 
       {/* Tagline / "Your LMS is ready" — cross-fades between phases */}
-      <div className="relative mt-4 h-12 flex items-center justify-center">
+      <div className="relative mt-4 h-12 w-full flex items-center justify-center">
         <AnimatePresence mode="wait">
           {phase === 'intro' && (
             <motion.p
               key="tagline"
-              className="absolute text-center text-lg sm:text-2xl md:text-3xl italic font-serif"
+              className="absolute inset-x-0 text-center text-lg sm:text-2xl md:text-3xl italic font-serif"
               style={{ color: `${props.primaryColor}cc` }}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -125,7 +125,7 @@ export function SceneWelcome(props: Props) {
           {(phase === 'almost-ready' || phase === 'countdown') && (
             <motion.p
               key="ready"
-              className="absolute text-center text-lg sm:text-2xl md:text-3xl font-sans"
+              className="absolute inset-x-0 text-center text-lg sm:text-2xl md:text-3xl font-sans"
               style={{ color: props.primaryColor }}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
