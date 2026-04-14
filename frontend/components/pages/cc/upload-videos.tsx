@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { useAuth } from '@/lib/auth-context';
 import { useUpload } from '@/lib/upload-context';
@@ -12,13 +12,7 @@ import UploadQueue from '@/components/shared/upload-queue';
 import LectureDrawer from '@/components/shared/lecture-drawer';
 import { titleFromFilename } from '@/lib/utils/format';
 import { toast } from 'sonner';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { SearchableCombobox, type ComboboxOption } from '@/components/ui/searchable-combobox';
 import { UploadDropZone } from './upload-drop-zone';
 import { UploadExistingLectures } from './upload-existing-lectures';
 import { UploadMetadataDialog, type PendingFile } from './upload-metadata-dialog';
@@ -41,6 +35,15 @@ export default function UploadVideos() {
 
   const [courses, setCourses] = useState<any[]>([]);
   const [coursesLoading, setCoursesLoading] = useState(false);
+
+  const batchOptions = useMemo<ComboboxOption[]>(
+    () => batches.map((b: any) => ({ value: b.id, label: b.name })),
+    [batches],
+  );
+  const courseOptions = useMemo<ComboboxOption[]>(
+    () => courses.map((c: any) => ({ value: c.id, label: c.title })),
+    [courses],
+  );
 
   // Load courses when batch changes
   useEffect(() => {
@@ -217,61 +220,45 @@ export default function UploadVideos() {
             <label className="block text-xs font-medium text-gray-600 mb-1.5">
               Batch
             </label>
-            <Select
+            <SearchableCombobox
+              options={batchOptions}
               value={selectedBatchId}
-              onValueChange={(val) => {
+              onChange={(val) => {
                 setSelectedBatchId(val);
                 const b = batches.find((b: any) => b.id === val);
                 setSelectedBatchName(b?.name || '');
               }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select a batch" />
-              </SelectTrigger>
-              <SelectContent>
-                {batches.map((b: any) => (
-                  <SelectItem key={b.id} value={b.id}>
-                    {b.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              placeholder="Select a batch"
+              searchPlaceholder="Search batches..."
+              emptyMessage="No batches found"
+            />
           </div>
 
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1.5">
               Course
             </label>
-            <Select
+            <SearchableCombobox
+              options={courseOptions}
               value={selectedCourseId}
-              onValueChange={(val) => {
+              onChange={(val) => {
                 setSelectedCourseId(val);
                 const c = courses.find((c: any) => c.id === val);
                 setSelectedCourseName(c?.title || '');
               }}
               disabled={!selectedBatchId || coursesLoading}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue
-                  placeholder={
-                    !selectedBatchId
-                      ? 'Select a batch first'
-                      : coursesLoading
-                        ? 'Loading courses...'
-                        : courses.length === 0
-                          ? 'No courses linked'
-                          : 'Select a course'
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {courses.map((c: any) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.title}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              placeholder={
+                !selectedBatchId
+                  ? 'Select a batch first'
+                  : coursesLoading
+                    ? 'Loading courses...'
+                    : courses.length === 0
+                      ? 'No courses linked'
+                      : 'Select a course'
+              }
+              searchPlaceholder="Search courses..."
+              emptyMessage="No courses found"
+            />
           </div>
         </div>
 
