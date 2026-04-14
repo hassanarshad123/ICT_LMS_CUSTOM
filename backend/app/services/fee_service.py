@@ -132,6 +132,50 @@ async def record_payment(
         },
     )
 
+    # ── Webhook events ──
+    # Emitted pre-commit so they land in the same transaction as the payment.
+    from app.services import webhook_event_service
+
+    await webhook_event_service.queue_webhook_event(
+        session,
+        fee_plan.institute_id,
+        "fee.payment_recorded",
+        {
+            "payment_id": str(payment.id),
+            "fee_plan_id": str(fee_plan.id),
+            "fee_installment_id": str(target_installment.id),
+            "student_id": str(student.id),
+            "batch_id": str(fee_plan.batch_id),
+            "student_batch_id": str(fee_plan.student_batch_id),
+            "amount": payload.amount,
+            "currency": fee_plan.currency,
+            "installment_sequence": target_installment.sequence,
+            "installment_status": target_installment.status,
+            "receipt_number": payment.receipt_number,
+            "payment_method": payload.payment_method,
+            "reference_number": payload.reference_number,
+            "payment_date": payload.payment_date.isoformat() if payload.payment_date else None,
+            "recorded_by_user_id": str(actor.id),
+            "occurred_at": now.isoformat(),
+        },
+    )
+
+    if fee_plan.status == FeePlanStatus.completed.value:
+        await webhook_event_service.queue_webhook_event(
+            session,
+            fee_plan.institute_id,
+            "fee.plan_completed",
+            {
+                "fee_plan_id": str(fee_plan.id),
+                "student_id": str(student.id),
+                "batch_id": str(fee_plan.batch_id),
+                "student_batch_id": str(fee_plan.student_batch_id),
+                "final_amount": fee_plan.final_amount,
+                "currency": fee_plan.currency,
+                "completed_at": now.isoformat(),
+            },
+        )
+
     await session.commit()
     await session.refresh(payment)
     return payment
