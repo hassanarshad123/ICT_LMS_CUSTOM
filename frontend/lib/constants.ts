@@ -12,6 +12,7 @@ export const roleBadgeColors: Record<string, string> = {
   student: 'bg-blue-100 text-blue-700',
   teacher: 'bg-purple-100 text-purple-700',
   'course-creator': 'bg-orange-100 text-orange-700',
+  'admissions-officer': 'bg-emerald-100 text-emerald-700',
 };
 
 export const roleLabels: Record<string, string> = {
@@ -20,6 +21,7 @@ export const roleLabels: Record<string, string> = {
   student: 'Student',
   teacher: 'Teacher',
   'course-creator': 'Course Creator',
+  'admissions-officer': 'Admissions Officer',
 };
 
 export const fileTypeConfig: Record<MaterialFileType, { label: string; bgColor: string; textColor: string }> = {

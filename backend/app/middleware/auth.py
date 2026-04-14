@@ -228,3 +228,5 @@ def get_institute_slug_from_header(request: Request) -> str | None:
 SA = Annotated[User, Depends(require_roles("super_admin"))]
 Admin = Annotated[User, Depends(require_roles("admin"))]
 CC = Annotated[User, Depends(require_roles("course_creator"))]
+AO = Annotated[User, Depends(require_roles("admissions_officer"))]
+AdminOrAO = Annotated[User, Depends(require_roles("admin", "admissions_officer"))]

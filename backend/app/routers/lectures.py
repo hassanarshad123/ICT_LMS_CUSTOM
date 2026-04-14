@@ -451,7 +451,7 @@ async def get_signed_url(
             raise HTTPException(status_code=403, detail="Your enrollment in this batch is currently inactive")
 
         # Date-based expiry check
-        from app.middleware.access_control import get_effective_end_date
+        from app.middleware.access_control import get_effective_end_date, _raise_if_fee_overdue
         from app.models.batch import Batch as BatchModel
         from datetime import date as _date
         _batch = await session.get(BatchModel, lecture.batch_id)
@@ -459,6 +459,9 @@ async def get_signed_url(
             effective_end = get_effective_end_date(_batch, sb)
             if _date.today() > effective_end:
                 raise HTTPException(status_code=403, detail="Your access to this batch has expired")
+
+        # Fee overdue soft lock — blocks video playback, returns 402 with structured detail
+        await _raise_if_fee_overdue(session, current_user.id, lecture.batch_id)
 
         # Progress gating check — enforce sequential video access
         from app.models.batch import Batch

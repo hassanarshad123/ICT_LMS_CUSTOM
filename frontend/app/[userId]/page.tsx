@@ -6,6 +6,7 @@ import AdminDashboard from '@/components/dashboards/admin-dashboard';
 import CourseCreatorDashboard from '@/components/dashboards/cc-dashboard';
 import TeacherDashboard from '@/components/dashboards/teacher-dashboard';
 import StudentDashboard from '@/components/dashboards/student-dashboard';
+import AdmissionsOfficerDashboard from '@/components/dashboards/admissions-officer-dashboard';
 
 export default function DashboardPage() {
   const { role, isLoading } = useAuth();
@@ -27,6 +28,8 @@ export default function DashboardPage() {
       return <TeacherDashboard />;
     case 'student':
       return <StudentDashboard />;
+    case 'admissions-officer':
+      return <AdmissionsOfficerDashboard />;
     default:
       return <StudentDashboard />;
   }

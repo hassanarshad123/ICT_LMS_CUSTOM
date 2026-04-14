@@ -257,6 +257,18 @@ export async function apiClient<T = any>(
     throw buildApiError(error, 'Forbidden', res.status);
   }
 
+  // Handle 402 — fee overdue soft lock. Dispatch a global event so a top-level
+  // provider can show the overdue overlay. The error is still thrown so the
+  // originating caller can also handle it locally (e.g. disable a player).
+  if (res.status === 402) {
+    const error = await res.json().catch(() => ({ detail: 'Payment required' }));
+    const apiErr = buildApiError(error, 'Payment required', res.status);
+    if (typeof window !== 'undefined' && apiErr.data && (apiErr.data as any).code === 'fee_overdue') {
+      window.dispatchEvent(new CustomEvent('fee-overdue', { detail: apiErr.data }));
+    }
+    throw apiErr;
+  }
+
   if (!res.ok) {
     const error = await res.json().catch(() => ({ detail: 'Request failed' }));
     throw buildApiError(error, `HTTP ${res.status}`, res.status);

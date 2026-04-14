@@ -9,7 +9,7 @@ from slowapi.errors import RateLimitExceeded
 from app.utils.rate_limit import limiter
 
 from app.config import get_settings
-from app.routers import auth, users, batches, courses, curriculum, lectures, materials, jobs, announcements, zoom, admin, certificates, monitoring, branding, notifications, search, super_admin, api_keys, webhooks, public_api, quizzes, signup, sa_analytics, sa_monitoring, sa_operations, sa_billing, feedback, upgrade
+from app.routers import auth, users, batches, courses, curriculum, lectures, materials, jobs, announcements, zoom, admin, certificates, monitoring, branding, notifications, search, super_admin, api_keys, webhooks, public_api, quizzes, signup, sa_analytics, sa_monitoring, sa_operations, sa_billing, feedback, upgrade, admissions
 from app.websockets.routes import router as ws_router
 from app.middleware.error_tracking import ErrorTrackingMiddleware
 from app.exceptions import NotFoundError, DuplicateError, ForbiddenError, ValidationError
@@ -67,7 +67,7 @@ async def lifespan(app: FastAPI):
     if settings.SCHEDULER_ENABLED:
         try:
             from apscheduler.schedulers.asyncio import AsyncIOScheduler
-            from app.scheduler.jobs import cleanup_expired_sessions, send_zoom_reminders, retry_failed_recordings, cleanup_stale_uploads, auto_suspend_expired_institutes, process_webhook_deliveries, recalculate_all_usage, send_batch_expiry_notifications, sync_stuck_video_statuses, send_trial_expiry_warnings, deactivate_unverified_users, purge_stale_records, backfill_video_durations
+            from app.scheduler.jobs import cleanup_expired_sessions, send_zoom_reminders, retry_failed_recordings, cleanup_stale_uploads, auto_suspend_expired_institutes, process_webhook_deliveries, recalculate_all_usage, send_batch_expiry_notifications, sync_stuck_video_statuses, send_trial_expiry_warnings, deactivate_unverified_users, purge_stale_records, backfill_video_durations, send_fee_reminders
 
             scheduler = AsyncIOScheduler()
             scheduler.add_job(cleanup_expired_sessions, "interval", hours=1, id="cleanup_sessions")
@@ -78,6 +78,7 @@ async def lifespan(app: FastAPI):
             scheduler.add_job(process_webhook_deliveries, "interval", minutes=1, id="webhook_deliveries")
             scheduler.add_job(recalculate_all_usage, "interval", hours=24, id="recalculate_usage")
             scheduler.add_job(send_batch_expiry_notifications, "interval", hours=24, id="batch_expiry_notifications")
+            scheduler.add_job(send_fee_reminders, "interval", hours=24, id="fee_reminders")
             scheduler.add_job(sync_stuck_video_statuses, "interval", minutes=30, id="sync_stuck_videos")
             scheduler.add_job(send_trial_expiry_warnings, "interval", hours=24, id="trial_expiry_warnings")
             scheduler.add_job(deactivate_unverified_users, "interval", hours=12, id="deactivate_unverified")
@@ -202,6 +203,7 @@ app.include_router(feedback.router, prefix="/api/v1/feedback", tags=["Feedback"]
 # Upgrade endpoints: admins request upgrade, SAs approve.
 # Router mounts both /upgrade/request (admin) and /upgrade/approve/:id (SA).
 app.include_router(upgrade.router, prefix="/api/v1/upgrade", tags=["Upgrade"])
+app.include_router(admissions.router, prefix="/api/v1/admissions", tags=["Admissions"])
 
 # WebSocket routes
 app.include_router(ws_router)

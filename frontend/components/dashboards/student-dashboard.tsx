@@ -11,6 +11,7 @@ import { listClasses } from '@/lib/api/zoom';
 import { listJobs } from '@/lib/api/jobs';
 import { listAnnouncements } from '@/lib/api/announcements';
 import { PageLoading, EmptyState } from '@/components/shared/page-states';
+import FeeOverdueBanner from '@/components/shared/fee-overdue-banner';
 import { BookOpen, Briefcase, ChevronRight, Video, Calendar, Clock, PlayCircle, AlertCircle, Megaphone, Zap } from 'lucide-react';
 import Link from 'next/link';
 
@@ -114,6 +115,8 @@ export default function StudentDashboard() {
         greeting={`Welcome, ${name || 'Student'}!`}
         subtitle="Continue your learning journey"
       />
+
+      <FeeOverdueBanner />
 
       {allLoading && <PageLoading variant="cards" />}
 

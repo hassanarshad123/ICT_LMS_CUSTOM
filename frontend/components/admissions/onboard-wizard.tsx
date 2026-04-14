@@ -1,0 +1,646 @@
+'use client';
+
+import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
+import { ArrowLeft, ArrowRight, Check, Loader2, Plus, Trash2 } from 'lucide-react';
+import { useApi, useMutation } from '@/hooks/use-api';
+import { useBasePath } from '@/hooks/use-base-path';
+import { listBatches } from '@/lib/api/batches';
+import {
+  onboardStudent,
+  type FeePlanType,
+  type InstallmentDraft,
+  type OnboardStudentResult,
+} from '@/lib/api/admissions';
+import { formatMoney, formatDate } from '@/lib/utils/format';
+
+type Step = 1 | 2 | 3 | 4 | 5;
+
+type PlanTypeLocal = FeePlanType;
+
+interface StudentForm {
+  name: string;
+  email: string;
+  phone: string;
+}
+
+interface FeeForm {
+  planType: PlanTypeLocal;
+  totalAmount: string;
+  discountType: 'none' | 'percent' | 'flat';
+  discountValue: string;
+  monthlyInstallments: string;
+  firstDueDate: string;
+  installments: InstallmentDraft[];
+  notes: string;
+}
+
+function defaultFeeForm(): FeeForm {
+  return {
+    planType: 'one_time',
+    totalAmount: '',
+    discountType: 'none',
+    discountValue: '',
+    monthlyInstallments: '3',
+    firstDueDate: isoToday(),
+    installments: [{ sequence: 1, amountDue: 0, dueDate: isoToday(), label: 'Installment 1' }],
+    notes: '',
+  };
+}
+
+function isoToday(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function addMonthsIso(iso: string, months: number): string {
+  const d = new Date(iso + 'T00:00:00');
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().slice(0, 10);
+}
+
+function calcFinalAmount(total: number, type: 'none' | 'percent' | 'flat', value: number): number {
+  if (type === 'percent') return Math.max(0, total - Math.floor((total * value) / 100));
+  if (type === 'flat') return Math.max(0, total - value);
+  return total;
+}
+
+export default function OnboardWizard() {
+  const router = useRouter();
+  const basePath = useBasePath();
+
+  const [step, setStep] = useState<Step>(1);
+  const [student, setStudent] = useState<StudentForm>({ name: '', email: '', phone: '' });
+  const [batchId, setBatchId] = useState<string>('');
+  const [fee, setFee] = useState<FeeForm>(defaultFeeForm());
+  const [result, setResult] = useState<OnboardStudentResult | null>(null);
+
+  const { data: batchesData, loading: batchesLoading } = useApi(
+    () => listBatches({ per_page: 100 }),
+    [],
+  );
+  const batches = batchesData?.data || [];
+
+  const { execute: submit, loading: submitting } = useMutation(onboardStudent);
+
+  const totalNum = Number(fee.totalAmount) || 0;
+  const discountNum = fee.discountType === 'none' ? 0 : Number(fee.discountValue) || 0;
+  const finalAmount = useMemo(
+    () => calcFinalAmount(totalNum, fee.discountType, discountNum),
+    [totalNum, fee.discountType, discountNum],
+  );
+  const installmentSum = fee.installments.reduce((s, i) => s + (Number(i.amountDue) || 0), 0);
+
+  const canAdvanceStep1 =
+    student.name.trim().length > 1 &&
+    /.+@.+\..+/.test(student.email) &&
+    student.phone.trim().length >= 7;
+  const canAdvanceStep2 = batchId.length > 0;
+  const canAdvanceStep3 = totalNum > 0 && finalAmount > 0;
+  const canAdvanceStep4 =
+    fee.planType !== 'installment' ||
+    (fee.installments.length > 0 && installmentSum === finalAmount);
+
+  const handleSubmit = async () => {
+    try {
+      const payload = {
+        name: student.name.trim(),
+        email: student.email.trim().toLowerCase(),
+        phone: student.phone.trim(),
+        batchId,
+        notes: fee.notes.trim() || undefined,
+        feePlan: {
+          planType: fee.planType,
+          totalAmount: totalNum,
+          discountType: fee.discountType === 'none' ? null : fee.discountType,
+          discountValue: fee.discountType === 'none' ? null : discountNum,
+          currency: 'PKR',
+          monthlyInstallments: fee.planType === 'monthly' ? Number(fee.monthlyInstallments) || 1 : null,
+          firstDueDate: fee.firstDueDate || null,
+          installments: fee.planType === 'installment' ? fee.installments : undefined,
+          notes: fee.notes.trim() || null,
+        },
+      };
+      const res = await submit(payload);
+      setResult(res);
+      setStep(5);
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to onboard student');
+    }
+  };
+
+  return (
+    <div className="max-w-3xl mx-auto">
+      <StepIndicator step={step} />
+
+      {step === 1 && (
+        <StepCard title="Student details" subtitle="Who is the paying student?">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Full name" value={student.name} onChange={(v) => setStudent({ ...student, name: v })} placeholder="e.g. Ali Khan" />
+            <Field label="Email" value={student.email} onChange={(v) => setStudent({ ...student, email: v })} placeholder="student@email.com" type="email" />
+            <Field label="Phone" value={student.phone} onChange={(v) => setStudent({ ...student, phone: v })} placeholder="0300-1234567" />
+          </div>
+          <WizardNav
+            onBack={() => router.push(basePath)}
+            backLabel="Cancel"
+            onNext={() => setStep(2)}
+            nextDisabled={!canAdvanceStep1}
+          />
+        </StepCard>
+      )}
+
+      {step === 2 && (
+        <StepCard title="Pick a batch" subtitle="Select the batch to enroll this student in">
+          {batchesLoading ? (
+            <div className="flex items-center gap-2 text-sm text-gray-500"><Loader2 size={14} className="animate-spin" /> Loading batches…</div>
+          ) : batches.length === 0 ? (
+            <p className="text-sm text-gray-500">No batches available. Ask an admin to create one first.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {batches.map((b) => (
+                <button
+                  key={b.id}
+                  onClick={() => setBatchId(b.id)}
+                  className={`text-left p-4 rounded-xl border transition-all ${
+                    batchId === b.id ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-gray-300 bg-white'
+                  }`}
+                >
+                  <p className="font-semibold text-primary">{b.name}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {formatDate(b.startDate)} → {formatDate(b.endDate)}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">{b.studentCount || 0} students enrolled</p>
+                </button>
+              ))}
+            </div>
+          )}
+          <WizardNav onBack={() => setStep(1)} onNext={() => setStep(3)} nextDisabled={!canAdvanceStep2} />
+        </StepCard>
+      )}
+
+      {step === 3 && (
+        <StepCard title="Fee plan" subtitle="Set the total amount and how the student will pay">
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-3">
+              {(['one_time', 'monthly', 'installment'] as PlanTypeLocal[]).map((pt) => (
+                <button
+                  key={pt}
+                  onClick={() => setFee({ ...fee, planType: pt })}
+                  className={`p-4 rounded-xl border text-left transition-all ${
+                    fee.planType === pt ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-gray-300 bg-white'
+                  }`}
+                >
+                  <p className="font-semibold text-primary text-sm">{planTypeLabel(pt)}</p>
+                  <p className="text-xs text-gray-500 mt-1">{planTypeHint(pt)}</p>
+                </button>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field
+                label="Total fee (PKR)"
+                value={fee.totalAmount}
+                onChange={(v) => setFee({ ...fee, totalAmount: v.replace(/[^0-9]/g, '') })}
+                placeholder="15000"
+                type="text"
+                inputMode="numeric"
+              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Discount</label>
+                <div className="flex gap-2">
+                  <select
+                    className="px-3 py-3 rounded-xl border border-gray-200 text-sm bg-gray-50"
+                    value={fee.discountType}
+                    onChange={(e) => setFee({ ...fee, discountType: e.target.value as any })}
+                  >
+                    <option value="none">None</option>
+                    <option value="percent">Percent %</option>
+                    <option value="flat">Flat PKR</option>
+                  </select>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    disabled={fee.discountType === 'none'}
+                    value={fee.discountValue}
+                    onChange={(e) => setFee({ ...fee, discountValue: e.target.value.replace(/[^0-9]/g, '') })}
+                    placeholder={fee.discountType === 'percent' ? '10' : '500'}
+                    className="flex-1 px-4 py-3 rounded-xl border border-gray-200 text-sm bg-gray-50 disabled:opacity-50"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {fee.planType === 'monthly' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field
+                  label="Number of months"
+                  value={fee.monthlyInstallments}
+                  onChange={(v) => setFee({ ...fee, monthlyInstallments: v.replace(/[^0-9]/g, '') })}
+                  placeholder="3"
+                  type="text"
+                  inputMode="numeric"
+                />
+                <Field
+                  label="First due date"
+                  value={fee.firstDueDate}
+                  onChange={(v) => setFee({ ...fee, firstDueDate: v })}
+                  type="date"
+                />
+              </div>
+            )}
+
+            {fee.planType === 'one_time' && (
+              <Field
+                label="Payment due date"
+                value={fee.firstDueDate}
+                onChange={(v) => setFee({ ...fee, firstDueDate: v })}
+                type="date"
+              />
+            )}
+
+            <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-100">
+              <p className="text-sm text-gray-600">After discount:</p>
+              <p className="text-2xl font-bold text-emerald-700 mt-1">{formatMoney(finalAmount)}</p>
+            </div>
+          </div>
+
+          <WizardNav
+            onBack={() => setStep(2)}
+            onNext={() => setStep(fee.planType === 'installment' ? 4 : 5)}
+            nextDisabled={!canAdvanceStep3}
+            nextLabel={fee.planType === 'installment' ? 'Next' : 'Review'}
+          />
+        </StepCard>
+      )}
+
+      {step === 4 && (
+        <StepCard title="Installment schedule" subtitle={`Split ${formatMoney(finalAmount)} across installments`}>
+          <InstallmentEditor
+            installments={fee.installments}
+            onChange={(installments) => setFee({ ...fee, installments })}
+            finalAmount={finalAmount}
+          />
+          <div className="flex items-center justify-between mt-4 p-3 rounded-xl bg-gray-50">
+            <span className="text-sm text-gray-600">Schedule total</span>
+            <span
+              className={`font-semibold ${
+                installmentSum === finalAmount ? 'text-emerald-700' : 'text-red-600'
+              }`}
+            >
+              {formatMoney(installmentSum)}
+              {installmentSum !== finalAmount && ` (needs ${formatMoney(finalAmount - installmentSum)})`}
+            </span>
+          </div>
+          <WizardNav
+            onBack={() => setStep(3)}
+            onNext={() => setStep(5)}
+            nextDisabled={!canAdvanceStep4}
+            nextLabel="Review"
+          />
+        </StepCard>
+      )}
+
+      {step === 5 && !result && (
+        <StepCard title="Review & submit" subtitle="Confirm details — account credentials will be generated">
+          <div className="space-y-3 text-sm">
+            <Row label="Student" value={`${student.name} · ${student.email}`} />
+            <Row label="Phone" value={student.phone} />
+            <Row label="Batch" value={batches.find((b) => b.id === batchId)?.name || '—'} />
+            <Row label="Plan" value={planTypeLabel(fee.planType)} />
+            <Row label="Total fee" value={formatMoney(totalNum)} />
+            {fee.discountType !== 'none' && (
+              <Row
+                label="Discount"
+                value={`${discountNum}${fee.discountType === 'percent' ? '%' : ' PKR'}`}
+              />
+            )}
+            <Row label="Final amount" value={formatMoney(finalAmount)} emphasize />
+            {fee.planType === 'monthly' && (
+              <Row
+                label="Schedule"
+                value={`${fee.monthlyInstallments} months from ${formatDate(fee.firstDueDate)}`}
+              />
+            )}
+            {fee.planType === 'installment' && (
+              <Row label="Installments" value={`${fee.installments.length} scheduled`} />
+            )}
+          </div>
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Notes (optional)</label>
+            <textarea
+              value={fee.notes}
+              onChange={(e) => setFee({ ...fee, notes: e.target.value })}
+              rows={3}
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm bg-gray-50"
+              placeholder="Anything worth remembering about this deal?"
+            />
+          </div>
+          <WizardNav
+            onBack={() => setStep((fee.planType === 'installment' ? 4 : 3) as Step)}
+            onNext={handleSubmit}
+            nextDisabled={submitting}
+            nextLabel={submitting ? 'Creating account…' : 'Onboard Student'}
+            loading={submitting}
+          />
+        </StepCard>
+      )}
+
+      {step === 5 && result && (
+        <SuccessCard result={result} onDone={() => router.push(basePath)} />
+      )}
+    </div>
+  );
+}
+
+function planTypeLabel(t: PlanTypeLocal): string {
+  if (t === 'one_time') return 'One-time fee';
+  if (t === 'monthly') return 'Monthly recurring';
+  return 'Custom installments';
+}
+
+function planTypeHint(t: PlanTypeLocal): string {
+  if (t === 'one_time') return 'Lump sum upfront';
+  if (t === 'monthly') return 'Split into equal monthly payments';
+  return 'Flexible schedule set by you';
+}
+
+function StepIndicator({ step }: { step: Step }) {
+  const labels = ['Student', 'Batch', 'Fee plan', 'Schedule', 'Review'];
+  return (
+    <div className="flex items-center gap-2 mb-6">
+      {labels.map((label, idx) => {
+        const n = idx + 1;
+        const done = n < step;
+        const current = n === step;
+        return (
+          <div key={label} className="flex items-center gap-2 flex-1">
+            <div
+              className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold ${
+                done
+                  ? 'bg-emerald-500 text-white'
+                  : current
+                    ? 'bg-primary text-white'
+                    : 'bg-gray-200 text-gray-500'
+              }`}
+            >
+              {done ? <Check size={14} /> : n}
+            </div>
+            <span className={`text-xs font-medium ${current ? 'text-primary' : 'text-gray-500'}`}>
+              {label}
+            </span>
+            {idx < labels.length - 1 && <div className="flex-1 h-px bg-gray-200" />}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function StepCard({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="bg-white rounded-2xl p-6 card-shadow">
+      <h2 className="text-lg font-semibold text-primary">{title}</h2>
+      {subtitle && <p className="text-sm text-gray-500 mt-1 mb-6">{subtitle}</p>}
+      {children}
+    </div>
+  );
+}
+
+function Field({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = 'text',
+  inputMode,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  type?: string;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode'];
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1.5">{label}</label>
+      <input
+        type={type}
+        inputMode={inputMode}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
+      />
+    </div>
+  );
+}
+
+function WizardNav({
+  onBack,
+  onNext,
+  nextDisabled,
+  loading,
+  backLabel = 'Back',
+  nextLabel = 'Next',
+}: {
+  onBack: () => void;
+  onNext: () => void;
+  nextDisabled?: boolean;
+  loading?: boolean;
+  backLabel?: string;
+  nextLabel?: string;
+}) {
+  return (
+    <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-100">
+      <button
+        onClick={onBack}
+        className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm text-gray-600 hover:bg-gray-50"
+      >
+        <ArrowLeft size={16} />
+        {backLabel}
+      </button>
+      <button
+        onClick={onNext}
+        disabled={nextDisabled}
+        className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        {loading && <Loader2 size={14} className="animate-spin" />}
+        {nextLabel}
+        {!loading && <ArrowRight size={16} />}
+      </button>
+    </div>
+  );
+}
+
+function Row({ label, value, emphasize }: { label: string; value: string; emphasize?: boolean }) {
+  return (
+    <div className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+      <span className="text-gray-500">{label}</span>
+      <span className={emphasize ? 'font-semibold text-emerald-700' : 'text-primary font-medium'}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function InstallmentEditor({
+  installments,
+  onChange,
+  finalAmount,
+}: {
+  installments: InstallmentDraft[];
+  onChange: (x: InstallmentDraft[]) => void;
+  finalAmount: number;
+}) {
+  const add = () => {
+    const last = installments[installments.length - 1];
+    const nextSeq = installments.length + 1;
+    const nextDate = last ? addMonthsIso(last.dueDate, 1) : isoToday();
+    onChange([
+      ...installments,
+      { sequence: nextSeq, amountDue: 0, dueDate: nextDate, label: `Installment ${nextSeq}` },
+    ]);
+  };
+
+  const remove = (idx: number) => {
+    onChange(
+      installments
+        .filter((_, i) => i !== idx)
+        .map((row, i) => ({ ...row, sequence: i + 1, label: `Installment ${i + 1}` })),
+    );
+  };
+
+  const update = (idx: number, patch: Partial<InstallmentDraft>) => {
+    onChange(installments.map((row, i) => (i === idx ? { ...row, ...patch } : row)));
+  };
+
+  const splitEvenly = () => {
+    const n = installments.length || 1;
+    const base = Math.floor(finalAmount / n);
+    const remainder = finalAmount - base * n;
+    onChange(
+      installments.map((row, i) => ({ ...row, amountDue: base + (i === 0 ? remainder : 0) })),
+    );
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-sm text-gray-600">Drafts</p>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={splitEvenly}
+            className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
+          >
+            Split evenly
+          </button>
+          <button
+            type="button"
+            onClick={add}
+            className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg bg-primary text-white hover:bg-primary/80"
+          >
+            <Plus size={14} /> Add
+          </button>
+        </div>
+      </div>
+      <div className="space-y-2">
+        {installments.map((row, idx) => (
+          <div key={idx} className="grid grid-cols-12 gap-2 items-center">
+            <div className="col-span-1 text-sm font-medium text-gray-500">#{row.sequence}</div>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={String(row.amountDue)}
+              onChange={(e) => update(idx, { amountDue: Number(e.target.value.replace(/[^0-9]/g, '')) || 0 })}
+              placeholder="Amount"
+              className="col-span-4 px-3 py-2 rounded-lg border border-gray-200 text-sm bg-gray-50"
+            />
+            <input
+              type="date"
+              value={row.dueDate}
+              onChange={(e) => update(idx, { dueDate: e.target.value })}
+              className="col-span-4 px-3 py-2 rounded-lg border border-gray-200 text-sm bg-gray-50"
+            />
+            <input
+              type="text"
+              value={row.label || ''}
+              onChange={(e) => update(idx, { label: e.target.value })}
+              placeholder="Label"
+              className="col-span-2 px-3 py-2 rounded-lg border border-gray-200 text-sm bg-gray-50"
+            />
+            <button
+              type="button"
+              onClick={() => remove(idx)}
+              disabled={installments.length === 1}
+              className="col-span-1 p-2 text-gray-400 hover:text-red-500 disabled:opacity-30"
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SuccessCard({
+  result,
+  onDone,
+}: {
+  result: OnboardStudentResult;
+  onDone: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    const txt = `Email: ${result.email}\nPassword: ${result.temporaryPassword}`;
+    try {
+      await navigator.clipboard.writeText(txt);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error('Could not copy to clipboard');
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-2xl p-8 card-shadow text-center">
+      <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-emerald-100 mb-4">
+        <Check size={24} className="text-emerald-600" />
+      </div>
+      <h2 className="text-xl font-bold text-primary mb-2">Student onboarded</h2>
+      <p className="text-sm text-gray-500 mb-6">
+        Account created and enrolled. Share these credentials with the student.
+      </p>
+      <div className="bg-gray-50 rounded-xl p-4 text-left max-w-md mx-auto mb-6">
+        <Row label="Email" value={result.email} />
+        <Row label="Temporary password" value={result.temporaryPassword} />
+        <Row label="Amount due" value={formatMoney(result.finalAmount, result.currency)} />
+        <Row label="Installments" value={String(result.installmentCount)} />
+      </div>
+      <div className="flex items-center justify-center gap-3">
+        <button
+          onClick={copy}
+          className="px-5 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+          {copied ? 'Copied!' : 'Copy credentials'}
+        </button>
+        <button
+          onClick={onDone}
+          className="px-5 py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/80"
+        >
+          Done
+        </button>
+      </div>
+    </div>
+  );
+}

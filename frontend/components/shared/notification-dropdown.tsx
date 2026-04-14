@@ -15,6 +15,8 @@ import {
   Users,
   CheckCheck,
   Loader2,
+  Wallet,
+  AlertTriangle,
   X,
 } from 'lucide-react';
 
@@ -27,6 +29,17 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   new_feedback: <MessageSquare size={16} className="text-amber-500" />,
   feedback_response: <MessageSquare size={16} className="text-green-500" />,
 };
+
+/** Fee reminder types carry an installment UUID suffix (``fee_due_soon_7d:<id>``).
+ * Match by prefix so every suffix gets the right icon. */
+function iconForType(raw: string): React.ReactNode {
+  const exact = ICON_MAP[raw];
+  if (exact) return exact;
+  if (raw.startsWith('fee_due_soon')) return <Wallet size={16} className="text-amber-500" />;
+  if (raw.startsWith('fee_overdue_alert')) return <AlertTriangle size={16} className="text-red-500" />;
+  if (raw.startsWith('fee_overdue')) return <AlertTriangle size={16} className="text-red-500" />;
+  return <Bell size={16} className="text-gray-400" />;
+}
 
 function timeAgo(dateStr?: string): string {
   if (!dateStr) return '';
@@ -199,7 +212,7 @@ export default function NotificationDropdown() {
                   }`}
                 >
                   <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    {ICON_MAP[notif.type] || <Bell size={16} className="text-gray-400" />}
+                    {iconForType(notif.type)}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm leading-snug ${!notif.read ? 'font-semibold text-primary' : 'font-medium text-gray-700'}`}>

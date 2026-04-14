@@ -28,3 +28,4 @@ from app.models.api_integration import ApiKey, WebhookEndpoint, WebhookDelivery 
 from app.models.quiz import Quiz, QuizQuestion, QuizAttempt, QuizAnswer  # noqa: F401
 from app.models.feedback import Feedback, FeedbackAttachment, FeedbackResponse  # noqa: F401
 from app.models.device_request import DeviceLimitRequest  # noqa: F401
+from app.models.fee import FeePlan, FeeInstallment, FeePayment, ReceiptCounter  # noqa: F401

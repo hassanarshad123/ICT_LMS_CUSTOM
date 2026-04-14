@@ -118,10 +118,13 @@ async def get_download_url(
     if not material:
         raise HTTPException(status_code=404, detail="Material not found")
 
-    # Students must have active, non-expired batch access to download
+    # Students must have active, non-expired batch access + no fee overdue to download
     if current_user.role == UserRole.student:
         from app.middleware.access_control import verify_batch_access
-        await verify_batch_access(session, current_user, material.batch_id, check_active=True, check_expiry=True)
+        await verify_batch_access(
+            session, current_user, material.batch_id,
+            check_active=True, check_expiry=True, check_fee_overdue=True,
+        )
 
     try:
         url = generate_download_url(material.file_path, material.file_name)
