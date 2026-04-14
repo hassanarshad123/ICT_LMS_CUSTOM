@@ -10,6 +10,9 @@ services:
     environment:
       - DEPLOY_SLOT=blue
       - GIT_SHA=${GIT_SHA:-unknown}
+      # Both slots start the scheduler; per-job Redis ownership check in
+      # sentry_job_wrapper enforces exactly-once semantics across slots.
+      # Set to false only as an emergency kill-switch for all recurring jobs.
       - SCHEDULER_ENABLED=${BLUE_SCHEDULER:-true}
       - REDIS_URL=redis://host.docker.internal:6379/0
     extra_hosts:
@@ -37,7 +40,10 @@ services:
     environment:
       - DEPLOY_SLOT=green
       - GIT_SHA=${GIT_SHA:-unknown}
-      - SCHEDULER_ENABLED=${GREEN_SCHEDULER:-false}
+      # Both slots start the scheduler; per-job Redis ownership check in
+      # sentry_job_wrapper enforces exactly-once semantics across slots.
+      # Set to false only as an emergency kill-switch for all recurring jobs.
+      - SCHEDULER_ENABLED=${GREEN_SCHEDULER:-true}
       - REDIS_URL=redis://host.docker.internal:6379/0
     extra_hosts:
       - "host.docker.internal:host-gateway"
