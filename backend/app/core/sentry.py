@@ -159,6 +159,7 @@ def capture_exception_safe(exc: Exception) -> None:
 
 
 _SCHEDULER_OWNER_KEY = "lms:scheduler:owner"
+_DEFAULT_JOB_LOCK_TTL_SECONDS = 300  # 5 minutes max job runtime before lock auto-expires
 
 
 async def _is_scheduler_owner() -> bool:
@@ -188,31 +189,88 @@ async def _is_scheduler_owner() -> bool:
         return True  # Any unexpected error — fail open
 
 
-def sentry_job_wrapper(job_name: str):
-    """Decorator for APScheduler async jobs — captures exceptions to Sentry
-    with job context AND enforces per-deploy scheduler ownership via Redis.
+async def _acquire_job_lock(job_name: str, ttl_seconds: int):
+    """Try to acquire an exclusive per-fire lock for a scheduler job.
 
-    Ownership check prevents duplicate job runs during blue-green cutover:
-    both slots may have the scheduler started, but only the slot whose name
-    matches ``lms:scheduler:owner`` in Redis will actually execute jobs.
-    Fails open — missing/unreachable Redis → job runs anyway.
+    Returns the Redis client and lock key on success, or (None, None) if
+    another process already holds the lock OR if Redis is unavailable.
+
+    Why: uvicorn runs with ``--workers N``; each worker boots its own
+    AsyncIOScheduler on lifespan startup, so every interval fires the job
+    once per worker. The lock lets exactly one worker actually execute.
+
+    Fail-open: Redis unreachable → return a sentinel so the job runs.
+    (Caller sees non-None redis AND lock_key → "I got the lock, run".)
+    """
+    try:
+        from app.core.redis import get_redis
+
+        redis = get_redis()
+        if redis is None:
+            return None, None  # Redis unavailable → fail open (run anyway)
+
+        lock_key = f"lms:scheduler:lock:{job_name}"
+        # SET NX with TTL — atomic "acquire if not held".
+        acquired = await redis.set(lock_key, b"1", nx=True, ex=ttl_seconds)
+        if acquired:
+            return redis, lock_key
+        return None, "held"  # Sentinel: another worker has it, skip
+    except Exception:
+        logger.debug("Job lock acquisition crashed for %s — failing open", job_name, exc_info=True)
+        return None, None  # Redis blew up → fail open (run anyway)
+
+
+async def _release_job_lock(redis, lock_key) -> None:
+    if redis is None or lock_key is None:
+        return
+    try:
+        await redis.delete(lock_key)
+    except Exception:
+        # Lock will expire on its own via TTL; no action needed.
+        logger.debug("Job lock release failed for %s", lock_key, exc_info=True)
+
+
+def sentry_job_wrapper(job_name: str, lock_ttl_seconds: int = _DEFAULT_JOB_LOCK_TTL_SECONDS):
+    """Decorator for APScheduler async jobs — captures exceptions to Sentry
+    with job context AND enforces exactly-once execution across two layers:
+
+    1. **Slot ownership** (blue/green dedup): only the slot whose name
+       matches ``lms:scheduler:owner`` in Redis runs jobs.
+    2. **Worker lock** (multi-worker uvicorn dedup): on each fire, the
+       first worker to SET NX ``lms:scheduler:lock:<job_name>`` wins;
+       other workers skip.
+
+    Both checks fail-open on Redis unavailability.
+
+    ``lock_ttl_seconds`` bounds how long a crashed worker can hold the lock
+    before auto-release. Default 5 minutes is longer than any well-behaved
+    recurring job but short enough to recover from a worker crash within
+    one or two intervals for most schedules.
     """
 
     def decorator(func):
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
-            # Skip if this container isn't the current scheduler owner.
-            # Returning early is NOT an error — it's the expected no-op on
-            # the non-owner slot. Logged at DEBUG to avoid log spam.
+            # Layer 1 — slot ownership (blue/green dedup).
             if not await _is_scheduler_owner():
                 logger.debug("Skipping %s — not scheduler owner", job_name)
+                return None
+
+            # Layer 2 — worker lock (multi-worker dedup).
+            redis, lock_key = await _acquire_job_lock(job_name, lock_ttl_seconds)
+            if lock_key == "held":
+                # Another uvicorn worker in this same container already runs it.
+                logger.debug("Skipping %s — lock held by sibling worker", job_name)
                 return None
 
             try:
                 import sentry_sdk
             except ImportError:
                 # sentry_sdk not installed — run job without instrumentation
-                return await func(*args, **kwargs)
+                try:
+                    return await func(*args, **kwargs)
+                finally:
+                    await _release_job_lock(redis, lock_key)
 
             with sentry_sdk.new_scope() as scope:
                 scope.set_tag("job_name", job_name)
@@ -226,6 +284,8 @@ def sentry_job_wrapper(job_name: str):
                     # Capture inside scope so job tags are attached to the event
                     sentry_sdk.capture_exception(exc)
                     raise
+                finally:
+                    await _release_job_lock(redis, lock_key)
 
         return wrapper
 
