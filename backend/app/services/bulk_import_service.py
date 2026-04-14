@@ -142,7 +142,10 @@ async def run_job(
     job.success_rows = ok
     job.failed_rows = fail
     job.errors = errors or None
-    job.status = "completed" if fail == 0 else "completed"  # status always completed; errors report per-row
+    # Status is always "completed" — per-row failures live in job.errors and
+    # the UI surfaces a "Partial" badge when failed_rows > 0. A job-level
+    # "failed" status is reserved for full-job aborts (e.g. bad encoding).
+    job.status = "completed"
     job.completed_at = datetime.now(timezone.utc)
     session.add(job)
     await session.commit()

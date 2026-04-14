@@ -406,16 +406,20 @@ async def bulk_import_jobs_list(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
 ):
+    from sqlalchemy import func as sa_func
     from app.models.integration import BulkImportJob
 
-    stmt = select(BulkImportJob).where(
-        BulkImportJob.institute_id == current_user.institute_id
-    ).order_by(BulkImportJob.created_at.desc())
-    total = (await session.execute(select(BulkImportJob).where(
-        BulkImportJob.institute_id == current_user.institute_id
-    ))).scalars().all()
+    base_filter = BulkImportJob.institute_id == current_user.institute_id
+
+    total = (await session.execute(
+        select(sa_func.count(BulkImportJob.id)).where(base_filter)
+    )).scalar_one()
+
     rows = (await session.execute(
-        stmt.limit(per_page).offset((page - 1) * per_page)
+        select(BulkImportJob)
+        .where(base_filter)
+        .order_by(BulkImportJob.created_at.desc())
+        .limit(per_page).offset((page - 1) * per_page)
     )).scalars().all()
 
     return {
@@ -432,7 +436,7 @@ async def bulk_import_jobs_list(
             }
             for r in rows
         ],
-        "total": len(total),
+        "total": total,
         "page": page,
         "per_page": per_page,
     }
