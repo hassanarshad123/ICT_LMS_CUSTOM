@@ -308,3 +308,112 @@ async def inbound_frappe_webhook(
         raise HTTPException(status_code=400, detail=str(e))
 
     return {"status": "accepted", **result_summary}
+
+
+# ── Tier 2: wizard introspection + auto-setup ─────────────────────
+
+@router.get("/frappe/introspect/{resource}")
+@limiter.limit("60/minute")
+async def introspect_frappe(
+    request: Request,
+    resource: str,
+    current_user: Admin,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    company: Optional[str] = None,
+    account_type: Optional[str] = Query(None, alias="accountType"),
+    refresh: bool = False,
+):
+    """Proxy read-only Frappe listings for the wizard's dropdowns.
+
+    ``resource`` ∈ {companies, accounts, modes-of-payment, cost-centers}.
+    Results are cached 5 minutes per institute — pass ``?refresh=true`` to
+    bust the cache (wizard offers this as a "Refresh" button).
+    """
+    try:
+        return await integration_service.introspect_resource(
+            session, current_user.institute_id,
+            resource=resource, company=company, account_type=account_type,
+            refresh=refresh,
+        )
+    except IntegrationError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/frappe/setup/custom-fields")
+@limiter.limit("10/hour")
+async def setup_custom_fields(
+    request: Request,
+    current_user: Admin,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """Install the 3 LMS custom fields in Frappe via REST API. Idempotent."""
+    try:
+        return await integration_service.install_custom_fields(
+            session, current_user.institute_id,
+        )
+    except IntegrationError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/frappe/setup/webhook")
+@limiter.limit("10/hour")
+async def setup_webhook(
+    request: Request,
+    current_user: Admin,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """Register the Payment Entry webhook in Frappe with the inbound secret
+    pre-filled. Generates the secret if not already set."""
+    try:
+        return await integration_service.register_webhook(
+            session, current_user.institute_id,
+        )
+    except IntegrationError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/frappe/setup/dry-run")
+@limiter.limit("5/hour")
+async def setup_dry_run(
+    request: Request,
+    current_user: Admin,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """Create + immediately cancel a test Sales Invoice in Frappe to verify
+    the full account mapping works end-to-end. Never touches real student
+    data; the test customer name is namespaced ``zensbot_test_<uuid>``.
+    """
+    try:
+        return await integration_service.run_dry_run(
+            session, current_user.institute_id,
+        )
+    except IntegrationError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.get("/frappe/setup/status")
+async def setup_status(
+    current_user: Admin,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """Per-step pass/fail snapshot — wizard uses this to resume."""
+    return await integration_service.get_setup_status(
+        session, current_user.institute_id,
+    )
+
+
+@router.put("/frappe/auto-create-customers")
+@limiter.limit("10/minute")
+async def update_auto_create_customers(
+    request: Request,
+    body: dict,
+    current_user: Admin,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """Toggle whether the outbound sync should auto-create Customers in
+    Frappe when they don't exist yet (closes the known v1 "Customer not
+    found" gap)."""
+    flag = bool(body.get("auto_create_customers", True))
+    return await integration_service.set_auto_create_customers(
+        session, current_user.institute_id, flag,
+    )

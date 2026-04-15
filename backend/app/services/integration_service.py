@@ -73,6 +73,8 @@ async def update_frappe_config(
         row.default_receivable_account = payload.default_receivable_account or None
     if payload.default_bank_account is not None:
         row.default_bank_account = payload.default_bank_account or None
+    if payload.auto_create_customers is not None:
+        row.auto_create_customers = payload.auto_create_customers
     if payload.default_mode_of_payment is not None:
         row.default_mode_of_payment = payload.default_mode_of_payment or None
     if payload.default_cost_center is not None:
@@ -181,6 +183,280 @@ async def test_frappe_connection(
     )
 
 
+# ── Tier 2: wizard helpers (introspection, auto-setup, dry-run) ──
+
+_DROPDOWN_MAP = {
+    # resource → (doctype, extra filters factory)
+    "companies": ("Company", lambda _: []),
+    "modes-of-payment": ("Mode of Payment", lambda _: []),
+    "cost-centers": ("Cost Center", lambda ctx: (
+        [["company", "=", ctx["company"]]] if ctx.get("company") else []
+    )),
+    "accounts": ("Account", lambda ctx: (
+        [
+            ["is_group", "=", 0],
+            *([["company", "=", ctx["company"]]] if ctx.get("company") else []),
+            *([["account_type", "=", ctx["account_type"]]] if ctx.get("account_type") else []),
+        ]
+    )),
+}
+
+
+async def _load_cfg_for_introspection(
+    session: AsyncSession, institute_id: uuid.UUID,
+) -> InstituteIntegration:
+    row = await _get_or_create(session, institute_id)
+    if not (row.frappe_base_url
+            and row.frappe_api_key_ciphertext
+            and row.frappe_api_secret_ciphertext):
+        raise IntegrationError(
+            "Frappe URL and credentials must be saved before you can browse Frappe data"
+        )
+    return row
+
+
+async def introspect_resource(
+    session: AsyncSession,
+    institute_id: uuid.UUID,
+    *,
+    resource: str,
+    company: Optional[str] = None,
+    account_type: Optional[str] = None,
+    refresh: bool = False,
+) -> dict:
+    """Proxy a Frappe listing for the wizard dropdowns. Cached 5 minutes."""
+    from app.core.cache import cache
+    from app.services.frappe_client import FrappeClient
+
+    if resource not in _DROPDOWN_MAP:
+        raise IntegrationError(f"Unknown introspection resource: {resource}")
+
+    row = await _load_cfg_for_introspection(session, institute_id)
+
+    doctype, filter_factory = _DROPDOWN_MAP[resource]
+    ctx = {"company": company, "account_type": account_type}
+    filters = filter_factory(ctx)
+
+    cache_key = (
+        f"frappe:introspect:{institute_id}:{resource}"
+        f":{company or '-'}:{account_type or '-'}"
+    )
+    if refresh:
+        await cache.delete(cache_key)
+
+    cached_hit = False
+    cached = await cache.get(cache_key)
+    if cached is not None:
+        cached_hit = True
+        return {"items": cached, "cached": True}
+
+    client = FrappeClient(row)
+    result = await client.list_resource(doctype, filters=filters)
+    if not result.ok:
+        raise IntegrationError(
+            f"Frappe rejected the request: {result.error or 'HTTP ' + str(result.status_code)}"
+        )
+    items = [{"name": r["name"]} for r in (result.response or {}).get("data", [])]
+    await cache.set(cache_key, items, ttl=300)
+    return {"items": items, "cached": cached_hit}
+
+
+_CUSTOM_FIELDS_SPEC = [
+    ("Sales Invoice", "custom_zensbot_fee_plan_id", "Zensbot Fee Plan ID"),
+    ("Payment Entry", "custom_zensbot_fee_plan_id", "Zensbot Fee Plan ID"),
+    ("Payment Entry", "custom_zensbot_payment_id", "Zensbot Payment ID"),
+]
+
+
+async def install_custom_fields(
+    session: AsyncSession, institute_id: uuid.UUID,
+) -> dict:
+    from app.services.frappe_client import FrappeClient
+
+    row = await _load_cfg_for_introspection(session, institute_id)
+    client = FrappeClient(row)
+
+    installed, skipped, failures = [], [], []
+    for doctype, fieldname, label in _CUSTOM_FIELDS_SPEC:
+        existing = await client.get_custom_field(doctype, fieldname)
+        if not existing.ok:
+            failures.append({"doctype": doctype, "fieldname": fieldname,
+                             "error": existing.error or f"HTTP {existing.status_code}"})
+            continue
+        if existing.doc_name:
+            skipped.append({"doctype": doctype, "fieldname": fieldname})
+            continue
+        result = await client.create_custom_field(
+            doctype=doctype, fieldname=fieldname, label=label,
+        )
+        if result.ok:
+            installed.append({"doctype": doctype, "fieldname": fieldname})
+        else:
+            failures.append({"doctype": doctype, "fieldname": fieldname,
+                             "error": result.error or f"HTTP {result.status_code}"})
+
+    if failures:
+        raise IntegrationError(
+            f"Installed {len(installed)}, skipped {len(skipped)}, "
+            f"failed {len(failures)}: {failures[0]['error']}"
+        )
+    return {
+        "ok": True,
+        "installed": installed,
+        "skipped": skipped,
+        "message": (
+            f"Custom fields ready: {len(installed)} created, {len(skipped)} already existed"
+        ),
+    }
+
+
+def _lms_webhook_url(institute_id: uuid.UUID) -> str:
+    from app.config import get_settings
+    base = (get_settings().PUBLIC_API_BASE_URL or "https://apiict.zensbot.site").rstrip("/")
+    return f"{base}/api/v1/integrations/frappe/webhook?institute_id={institute_id}"
+
+
+async def register_webhook(
+    session: AsyncSession, institute_id: uuid.UUID,
+) -> dict:
+    """Create (or update) the Payment Entry webhook in Frappe with the LMS
+    inbound secret pre-populated. Generates a secret first if needed.
+    """
+    from app.services.frappe_client import FrappeClient
+
+    row = await _load_cfg_for_introspection(session, institute_id)
+
+    # Generate inbound secret if absent — avoids an extra round-trip in the UI.
+    if not row.frappe_inbound_secret_ciphertext:
+        new_secret = _secrets.token_urlsafe(32)
+        row.frappe_inbound_secret_ciphertext = encrypt(new_secret)
+        session.add(row)
+        await session.flush()
+        secret_plaintext = new_secret
+    else:
+        secret_plaintext = decrypt(row.frappe_inbound_secret_ciphertext)
+
+    client = FrappeClient(row)
+    result = await client.upsert_webhook(
+        webhook_name="zensbot_lms_payment_entry_sync",
+        request_url=_lms_webhook_url(institute_id),
+        secret=secret_plaintext,
+    )
+    if not result.ok:
+        raise IntegrationError(
+            f"Frappe refused to register the webhook: {result.error or 'HTTP ' + str(result.status_code)}"
+        )
+    row.updated_at = datetime.now(timezone.utc)
+    session.add(row)
+    await session.commit()
+    return {
+        "ok": True,
+        "webhook_name": result.doc_name or "zensbot_lms_payment_entry_sync",
+        "message": "Webhook registered in Frappe with signature security enabled",
+    }
+
+
+async def run_dry_run(
+    session: AsyncSession, institute_id: uuid.UUID,
+) -> dict:
+    """Create + immediately cancel a test Sales Invoice to verify account
+    mappings end-to-end. Uses a namespaced customer to avoid leaking into
+    real records.
+    """
+    from app.services.frappe_client import FrappeClient
+
+    row = await _load_cfg_for_introspection(session, institute_id)
+    if not (row.default_company and row.default_income_account
+            and row.default_receivable_account):
+        raise IntegrationError(
+            "Dry-run needs Company, Income Account, and Receivable Account set"
+        )
+
+    client = FrappeClient(row)
+
+    # 1. Ensure the test Customer exists.
+    test_customer = f"zensbot_test_{institute_id.hex[:8]}"
+    cust = await client.create_customer(customer_name=test_customer)
+    if not cust.ok:
+        return {
+            "ok": False,
+            "message": f"Couldn't create test Customer: {cust.error or cust.status_code}",
+        }
+
+    # 2. Create a ₨1 test Sales Invoice with a fake fee_plan_id.
+    from uuid import uuid4 as _uuid4
+    fake_fee_plan_id = str(_uuid4())
+    inv = await client.upsert_sales_invoice(
+        fee_plan_id=fake_fee_plan_id,
+        customer_name=test_customer,
+        posting_date=datetime.now(timezone.utc).date().isoformat(),
+        due_date=None,
+        amount=1,
+        currency="PKR",
+        description="Zensbot LMS dry-run (automatically cancelled)",
+    )
+    if not inv.ok or not inv.doc_name:
+        return {
+            "ok": False,
+            "message": f"Frappe rejected the test Sales Invoice: {inv.error or inv.status_code}",
+            "detail": (inv.response or {}).get("exception") if isinstance(inv.response, dict) else None,
+        }
+
+    # 3. Immediately cancel.
+    cancel = await client.cancel_sales_invoice(fee_plan_id=fake_fee_plan_id)
+
+    return {
+        "ok": True,
+        "invoice_name": inv.doc_name,
+        "cancelled": bool(cancel.ok and cancel.doc_name),
+        "message": (
+            f"Dry-run succeeded — test invoice {inv.doc_name} created and "
+            f"{'cancelled' if cancel.ok else 'NOT cancelled (please cancel manually)'}"
+        ),
+    }
+
+
+async def get_setup_status(
+    session: AsyncSession, institute_id: uuid.UUID,
+) -> dict:
+    """Cheap summary of which setup steps the admin has completed.
+
+    Does NOT call Frappe — reads only local DB state. The wizard uses this
+    to resume at the right step on mount.
+    """
+    row = await _get_or_create(session, institute_id)
+    connection = (
+        "ok" if row.last_test_status == "success"
+        else ("missing" if not (row.frappe_base_url
+                                and row.frappe_api_key_ciphertext
+                                and row.frappe_api_secret_ciphertext)
+              else "unknown")
+    )
+    accounts_mapped = "ok" if (
+        row.default_company and row.default_income_account
+        and row.default_receivable_account and row.default_bank_account
+        and row.default_mode_of_payment
+    ) else "missing"
+    return {
+        "connection": connection,
+        "accounts_mapped": accounts_mapped,
+        "custom_fields_installed": "unknown",  # verified by /setup/custom-fields call
+        "webhook_registered": "unknown",        # verified by /setup/webhook call
+        "inbound_secret_shared": "ok" if row.frappe_inbound_secret_ciphertext else "missing",
+    }
+
+
+async def set_auto_create_customers(
+    session: AsyncSession, institute_id: uuid.UUID, enabled: bool,
+) -> dict:
+    row = await _get_or_create(session, institute_id)
+    row.auto_create_customers = enabled
+    row.updated_at = datetime.now(timezone.utc)
+    session.add(row)
+    await session.commit()
+    return {"auto_create_customers": enabled}
+
+
 # ── Helpers used by the Phase 3 outbound client ───────────────────
 
 async def load_active_frappe_config(
@@ -215,6 +491,7 @@ def _serialize(row: InstituteIntegration) -> FrappeConfigOut:
         default_income_account=row.default_income_account,
         default_receivable_account=row.default_receivable_account,
         default_bank_account=row.default_bank_account,
+        auto_create_customers=bool(row.auto_create_customers),
         default_mode_of_payment=row.default_mode_of_payment,
         default_cost_center=row.default_cost_center,
         default_company=row.default_company,

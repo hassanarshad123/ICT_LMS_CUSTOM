@@ -56,6 +56,11 @@ class InstituteIntegration(SQLModel, table=True):
         default=None, sa_column=Column(Text, nullable=True),
     )
 
+    # Feature flag: when True, outbound sync auto-creates a Customer in Frappe
+    # if one doesn't already exist for the student. Closes the v1 "Customer
+    # not found" gap without forcing admins to bulk-import customers first.
+    auto_create_customers: bool = Field(default=True, nullable=False)
+
     # Connection-test telemetry (populated by the "Test connection" button)
     last_test_at: Optional[datetime] = Field(
         default=None, sa_column=Column(TIMESTAMP(timezone=True), nullable=True),

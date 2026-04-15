@@ -18,6 +18,12 @@ class Settings(BaseSettings):
     FRONTEND_BASE_DOMAIN: str = ""  # e.g. "zensbot.online" for tenant-aware reset URLs
     ALLOWED_ORIGINS: str = ""  # e.g. "https://zensbot.online,http://localhost:3000"
 
+    # Public-facing API base URL (used when we need to tell external systems
+    # how to reach us — e.g. the Frappe webhook URL baked into the Frappe
+    # Webhook record). In dev leave blank and we'll fall back to the Frappe
+    # wizard copy-paste path.
+    PUBLIC_API_BASE_URL: str = ""
+
     # Subdomain warmup — pre-warms Vercel wildcard SSL cert for new tenant subdomains
     SUBDOMAIN_WARMUP_ENABLED: bool = True
     SUBDOMAIN_WARMUP_MAX_ATTEMPTS: int = 5

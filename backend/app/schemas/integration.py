@@ -26,6 +26,8 @@ class FrappeConfigIn(BaseModel):
     default_cost_center: Optional[str] = None
     default_company: Optional[str] = None
 
+    auto_create_customers: Optional[bool] = None
+
     @field_validator("frappe_base_url")
     @classmethod
     def _validate_url(cls, v: Optional[str]) -> Optional[str]:
@@ -64,6 +66,8 @@ class FrappeConfigOut(BaseModel):
     default_cost_center: Optional[str] = None
     default_company: Optional[str] = None
 
+    auto_create_customers: bool = True
+
     last_test_at: Optional[datetime] = None
     last_test_status: Optional[str] = None
     last_test_error: Optional[str] = None
@@ -82,6 +86,49 @@ class FrappeInboundSecretOut(BaseModel):
     """One-time reveal of the inbound webhook secret — only shown on rotation."""
     secret: str
     note: str = "Store this value — you won't be able to see it again."
+
+
+# ── Tier 2: wizard / auto-setup schemas ─────────────────────────
+
+class FrappeDropdownItem(BaseModel):
+    """A single choice for an introspection dropdown (account, company, etc.)."""
+    name: str
+
+
+class FrappeDropdownOut(BaseModel):
+    items: list[FrappeDropdownItem]
+    cached: bool = False
+
+
+class FrappeSetupStepResult(BaseModel):
+    """One step of the wizard after running an action."""
+    ok: bool
+    message: str
+    detail: Optional[str] = None
+
+
+class FrappeSetupStatus(BaseModel):
+    """Per-step pass/fail snapshot, used on wizard mount to resume where the
+    admin left off. Values: ``ok`` / ``missing`` / ``unknown``.
+    """
+    connection: str
+    accounts_mapped: str
+    custom_fields_installed: str
+    webhook_registered: str
+    inbound_secret_shared: str
+
+
+class FrappeDryRunOut(BaseModel):
+    """Result of the end-to-end dry-run sync test."""
+    ok: bool
+    invoice_name: Optional[str] = None
+    cancelled: bool = False
+    message: str
+    detail: Optional[str] = None
+
+
+class FrappeAutoCustomerToggleIn(BaseModel):
+    auto_create_customers: bool
 
 
 # ── Sync log (Phase 5 — shipped early alongside the schemas) ──────

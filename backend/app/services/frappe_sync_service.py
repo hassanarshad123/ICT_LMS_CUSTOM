@@ -202,6 +202,12 @@ async def _sync_sales_invoice(
     if plan is None or student is None or batch is None:
         return False, _build_log_row(task, status="failed", error="Fee plan / student / batch missing")
 
+    # Auto-create Customer if the institute opted in (default True). Closes
+    # the v1 "Customer not found" gap without pre-seeding Frappe's Customer
+    # list. Idempotent — the client returns ok if the Customer already exists.
+    if getattr(client.cfg, "auto_create_customers", True):
+        await client.create_customer(customer_name=student.name, email=student.email)
+
     result = await client.upsert_sales_invoice(
         fee_plan_id=str(plan.id),
         customer_name=student.name,

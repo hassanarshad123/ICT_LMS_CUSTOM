@@ -168,6 +168,194 @@ class FrappeClient:
             "Sales Invoice", existing.doc_name, {"status": "Cancelled", "docstatus": 2},
         )
 
+    # ── introspection (Tier 2: dropdown population) ────────────────
+
+    async def list_resource(
+        self,
+        doctype: str,
+        *,
+        fields: Optional[list[str]] = None,
+        filters: Optional[list[list]] = None,
+        limit: int = 200,
+    ) -> FrappeResult:
+        """Generic ``GET /api/resource/{doctype}`` helper.
+
+        Used by the wizard's dropdowns. Never mutates. Trims ``fields`` to
+        ``["name"]`` by default to keep payloads small — dropdowns only need
+        the name.
+        """
+        url = f"{self.base_url}/api/resource/{doctype}"
+        params: dict[str, Any] = {
+            "fields": json.dumps(fields or ["name"]),
+            "limit_page_length": limit,
+        }
+        if filters:
+            params["filters"] = json.dumps(filters)
+        try:
+            async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
+                resp = await client.get(url, params=params, headers=self._auth_header)
+        except httpx.RequestError as e:
+            return FrappeResult(ok=False, error=f"Network error: {type(e).__name__}")
+
+        if resp.status_code != 200:
+            return FrappeResult(ok=False, status_code=resp.status_code, error=resp.text[:500])
+
+        data = resp.json().get("data") or []
+        return FrappeResult(ok=True, status_code=200, response={"data": data})
+
+    # ── schema setup (Tier 2: auto-install fields + webhook) ──────
+
+    async def get_custom_field(self, doctype: str, fieldname: str) -> FrappeResult:
+        """Return ok=True + doc_name if the custom field already exists.
+
+        Used for idempotency before ``create_custom_field``.
+        """
+        url = f"{self.base_url}/api/resource/Custom Field"
+        params = {
+            "filters": json.dumps([["dt", "=", doctype], ["fieldname", "=", fieldname]]),
+            "fields": json.dumps(["name"]),
+            "limit_page_length": 1,
+        }
+        try:
+            async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
+                resp = await client.get(url, params=params, headers=self._auth_header)
+        except httpx.RequestError as e:
+            return FrappeResult(ok=False, error=f"Network error: {type(e).__name__}")
+
+        if resp.status_code != 200:
+            return FrappeResult(ok=False, status_code=resp.status_code, error=resp.text[:500])
+        data = resp.json().get("data") or []
+        if not data:
+            return FrappeResult(ok=True, status_code=200, doc_name=None)
+        return FrappeResult(ok=True, status_code=200, doc_name=data[0]["name"])
+
+    async def create_custom_field(
+        self,
+        *,
+        doctype: str,
+        fieldname: str,
+        label: str,
+        fieldtype: str = "Data",
+        insert_after: str = "amended_from",
+    ) -> FrappeResult:
+        """Create (if absent) a Custom Field in Frappe.
+
+        Frappe v15 auto-prefixes fieldnames with ``custom_``; callers should
+        pass the final desired name (e.g. ``custom_zensbot_fee_plan_id``) and
+        Frappe will use it as-is when it already starts with ``custom_``.
+        """
+        existing = await self.get_custom_field(doctype, fieldname)
+        if existing.ok and existing.doc_name:
+            return FrappeResult(ok=True, status_code=200, doc_name=existing.doc_name)
+        body = {
+            "dt": doctype,
+            "fieldname": fieldname,
+            "label": label,
+            "fieldtype": fieldtype,
+            "insert_after": insert_after,
+        }
+        return await self._post_resource("Custom Field", body)
+
+    async def get_webhook(self, name: str) -> FrappeResult:
+        """Look up a Webhook record by its name."""
+        url = f"{self.base_url}/api/resource/Webhook/{name}"
+        try:
+            async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
+                resp = await client.get(url, headers=self._auth_header)
+        except httpx.RequestError as e:
+            return FrappeResult(ok=False, error=f"Network error: {type(e).__name__}")
+        if resp.status_code == 404:
+            return FrappeResult(ok=True, status_code=404, doc_name=None)
+        if resp.status_code != 200:
+            return FrappeResult(ok=False, status_code=resp.status_code, error=resp.text[:500])
+        return FrappeResult(ok=True, status_code=200, doc_name=name, response=resp.json())
+
+    async def upsert_webhook(
+        self,
+        *,
+        webhook_name: str,
+        request_url: str,
+        secret: str,
+        doctype: str = "Payment Entry",
+        docevent: str = "after_insert",
+    ) -> FrappeResult:
+        """Create or update the LMS Payment Entry webhook in Frappe.
+
+        Uses Frappe's native ``enable_security=1`` so Frappe signs the body
+        with HMAC-SHA256 using the stored ``webhook_secret`` — matching the
+        LMS inbound endpoint signature expectation.
+        """
+        body: dict[str, Any] = {
+            "webhook_doctype": doctype,
+            "webhook_docevent": docevent,
+            "request_url": request_url,
+            "request_method": "POST",
+            "request_structure": "JSON",
+            "enabled": 1,
+            "enable_security": 1,
+            "webhook_secret": secret,
+            "timeout": 5,
+            "webhook_headers": [
+                {"key": "Content-Type", "value": "application/json"},
+            ],
+            "webhook_json": (
+                '{\n  "doc": {\n'
+                '    "name": "{{ doc.name }}",\n'
+                '    "custom_zensbot_fee_plan_id": "{{ doc.custom_zensbot_fee_plan_id or \'\' }}",\n'
+                '    "custom_zensbot_payment_id": "{{ doc.custom_zensbot_payment_id or \'\' }}",\n'
+                '    "paid_amount": {{ doc.paid_amount or 0 }},\n'
+                '    "received_amount": {{ doc.received_amount or 0 }},\n'
+                '    "posting_date": "{{ doc.posting_date }}",\n'
+                '    "mode_of_payment": "{{ doc.mode_of_payment or \'\' }}",\n'
+                '    "reference_no": "{{ doc.reference_no or \'\' }}"\n'
+                '  }\n}'
+            ),
+        }
+        existing = await self.get_webhook(webhook_name)
+        if existing.ok and existing.doc_name:
+            return await self._put_resource("Webhook", existing.doc_name, body)
+        # Frappe auto-generates webhook name — pass it explicitly.
+        body["name"] = webhook_name
+        return await self._post_resource("Webhook", body)
+
+    # ── customer auto-create (Tier 2: v1 gap closure) ─────────────
+
+    async def find_customer(self, customer_name: str) -> FrappeResult:
+        """Look up a Customer by exact name (Frappe's primary key)."""
+        url = f"{self.base_url}/api/resource/Customer/{customer_name}"
+        try:
+            async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
+                resp = await client.get(url, headers=self._auth_header)
+        except httpx.RequestError as e:
+            return FrappeResult(ok=False, error=f"Network error: {type(e).__name__}")
+        if resp.status_code == 404:
+            return FrappeResult(ok=True, status_code=404, doc_name=None)
+        if resp.status_code != 200:
+            return FrappeResult(ok=False, status_code=resp.status_code, error=resp.text[:500])
+        return FrappeResult(ok=True, status_code=200, doc_name=customer_name)
+
+    async def create_customer(
+        self,
+        *,
+        customer_name: str,
+        email: Optional[str] = None,
+        customer_group: str = "Individual",
+        territory: str = "All Territories",
+    ) -> FrappeResult:
+        """Create a Customer in Frappe. Idempotent — returns ok if already exists."""
+        existing = await self.find_customer(customer_name)
+        if existing.ok and existing.doc_name:
+            return FrappeResult(ok=True, status_code=200, doc_name=existing.doc_name)
+        body: dict[str, Any] = {
+            "customer_name": customer_name,
+            "customer_type": "Individual",
+            "customer_group": customer_group,
+            "territory": territory,
+        }
+        if email:
+            body["email_id"] = email
+        return await self._post_resource("Customer", body)
+
     # ── internals ──────────────────────────────────────────────────
 
     @property
