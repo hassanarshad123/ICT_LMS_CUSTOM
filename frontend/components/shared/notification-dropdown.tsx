@@ -17,6 +17,7 @@ import {
   Loader2,
   Wallet,
   AlertTriangle,
+  Plug,
   X,
 } from 'lucide-react';
 
@@ -28,6 +29,7 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   enrollment: <Users size={16} className="text-primary" />,
   new_feedback: <MessageSquare size={16} className="text-amber-500" />,
   feedback_response: <MessageSquare size={16} className="text-green-500" />,
+  integration_sync_failure: <Plug size={16} className="text-red-500" />,
 };
 
 /** Fee reminder types carry an installment UUID suffix (``fee_due_soon_7d:<id>``).

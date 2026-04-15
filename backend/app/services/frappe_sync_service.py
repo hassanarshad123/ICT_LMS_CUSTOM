@@ -157,6 +157,20 @@ async def _run_task(session: AsyncSession, task: IntegrationSyncTask) -> None:
     session.add(task)
     await session.commit()
 
+    # Tier 3: notify admins when a task terminally fails (all retries exhausted).
+    # Fires exactly once per task — ``completed`` / still-retrying tasks skip.
+    if task.status == "failed":
+        try:
+            from app.services import integration_notifications
+            await integration_notifications.notify_sync_failure(
+                session,
+                institute_id=task.institute_id,
+                event_type=task.event_type,
+                error_message=log_row.error_message or "unknown error",
+            )
+        except Exception:  # noqa: BLE001
+            logger.exception("Failed to dispatch sync failure notification")
+
 
 async def _dispatch(
     session: AsyncSession,

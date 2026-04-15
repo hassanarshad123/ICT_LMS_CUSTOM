@@ -309,6 +309,29 @@ async def process_frappe_sync_tasks():
             logger.error("Frappe sync processing failed: %s", e)
 
 
+@sentry_job_wrapper("send_integration_weekly_digest")
+async def send_integration_weekly_digest():
+    """Weekly: email each institute admin a 7-day Frappe sync health summary.
+
+    Skipped institutes:
+      - frappe_enabled = False (don't pester anyone not using the integration)
+      - Zero sync activity in the last 7 days (nothing to report)
+
+    De-duplication relies on the weekly schedule + the cache key in
+    integration_digest service — re-running the job within the same 7-day
+    window won't re-send.
+    """
+    from app.services import integration_digest
+
+    async with async_session() as session:
+        try:
+            count = await integration_digest.send_weekly_digests(session)
+            if count:
+                logger.info("Sent %d Frappe weekly digest emails", count)
+        except Exception as e:
+            logger.error("Frappe weekly digest failed: %s", e)
+
+
 @sentry_job_wrapper("cleanup_stale_uploads")
 async def cleanup_stale_uploads():
     """Soft-delete lectures stuck in 'pending' for over 24 hours (daily).

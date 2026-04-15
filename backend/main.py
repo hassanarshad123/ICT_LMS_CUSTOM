@@ -70,7 +70,7 @@ async def lifespan(app: FastAPI):
     if settings.SCHEDULER_ENABLED:
         try:
             from apscheduler.schedulers.asyncio import AsyncIOScheduler
-            from app.scheduler.jobs import cleanup_expired_sessions, send_zoom_reminders, retry_failed_recordings, cleanup_stale_uploads, auto_suspend_expired_institutes, process_webhook_deliveries, recalculate_all_usage, send_batch_expiry_notifications, sync_stuck_video_statuses, send_trial_expiry_warnings, deactivate_unverified_users, purge_stale_records, backfill_video_durations, send_fee_reminders, process_frappe_sync_tasks
+            from app.scheduler.jobs import cleanup_expired_sessions, send_zoom_reminders, retry_failed_recordings, cleanup_stale_uploads, auto_suspend_expired_institutes, process_webhook_deliveries, recalculate_all_usage, send_batch_expiry_notifications, sync_stuck_video_statuses, send_trial_expiry_warnings, deactivate_unverified_users, purge_stale_records, backfill_video_durations, send_fee_reminders, process_frappe_sync_tasks, send_integration_weekly_digest
 
             scheduler = AsyncIOScheduler()
             scheduler.add_job(cleanup_expired_sessions, "interval", hours=1, id="cleanup_sessions")
@@ -88,6 +88,10 @@ async def lifespan(app: FastAPI):
             scheduler.add_job(deactivate_unverified_users, "interval", hours=12, id="deactivate_unverified")
             scheduler.add_job(purge_stale_records, "interval", hours=24, id="purge_stale_records")
             scheduler.add_job(backfill_video_durations, "interval", hours=6, id="backfill_durations")
+            # Weekly Frappe sync digest — fires every 24h, but the job itself
+            # dedupes per institute on a 6-day Redis cache so admins get one
+            # email per week max even if the job fires daily.
+            scheduler.add_job(send_integration_weekly_digest, "interval", hours=24, id="integration_weekly_digest")
             scheduler.start()
             app.state.scheduler = scheduler
             logging.getLogger("ict_lms").info("Scheduler started (slot=%s)", settings.DEPLOY_SLOT)
