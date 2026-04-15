@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import { ApiError } from '@/lib/api/client';
 import { useApi, useMutation } from '@/hooks/use-api';
+import { useAuth } from '@/lib/auth-context';
+import { useCopyToClipboard } from '@/lib/hooks/use-copy-to-clipboard';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -15,11 +17,29 @@ import {
 } from '@/components/ui/alert-dialog';
 import {
   Plug, Check, X, RefreshCw, Copy, Key, AlertTriangle, BookOpen, ExternalLink, Loader2,
+  Circle, Link2, ChevronDown, ChevronUp, Code,
 } from 'lucide-react';
 import {
   getFrappeConfig, updateFrappeConfig, testFrappeConnection, rotateInboundSecret,
   type FrappeConfig,
 } from '@/lib/api/integrations';
+import { getHmacServerScript, getCustomFieldFixture } from '@/lib/integrations/frappe-snippets';
+
+/**
+ * Derive the public LMS webhook URL from NEXT_PUBLIC_API_URL. Frappe dials
+ * this directly from their server, so it must be the public API host, not
+ * the frontend origin (Next.js rewrites don't apply to server-to-server calls).
+ */
+function buildWebhookUrl(instituteId: string | null | undefined): string {
+  if (!instituteId) return '';
+  const raw = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
+  // Strip trailing /api/v1 if present so we can cleanly append the full path.
+  const base = raw.replace(/\/api\/v1\/?$/, '').replace(/\/$/, '');
+  // If base is empty or relative (dev without NEXT_PUBLIC_API_URL), fall back
+  // to window.location.origin so the copy-button still yields something sane.
+  const origin = base || (typeof window !== 'undefined' ? window.location.origin : '');
+  return `${origin}/api/v1/integrations/frappe/webhook?institute_id=${instituteId}`;
+}
 
 type LocalForm = {
   frappeBaseUrl: string;
@@ -61,10 +81,16 @@ function hydrateForm(cfg: FrappeConfig): LocalForm {
 
 export default function FrappeTab() {
   const { data: cfg, loading, error, refetch } = useApi(getFrappeConfig, []);
+  const { user } = useAuth();
+  const copy = useCopyToClipboard();
   const [form, setForm] = useState<LocalForm>(BLANK_FORM);
   const [enabled, setEnabled] = useState(false);
   const [showSecret, setShowSecret] = useState<{ secret: string } | null>(null);
   const [confirmRotate, setConfirmRotate] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+
+  const instituteId = user?.instituteId;
+  const webhookUrl = useMemo(() => buildWebhookUrl(instituteId), [instituteId]);
 
   useEffect(() => {
     if (cfg) {
@@ -134,9 +160,44 @@ export default function FrappeTab() {
 
   function copySecret() {
     if (!showSecret) return;
-    navigator.clipboard.writeText(showSecret.secret);
-    toast.success('Secret copied to clipboard');
+    copy(showSecret.secret, 'Secret copied to clipboard');
   }
+
+  // Setup checklist — computed locally from cfg. Items 4–6 (Frappe-side state)
+  // flip to "needs verification" once Tier 2 adds backend probing.
+  const checklist = [
+    {
+      label: 'Frappe URL set',
+      done: !!cfg?.frappeBaseUrl,
+    },
+    {
+      label: 'API Key + Secret stored',
+      done: !!(cfg?.apiKeySet && cfg?.apiSecretSet),
+    },
+    {
+      label: 'Account mapping complete',
+      done: !!(
+        cfg?.defaultCompany
+        && cfg?.defaultIncomeAccount
+        && cfg?.defaultReceivableAccount
+        && cfg?.defaultBankAccount
+        && cfg?.defaultModeOfPayment
+      ),
+    },
+    {
+      label: 'Inbound webhook secret generated',
+      done: !!cfg?.inboundSecretSet,
+    },
+    {
+      label: 'Last connection test passed',
+      done: cfg?.lastTestStatus === 'success',
+    },
+    {
+      label: 'Sync enabled',
+      done: !!cfg?.frappeEnabled,
+    },
+  ];
+  const checklistDone = checklist.filter((c) => c.done).length;
 
   if (loading) return <div className="p-8 text-center text-gray-500">Loading Frappe config…</div>;
   if (error) return <div className="p-8 text-center text-red-600">{error}</div>;
@@ -187,6 +248,60 @@ export default function FrappeTab() {
             {cfg.lastTestError}
           </div>
         )}
+      </div>
+
+      {/* Your webhook details — institute ID + pre-built URL, auto-populated */}
+      <div className="bg-white rounded-2xl border border-gray-100 card-shadow p-5 space-y-3">
+        <div className="flex items-center gap-2">
+          <Link2 size={16} className="text-primary" />
+          <h3 className="font-semibold text-primary">Your webhook details</h3>
+          <span className="text-xs text-gray-400">(paste these into Frappe)</span>
+        </div>
+
+        <div className="space-y-2.5">
+          <CopyRow
+            label="Institute ID"
+            value={instituteId || '— loading —'}
+            disabled={!instituteId}
+            onCopy={() => instituteId && copy(instituteId, 'Institute ID copied')}
+          />
+          <CopyRow
+            label="Webhook URL (Frappe → LMS)"
+            value={webhookUrl || '— loading —'}
+            disabled={!webhookUrl}
+            onCopy={() => webhookUrl && copy(webhookUrl, 'Webhook URL copied')}
+            mono
+          />
+        </div>
+
+        <p className="text-[11px] text-gray-400">
+          Open your Frappe Webhook record → paste the URL above as{' '}
+          <span className="font-medium text-gray-500">Request URL</span> → enable{' '}
+          <span className="font-medium text-gray-500">Enable Security</span> → paste your inbound
+          secret → save.
+        </p>
+      </div>
+
+      {/* Setup checklist */}
+      <div className="bg-white rounded-2xl border border-gray-100 card-shadow p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-primary">Setup progress</h3>
+          <span className="text-xs text-gray-500">
+            {checklistDone}/{checklist.length} complete
+          </span>
+        </div>
+        <ul className="space-y-1.5">
+          {checklist.map((item) => (
+            <li key={item.label} className="flex items-center gap-2 text-sm">
+              {item.done ? (
+                <Check size={14} className="text-green-600 flex-shrink-0" />
+              ) : (
+                <Circle size={14} className="text-gray-300 flex-shrink-0" />
+              )}
+              <span className={item.done ? 'text-gray-700' : 'text-gray-400'}>{item.label}</span>
+            </li>
+          ))}
+        </ul>
       </div>
 
       {/* Connection form */}
@@ -289,14 +404,25 @@ export default function FrappeTab() {
               )}
             </p>
           </div>
-          <button
-            onClick={() => setConfirmRotate(true)}
-            disabled={rotateMut.loading}
-            className="inline-flex items-center gap-2 bg-primary text-white rounded-xl px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
-          >
-            {rotateMut.loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-            {cfg?.inboundSecretSet ? 'Rotate secret' : 'Generate secret'}
-          </button>
+          {cfg?.inboundSecretSet ? (
+            <button
+              onClick={() => setConfirmRotate(true)}
+              disabled={rotateMut.loading}
+              className="inline-flex items-center gap-2 bg-red-50 text-red-700 border border-red-200 rounded-xl px-4 py-2 text-sm font-medium hover:bg-red-100 disabled:opacity-50"
+            >
+              {rotateMut.loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+              Rotate secret
+            </button>
+          ) : (
+            <button
+              onClick={onRotate}
+              disabled={rotateMut.loading}
+              className="inline-flex items-center gap-2 bg-primary text-white rounded-xl px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
+            >
+              {rotateMut.loading ? <Loader2 size={14} className="animate-spin" /> : <Key size={14} />}
+              Generate secret
+            </button>
+          )}
         </div>
       </div>
 
@@ -321,15 +447,73 @@ export default function FrappeTab() {
         </button>
       </div>
 
+      {/* Advanced — manual setup snippets */}
+      <div className="bg-white rounded-2xl border border-gray-100 card-shadow p-5">
+        <button
+          onClick={() => setAdvancedOpen((v) => !v)}
+          className="w-full flex items-center justify-between text-left"
+        >
+          <div className="flex items-center gap-2">
+            <Code size={16} className="text-gray-500" />
+            <h3 className="font-semibold text-primary">Advanced — manual Frappe setup</h3>
+            <span className="text-xs text-gray-400">(only needed if you skip the connector app)</span>
+          </div>
+          {advancedOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        </button>
+
+        {advancedOpen && (
+          <div className="mt-4 space-y-4">
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-medium text-gray-700">
+                  Custom fields (paste into Frappe manually)
+                </span>
+              </div>
+              <pre className="bg-gray-50 border border-gray-200 rounded-xl p-3 font-mono text-[11px] whitespace-pre-wrap">
+                {getCustomFieldFixture()}
+              </pre>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-medium text-gray-700">
+                  HMAC signing script (for Frappe Webhook server-script)
+                </span>
+                {cfg?.inboundSecretSet && (
+                  <button
+                    onClick={() => copy(
+                      getHmacServerScript('<paste-your-secret-here>'),
+                      'HMAC script copied — replace the secret placeholder with the real one',
+                    )}
+                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                  >
+                    <Copy size={11} /> Copy
+                  </button>
+                )}
+              </div>
+              <pre className="bg-gray-50 border border-gray-200 rounded-xl p-3 font-mono text-[11px] whitespace-pre-wrap max-h-60 overflow-auto">
+                {getHmacServerScript('<paste-your-secret-here>')}
+              </pre>
+              <p className="text-[11px] text-gray-400 mt-1.5">
+                Only needed if you&apos;re NOT using Frappe&apos;s built-in &quot;Enable Security&quot;
+                checkbox. For most institutes, enabling security on the Webhook record is simpler.
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Rotate confirm */}
       <AlertDialog open={confirmRotate} onOpenChange={setConfirmRotate}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Rotate inbound secret?</AlertDialogTitle>
             <AlertDialogDescription>
-              The current secret will stop working immediately. Frappe webhook records using it will
-              fail until you update them with the new secret. You&apos;ll see the new secret once —
-              copy it right away.
+              This will immediately invalidate the existing secret. Any Frappe webhook using it will
+              start failing with 401 until you open the Frappe Webhook record and paste the new
+              secret. You&apos;ll see the new secret <strong>once</strong> — copy it to a password
+              manager before closing the dialog. Only rotate if you suspect the current secret has
+              leaked or you&apos;ve lost it.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -368,6 +552,41 @@ export default function FrappeTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function CopyRow({
+  label, value, onCopy, disabled, mono,
+}: {
+  label: string;
+  value: string;
+  onCopy: () => void;
+  disabled?: boolean;
+  mono?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex-1 min-w-0">
+        <div className="text-[11px] font-medium text-gray-500 mb-0.5">{label}</div>
+        <div
+          className={`bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-xs truncate ${
+            mono ? 'font-mono' : ''
+          } ${disabled ? 'text-gray-400' : 'text-gray-700'}`}
+          title={value}
+        >
+          {value}
+        </div>
+      </div>
+      <button
+        onClick={onCopy}
+        disabled={disabled}
+        className="inline-flex items-center gap-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed mt-4"
+        aria-label={`Copy ${label}`}
+      >
+        <Copy size={12} />
+        Copy
+      </button>
     </div>
   );
 }

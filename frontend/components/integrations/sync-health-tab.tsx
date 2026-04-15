@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { ApiError } from '@/lib/api/client';
 import { useApi, useMutation } from '@/hooks/use-api';
 import { Badge } from '@/components/ui/badge';
+import { translateError } from '@/lib/integrations/error-messages';
 import {
   Activity, CheckCircle, XCircle, Clock, RefreshCw, AlertTriangle, Loader2, ArrowDown, ArrowUp,
 } from 'lucide-react';
@@ -230,8 +231,24 @@ function SyncLogRow({
           <span className="text-[10px] text-gray-400 ml-1">×{row.attemptCount}</span>
         )}
       </td>
-      <td className="px-4 py-3 text-xs text-red-600 max-w-xs truncate" title={row.errorMessage || ''}>
-        {row.errorMessage || '—'}
+      <td className="px-4 py-3 text-xs max-w-xs" title={row.errorMessage || ''}>
+        {(() => {
+          const t = translateError(row.errorMessage);
+          const color =
+            t.severity === 'info' ? 'text-gray-600'
+              : t.severity === 'warning' ? 'text-amber-700'
+              : 'text-red-600';
+          return (
+            <div className="truncate">
+              <span className={color}>{t.friendly}</span>
+              {t.hint && (
+                <span className="block text-[10px] text-gray-400 truncate" title={t.hint}>
+                  {t.hint}
+                </span>
+              )}
+            </div>
+          );
+        })()}
       </td>
       <td className="px-4 py-3 text-right">
         {isFailed && isOutbound && (
