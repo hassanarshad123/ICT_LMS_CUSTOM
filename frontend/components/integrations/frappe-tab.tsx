@@ -17,13 +17,14 @@ import {
 } from '@/components/ui/alert-dialog';
 import {
   Plug, Check, X, RefreshCw, Copy, Key, AlertTriangle, BookOpen, ExternalLink, Loader2,
-  Circle, Link2, ChevronDown, ChevronUp, Code,
+  Circle, Link2, ChevronDown, ChevronUp, Code, Sparkles,
 } from 'lucide-react';
 import {
   getFrappeConfig, updateFrappeConfig, testFrappeConnection, rotateInboundSecret,
   type FrappeConfig,
 } from '@/lib/api/integrations';
 import { getHmacServerScript, getCustomFieldFixture } from '@/lib/integrations/frappe-snippets';
+import FrappeSetupWizard from './frappe-setup-wizard';
 
 /**
  * Derive the public LMS webhook URL from NEXT_PUBLIC_API_URL. Frappe dials
@@ -88,6 +89,7 @@ export default function FrappeTab() {
   const [showSecret, setShowSecret] = useState<{ secret: string } | null>(null);
   const [confirmRotate, setConfirmRotate] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
 
   const instituteId = user?.instituteId;
   const webhookUrl = useMemo(() => buildWebhookUrl(instituteId), [instituteId]);
@@ -249,6 +251,29 @@ export default function FrappeTab() {
           </div>
         )}
       </div>
+
+      {/* Setup wizard launcher — primary CTA for new/incomplete setups */}
+      {!cfg?.frappeEnabled && (
+        <div className="bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20 rounded-2xl p-5 flex items-center justify-between gap-4">
+          <div>
+            <h3 className="font-semibold text-primary flex items-center gap-2">
+              <Sparkles size={16} /> Set up Frappe in 6 quick steps
+            </h3>
+            <p className="text-sm text-gray-600 mt-1">
+              {cfg?.frappeBaseUrl
+                ? 'Pick up where you left off — the wizard skips the steps you\u2019ve already done.'
+                : 'Our wizard connects to your Frappe, installs the required fields, registers the webhook, and runs a safe test. No Frappe UI clicks needed.'}
+            </p>
+          </div>
+          <button
+            onClick={() => setWizardOpen(true)}
+            className="inline-flex items-center gap-2 bg-primary text-white rounded-xl px-5 py-2.5 text-sm font-medium hover:bg-primary/90 flex-shrink-0"
+          >
+            <Sparkles size={14} />
+            {cfg?.frappeBaseUrl ? 'Resume setup' : 'Start setup'}
+          </button>
+        </div>
+      )}
 
       {/* Your webhook details — institute ID + pre-built URL, auto-populated */}
       <div className="bg-white rounded-2xl border border-gray-100 card-shadow p-5 space-y-3">
@@ -522,6 +547,16 @@ export default function FrappeTab() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Setup wizard */}
+      <FrappeSetupWizard
+        open={wizardOpen}
+        initialCfg={cfg || null}
+        onClose={(didComplete) => {
+          setWizardOpen(false);
+          if (didComplete) refetch();
+        }}
+      />
 
       {/* One-time secret display */}
       <Dialog open={!!showSecret} onOpenChange={(o) => { if (!o) setShowSecret(null); }}>

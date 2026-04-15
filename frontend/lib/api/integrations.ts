@@ -14,6 +14,7 @@ export interface FrappeConfig {
   defaultModeOfPayment: string | null;
   defaultCostCenter: string | null;
   defaultCompany: string | null;
+  autoCreateCustomers: boolean;
   lastTestAt: string | null;
   lastTestStatus: string | null;
   lastTestError: string | null;
@@ -31,6 +32,7 @@ export interface FrappeConfigUpdate {
   defaultModeOfPayment?: string | null;
   defaultCostCenter?: string | null;
   defaultCompany?: string | null;
+  autoCreateCustomers?: boolean;
 }
 
 export interface FrappeTestResult {
@@ -62,6 +64,66 @@ export function testFrappeConnection(): Promise<FrappeTestResult> {
 
 export function rotateInboundSecret(): Promise<InboundSecretOut> {
   return apiClient('/integrations/frappe/inbound-secret/rotate', { method: 'POST' });
+}
+
+// ── Tier 2: wizard introspection + auto-setup ────────────────────
+
+export interface DropdownItem { name: string }
+export interface DropdownResponse { items: DropdownItem[]; cached: boolean }
+
+export type IntrospectResource = 'companies' | 'accounts' | 'modes-of-payment' | 'cost-centers';
+
+export function introspectFrappe(
+  resource: IntrospectResource,
+  params: { company?: string; accountType?: string; refresh?: boolean } = {},
+): Promise<DropdownResponse> {
+  const queryParams: Record<string, string | number | undefined> = {};
+  if (params.company) queryParams.company = params.company;
+  if (params.accountType) queryParams.accountType = params.accountType;
+  if (params.refresh) queryParams.refresh = 'true';
+  return apiClient(`/integrations/frappe/introspect/${resource}`, { params: queryParams });
+}
+
+export interface SetupActionResult {
+  ok: boolean;
+  message: string;
+  installed?: { doctype: string; fieldname: string }[];
+  skipped?: { doctype: string; fieldname: string }[];
+  webhookName?: string;
+  invoiceName?: string;
+  cancelled?: boolean;
+  detail?: string | null;
+}
+
+export function installCustomFields(): Promise<SetupActionResult> {
+  return apiClient('/integrations/frappe/setup/custom-fields', { method: 'POST' });
+}
+
+export function registerWebhook(): Promise<SetupActionResult> {
+  return apiClient('/integrations/frappe/setup/webhook', { method: 'POST' });
+}
+
+export function runDryRun(): Promise<SetupActionResult> {
+  return apiClient('/integrations/frappe/setup/dry-run', { method: 'POST' });
+}
+
+export interface SetupStatus {
+  connection: string;
+  accountsMapped: string;
+  customFieldsInstalled: string;
+  webhookRegistered: string;
+  inboundSecretShared: string;
+}
+
+export function getSetupStatus(): Promise<SetupStatus> {
+  return apiClient('/integrations/frappe/setup/status');
+}
+
+export function setAutoCreateCustomers(enabled: boolean): Promise<{ autoCreateCustomers: boolean }> {
+  return apiClient('/integrations/frappe/auto-create-customers', {
+    method: 'PUT',
+    body: JSON.stringify({ auto_create_customers: enabled }),
+  });
 }
 
 // ── Sync log ──────────────────────────────────────────────────────
