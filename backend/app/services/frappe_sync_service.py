@@ -356,14 +356,15 @@ async def handle_inbound_payment_entry(
     doc = body.get("doc") if isinstance(body.get("doc"), dict) else body
 
     doc_name = doc.get("name")
-    fee_plan_id_str = doc.get("zensbot_fee_plan_id")
+    # Accept both prefixed (UI-installed) and bare (fixture-installed) names.
+    fee_plan_id_str = doc.get("custom_zensbot_fee_plan_id") or doc.get("zensbot_fee_plan_id")
     amount = doc.get("paid_amount") or doc.get("received_amount")
     posting_date_str = doc.get("posting_date")
     mode_of_payment = doc.get("mode_of_payment")
     reference_no = doc.get("reference_no")
 
     if not (doc_name and fee_plan_id_str and amount):
-        raise InboundError("Missing doc.name / zensbot_fee_plan_id / amount")
+        raise InboundError("Missing doc.name / custom_zensbot_fee_plan_id / amount")
 
     # Dedup by Frappe doc name
     already = (await session.execute(
@@ -380,7 +381,7 @@ async def handle_inbound_payment_entry(
     try:
         fee_plan_id = uuid.UUID(str(fee_plan_id_str))
     except ValueError:
-        raise InboundError("zensbot_fee_plan_id is not a valid UUID")
+        raise InboundError("custom_zensbot_fee_plan_id is not a valid UUID")
 
     plan = await session.get(FeePlan, fee_plan_id)
     if plan is None or plan.institute_id != institute_id:

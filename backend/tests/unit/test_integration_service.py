@@ -206,3 +206,40 @@ class TestUpdateFrappeConfigEnableGate:
             )
         msg = str(exc_info.value).lower()
         assert "income" in msg or "receivable" in msg or "company" in msg
+
+    @pytest.mark.asyncio
+    async def test_cannot_enable_without_bank_account(self):
+        """Everything set EXCEPT bank account — must still refuse to enable."""
+        from app.services import integration_service
+        from app.services.integration_service import IntegrationError
+        from app.models.integration import InstituteIntegration
+
+        existing = InstituteIntegration(
+            institute_id=uuid.uuid4(),
+            frappe_enabled=False,
+            frappe_base_url="https://erp.example.com",
+            frappe_api_key_ciphertext="ciphertext_key",
+            frappe_api_secret_ciphertext="ciphertext_secret",
+            default_income_account="4160 - Training Revenue - MITT",
+            default_receivable_account="1111 - Fee Receivable - MITT",
+            default_bank_account=None,
+            default_mode_of_payment="Bank",
+            default_company="Modern Institute of Technical Trainings",
+        )
+
+        session = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none = MagicMock(return_value=existing)
+        session.execute = AsyncMock(return_value=mock_result)
+        session.flush = AsyncMock()
+        session.commit = AsyncMock()
+        session.refresh = AsyncMock()
+        session.add = MagicMock()
+
+        payload = FrappeConfigIn(frappe_enabled=True)
+
+        with pytest.raises(IntegrationError) as exc_info:
+            await integration_service.update_frappe_config(
+                session, existing.institute_id, payload
+            )
+        assert "bank" in str(exc_info.value).lower()

@@ -257,9 +257,22 @@ async def inbound_frappe_webhook(
         raise HTTPException(status_code=400, detail="institute_id must be a UUID")
 
     raw_body = await request.body()
-    signature = request.headers.get("x-frappe-signature") or ""
+    # Accept both our custom header and Frappe's native Webhook security header.
+    # Frappe's built-in "Enable Security" sends X-Frappe-Webhook-Signature;
+    # our connector's server script sends X-Frappe-Signature.
+    signature = (
+        request.headers.get("x-frappe-signature")
+        or request.headers.get("x-frappe-webhook-signature")
+        or ""
+    )
+    # Frappe's native signature sometimes ships as "sha256=<hex>" — strip prefix.
+    if signature.startswith("sha256="):
+        signature = signature[len("sha256="):]
     if not signature:
-        raise HTTPException(status_code=401, detail="Missing X-Frappe-Signature")
+        raise HTTPException(
+            status_code=401,
+            detail="Missing X-Frappe-Signature or X-Frappe-Webhook-Signature",
+        )
 
     # Load inbound secret
     result = await session.execute(

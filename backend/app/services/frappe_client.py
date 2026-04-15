@@ -2,7 +2,7 @@
 
 Stateless. Given a decrypted credential bundle + base URL, upserts Sales
 Invoice / Payment Entry rows in the institute's Frappe instance with our
-``zensbot_fee_plan_id`` custom field as the idempotency key.
+``custom_zensbot_fee_plan_id`` custom field as the idempotency key.
 
 All methods return a ``FrappeResult`` dataclass — tuple of (ok, doc_name,
 http_status, response_json_or_error). Never raises on network/HTTP errors
@@ -12,6 +12,12 @@ Frappe REST docs referenced:
   GET  /api/resource/{DocType}?filters=[["fieldname","=","value"]]
   POST /api/resource/{DocType}
   PUT  /api/resource/{DocType}/{name}
+
+Fieldname note: Frappe v15+ auto-prefixes user-created custom fields with
+``custom_``. The reference connector app (fixture-installed) uses the bare
+names, but manual UI-installed fields carry the prefix. We default to the
+prefixed form because that's what admins actually end up with when they
+follow the quickest setup path.
 """
 from __future__ import annotations
 
@@ -28,6 +34,9 @@ from app.utils.encryption import decrypt
 logger = logging.getLogger("ict_lms.frappe_client")
 
 DEFAULT_TIMEOUT = httpx.Timeout(connect=5.0, read=15.0, write=15.0, pool=5.0)
+
+FEE_PLAN_FIELD = "custom_zensbot_fee_plan_id"
+PAYMENT_FIELD = "custom_zensbot_payment_id"
 
 
 @dataclass(frozen=True)
@@ -67,9 +76,9 @@ class FrappeClient:
     ) -> FrappeResult:
         """Create or update a Sales Invoice matching ``fee_plan_id``.
 
-        Uses our custom field ``zensbot_fee_plan_id`` as the idempotency key
-        — install the reference connector app or add the custom field
-        manually before calling.
+        Uses our custom field ``custom_zensbot_fee_plan_id`` as the
+        idempotency key — install the reference connector app or add the
+        custom field manually before calling.
         """
         existing = await self._find_by_zensbot_id("Sales Invoice", fee_plan_id)
         if not existing.ok and existing.status_code not in (None, 200, 404):
@@ -79,7 +88,7 @@ class FrappeClient:
             "customer": customer_name,
             "posting_date": posting_date,
             "currency": currency,
-            "zensbot_fee_plan_id": fee_plan_id,
+            FEE_PLAN_FIELD: fee_plan_id,
             "items": [{
                 "item_name": description,
                 "description": description,
@@ -113,10 +122,14 @@ class FrappeClient:
         mode_of_payment: Optional[str],
         reference_no: Optional[str],
     ) -> FrappeResult:
-        existing = await self._find_by_zensbot_id("Payment Entry", payment_id, custom_field="zensbot_payment_id")
+        existing = await self._find_by_zensbot_id("Payment Entry", payment_id, custom_field=PAYMENT_FIELD)
         if not existing.ok and existing.status_code not in (None, 200, 404):
             return existing
 
+        # paid_to must be a balance-sheet asset (bank/cash). Fall back to the
+        # income account only for legacy rows that predate default_bank_account —
+        # Frappe will reject the posting but we avoid crashing on missing field.
+        paid_to = self.cfg.default_bank_account or self.cfg.default_income_account
         body: dict[str, Any] = {
             "payment_type": "Receive",
             "party_type": "Customer",
@@ -125,12 +138,12 @@ class FrappeClient:
             "paid_amount": amount,
             "received_amount": amount,
             "paid_from": self.cfg.default_receivable_account,
-            "paid_to": self.cfg.default_income_account,
+            "paid_to": paid_to,
             "mode_of_payment": mode_of_payment or self.cfg.default_mode_of_payment,
             "reference_no": reference_no,
             "reference_date": posting_date,
-            "zensbot_payment_id": payment_id,
-            "zensbot_fee_plan_id": fee_plan_id,
+            PAYMENT_FIELD: payment_id,
+            FEE_PLAN_FIELD: fee_plan_id,
         }
         if self.cfg.default_company:
             body["company"] = self.cfg.default_company
@@ -166,7 +179,7 @@ class FrappeClient:
         doctype: str,
         zensbot_id: str,
         *,
-        custom_field: str = "zensbot_fee_plan_id",
+        custom_field: str = FEE_PLAN_FIELD,
     ) -> FrappeResult:
         url = f"{self.base_url}/api/resource/{doctype}"
         params = {

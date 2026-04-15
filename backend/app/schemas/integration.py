@@ -21,6 +21,7 @@ class FrappeConfigIn(BaseModel):
 
     default_income_account: Optional[str] = None
     default_receivable_account: Optional[str] = None
+    default_bank_account: Optional[str] = None
     default_mode_of_payment: Optional[str] = None
     default_cost_center: Optional[str] = None
     default_company: Optional[str] = None
@@ -58,6 +59,7 @@ class FrappeConfigOut(BaseModel):
 
     default_income_account: Optional[str] = None
     default_receivable_account: Optional[str] = None
+    default_bank_account: Optional[str] = None
     default_mode_of_payment: Optional[str] = None
     default_cost_center: Optional[str] = None
     default_company: Optional[str] = None

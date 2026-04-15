@@ -10,6 +10,7 @@ export interface FrappeConfig {
   inboundSecretSet: boolean;
   defaultIncomeAccount: string | null;
   defaultReceivableAccount: string | null;
+  defaultBankAccount: string | null;
   defaultModeOfPayment: string | null;
   defaultCostCenter: string | null;
   defaultCompany: string | null;
@@ -26,6 +27,7 @@ export interface FrappeConfigUpdate {
   apiSecret?: string;
   defaultIncomeAccount?: string | null;
   defaultReceivableAccount?: string | null;
+  defaultBankAccount?: string | null;
   defaultModeOfPayment?: string | null;
   defaultCostCenter?: string | null;
   defaultCompany?: string | null;

@@ -43,6 +43,9 @@ class InstituteIntegration(SQLModel, table=True):
     # Frappe account mapping defaults (required for Sales Invoice / Payment Entry posting)
     default_income_account: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
     default_receivable_account: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
+    # Balance-sheet account where received payments land. Posted as Payment
+    # Entry ``paid_to`` — must be an Asset (bank/cash), not the income account.
+    default_bank_account: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
     default_mode_of_payment: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
     default_cost_center: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
     default_company: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))

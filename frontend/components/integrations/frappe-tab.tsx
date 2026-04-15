@@ -27,6 +27,7 @@ type LocalForm = {
   apiSecret: string;
   defaultIncomeAccount: string;
   defaultReceivableAccount: string;
+  defaultBankAccount: string;
   defaultModeOfPayment: string;
   defaultCostCenter: string;
   defaultCompany: string;
@@ -38,6 +39,7 @@ const BLANK_FORM: LocalForm = {
   apiSecret: '',
   defaultIncomeAccount: '',
   defaultReceivableAccount: '',
+  defaultBankAccount: '',
   defaultModeOfPayment: '',
   defaultCostCenter: '',
   defaultCompany: '',
@@ -50,6 +52,7 @@ function hydrateForm(cfg: FrappeConfig): LocalForm {
     apiSecret: '',
     defaultIncomeAccount: cfg.defaultIncomeAccount || '',
     defaultReceivableAccount: cfg.defaultReceivableAccount || '',
+    defaultBankAccount: cfg.defaultBankAccount || '',
     defaultModeOfPayment: cfg.defaultModeOfPayment || '',
     defaultCostCenter: cfg.defaultCostCenter || '',
     defaultCompany: cfg.defaultCompany || '',
@@ -91,6 +94,7 @@ export default function FrappeTab() {
         apiSecret: form.apiSecret || undefined,
         defaultIncomeAccount: form.defaultIncomeAccount || null,
         defaultReceivableAccount: form.defaultReceivableAccount || null,
+        defaultBankAccount: form.defaultBankAccount || null,
         defaultModeOfPayment: form.defaultModeOfPayment || null,
         defaultCostCenter: form.defaultCostCenter || null,
         defaultCompany: form.defaultCompany || null,
@@ -250,6 +254,12 @@ export default function FrappeTab() {
             hint="Debtors GL (e.g. 1310 - Sundry Debtors - YIP)"
             value={form.defaultReceivableAccount}
             onChange={(v) => onFieldChange('defaultReceivableAccount', v)}
+          />
+          <Field
+            label="Bank / Cash Account"
+            hint="Where received payments land (e.g. 1118 - Bank Al Habib - MITT). Must be a balance-sheet asset, not an income account."
+            value={form.defaultBankAccount}
+            onChange={(v) => onFieldChange('defaultBankAccount', v)}
           />
           <Field
             label="Cost Center (optional)"

@@ -71,6 +71,8 @@ async def update_frappe_config(
         row.default_income_account = payload.default_income_account or None
     if payload.default_receivable_account is not None:
         row.default_receivable_account = payload.default_receivable_account or None
+    if payload.default_bank_account is not None:
+        row.default_bank_account = payload.default_bank_account or None
     if payload.default_mode_of_payment is not None:
         row.default_mode_of_payment = payload.default_mode_of_payment or None
     if payload.default_cost_center is not None:
@@ -93,10 +95,12 @@ async def update_frappe_config(
                 "Cannot enable Frappe sync until URL, API key, and API secret are all set"
             )
         if not (row.default_income_account and row.default_receivable_account
-                and row.default_mode_of_payment and row.default_company):
+                and row.default_bank_account and row.default_mode_of_payment
+                and row.default_company):
             raise IntegrationError(
-                "Cannot enable Frappe sync until Income Account, Receivable Account, "
-                "Mode of Payment, and Company are all configured"
+                "Cannot enable Frappe sync until Income Account, Receivable "
+                "Account, Bank Account, Mode of Payment, and Company are all "
+                "configured"
             )
 
     row.frappe_enabled = payload.frappe_enabled
@@ -210,6 +214,7 @@ def _serialize(row: InstituteIntegration) -> FrappeConfigOut:
         inbound_secret_set=bool(row.frappe_inbound_secret_ciphertext),
         default_income_account=row.default_income_account,
         default_receivable_account=row.default_receivable_account,
+        default_bank_account=row.default_bank_account,
         default_mode_of_payment=row.default_mode_of_payment,
         default_cost_center=row.default_cost_center,
         default_company=row.default_company,
