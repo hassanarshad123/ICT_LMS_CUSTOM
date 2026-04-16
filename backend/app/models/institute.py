@@ -15,7 +15,15 @@ class InstituteStatus(str, enum.Enum):
 
 
 class PlanTier(str, enum.Enum):
-    free = "free"          # 14-day trial (auto-suspend on expiry)
+    # v2 canonical tiers (used by all new signups from pricing-v2 launch onward).
+    # See docs/pricing-model-v2.md for the full spec.
+    professional = "professional"  # Free forever — 10 students + 10 GB docs + 50 GB video included; Rs 80/mo per extra student
+    custom = "custom"              # Quoted per deal — volume discount + dedicated infra + white-label
+
+    # Grandfathered tiers — preserved so existing paying institutes (ICT, etc.)
+    # keep their current plan and are never touched by the v2 billing engine.
+    # The v2 billing cron explicitly filters to plan_tier IN ('professional', 'custom').
+    free = "free"          # 14-day trial — retired for new signups in v2
     starter = "starter"    # Rs 2,500/mo — 50 students
     basic = "basic"        # Rs 5,000/mo — 250 students
     pro = "pro"            # Rs 15,000/mo — 1,000 students
