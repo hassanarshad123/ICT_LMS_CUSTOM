@@ -4,7 +4,7 @@ from typing import Optional
 import enum
 
 from sqlmodel import SQLModel, Field, Column
-from sqlalchemy import BigInteger, UniqueConstraint, Index, Enum as SAEnum, ForeignKey
+from sqlalchemy import BigInteger, UniqueConstraint, Index, Enum as SAEnum, ForeignKey, String
 from sqlalchemy.dialects.postgresql import TIMESTAMP, UUID as PG_UUID
 
 
@@ -59,6 +59,15 @@ class Institute(SQLModel, table=True):
     max_storage_gb: float = Field(default=1.0, nullable=False)
     max_video_gb: float = Field(default=5.0, nullable=False)
     contact_email: str = Field(nullable=False)
+    # v2 pricing (pricing-model-v2): set by the late-payment scheduler when an
+    # invoice is overdue. Values: None (normal), "add_blocked" (day 15+ overdue,
+    # POST /users + uploads refused), "read_only" (day 30+, all writes refused).
+    # Only applied to v2 billing tiers (professional, custom) — grandfathered
+    # tiers are never touched by the v2 late-payment enforcement.
+    billing_restriction: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String(16), nullable=True),
+    )
     expires_at: Optional[datetime] = Field(
         default=None, sa_column=Column(TIMESTAMP(timezone=True), nullable=True)
     )
