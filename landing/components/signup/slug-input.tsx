@@ -77,7 +77,7 @@ export function SlugInput({ value, onChange, onAvailabilityChange }: SlugInputPr
   return (
     <div>
       <label className="block text-sm font-medium text-zen-dark mb-1.5">
-        Subdomain (URL)
+        Your Institute&apos;s Web Address
       </label>
       <div className="flex items-center gap-0">
         <input

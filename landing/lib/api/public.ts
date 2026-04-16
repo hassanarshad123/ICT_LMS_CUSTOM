@@ -14,6 +14,8 @@ export interface SignupData {
   instituteSlug: string;
   website?: string;
   cfTurnstileToken?: string;
+  referralSource?: string;
+  expectedStudents?: number;
 }
 
 export interface SignupResponse {
@@ -71,6 +73,8 @@ export async function signup(data: SignupData): Promise<SignupResponse> {
       institute_slug: data.instituteSlug,
       website: data.website || null,
       cf_turnstile_token: data.cfTurnstileToken || null,
+      referral_source: data.referralSource || null,
+      expected_students: data.expectedStudents || null,
     }),
   });
   if (!res.ok) {

@@ -148,6 +148,8 @@ async def register(
             "slug": institute.slug,
             "admin_email": user.email,
             "admin_phone": user.phone,
+            "referral_source": body.referral_source,
+            "expected_students": body.expected_students,
         },
         ip_address=request.client.host if request.client else None,
     )

@@ -23,6 +23,8 @@ class SignupRequest(BaseModel):
     institute_slug: ValidatedSlug
     website: Optional[str] = None  # honeypot field
     cf_turnstile_token: Optional[str] = None  # Cloudflare Turnstile CAPTCHA token
+    referral_source: Optional[str] = None  # marketing: how they found us
+    expected_students: Optional[int] = None  # marketing: expected student count
 
     _validate_password = field_validator("password")(validate_password_strength)
     _validate_slug = field_validator("institute_slug")(validate_slug_format)
