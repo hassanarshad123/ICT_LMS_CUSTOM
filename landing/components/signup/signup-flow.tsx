@@ -127,16 +127,22 @@ export function SignupFlow() {
     }
   }, []);
 
-  // Render Turnstile on step 5 (questions step, the last interactive step)
+  // Render Turnstile on step 5 (questions step, the last interactive step).
+  // Wait for BOTH the Cloudflare script AND the DOM ref to be available —
+  // the ref mounts outside AnimatePresence but may still lag by a tick.
   useEffect(() => {
     if (step !== 5 || !TURNSTILE_ENABLED) return;
     const interval = setInterval(() => {
-      if (window.turnstile) {
+      if (window.turnstile && turnstileRef.current) {
         renderTurnstile();
         clearInterval(interval);
       }
     }, 200);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      // Reset widget ID so a fresh widget renders if user navigates back
+      widgetIdRef.current = null;
+    };
   }, [step, renderTurnstile]);
 
   // ── Validation helpers ─────────────────────────────────────
@@ -425,25 +431,27 @@ export function SignupFlow() {
                       />
                     )}
                     {step === 5 && (
-                      <>
-                        <StepQuestions
-                          referralSource={referralSource}
-                          expectedStudents={expectedStudents}
-                          onReferralChange={setReferralSource}
-                          onStudentsChange={setExpectedStudents}
-                          onNext={handleSubmit}
-                          onBack={goBack}
-                          submitting={submitting}
-                        />
-                        {TURNSTILE_ENABLED && (
-                          <div className="mt-4 flex justify-center">
-                            <div ref={turnstileRef} />
-                          </div>
-                        )}
-                      </>
+                      <StepQuestions
+                        referralSource={referralSource}
+                        expectedStudents={expectedStudents}
+                        onReferralChange={setReferralSource}
+                        onStudentsChange={setExpectedStudents}
+                        onNext={handleSubmit}
+                        onBack={goBack}
+                        submitting={submitting}
+                      />
                     )}
                   </motion.div>
                 </AnimatePresence>
+
+                {/* Turnstile CAPTCHA — rendered OUTSIDE AnimatePresence so
+                    the DOM element is mounted immediately when step === 5,
+                    not delayed by framer-motion's exit animation. */}
+                {step === 5 && TURNSTILE_ENABLED && (
+                  <div className="mt-4 flex justify-center">
+                    <div ref={turnstileRef} />
+                  </div>
+                )}
 
                 {/* Step 7: Creating Your LMS */}
                 {step === 6 && !SHOW_ONBOARDING_ANIMATION && (
