@@ -30,7 +30,9 @@ declare global {
   }
 }
 
-const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '';
+// Cloudflare Turnstile site key. Prefer env var so it can be rotated
+// without a code change; fall back to the current production key.
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '0x4AAAAAAC1pfHbt2LQkZdD-';
 const TURNSTILE_ENABLED = Boolean(TURNSTILE_SITE_KEY) && TURNSTILE_SITE_KEY !== 'SKIP';
 
 const TOTAL_STEPS = 7;
