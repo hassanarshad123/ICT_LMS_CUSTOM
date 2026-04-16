@@ -16,8 +16,7 @@ Only ever set for institutes on v2 billing tiers (professional, custom).
 Grandfathered tiers are untouched by the late-payment scheduler — ICT
 etc. will always have billing_restriction = NULL.
 
-Matches the danger-filter pattern in deploy-bg.sh: no DROP, no RENAME,
-no ALTER SET NOT NULL.
+Additive only — passes the deploy-bg.sh pre-migration safety scan.
 """
 from alembic import op
 import sqlalchemy as sa
