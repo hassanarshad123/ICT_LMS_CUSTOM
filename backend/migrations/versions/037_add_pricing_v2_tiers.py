@@ -1,8 +1,15 @@
 """Add Pricing v2 tiers (professional, custom) + InstituteBilling v2 columns
 
 Revision ID: 037
-Revises: 036
+Revises: 035
 Create Date: 2026-04-17
+
+HOTFIX 2026-04-17: down_revision was originally "036", but migration 036
+(add_user_devices) is local-only in-flight work that has not been merged
+to main. Chaining 037 → 036 caused alembic to fail with KeyError('036')
+on deploy. Retargeting 037 → 035 (the actual migration head on main)
+unblocks deploys. When 036 is eventually merged, its author will need to
+renumber their migration and chain it appropriately.
 
 PR 1 of the pricing-v2 rollout (see docs/pricing-v2-implementation-plan.md).
 
@@ -27,7 +34,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers
 revision = "037"
-down_revision = "036"
+down_revision = "035"
 branch_labels = None
 depends_on = None
 
