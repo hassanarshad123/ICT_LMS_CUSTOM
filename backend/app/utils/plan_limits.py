@@ -1,6 +1,17 @@
-"""Per-tier creation limits for the 5-tier PKR pricing model.
+"""Per-tier creation limits for the Zensbot LMS pricing model.
 
-Tier overview (values in PLAN_LIMITS below are authoritative):
+v2 canonical tiers (see docs/pricing-model-v2.md):
+  professional — Free forever — 10 students + 10 GB docs + 50 GB video included;
+                 Rs 80/mo per extra student; add-on storage packs available.
+                 Billing enforced via the v2 engine (InstituteBilling +
+                 monthly invoice cron). `students` key is None here because
+                 overage is billed, not hard-capped.
+  custom       — Quoted per deal — everything in Professional plus volume
+                 discount, dedicated infra, SLA, white-label app, custom
+                 domain. Rate table stored in institute.custom_pricing_config.
+
+Grandfathered tiers (kept intact so existing live institutes like
+ICT.ZENSBOT.ONLINE are not affected by the v2 rollout):
   free        — 14-day trial    — 15 students,   1 GB storage,  3 GB video
   starter     — Rs 2,500/mo     — 50 students,   3 GB storage, 15 GB video
   basic       — Rs 5,000/mo     — 250 students, 10 GB storage, 75 GB video
@@ -8,18 +19,18 @@ Tier overview (values in PLAN_LIMITS below are authoritative):
   enterprise  — from Rs 50k/mo  — unlimited everything
 
 Keys in each tier dict:
-  students         — max students (int) or None for unlimited
+  students         — max students (int) or None for unlimited / overage-billed
   storage_gb       — max document storage in GB (float) or None
   video_gb         — max video storage in GB (float) or None
-  courses          — None (unlimited on all paid tiers; 5 on free trial)
-  batches          — None (unlimited on all paid tiers; 10 on free trial)
-  quizzes          — None (unlimited on all paid tiers; 5 on free trial)
-  announcements_per_day — soft per-day limit to prevent abuse, same on all
-  api_keys         — 0 (disabled) on free/starter/basic; None (unlimited) on pro+
-  webhooks         — 0 (disabled) on free/starter/basic; None (unlimited) on pro+
+  courses          — None (unlimited on all v2 + paid legacy tiers; 5 on free trial)
+  batches          — None (unlimited on all v2 + paid legacy tiers; 10 on free trial)
+  quizzes          — None (unlimited on all v2 + paid legacy tiers; 5 on free trial)
+  announcements_per_day — soft per-day limit to prevent abuse
+  api_keys         — 0 (disabled) on free/starter/basic; None on pro/enterprise/professional/custom
+  webhooks         — 0 (disabled) on free/starter/basic; None on pro/enterprise/professional/custom
   zoom_classes     — None (unlimited) on all tiers — Zoom is part of the core product
-  ai_tools         — False on free/starter/basic; True on pro/enterprise
-  custom_domain    — False except enterprise
+  ai_tools         — True on pro/enterprise/professional/custom; False on free/starter/basic
+  custom_domain    — True only on enterprise and custom
 """
 
 import uuid
@@ -34,6 +45,39 @@ from app.models.institute import Institute, PlanTier
 # Canonical per-tier limits. Source of truth for all enforcement.
 # None = unlimited. 0 = feature disabled entirely.
 PLAN_LIMITS: dict[PlanTier, dict] = {
+    PlanTier.professional: {
+        # Free forever. "students: None" means no hard cap — overage billing
+        # (Rs 80/mo per student above 10) handles growth via InstituteBilling.
+        "students": None,
+        "storage_gb": 10.0,   # base; extensible via institute_addons (PR 2)
+        "video_gb": 50.0,     # base; extensible via institute_addons (PR 2)
+        "courses": None,
+        "batches": None,
+        "quizzes": None,
+        "announcements_per_day": 100,
+        "api_keys": None,
+        "webhooks": None,
+        "zoom_classes": None,
+        "ai_tools": True,
+        "custom_domain": False,
+    },
+    PlanTier.custom: {
+        # Negotiated per deal. Rates + overrides stored in
+        # institutes.custom_pricing_config (JSONB, added in PR 1 migration).
+        # Hard caps are None here so the billing engine is authoritative.
+        "students": None,
+        "storage_gb": None,
+        "video_gb": None,
+        "courses": None,
+        "batches": None,
+        "quizzes": None,
+        "announcements_per_day": None,
+        "api_keys": None,
+        "webhooks": None,
+        "zoom_classes": None,
+        "ai_tools": True,
+        "custom_domain": True,
+    },
     PlanTier.free: {  # 14-day trial
         "students": 15,
         "storage_gb": 1.0,
@@ -109,12 +153,37 @@ PLAN_LIMITS: dict[PlanTier, dict] = {
 
 # Human-readable tier labels for error messages and UI copy.
 TIER_LABELS: dict[PlanTier, str] = {
+    # v2 tiers
+    PlanTier.professional: "Professional",
+    PlanTier.custom: "Custom",
+    # Grandfathered tiers
     PlanTier.free: "Free Trial",
     PlanTier.starter: "Starter",
     PlanTier.basic: "Basic",
     PlanTier.pro: "Pro",
     PlanTier.enterprise: "Enterprise",
 }
+
+
+# Tiers that use the v2 billing engine (monthly cron, per-student overage,
+# storage addons, late-payment enforcement). Everything NOT in this set is
+# grandfathered and explicitly skipped by the v2 billing code paths.
+#
+# Call sites should import and check: `if inst.plan_tier in V2_BILLING_TIERS`
+V2_BILLING_TIERS: frozenset[PlanTier] = frozenset({
+    PlanTier.professional,
+    PlanTier.custom,
+})
+
+
+def is_v2_billing_tier(tier: PlanTier) -> bool:
+    """True if the tier uses the v2 billing engine.
+
+    Grandfathered institutes (free/starter/basic/pro/enterprise) return
+    False and must never be touched by v2 billing crons, addon quota
+    extensions, or late-payment enforcement.
+    """
+    return tier in V2_BILLING_TIERS
 
 
 def get_limit(tier: PlanTier, key: str):

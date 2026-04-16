@@ -50,6 +50,17 @@ class InstituteBilling(SQLModel, table=True):
     extra_user_rate: int = Field(default=0)
     extra_storage_rate: int = Field(default=0)
     extra_video_rate: int = Field(default=0)
+    # v2 pricing (pricing-model-v2): number of students included before
+    # extra_user_rate kicks in. 0 for all legacy configs; 10 for Professional;
+    # negotiated per deal for Custom.
+    free_users_included: int = Field(default=0, nullable=False)
+    # v2 Custom tier only: volume-discount rate tiers and addon overrides.
+    # Shape: {"base_fee_pkr": int, "tiered_student_rates": [{"from": 0, "to": 500, "rate_pkr": 80}, ...],
+    #         "addon_overrides": {"video_50gb": 2500, ...}}.
+    # NULL for all non-Custom institutes.
+    custom_pricing_config: Optional[dict] = Field(
+        default=None, sa_column=Column(JSONB, nullable=True)
+    )
     notes: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
     created_at: Optional[datetime] = Field(
         sa_column=Column(TIMESTAMP(timezone=True), nullable=False, server_default="now()")
