@@ -1,5 +1,6 @@
 from app.models.enums import *  # noqa: F401,F403
 from app.models.institute import Institute, InstituteUsage  # noqa: F401
+from app.models.institute_addon import InstituteAddon  # noqa: F401
 from app.models.user import User  # noqa: F401
 from app.models.batch import Batch, StudentBatch, StudentBatchHistory, BatchExtensionLog  # noqa: F401
 from app.models.course import (  # noqa: F401
