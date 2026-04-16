@@ -565,3 +565,129 @@ Contact your admissions officer to record a payment. Content access is restored 
         f"Overdue fees — {batch_name}",
         _base_template(body, institute_name, logo_url, accent_color, login_url),
     )
+
+
+# ── Pricing v2 billing emails (see docs/pricing-model-v2.md) ─────
+#
+# Sent by the monthly billing cron and late-payment enforcement cron.
+# Only delivered to institutes on v2 tiers (professional, custom) —
+# grandfathered institutes use the existing manual invoice flow.
+
+
+def invoice_issued_email(
+    admin_name: str,
+    invoice_number: str,
+    period_label: str,           # e.g., "May 2026"
+    total_pkr: int,
+    line_items: list,            # list of {label, qty, unit_pkr, total_pkr}
+    due_date: str,
+    pay_now_url: str,
+    institute_name: str = "",
+    logo_url: Optional[str] = None,
+    accent_color: str = "#C5D86D",
+) -> tuple[str, str]:
+    """Monthly invoice issued. Sent on the 1st."""
+    rows = "".join(
+        f'<tr><td style="padding:8px 12px;border-bottom:1px solid #E4E4E7;color:#27272a;font-size:14px;">{_e(str(item.get("label","")))}</td>'
+        f'<td style="padding:8px 12px;border-bottom:1px solid #E4E4E7;color:#52525b;font-size:13px;text-align:right;">{int(item.get("qty",1))} × Rs {int(item.get("unit_pkr",0)):,}</td>'
+        f'<td style="padding:8px 12px;border-bottom:1px solid #E4E4E7;color:#18181b;font-size:14px;font-weight:bold;text-align:right;">Rs {int(item.get("amount",0)):,}</td></tr>'
+        for item in line_items
+    )
+    body = f"""
+<h2 style="margin:0 0 8px;color:#18181b;font-size:22px;">Invoice for {_e(period_label)}</h2>
+<p style="color:#52525b;font-size:15px;line-height:1.6;">
+Hi {_e(admin_name)}, your monthly invoice for <strong>{_e(institute_name)}</strong> is ready.
+</p>
+<table style="background-color:#FAFAFA;border:1px solid #E4E4E7;border-radius:8px;width:100%;margin:16px 0;" cellpadding="0" cellspacing="0">
+<tr><td style="padding:12px 16px;background-color:#F4F4F5;border-bottom:1px solid #E4E4E7;color:#71717a;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Invoice {_e(invoice_number)}</td></tr>
+{rows}
+<tr>
+<td style="padding:12px 16px;color:#18181b;font-size:15px;font-weight:bold;">Total</td>
+<td></td>
+<td style="padding:12px 16px;color:#18181b;font-size:16px;font-weight:bold;text-align:right;">Rs {int(total_pkr):,}</td>
+</tr>
+</table>
+<p style="color:#52525b;font-size:14px;">Due by <strong>{_e(due_date)}</strong>. Pay via bank transfer, JazzCash, or Easypaisa — details on your billing page.</p>
+<p style="margin:20px 0;text-align:center;">{_button("View invoice & pay", pay_now_url, "#18181b")}</p>
+"""
+    return (
+        f"Invoice {invoice_number} — {period_label} ({'Rs ' + format(int(total_pkr), ',')})",
+        _base_template(body, institute_name, logo_url, accent_color, pay_now_url),
+    )
+
+
+def invoice_reminder_email(
+    admin_name: str,
+    invoice_number: str,
+    total_pkr: int,
+    days_overdue: int,
+    due_date: str,
+    pay_now_url: str,
+    institute_name: str = "",
+    logo_url: Optional[str] = None,
+    accent_color: str = "#C5D86D",
+) -> tuple[str, str]:
+    """Friendly reminder while still in the 14-day grace window."""
+    body = f"""
+<h2 style="margin:0 0 8px;color:#B45309;font-size:22px;">Reminder: invoice {_e(invoice_number)} is overdue</h2>
+<p style="color:#52525b;font-size:15px;line-height:1.6;">
+Hi {_e(admin_name)}, invoice <strong>{_e(invoice_number)}</strong> for <strong>{_e(institute_name)}</strong> was due on
+<strong>{_e(due_date)}</strong> ({days_overdue} day{'s' if days_overdue != 1 else ''} ago).
+</p>
+<table style="background-color:#FEF3C7;border:1px solid #FDE68A;border-radius:8px;padding:16px;width:100%;margin:16px 0;" cellpadding="8" cellspacing="0">
+<tr><td style="color:#92400E;font-size:13px;width:140px;">Invoice</td><td style="color:#78350F;font-size:14px;font-weight:bold;">{_e(invoice_number)}</td></tr>
+<tr><td style="color:#92400E;font-size:13px;">Amount Due</td><td style="color:#78350F;font-size:14px;font-weight:bold;">Rs {int(total_pkr):,}</td></tr>
+<tr><td style="color:#92400E;font-size:13px;">Days Overdue</td><td style="color:#78350F;font-size:14px;font-weight:bold;">{days_overdue}</td></tr>
+</table>
+<p style="color:#52525b;font-size:14px;">
+After 14 days overdue, new student sign-ups and uploads are blocked. After 30 days, the institute goes read-only. Please clear the balance soon to avoid any disruption.
+</p>
+<p style="margin:20px 0;text-align:center;">{_button("Pay now", pay_now_url, "#B45309")}</p>
+"""
+    return (
+        f"Payment reminder: invoice {invoice_number} ({days_overdue} day{'s' if days_overdue != 1 else ''} overdue)",
+        _base_template(body, institute_name, logo_url, accent_color, pay_now_url),
+    )
+
+
+def late_payment_restricted_email(
+    admin_name: str,
+    invoice_number: str,
+    total_pkr: int,
+    restriction: str,            # "add_blocked" or "read_only"
+    days_overdue: int,
+    pay_now_url: str,
+    institute_name: str = "",
+    logo_url: Optional[str] = None,
+    accent_color: str = "#C5D86D",
+) -> tuple[str, str]:
+    """Restriction activated on the institute account."""
+    if restriction == "read_only":
+        headline = "Account is now read-only"
+        detail = (
+            "Your institute has been set to read-only because invoice "
+            f"<strong>{_e(invoice_number)}</strong> is {days_overdue} days overdue. "
+            "Students can still view existing content, but no new activity, uploads, "
+            "enrollments, or admin writes are allowed. Clear the balance to restore full access immediately."
+        )
+    else:
+        headline = "New student sign-ups and uploads are now blocked"
+        detail = (
+            f"Invoice <strong>{_e(invoice_number)}</strong> is {days_overdue} days overdue. "
+            "Until the balance is cleared, you cannot add new students or upload new content. "
+            "Existing users keep full access. If unpaid for 30 days, the institute will go read-only."
+        )
+    body = f"""
+<h2 style="margin:0 0 8px;color:#DC2626;font-size:22px;">{headline}</h2>
+<p style="color:#52525b;font-size:15px;line-height:1.6;">Hi {_e(admin_name)}, {detail}</p>
+<table style="background-color:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:16px;width:100%;margin:16px 0;" cellpadding="8" cellspacing="0">
+<tr><td style="color:#B91C1C;font-size:13px;width:140px;">Invoice</td><td style="color:#7F1D1D;font-size:14px;font-weight:bold;">{_e(invoice_number)}</td></tr>
+<tr><td style="color:#B91C1C;font-size:13px;">Amount Due</td><td style="color:#7F1D1D;font-size:14px;font-weight:bold;">Rs {int(total_pkr):,}</td></tr>
+<tr><td style="color:#B91C1C;font-size:13px;">Days Overdue</td><td style="color:#7F1D1D;font-size:14px;font-weight:bold;">{days_overdue}</td></tr>
+</table>
+<p style="margin:20px 0;text-align:center;">{_button("Pay now & restore access", pay_now_url, "#DC2626")}</p>
+"""
+    return (
+        f"Action required: invoice {invoice_number} overdue",
+        _base_template(body, institute_name, logo_url, accent_color, pay_now_url),
+    )

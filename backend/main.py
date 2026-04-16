@@ -71,6 +71,7 @@ async def lifespan(app: FastAPI):
         try:
             from apscheduler.schedulers.asyncio import AsyncIOScheduler
             from app.scheduler.jobs import cleanup_expired_sessions, send_zoom_reminders, retry_failed_recordings, cleanup_stale_uploads, auto_suspend_expired_institutes, process_webhook_deliveries, recalculate_all_usage, send_batch_expiry_notifications, sync_stuck_video_statuses, send_trial_expiry_warnings, deactivate_unverified_users, purge_stale_records, backfill_video_durations, send_fee_reminders, process_frappe_sync_tasks, send_integration_weekly_digest
+            from app.scheduler.billing_jobs import generate_monthly_invoices, enforce_late_payments
 
             scheduler = AsyncIOScheduler()
             scheduler.add_job(cleanup_expired_sessions, "interval", hours=1, id="cleanup_sessions")
@@ -92,6 +93,13 @@ async def lifespan(app: FastAPI):
             # dedupes per institute on a 6-day Redis cache so admins get one
             # email per week max even if the job fires daily.
             scheduler.add_job(send_integration_weekly_digest, "interval", hours=24, id="integration_weekly_digest")
+            # Pricing v2 billing engine — dormant until a professional/custom
+            # institute exists (query filters to those tiers only). First
+            # deploys with BILLING_CRON_DRY_RUN=True so jobs log intent without
+            # writing. Flip the env var to False after a calendar cycle is
+            # manually verified. See docs/pricing-model-v2.md.
+            scheduler.add_job(generate_monthly_invoices, "cron", day=1, hour=0, minute=5, id="v2_monthly_billing")
+            scheduler.add_job(enforce_late_payments, "cron", hour=2, minute=0, id="v2_late_payment")
             scheduler.start()
             app.state.scheduler = scheduler
             logging.getLogger("ict_lms").info("Scheduler started (slot=%s)", settings.DEPLOY_SLOT)

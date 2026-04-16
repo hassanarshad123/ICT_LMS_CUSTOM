@@ -24,10 +24,79 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.models.batch import Batch, StudentBatch
+from app.models.institute import Institute
 from app.models.user import User
 from app.models.zoom import ZoomClass
+from app.utils.plan_limits import is_v2_billing_tier
 
 logger = logging.getLogger("ict_lms.access_control")
+
+
+# ──────────────────────────────────────────────────────────────────
+# Pricing v2: billing-restriction gate
+# ──────────────────────────────────────────────────────────────────
+#
+# Set by the late-payment enforcement cron (scheduler/billing_jobs.py)
+# when an institute's invoice is ≥15 days overdue. Grandfathered tiers
+# never carry this flag — ICT and friends always skip both the
+# tier gate AND the None check, so they cannot be blocked.
+
+# Route categories relevant to the restriction. Write actions here are
+# what get blocked when billing_restriction == "add_blocked" or "read_only".
+_WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+
+def check_billing_restriction(
+    institute: Institute,
+    method: str,
+    *,
+    is_student_add: bool = False,
+    is_upload: bool = False,
+) -> None:
+    """Raise HTTP 402 if the institute's billing_restriction blocks this action.
+
+    Grandfathered tiers always pass — ``is_v2_billing_tier()`` returns False
+    for any plan_tier that's not ``professional`` / ``custom``, so the
+    function returns immediately for ICT (pro) and all other legacy tiers.
+
+    v2 tiers with no restriction also pass immediately.
+
+    When billing_restriction is set:
+      * ``add_blocked`` (day 15+ overdue) — blocks POST /users and uploads
+        only; other writes still permitted.
+      * ``read_only`` (day 30+ overdue) — blocks every write method.
+    """
+    if not is_v2_billing_tier(institute.plan_tier):
+        return
+    if institute.billing_restriction is None:
+        return
+    if method.upper() not in _WRITE_METHODS:
+        return  # reads are always allowed
+
+    r = institute.billing_restriction
+    if r == "read_only":
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "code": "billing_read_only",
+                "message": (
+                    "This institute is in read-only mode because an invoice is 30+ days overdue. "
+                    "Please clear the balance from the billing page to restore writes."
+                ),
+            },
+        )
+
+    if r == "add_blocked" and (is_student_add or is_upload):
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "code": "billing_add_blocked",
+                "message": (
+                    "New student sign-ups and uploads are blocked because an invoice is 15+ days overdue. "
+                    "Please clear the balance from the billing page."
+                ),
+            },
+        )
 
 
 def get_effective_end_date(batch: Batch, student_batch: StudentBatch) -> date_type:

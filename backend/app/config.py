@@ -80,6 +80,12 @@ class Settings(BaseSettings):
     # backend/app/utils/plan_limits.py. Override per-tier values there.
     SIGNUP_ENABLED: bool = True
 
+    # Pricing v2 billing engine (pricing-model-v2)
+    # Monthly invoice cron + late-payment enforcement. True = log-only,
+    # no DB writes, no emails sent. Safe default for first deploy — flip
+    # to False after the first calendar-month cycle is manually verified.
+    BILLING_CRON_DRY_RUN: bool = True
+
     # Cloudflare Turnstile (CAPTCHA)
     CF_TURNSTILE_SECRET_KEY: str = ""  # empty = skip verification (dev/test)
 
