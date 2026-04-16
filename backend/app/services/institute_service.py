@@ -8,7 +8,42 @@ from sqlmodel import select, func
 from app.models.institute import Institute, InstituteUsage, InstituteStatus
 from app.models.user import User
 from app.models.enums import UserRole, UserStatus
+from app.utils.plan_limits import is_v2_billing_tier
 from app.utils.security import hash_password
+
+
+async def _effective_storage_limit_gb(
+    session: AsyncSession,
+    institute: Institute,
+    kind: str,
+) -> float:
+    """Base institute cap + active addon bonus (v2 tiers only).
+
+    Grandfathered tiers (ICT is on 'pro') return the bare max_*_gb value
+    without ever touching the institute_addons table. This is the
+    ICT-protection invariant — any regression here could silently grant
+    ICT addon capacity or trigger an addon lookup for a tier that never
+    uses them.
+
+    kind: "docs" → uses max_storage_gb + docs addons
+          "video" → uses max_video_gb + video addons
+    """
+    if kind == "docs":
+        base = institute.max_storage_gb
+    elif kind == "video":
+        base = institute.max_video_gb
+    else:
+        raise ValueError(f"Unknown storage kind '{kind}'")
+
+    if not is_v2_billing_tier(institute.plan_tier):
+        return base
+
+    # Lazy import avoids a cycle (addon_service imports from institute_service
+    # in the future if billing logic grows). Safe — only reached on v2 tiers.
+    from app.services.addon_service import get_addon_storage_bonus
+    docs_bonus, video_bonus = await get_addon_storage_bonus(session, institute.id)
+    bonus = docs_bonus if kind == "docs" else video_bonus
+    return base + bonus
 
 
 async def get_or_create_usage(session: AsyncSession, institute_id: uuid.UUID) -> InstituteUsage:
@@ -187,6 +222,9 @@ async def check_and_increment_storage_quota(
 ) -> None:
     """Atomically lock, check, and increment storage bytes.
 
+    Effective limit = institute.max_storage_gb + active docs addons
+    (v2 tiers only). Grandfathered institutes use bare max_storage_gb.
+
     Call BEFORE create_material() so the service's internal commit
     also persists this increment.
     """
@@ -194,10 +232,11 @@ async def check_and_increment_storage_quota(
     institute = await session.get(Institute, institute_id)
     if not institute:
         return
-    max_bytes = int(institute.max_storage_gb * 1024 ** 3)
+    effective_gb = await _effective_storage_limit_gb(session, institute, "docs")
+    max_bytes = int(effective_gb * 1024 ** 3)
     if (usage.current_storage_bytes + file_size_bytes) > max_bytes:
         raise ValueError(
-            f"Storage limit reached ({institute.max_storage_gb}GB). Upgrade your plan."
+            f"Storage limit reached ({effective_gb}GB). Upgrade your plan."
         )
     usage.current_storage_bytes += file_size_bytes
     session.add(usage)
@@ -208,6 +247,9 @@ async def check_and_increment_video_quota(
 ) -> None:
     """Atomically lock, check, and increment video bytes.
 
+    Effective limit = institute.max_video_gb + active video addons
+    (v2 tiers only). Grandfathered institutes use bare max_video_gb.
+
     Call BEFORE create_lecture() so the service's internal commit
     also persists this increment.
     """
@@ -215,10 +257,11 @@ async def check_and_increment_video_quota(
     institute = await session.get(Institute, institute_id)
     if not institute:
         return
-    max_bytes = int(institute.max_video_gb * 1024 ** 3)
+    effective_gb = await _effective_storage_limit_gb(session, institute, "video")
+    max_bytes = int(effective_gb * 1024 ** 3)
     if (usage.current_video_bytes + estimated_bytes) > max_bytes:
         raise ValueError(
-            f"Video storage limit reached ({institute.max_video_gb}GB). Upgrade your plan."
+            f"Video storage limit reached ({effective_gb}GB). Upgrade your plan."
         )
     usage.current_video_bytes += estimated_bytes
     session.add(usage)

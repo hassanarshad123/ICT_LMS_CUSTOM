@@ -186,6 +186,54 @@ def is_v2_billing_tier(tier: PlanTier) -> bool:
     return tier in V2_BILLING_TIERS
 
 
+# ──────────────────────────────────────────────────────────────────────
+# Storage add-on packs (pricing-model-v2).
+#
+# Professional and Custom institutes can buy these monthly-recurring
+# packs to extend their base 10 GB docs / 50 GB video allowance. Each
+# key below is a stable string identifier stored in
+# institute_addons.addon_type — adding a new pack means adding a key
+# here, not running a DB migration.
+#
+# Prices are the approved "premium" tier from pricing discussions.
+# Shape:
+#   "price_pkr": int  — monthly charge per one pack
+#   "bonus_gb":  float — storage added per one pack
+#   "kind":      "docs" | "video" — which bucket the bonus applies to
+#
+# Addon state is snapshotted on activation into the InstituteAddon row
+# (unit_price_pkr, storage_bonus_gb, storage_bonus_kind) so price changes
+# here do NOT retroactively change active subscriptions.
+# ──────────────────────────────────────────────────────────────────────
+ADDON_PRICING: dict[str, dict] = {
+    "docs_10gb": {
+        "price_pkr": 1_000,
+        "bonus_gb": 10.0,
+        "kind": "docs",
+    },
+    "video_50gb": {
+        "price_pkr": 3_000,
+        "bonus_gb": 50.0,
+        "kind": "video",
+    },
+    "video_100gb": {
+        "price_pkr": 5_000,
+        "bonus_gb": 100.0,
+        "kind": "video",
+    },
+    "video_500gb": {
+        "price_pkr": 20_000,
+        "bonus_gb": 500.0,
+        "kind": "video",
+    },
+}
+
+
+def get_addon_pricing(addon_type: str) -> dict | None:
+    """Look up the canonical config for an addon type. Returns None if unknown."""
+    return ADDON_PRICING.get(addon_type)
+
+
 def get_limit(tier: PlanTier, key: str):
     """Return the configured limit for a tier + key. None means unlimited."""
     return PLAN_LIMITS.get(tier, {}).get(key)
