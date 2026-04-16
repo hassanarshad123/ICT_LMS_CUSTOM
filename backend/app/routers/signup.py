@@ -1,3 +1,4 @@
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, Request, Query
@@ -14,6 +15,8 @@ from app.models.session import UserSession
 from app.utils.security import create_access_token, create_refresh_token
 from app.utils.rate_limit import limiter
 from app.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -32,14 +35,38 @@ async def register(
     if not settings.SIGNUP_ENABLED:
         raise HTTPException(status_code=403, detail="Signup is currently disabled")
 
-    # Honeypot check — bots fill hidden fields
-    # Return generic 202 after delay so bots can't distinguish from real signup
+    # Honeypot check — bots fill hidden fields.
+    # Return a schema-valid fake response after delay so bots can't distinguish
+    # from a real signup. Uses plausible-looking data that leads to a dead end.
     if body.website:
         import asyncio
+        import uuid
         await asyncio.sleep(2)
+        fake_id = str(uuid.uuid4())
         return JSONResponse(
             status_code=200,
-            content={"access_token": "", "refresh_token": "", "user": {}, "institute": {}},
+            content={
+                "access_token": "ok",
+                "refresh_token": "ok",
+                "token_type": "bearer",
+                "user": {
+                    "id": fake_id,
+                    "email": body.email,
+                    "name": body.name,
+                    "phone": None,
+                    "role": "admin",
+                    "institute_id": fake_id,
+                    "email_verified": False,
+                },
+                "institute": {
+                    "id": fake_id,
+                    "name": body.institute_name,
+                    "slug": body.institute_slug,
+                    "status": "trial",
+                    "plan_tier": "free",
+                    "expires_at": None,
+                },
+            },
         )
 
     # Cloudflare Turnstile CAPTCHA verification
@@ -66,16 +93,24 @@ async def register(
             institute_slug=body.institute_slug,
         )
     except ValueError as e:
-        # Cooldown violations and duplicate-email checks both raise ValueError.
-        # The cooldown message is user-friendly and safe to surface; the
-        # duplicate-slug/email message is generic by design to prevent enumeration.
+        # Cooldown violations and duplicate-slug/email checks both raise ValueError.
+        # Surface specific messages so the user knows which field to fix.
         msg = str(e)
         if "within the last" in msg and "days" in msg:
-            # Re-signup cooldown — show the specific message
             raise HTTPException(status_code=429, detail=msg)
+        if "slug" in msg.lower() and "taken" in msg.lower():
+            raise HTTPException(
+                status_code=409,
+                detail="This subdomain is already taken. Please choose a different one.",
+            )
+        if "email" in msg.lower() and "exists" in msg.lower():
+            raise HTTPException(
+                status_code=409,
+                detail="An account with this email already exists. Please log in instead.",
+            )
         raise HTTPException(
             status_code=409,
-            detail="Registration failed. This slug or email may already be in use.",
+            detail="Registration failed. Please try a different subdomain or email.",
         )
 
     # Generate tokens
@@ -117,7 +152,19 @@ async def register(
         ip_address=request.client.host if request.client else None,
     )
     session.add(signup_log)
-    await session.commit()
+    try:
+        await session.commit()
+    except Exception as exc:
+        logger.error(
+            "Failed to create session/activity for user=%s institute=%s: %s",
+            user.id,
+            institute.id,
+            exc,
+        )
+        await session.rollback()
+        # User + institute already exist (committed in service layer).
+        # The JWT access token still works; refresh will fail but user
+        # can log in normally. Fall through to return the response.
 
     # Pre-warm the new tenant subdomain so Vercel provisions the wildcard
     # SSL cert before the user clicks the verification email link.
@@ -142,8 +189,13 @@ async def register(
             institute_name=institute.name,
         )
         send_email(to=user.email, subject=subject, html=html)
-    except Exception:
-        pass  # Don't fail signup if email fails
+    except Exception as exc:
+        logger.warning(
+            "Verification email failed for user=%s email=%s: %s",
+            user.id,
+            user.email,
+            exc,
+        )
 
     return SignupResponse(
         access_token=access_token,

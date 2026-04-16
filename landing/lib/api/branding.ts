@@ -1,7 +1,18 @@
 const API_BASE = '/api/v1';
 
+/** Extract a user-friendly error message from a FastAPI error response body. */
+function extractDetail(body: unknown, fallback: string): string {
+  if (!body || typeof body !== 'object') return fallback;
+  const detail = (body as { detail?: unknown }).detail;
+  if (typeof detail === 'string') return detail;
+  return fallback;
+}
+
 export async function uploadLogo(file: File): Promise<{ logoUrl: string }> {
   const token = localStorage.getItem('access_token');
+  if (!token) {
+    throw new Error('Session expired. Your LMS was created — please log in at your institute URL to upload a logo.');
+  }
   const formData = new FormData();
   formData.append('file', file);
   const res = await fetch(`${API_BASE}/branding/logo-upload`, {
@@ -9,7 +20,10 @@ export async function uploadLogo(file: File): Promise<{ logoUrl: string }> {
     headers: { 'Authorization': `Bearer ${token}` },
     body: formData,
   });
-  if (!res.ok) throw new Error('Logo upload failed');
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(extractDetail(err, 'Logo upload failed'));
+  }
   return res.json();
 }
 
@@ -21,6 +35,9 @@ export async function updateBranding(data: {
   tagline?: string;
 }): Promise<void> {
   const token = localStorage.getItem('access_token');
+  if (!token) {
+    throw new Error('Session expired. Your LMS was created — please log in at your institute URL to update branding.');
+  }
   const body: Record<string, string> = {};
   if (data.primaryColor) body.primary_color = data.primaryColor;
   if (data.accentColor) body.accent_color = data.accentColor;
@@ -35,5 +52,8 @@ export async function updateBranding(data: {
     },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error('Branding update failed');
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(extractDetail(err, 'Branding update failed'));
+  }
 }

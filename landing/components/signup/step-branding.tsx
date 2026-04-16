@@ -2,7 +2,10 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Palette, Upload, Loader2, Image as ImageIcon } from 'lucide-react';
+import { toast } from 'sonner';
 import { isValidHex } from '@/lib/utils/color-convert';
+
+const ALLOWED_LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];
 
 const PRESET_THEMES: Record<string, { primary: string; accent: string; background: string; label: string }> = {
   midnight: { primary: '#1A1A2E', accent: '#E94560', background: '#F5F5F5', label: 'Midnight' },
@@ -56,13 +59,25 @@ export function StepBranding({
   };
 
   const handleLogoUpload = (file: File) => {
+    if (!ALLOWED_LOGO_TYPES.includes(file.type)) {
+      toast.error('Please upload a PNG, JPG, WebP, or SVG image.');
+      return;
+    }
     if (file.size > 2 * 1024 * 1024) {
-      alert('Logo must be under 2MB');
+      toast.error('Logo must be under 2MB. Please choose a smaller file.');
       return;
     }
     const reader = new FileReader();
     reader.onload = (e) => {
-      onLogoChange(file, e.target?.result as string);
+      const result = e.target?.result as string | undefined;
+      if (!result) {
+        toast.error('Could not read the file. Please try another.');
+        return;
+      }
+      onLogoChange(file, result);
+    };
+    reader.onerror = () => {
+      toast.error('Could not read the file. It may be corrupted — please try another.');
     };
     reader.readAsDataURL(file);
   };

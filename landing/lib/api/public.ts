@@ -1,3 +1,8 @@
+import { fetchWithTimeout, extractErrorMessage } from './fetch-utils';
+
+// Re-export so existing imports from '@/lib/api/public' keep working.
+export { extractErrorMessage } from './fetch-utils';
+
 const API_BASE = '/api/v1';
 
 export interface SignupData {
@@ -39,20 +44,24 @@ export interface SlugCheckResponse {
   reason: string;
 }
 
-export async function checkSlug(slug: string): Promise<SlugCheckResponse> {
-  const res = await fetch(`${API_BASE}/signup/check-slug?slug=${encodeURIComponent(slug)}`);
+export async function checkSlug(slug: string, signal?: AbortSignal): Promise<SlugCheckResponse> {
+  const res = await fetchWithTimeout(
+    `${API_BASE}/signup/check-slug?slug=${encodeURIComponent(slug)}`,
+    { timeoutMs: 15_000, signal },
+  );
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Failed to check slug' }));
-    throw new Error(err.detail || 'Failed to check slug');
+    throw new Error(extractErrorMessage(err, 'Failed to check slug'));
   }
   const data = await res.json();
   return data;
 }
 
 export async function signup(data: SignupData): Promise<SignupResponse> {
-  const res = await fetch(`${API_BASE}/signup/register`, {
+  const res = await fetchWithTimeout(`${API_BASE}/signup/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    timeoutMs: 30_000,
     body: JSON.stringify({
       name: data.name,
       email: data.email,
@@ -66,7 +75,7 @@ export async function signup(data: SignupData): Promise<SignupResponse> {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Signup failed' }));
-    throw new Error(err.detail || 'Signup failed');
+    throw new Error(extractErrorMessage(err, 'Signup failed'));
   }
   const raw = await res.json();
   return {
@@ -93,8 +102,9 @@ export async function signup(data: SignupData): Promise<SignupResponse> {
 }
 
 export async function createHandoffToken(accessToken: string): Promise<{ handoffToken: string; instituteSlug: string }> {
-  const res = await fetch(`${API_BASE}/auth/handoff-token`, {
+  const res = await fetchWithTimeout(`${API_BASE}/auth/handoff-token`, {
     method: 'POST',
+    timeoutMs: 15_000,
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${accessToken}`,
@@ -102,7 +112,7 @@ export async function createHandoffToken(accessToken: string): Promise<{ handoff
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Failed to create handoff token' }));
-    throw new Error(err.detail || 'Failed to create handoff token');
+    throw new Error(extractErrorMessage(err, 'Failed to create handoff token'));
   }
   const data = await res.json();
   return {
@@ -128,14 +138,15 @@ export async function exchangeHandoffToken(token: string): Promise<{
     instituteSlug: string | null;
   };
 }> {
-  const res = await fetch(`${API_BASE}/auth/exchange-handoff`, {
+  const res = await fetchWithTimeout(`${API_BASE}/auth/exchange-handoff`, {
     method: 'POST',
+    timeoutMs: 15_000,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ token }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Invalid or expired token' }));
-    throw new Error(err.detail || 'Invalid or expired token');
+    throw new Error(extractErrorMessage(err, 'Invalid or expired token'));
   }
   const raw = await res.json();
   return {

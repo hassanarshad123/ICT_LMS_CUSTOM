@@ -23,7 +23,18 @@ declare global {
   }
 }
 
-const TURNSTILE_SITE_KEY = '0x4AAAAAAC1pfHbt2LQkZdD-';
+// Cloudflare Turnstile site key — loaded from env so we can rotate it
+// without a code change. Set NEXT_PUBLIC_TURNSTILE_SITE_KEY in .env.local
+// (and in Vercel) with the real site key from
+// https://dash.cloudflare.com/?to=/:account/turnstile.
+//
+// Dev bypass: if the env var is empty or explicitly set to 'SKIP', the
+// CAPTCHA widget is not rendered and the submit check is skipped. This
+// keeps local development unblocked when no real key is configured. The
+// backend independently skips verification when CF_TURNSTILE_SECRET_KEY
+// is empty, so the two bypass paths must be used together.
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '';
+const TURNSTILE_ENABLED = Boolean(TURNSTILE_SITE_KEY) && TURNSTILE_SITE_KEY !== 'SKIP';
 
 const STEPS = ['Institute Details', 'Branding', 'Setting Up'];
 
@@ -73,27 +84,42 @@ export default function OnboardingPage() {
   }, []);
 
   const renderTurnstile = useCallback(() => {
+    if (!TURNSTILE_ENABLED) return;
     if (!turnstileRef.current || !window.turnstile || widgetIdRef.current) return;
-    widgetIdRef.current = window.turnstile.render(turnstileRef.current, {
-      sitekey: TURNSTILE_SITE_KEY,
-      callback: (token: string) => setTurnstileToken(token),
-      'expired-callback': () => setTurnstileToken(null),
-      'error-callback': () => setTurnstileToken(null),
-      theme: 'light',
-    });
+    try {
+      widgetIdRef.current = window.turnstile.render(turnstileRef.current, {
+        sitekey: TURNSTILE_SITE_KEY,
+        callback: (token: string) => setTurnstileToken(token),
+        'expired-callback': () => setTurnstileToken(null),
+        'error-callback': (errorCode: string) => {
+          // Surface Cloudflare error codes so silent loops are visible.
+          // Common codes: 110200 (invalid site key), 300030 (challenge
+          // rejected), 600010 (unknown client error). Full list:
+          // https://developers.cloudflare.com/turnstile/reference/client-side-errors/
+          // eslint-disable-next-line no-console
+          console.error('[Turnstile] widget error:', errorCode);
+          setTurnstileToken(null);
+          toast.error(`CAPTCHA failed to load (error ${errorCode}). Please refresh.`);
+        },
+        theme: 'light',
+      });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('[Turnstile] render threw:', e);
+      toast.error('CAPTCHA failed to initialize. Please refresh the page.');
+    }
   }, []);
 
   useEffect(() => {
-    if (step === 1) {
-      // Wait for Turnstile script to load then render
-      const interval = setInterval(() => {
-        if (window.turnstile) {
-          renderTurnstile();
-          clearInterval(interval);
-        }
-      }, 200);
-      return () => clearInterval(interval);
-    }
+    if (step !== 1 || !TURNSTILE_ENABLED) return;
+    // Wait for Turnstile script to load then render
+    const interval = setInterval(() => {
+      if (window.turnstile) {
+        renderTurnstile();
+        clearInterval(interval);
+      }
+    }, 200);
+    return () => clearInterval(interval);
   }, [step, renderTurnstile]);
 
   // Ensure user data exists from /register
@@ -135,15 +161,12 @@ export default function OnboardingPage() {
         sessionStorage.removeItem('signup_user');
         window.location.href = `${ctx.targetBase}/auth-callback?token=${handoff.handoffToken}`;
       } catch {
-        // Fallback: if handoff fails, redirect to app login
+        // Fallback: if handoff fails, redirect to institute login directly
         sessionStorage.removeItem('signup_user');
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
         toast.success('Account created! Please log in at your institute URL.');
-        const loginUrl = ctx.isLocal
-          ? `http://localhost:${ctx.appPort}/login`
-          : 'https://zensbot.online/login';
-        window.location.href = loginUrl;
+        window.location.href = `${ctx.targetBase}/login`;
       }
     },
     [],
@@ -156,14 +179,23 @@ export default function OnboardingPage() {
       return;
     }
 
-    if (!turnstileToken) {
+    if (TURNSTILE_ENABLED && !turnstileToken) {
       toast.error('Please complete the CAPTCHA verification');
       return;
     }
 
     setSubmitting(true);
     try {
-      const userData = JSON.parse(storedUser);
+      let userData: { name: string; email: string; password: string; phone?: string; website?: string };
+      try {
+        userData = JSON.parse(storedUser);
+      } catch {
+        sessionStorage.removeItem('signup_user');
+        toast.error('Your session data was corrupted. Please fill in your details again.');
+        router.replace('/register');
+        setSubmitting(false);
+        return;
+      }
 
       // 1. Create institute + user
       const signupRes = await signup({
@@ -174,7 +206,7 @@ export default function OnboardingPage() {
         instituteName,
         instituteSlug: slug,
         website: userData.website,
-        cfTurnstileToken: turnstileToken,
+        cfTurnstileToken: turnstileToken || undefined,
       });
 
       const { accessToken, institute } = signupRes;
@@ -236,8 +268,9 @@ export default function OnboardingPage() {
       }
 
       // 4. Build target subdomain URL
-      const isLocal = window.location.hostname === 'localhost' ||
-                      window.location.hostname.includes('.localhost');
+      const hostname = window.location.hostname;
+      const isLocal = ['localhost', '127.0.0.1'].includes(hostname) ||
+                      hostname.includes('.localhost');
       const appPort = process.env.NEXT_PUBLIC_APP_PORT || '3000';
       const targetDomain = isLocal
         ? `${institute.slug}.localhost:${appPort}`
@@ -252,10 +285,12 @@ export default function OnboardingPage() {
       // 5. Show step 2 (animation OR spinner) and start polling for the
       // newly-provisioned subdomain. SSL provisioning can take 30-90s.
       setStep(2);
+      setSubmitting(false);
       const maxWaitMs = 120_000; // 2 minutes max
       const pollInterval = 3_000; // check every 3s
       const startTime = Date.now();
 
+      let pollingTimedOut = false;
       while (Date.now() - startTime < maxWaitMs) {
         try {
           await fetch(`${targetBase}/login`, { mode: 'no-cors', cache: 'no-store' });
@@ -264,7 +299,13 @@ export default function OnboardingPage() {
           await new Promise((r) => setTimeout(r, pollInterval));
         }
       }
+      if (Date.now() - startTime >= maxWaitMs) {
+        pollingTimedOut = true;
+      }
       setSubdomainReady(true);
+      if (pollingTimedOut) {
+        toast.warning('Your LMS is being set up. If the page doesn\'t load immediately, wait a moment and refresh.');
+      }
 
       // 6. If the animation is OFF, redirect immediately (legacy behavior).
       // If the animation is ON, do nothing here — the animation's onComplete
@@ -279,7 +320,17 @@ export default function OnboardingPage() {
         window.turnstile.reset(widgetIdRef.current);
         setTurnstileToken(null);
       }
-      const message = err instanceof Error ? err.message : 'Signup failed. Please try again.';
+
+      let message: string;
+      if (err instanceof TypeError && /fetch|network/i.test(err.message)) {
+        message = 'Connection failed — please check your internet and try again.';
+      } else if (err instanceof Error && /timed?\s*out/i.test(err.message)) {
+        message = 'The server is taking too long to respond. Please try again.';
+      } else if (err instanceof Error && err.message) {
+        message = err.message;
+      } else {
+        message = 'Something went wrong. Please try again or contact support.';
+      }
       toast.error(message);
     }
   };
@@ -322,9 +373,11 @@ export default function OnboardingPage() {
             onSubmit={handleFinalSubmit}
             submitting={submitting}
           />
-          <div className="mt-4 flex justify-center">
-            <div ref={turnstileRef} />
-          </div>
+          {TURNSTILE_ENABLED && (
+            <div className="mt-4 flex justify-center">
+              <div ref={turnstileRef} />
+            </div>
+          )}
         </>
       )}
       {step === 2 && !SHOW_ONBOARDING_ANIMATION && (
