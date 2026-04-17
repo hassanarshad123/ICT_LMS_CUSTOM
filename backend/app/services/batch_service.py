@@ -852,5 +852,5 @@ async def get_expiry_summary(
     return {
         "expiring_soon": expiring_soon,
         "expired": expired,
-        "extended": extended,
+        "adjusted": extended,
     }
