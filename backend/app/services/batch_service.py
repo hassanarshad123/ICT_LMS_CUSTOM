@@ -640,117 +640,35 @@ async def unlink_course(
 
 
 async def extend_student_access(
-    session: AsyncSession,
-    batch_id: uuid.UUID,
-    student_id: uuid.UUID,
+    db: AsyncSession,
     *,
-    end_date: Optional[date] = None,
+    institute_id: uuid.UUID,
+    student_id: uuid.UUID,
+    batch_id: uuid.UUID,
     duration_days: Optional[int] = None,
+    end_date: Optional[date] = None,
     reason: Optional[str] = None,
     extended_by: uuid.UUID,
-    institute_id: Optional[uuid.UUID] = None,
 ) -> dict:
-    """Extend a student's access to a batch beyond the batch end_date.
+    """Legacy wrapper — delegates to set_student_access with context='adjust'.
 
-    Provide either end_date (specific date) or duration_days (number of days),
-    not both. If duration_days, the new end date is calculated as
-    max(batch.end_date, today) + duration_days.
-
-    Returns dict with extension details.
+    Kept for backwards compatibility with the /extend router and other callers.
+    Unlike set_student_access, this helper commits the transaction itself so
+    existing callers that do not call db.commit() continue to work.
     """
-    if end_date and duration_days:
-        raise ValueError("Provide either end_date or duration_days, not both")
-    if not end_date and not duration_days:
-        raise ValueError("Provide either end_date or duration_days")
-    if duration_days is not None and (duration_days < 1 or duration_days > 365):
-        raise ValueError("duration_days must be between 1 and 365")
-
-    # Load batch
-    batch_filters = [Batch.id == batch_id, Batch.deleted_at.is_(None)]
-    if institute_id is not None:
-        batch_filters.append(Batch.institute_id == institute_id)
-    batch = (await session.execute(
-        select(Batch).where(*batch_filters)
-    )).scalar_one_or_none()
-    if not batch:
-        raise ValueError("Batch not found")
-
-    # Load enrollment
-    enroll_filters = [
-        StudentBatch.student_id == student_id,
-        StudentBatch.batch_id == batch_id,
-        StudentBatch.removed_at.is_(None),
-    ]
-    if institute_id is not None:
-        enroll_filters.append(StudentBatch.institute_id == institute_id)
-    enrollment = (await session.execute(
-        select(StudentBatch).where(*enroll_filters)
-    )).scalar_one_or_none()
-    if not enrollment:
-        raise ValueError("Student is not enrolled in this batch")
-
-    # Calculate new end date
-    from datetime import timedelta
-    if duration_days:
-        base = max(batch.end_date, date.today())
-        new_end_date = base + timedelta(days=duration_days)
-        extension_type = "duration_days"
-    else:
-        new_end_date = end_date
-        extension_type = "specific_date"
-
-    if new_end_date <= date.today():
-        raise ValueError("New end date must be in the future")
-    if new_end_date <= batch.end_date:
-        raise ValueError("New end date must be after the batch end date")
-
-    # Previous effective end date
-    previous_end = enrollment.extended_end_date or batch.end_date
-
-    # Update enrollment
-    enrollment.extended_end_date = new_end_date
-    session.add(enrollment)
-
-    # Create audit log
-    log = BatchExtensionLog(
-        student_batch_id=enrollment.id,
+    result = await set_student_access(
+        db,
+        institute_id=institute_id,
         student_id=student_id,
         batch_id=batch_id,
-        previous_end_date=previous_end,
-        new_end_date=new_end_date,
-        extension_type=extension_type,
-        duration_days=duration_days,
+        days=duration_days,
+        end_date=end_date,
+        actor_id=extended_by,
         reason=reason,
-        extended_by=extended_by,
-        institute_id=institute_id,
+        context="adjust",
     )
-    session.add(log)
-    await session.commit()
-
-    # Notify the student about the extension
-    from app.services import notification_service
-    try:
-        await notification_service.create_notification(
-            session,
-            user_id=student_id,
-            type="batch_extension",
-            title="Access Extended",
-            message=f"Your access to {batch.name} has been extended until {new_end_date.strftime('%b %d, %Y')}.",
-            link=f"/batches/{batch_id}",
-            institute_id=institute_id,
-        )
-    except Exception:
-        pass  # Don't fail the extension if notification fails
-
-    return {
-        "student_id": student_id,
-        "batch_id": batch_id,
-        "previous_end_date": previous_end,
-        "new_end_date": new_end_date,
-        "extension_type": extension_type,
-        "duration_days": duration_days,
-        "reason": reason,
-    }
+    await db.commit()
+    return result
 
 
 async def get_extension_history(

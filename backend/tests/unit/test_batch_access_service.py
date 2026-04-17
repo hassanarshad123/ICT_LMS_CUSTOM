@@ -203,3 +203,53 @@ class TestSetStudentAccessSideEffects:
             assert mock_queue.await_count == 1
             args = mock_queue.await_args.kwargs
             assert args["event_type"] == "enrollment.access_changed"
+
+
+class TestExtendStudentAccessShortening:
+    @pytest.mark.asyncio
+    async def test_extend_can_shorten_below_batch_end(self, sample_ids, sample_batch, sample_enrollment):
+        # Batch ends today+90. Request end_date = today+10 (earlier). Should succeed now.
+        from app.services.batch_service import extend_student_access
+        session = _make_mock_session(sample_enrollment, sample_batch)
+        with patch("app.services.batch_service.queue_webhook_event", new=AsyncMock()):
+            result = await extend_student_access(
+                session,
+                institute_id=sample_ids["institute_id"],
+                student_id=sample_ids["student_id"],
+                batch_id=sample_ids["batch_id"],
+                end_date=date.today() + timedelta(days=10),
+                extended_by=sample_ids["actor_id"],
+            )
+        assert result["new_end_date"] == date.today() + timedelta(days=10)
+        assert result["extension_type"] == "shorten"
+
+    @pytest.mark.asyncio
+    async def test_extend_still_rejects_past_date(self, sample_ids, sample_batch, sample_enrollment):
+        from app.services.batch_service import extend_student_access
+        session = _make_mock_session(sample_enrollment, sample_batch)
+        with pytest.raises(ValueError, match="future"):
+            await extend_student_access(
+                session,
+                institute_id=sample_ids["institute_id"],
+                student_id=sample_ids["student_id"],
+                batch_id=sample_ids["batch_id"],
+                end_date=date.today() - timedelta(days=1),
+                extended_by=sample_ids["actor_id"],
+            )
+
+    @pytest.mark.asyncio
+    async def test_extend_with_duration_days_works(self, sample_ids, sample_batch, sample_enrollment):
+        # Regression: existing callers pass `duration_days=N` (legacy param name).
+        from app.services.batch_service import extend_student_access
+        session = _make_mock_session(sample_enrollment, sample_batch)
+        with patch("app.services.batch_service.queue_webhook_event", new=AsyncMock()):
+            result = await extend_student_access(
+                session,
+                institute_id=sample_ids["institute_id"],
+                student_id=sample_ids["student_id"],
+                batch_id=sample_ids["batch_id"],
+                duration_days=180,
+                extended_by=sample_ids["actor_id"],
+            )
+        assert result["new_end_date"] == date.today() + timedelta(days=180)
+        assert result["extension_type"] == "extend"

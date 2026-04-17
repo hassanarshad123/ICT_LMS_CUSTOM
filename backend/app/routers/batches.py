@@ -295,12 +295,14 @@ async def extend_student_access(
     """Extend a student's access to this batch beyond the batch end_date."""
     try:
         result = await batch_service.extend_student_access(
-            session, batch_id, student_id,
+            session,
+            institute_id=current_user.institute_id,
+            student_id=student_id,
+            batch_id=batch_id,
             end_date=body.end_date,
             duration_days=body.duration_days,
             reason=body.reason,
             extended_by=current_user.id,
-            institute_id=current_user.institute_id,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
