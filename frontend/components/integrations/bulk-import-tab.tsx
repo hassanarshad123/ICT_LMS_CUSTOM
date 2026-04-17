@@ -17,7 +17,7 @@ const ENTITIES: Array<{ value: BulkImportEntity; label: string; description: str
   {
     value: 'students',
     label: 'Students',
-    description: 'Name, email, phone (+ optional batch to enroll).',
+    description: 'Name, email, phone (+ optional batch to enroll). Optional: access_days or access_end_date — leave both blank to use batch end date.',
   },
   {
     value: 'fee_plans',

@@ -311,6 +311,9 @@ export default function CsvImportPanel({ onSuccess, onClose, batches = [], preSe
           <p className="text-xs text-gray-500">
             CSV with columns: name, email, phone, role, specialization, password (max 500 rows)
           </p>
+          <p className="text-xs text-gray-400 mt-1">
+            Optional: <code className="bg-gray-100 px-1 rounded">access_days</code> or <code className="bg-gray-100 px-1 rounded">access_end_date</code> (mutually exclusive). Leave both blank to use the batch end date as the student&apos;s access expiry.
+          </p>
           <input
             ref={fileInputRef}
             type="file"

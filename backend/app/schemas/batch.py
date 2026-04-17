@@ -1,6 +1,6 @@
 import uuid
 from datetime import date, datetime
-from typing import Optional
+from typing import List, Optional
 from pydantic import BaseModel, Field, model_validator
 
 
@@ -50,8 +50,39 @@ class BatchOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class BatchStudentEnroll(BaseModel):
+# ── Access duration schemas ──────────────────────────────────────────
+
+
+class AccessDuration(BaseModel):
+    """Optional per-student access window. Exactly one of access_days or access_end_date may be set."""
+    access_days: Optional[int] = Field(default=None, ge=1, le=3650)
+    access_end_date: Optional[date] = None
+
+    @model_validator(mode="after")
+    def _mutually_exclusive(self):
+        if self.access_days is not None and self.access_end_date is not None:
+            raise ValueError("Provide either access_days OR access_end_date, not both.")
+        return self
+
+
+class BatchStudentEnroll(AccessDuration):
     student_id: uuid.UUID
+    reason: Optional[str] = Field(default=None, max_length=500)
+
+
+class BulkEnrollRequest(AccessDuration):
+    student_ids: List[uuid.UUID] = Field(min_length=1, max_length=500)
+    reason: Optional[str] = Field(default=None, max_length=500)
+    skip_notifications: bool = False
+
+
+class AccessAdjustRequest(AccessDuration):
+    reason: Optional[str] = Field(default=None, max_length=500)
+    skip_notifications: bool = False
+
+
+class BulkAccessAdjustRequest(AccessAdjustRequest):
+    student_ids: List[uuid.UUID] = Field(min_length=1, max_length=500)
 
 
 class BatchCourseLink(BaseModel):
@@ -103,6 +134,6 @@ class StudentExpiryInfo(BaseModel):
 
 
 class ExpirySummary(BaseModel):
-    expiring_soon: list[StudentExpiryInfo]
-    expired: list[StudentExpiryInfo]
-    extended: list[StudentExpiryInfo]
+    expiring_soon: List[StudentExpiryInfo]
+    expired: List[StudentExpiryInfo]
+    adjusted: List[StudentExpiryInfo]  # renamed from 'extended'

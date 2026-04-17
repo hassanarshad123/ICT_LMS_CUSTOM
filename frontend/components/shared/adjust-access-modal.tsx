@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { extendStudentAccess, getExtensionHistory, ExtensionHistoryItem } from '@/lib/api/batches';
+import { setStudentAccess, getExtensionHistory, ExtensionHistoryItem } from '@/lib/api/batches';
 import { toast } from 'sonner';
 import { Calendar, Clock, History, Loader2, X } from 'lucide-react';
 
-interface ExtendAccessModalProps {
+interface AdjustAccessModalProps {
   batchId: string;
   batchEndDate: string;
   studentId: string;
@@ -15,7 +15,7 @@ interface ExtendAccessModalProps {
   onSuccess: () => void;
 }
 
-export function ExtendAccessModal({
+export function AdjustAccessModal({
   batchId,
   batchEndDate,
   studentId,
@@ -23,7 +23,7 @@ export function ExtendAccessModal({
   currentEffectiveEndDate,
   onClose,
   onSuccess,
-}: ExtendAccessModalProps) {
+}: AdjustAccessModalProps) {
   const [tab, setTab] = useState<'date' | 'duration' | 'history'>('date');
   const [endDate, setEndDate] = useState('');
   const [durationDays, setDurationDays] = useState('');
@@ -51,40 +51,57 @@ export function ExtendAccessModal({
     }
   };
 
+  // Compute the candidate new end date for shortening warning
+  const candidate: string | null = (() => {
+    if (tab === 'date') {
+      return endDate || null;
+    }
+    if (tab === 'duration') {
+      const days = parseInt(durationDays, 10);
+      if (!days || days < 1) return null;
+      const d = new Date();
+      d.setDate(d.getDate() + days);
+      return d.toISOString().slice(0, 10);
+    }
+    return null;
+  })();
+
+  const isShortening =
+    candidate !== null &&
+    currentEffectiveEndDate !== undefined &&
+    candidate < currentEffectiveEndDate;
+
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      const payload: { end_date?: string; duration_days?: number; reason?: string } = {};
+      const data: { accessEndDate?: string; accessDays?: number; reason?: string } = {};
       if (tab === 'date') {
         if (!endDate) { toast.error('Please select an end date'); setSubmitting(false); return; }
-        payload.end_date = endDate;
+        data.accessEndDate = endDate;
       } else {
         const days = parseInt(durationDays, 10);
-        if (!days || days < 1 || days > 365) { toast.error('Enter days between 1 and 365'); setSubmitting(false); return; }
-        payload.duration_days = days;
+        if (!days || days < 1 || days > 3650) { toast.error('Enter days between 1 and 3650'); setSubmitting(false); return; }
+        data.accessDays = days;
       }
-      if (reason.trim()) payload.reason = reason.trim();
+      if (reason.trim()) data.reason = reason.trim();
 
-      const result = await extendStudentAccess(batchId, studentId, payload);
-      toast.success(`Access extended until ${new Date(result.newEndDate).toLocaleDateString()}`);
+      const result = await setStudentAccess(batchId, studentId, data);
+      toast.success(`Access updated to ${new Date(result.newEndDate).toLocaleDateString()}`);
       onSuccess();
       onClose();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to extend access');
+      toast.error(err.message || 'Failed to update access');
     } finally {
       setSubmitting(false);
     }
   };
-
-  // Compute min date for the date picker (must be after batch end date)
-  const minDate = batchEndDate ? new Date(new Date(batchEndDate).getTime() + 86400000).toISOString().split('T')[0] : '';
 
   // Preview the resulting date for duration mode
   const previewDate = (() => {
     if (tab !== 'duration' || !durationDays) return null;
     const days = parseInt(durationDays, 10);
     if (!days || days < 1) return null;
-    const base = new Date(Math.max(new Date(batchEndDate).getTime(), Date.now()));
+    const base = new Date();
     base.setDate(base.getDate() + days);
     return base.toLocaleDateString();
   })();
@@ -95,7 +112,7 @@ export function ExtendAccessModal({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div>
-            <h3 className="text-lg font-semibold text-primary">Extend Access</h3>
+            <h3 className="text-lg font-semibold text-primary">Update Access</h3>
             <p className="text-sm text-gray-500 mt-0.5">{studentName}</p>
           </div>
           <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
@@ -107,7 +124,7 @@ export function ExtendAccessModal({
         <div className="px-6 py-3 bg-gray-50 text-sm text-gray-600 flex items-center justify-between">
           <span>Batch ends: <strong>{new Date(batchEndDate).toLocaleDateString()}</strong></span>
           {currentEffectiveEndDate && currentEffectiveEndDate !== batchEndDate && (
-            <span>Extended to: <strong className="text-blue-600">{new Date(currentEffectiveEndDate).toLocaleDateString()}</strong></span>
+            <span>Current access: <strong className="text-blue-600">{new Date(currentEffectiveEndDate).toLocaleDateString()}</strong></span>
           )}
         </div>
 
@@ -141,10 +158,14 @@ export function ExtendAccessModal({
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  min={minDate}
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-primary"
                 />
               </div>
+              {isShortening && (
+                <div className="rounded border border-amber-300 bg-amber-50 p-3 text-sm">
+                  You are shortening access from {currentEffectiveEndDate} to {candidate}. The student will be notified.
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Reason (optional)</label>
                 <input
@@ -162,13 +183,13 @@ export function ExtendAccessModal({
           {tab === 'duration' && (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Extend by (days)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Days from today</label>
                 <input
                   type="number"
                   value={durationDays}
                   onChange={(e) => setDurationDays(e.target.value)}
                   min={1}
-                  max={365}
+                  max={3650}
                   placeholder="30"
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-primary"
                 />
@@ -176,13 +197,18 @@ export function ExtendAccessModal({
                   <p className="mt-2 text-sm text-gray-500">New end date: <strong className="text-primary">{previewDate}</strong></p>
                 )}
               </div>
+              {isShortening && (
+                <div className="rounded border border-amber-300 bg-amber-50 p-3 text-sm">
+                  You are shortening access from {currentEffectiveEndDate} to {candidate}. The student will be notified.
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Reason (optional)</label>
                 <input
                   type="text"
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
-                  placeholder="e.g., Missed classes due to illness"
+                  placeholder="e.g., Schedule change"
                   maxLength={500}
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-primary"
                 />
@@ -197,7 +223,7 @@ export function ExtendAccessModal({
                   <Loader2 size={16} className="animate-spin text-gray-400" />
                 </div>
               ) : !history?.length ? (
-                <p className="text-sm text-gray-500 text-center py-8">No extensions yet</p>
+                <p className="text-sm text-gray-500 text-center py-8">No history yet</p>
               ) : (
                 <div className="space-y-3">
                   {history.map((item) => (
@@ -210,7 +236,7 @@ export function ExtendAccessModal({
                       </div>
                       <p className="text-xs text-gray-500 mt-1">
                         By {item.extendedByName}
-                        {item.durationDays && ` (+${item.durationDays} days)`}
+                        {item.durationDays && ` (${item.durationDays > 0 ? '+' : ''}${item.durationDays} days)`}
                       </p>
                       {item.reason && <p className="text-xs text-gray-400 mt-1 italic">{item.reason}</p>}
                     </div>
@@ -233,7 +259,7 @@ export function ExtendAccessModal({
               className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/80 transition-colors disabled:opacity-60"
             >
               {submitting && <Loader2 size={14} className="animate-spin" />}
-              Extend Access
+              Save
             </button>
           </div>
         )}

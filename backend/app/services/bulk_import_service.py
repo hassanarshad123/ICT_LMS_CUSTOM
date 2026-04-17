@@ -169,6 +169,24 @@ async def _import_student_row(
     phone = (row.get("phone") or "").strip() or None
     batch_name = (row.get("batch_name") or "").strip() or None
 
+    # Optional per-student access window columns
+    _access_days_raw = (row.get("access_days") or "").strip()
+    _access_end_date_raw = (row.get("access_end_date") or "").strip()
+    access_days: Optional[int] = None
+    access_end_date = None
+    if _access_days_raw:
+        try:
+            access_days = int(_access_days_raw)
+        except ValueError:
+            raise BulkImportError("access_days must be an integer")
+    if _access_end_date_raw:
+        try:
+            access_end_date = date.fromisoformat(_access_end_date_raw)
+        except ValueError:
+            raise BulkImportError("access_end_date must be YYYY-MM-DD")
+    if access_days is not None and access_end_date is not None:
+        raise BulkImportError("Provide either access_days or access_end_date, not both.")
+
     if not name or not email:
         raise BulkImportError("name and email are required")
 
@@ -213,14 +231,19 @@ async def _import_student_row(
         if batch is None:
             raise BulkImportError(f"Batch not found: {batch_name}")
 
-        from app.models.batch import StudentBatch
-        sb = StudentBatch(
-            student_id=student.id,
-            batch_id=batch.id,
-            institute_id=institute_id,
-            is_active=True,
-        )
-        session.add(sb)
+        from app.services.batch_service import enroll_student
+        try:
+            await enroll_student(
+                session,
+                batch_id=batch.id,
+                student_id=student.id,
+                enrolled_by=actor_id,
+                institute_id=institute_id,
+                access_days=access_days,
+                access_end_date=access_end_date,
+            )
+        except ValueError as exc:
+            raise BulkImportError(str(exc)) from exc
 
 
 async def _import_fee_plan_row(
@@ -381,7 +404,7 @@ async def _import_payment_row(
 # ── CSV templates (returned to the frontend for download) ──────────
 
 TEMPLATES = {
-    "students": "name,email,phone,batch_name\n",
+    "students": "name,email,phone,batch_name,access_days,access_end_date\n",
     "fee_plans": "student_email,batch_name,plan_type,total_amount,currency\n",
     "payments": "student_email,batch_name,amount,payment_date,payment_method,reference_number\n",
 }

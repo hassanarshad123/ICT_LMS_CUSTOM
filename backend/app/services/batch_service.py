@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +11,7 @@ from app.models.zoom import ZoomClass
 from app.models.announcement import Announcement
 from app.models.user import User
 from app.models.enums import UserRole, BatchHistoryAction
+from app.services.webhook_event_service import queue_webhook_event
 
 
 def _compute_status(start_date: date, end_date: date, effective_end_date: date | None = None) -> str:
@@ -385,7 +386,21 @@ async def enroll_student(
     student_id: uuid.UUID,
     enrolled_by: uuid.UUID,
     institute_id: Optional[uuid.UUID] = None,
+    access_days: Optional[int] = None,
+    access_end_date: Optional[date] = None,
+    reason: Optional[str] = None,
 ) -> StudentBatch:
+    # Validate custom access window args up front
+    if access_days is not None and access_end_date is not None:
+        raise ValueError("Provide either access_days or access_end_date, not both.")
+    extended_target: Optional[date] = None
+    if access_days is not None:
+        extended_target = date.today() + timedelta(days=access_days)
+    elif access_end_date is not None:
+        extended_target = access_end_date
+    if extended_target is not None and extended_target <= date.today():
+        raise ValueError("Access end date must be in the future.")
+
     # Check student exists, is a student, and belongs to the same institute
     r = await session.execute(select(User).where(User.id == student_id, User.deleted_at.is_(None)))
     student = r.scalar_one_or_none()
@@ -418,6 +433,7 @@ async def enroll_student(
         student_id=student_id,
         enrolled_by=enrolled_by,
         institute_id=institute_id,
+        extended_end_date=extended_target,
     )
     session.add(sb)
 
@@ -429,6 +445,23 @@ async def enroll_student(
         institute_id=institute_id,
     )
     session.add(history)
+
+    await session.flush()
+
+    # Audit log when a custom access window is set at enrollment time
+    if extended_target is not None:
+        session.add(BatchExtensionLog(
+            student_batch_id=sb.id,
+            student_id=student_id,
+            batch_id=batch_id,
+            institute_id=institute_id,
+            previous_end_date=None,
+            new_end_date=extended_target,
+            extension_type="initial",
+            duration_days=access_days,
+            reason=reason,
+            extended_by=enrolled_by,
+        ))
 
     await session.commit()
     await session.refresh(sb)
@@ -449,11 +482,12 @@ async def enroll_student(
             if teacher:
                 teacher_name = teacher.name
 
+        effective_end = extended_target if extended_target is not None else (batch.end_date if batch else None)
         subject, html = enrollment_email(
             student_name=student.name,
             batch_name=batch.name if batch else "Unknown",
             start_date=batch.start_date.isoformat() if batch and batch.start_date else "",
-            end_date=batch.end_date.isoformat() if batch and batch.end_date else "",
+            effective_end_date=effective_end.isoformat() if effective_end else "",
             teacher_name=teacher_name,
             login_url=build_login_url(branding["slug"]) if branding["slug"] else "",
             institute_name=branding["name"],
@@ -465,6 +499,43 @@ async def enroll_student(
         pass  # Best-effort
 
     return sb
+
+
+async def bulk_enroll_students(
+    db: AsyncSession,
+    *,
+    institute_id: uuid.UUID,
+    batch_id: uuid.UUID,
+    student_ids: list[uuid.UUID],
+    enrolled_by: uuid.UUID,
+    access_days: Optional[int] = None,
+    access_end_date: Optional[date] = None,
+    reason: Optional[str] = None,
+    skip_notifications: bool = False,
+) -> dict:
+    """Bulk-enroll students with a shared access window.
+
+    Each row commits individually (enroll_student owns its own transaction).
+    On any failure, returns partial success with the successful rows and the error.
+    """
+    enrolled: list[dict] = []
+    errors: list[dict] = []
+    for sid in student_ids:
+        try:
+            await enroll_student(
+                db,
+                institute_id=institute_id,
+                batch_id=batch_id,
+                student_id=sid,
+                enrolled_by=enrolled_by,
+                access_days=access_days,
+                access_end_date=access_end_date,
+                reason=reason,
+            )
+            enrolled.append({"student_id": str(sid), "status": "enrolled"})
+        except (ValueError, LookupError) as e:
+            errors.append({"student_id": str(sid), "error": str(e)})
+    return {"enrolled": enrolled, "errors": errors, "count": len(enrolled)}
 
 
 async def remove_student(
@@ -639,116 +710,48 @@ async def unlink_course(
 
 
 async def extend_student_access(
-    session: AsyncSession,
-    batch_id: uuid.UUID,
-    student_id: uuid.UUID,
+    db: AsyncSession,
     *,
-    end_date: Optional[date] = None,
+    institute_id: uuid.UUID,
+    student_id: uuid.UUID,
+    batch_id: uuid.UUID,
     duration_days: Optional[int] = None,
+    end_date: Optional[date] = None,
     reason: Optional[str] = None,
     extended_by: uuid.UUID,
-    institute_id: Optional[uuid.UUID] = None,
 ) -> dict:
-    """Extend a student's access to a batch beyond the batch end_date.
+    """Legacy wrapper — delegates to set_student_access with context='adjust'.
 
-    Provide either end_date (specific date) or duration_days (number of days),
-    not both. If duration_days, the new end date is calculated as
-    max(batch.end_date, today) + duration_days.
+    Kept for backwards compatibility with the /extend router and other callers.
+    The helper auto-detects whether the new date is an extension or a shortening;
+    unlike the pre-refactor version, dates earlier than batch.end_date are allowed.
 
-    Returns dict with extension details.
+    Commits the transaction so callers that do not own the transaction boundary
+    (including the /extend router when institute_id is None) keep working.
+    Translates LookupError (enrollment missing) to ValueError so existing
+    `except ValueError` handlers map it to 400.
     """
-    if end_date and duration_days:
-        raise ValueError("Provide either end_date or duration_days, not both")
-    if not end_date and not duration_days:
-        raise ValueError("Provide either end_date or duration_days")
-    if duration_days is not None and (duration_days < 1 or duration_days > 365):
-        raise ValueError("duration_days must be between 1 and 365")
-
-    # Load batch
-    batch_filters = [Batch.id == batch_id, Batch.deleted_at.is_(None)]
-    if institute_id is not None:
-        batch_filters.append(Batch.institute_id == institute_id)
-    batch = (await session.execute(
-        select(Batch).where(*batch_filters)
-    )).scalar_one_or_none()
-    if not batch:
-        raise ValueError("Batch not found")
-
-    # Load enrollment
-    enroll_filters = [
-        StudentBatch.student_id == student_id,
-        StudentBatch.batch_id == batch_id,
-        StudentBatch.removed_at.is_(None),
-    ]
-    if institute_id is not None:
-        enroll_filters.append(StudentBatch.institute_id == institute_id)
-    enrollment = (await session.execute(
-        select(StudentBatch).where(*enroll_filters)
-    )).scalar_one_or_none()
-    if not enrollment:
-        raise ValueError("Student is not enrolled in this batch")
-
-    # Calculate new end date
-    from datetime import timedelta
-    if duration_days:
-        base = max(batch.end_date, date.today())
-        new_end_date = base + timedelta(days=duration_days)
-        extension_type = "duration_days"
-    else:
-        new_end_date = end_date
-        extension_type = "specific_date"
-
-    if new_end_date <= date.today():
-        raise ValueError("New end date must be in the future")
-    if new_end_date <= batch.end_date:
-        raise ValueError("New end date must be after the batch end date")
-
-    # Previous effective end date
-    previous_end = enrollment.extended_end_date or batch.end_date
-
-    # Update enrollment
-    enrollment.extended_end_date = new_end_date
-    session.add(enrollment)
-
-    # Create audit log
-    log = BatchExtensionLog(
-        student_batch_id=enrollment.id,
-        student_id=student_id,
-        batch_id=batch_id,
-        previous_end_date=previous_end,
-        new_end_date=new_end_date,
-        extension_type=extension_type,
-        duration_days=duration_days,
-        reason=reason,
-        extended_by=extended_by,
-        institute_id=institute_id,
-    )
-    session.add(log)
-    await session.commit()
-
-    # Notify the student about the extension
-    from app.services import notification_service
     try:
-        await notification_service.create_notification(
-            session,
-            user_id=student_id,
-            type="batch_extension",
-            title="Access Extended",
-            message=f"Your access to {batch.name} has been extended until {new_end_date.strftime('%b %d, %Y')}.",
-            link=f"/batches/{batch_id}",
+        result = await set_student_access(
+            db,
             institute_id=institute_id,
+            student_id=student_id,
+            batch_id=batch_id,
+            days=duration_days,
+            end_date=end_date,
+            actor_id=extended_by,
+            reason=reason,
+            context="adjust",
         )
-    except Exception:
-        pass  # Don't fail the extension if notification fails
-
+    except LookupError as exc:
+        raise ValueError(str(exc)) from exc
+    await db.commit()
     return {
         "student_id": student_id,
         "batch_id": batch_id,
-        "previous_end_date": previous_end,
-        "new_end_date": new_end_date,
-        "extension_type": extension_type,
         "duration_days": duration_days,
         "reason": reason,
+        **result,
     }
 
 
@@ -828,7 +831,7 @@ async def get_expiry_summary(
 
     expiring_soon = []
     expired = []
-    extended = []
+    adjusted = []
 
     for sb, name, email in rows:
         effective_end = sb.extended_end_date or batch.end_date
@@ -841,8 +844,8 @@ async def get_expiry_summary(
             "effective_end_date": effective_end,
         }
 
-        if sb.extended_end_date and sb.extended_end_date > batch.end_date:
-            extended.append(info)
+        if sb.extended_end_date is not None:
+            adjusted.append(info)
 
         if today > effective_end:
             expired.append(info)
@@ -852,5 +855,163 @@ async def get_expiry_summary(
     return {
         "expiring_soon": expiring_soon,
         "expired": expired,
-        "extended": extended,
+        "adjusted": adjusted,
+    }
+
+
+async def bulk_set_student_access(
+    db: AsyncSession,
+    *,
+    institute_id: uuid.UUID,
+    batch_id: uuid.UUID,
+    student_ids: list[uuid.UUID],
+    actor_id: uuid.UUID,
+    days: Optional[int] = None,
+    end_date: Optional[date] = None,
+    reason: Optional[str] = None,
+    skip_notifications: bool = False,
+) -> dict:
+    """Adjust access end for multiple students in one transaction.
+
+    set_student_access flushes but does not commit, so we wrap N calls in a
+    single transaction boundary here: all-or-nothing.
+    """
+    results: list[dict] = []
+    try:
+        for sid in student_ids:
+            r = await set_student_access(
+                db,
+                institute_id=institute_id,
+                student_id=sid,
+                batch_id=batch_id,
+                days=days,
+                end_date=end_date,
+                actor_id=actor_id,
+                reason=reason,
+                context="adjust",
+                skip_notification=skip_notifications,
+            )
+            results.append({
+                "student_id": str(sid),
+                "previous_end_date": r["previous_end_date"].isoformat() if r["previous_end_date"] else None,
+                "new_end_date": r["new_end_date"].isoformat(),
+                "extension_type": r["extension_type"],
+            })
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
+    return {"results": results, "count": len(results)}
+
+
+# ── Unified student access helper ────────────────────────────────────────────
+
+
+async def set_student_access(
+    db: AsyncSession,
+    *,
+    institute_id: uuid.UUID,
+    student_id: uuid.UUID,
+    batch_id: uuid.UUID,
+    days: Optional[int] = None,
+    end_date: Optional[date] = None,
+    actor_id: uuid.UUID,
+    reason: Optional[str] = None,
+    context: str,  # "initial" | "extend" | "shorten" | "adjust"
+    skip_notification: bool = False,
+) -> dict:
+    """Unified helper to set StudentBatch.extended_end_date.
+
+    Validates days/end_date are mutually exclusive and resolved date > today.
+    Auto-detects direction when context == 'adjust'.
+    Writes a BatchExtensionLog row and queues a webhook event for extend/shorten
+    (not for initial — enrollment.created already carries effective_end_date).
+
+    Transaction: flushes but does NOT commit. The caller owns the transaction
+    boundary (router or outer service wrapping a bulk operation).
+    """
+    if days is not None and end_date is not None:
+        raise ValueError("Provide either days or end_date, not both.")
+    if days is None and end_date is None:
+        raise ValueError("Provide either days or end_date.")
+
+    target = end_date if end_date is not None else date.today() + timedelta(days=days)
+    if target <= date.today():
+        raise ValueError("New end date must be in the future.")
+
+    stmt = (
+        select(StudentBatch, Batch)
+        .join(Batch, Batch.id == StudentBatch.batch_id)
+        .where(
+            StudentBatch.student_id == student_id,
+            StudentBatch.batch_id == batch_id,
+            StudentBatch.institute_id == institute_id,
+            StudentBatch.removed_at.is_(None),
+            Batch.deleted_at.is_(None),
+        )
+    )
+    # Multi-entity SELECT returns a Row object — use .one_or_none() not .scalar_one_or_none()
+    # (scalar_one_or_none would silently return only StudentBatch, not the tuple).
+    row = (await db.execute(stmt)).one_or_none()
+    if row is None:
+        raise LookupError("Enrollment not found")
+    enrollment, batch = row
+
+    previous_end = enrollment.extended_end_date or batch.end_date
+
+    effective_type = context
+    if context == "adjust":
+        effective_type = "extend" if target > previous_end else "shorten"
+
+    enrollment.extended_end_date = target
+
+    log = BatchExtensionLog(
+        student_batch_id=enrollment.id,
+        student_id=student_id,
+        batch_id=batch_id,
+        institute_id=institute_id,
+        previous_end_date=previous_end,
+        new_end_date=target,
+        extension_type=effective_type,
+        duration_days=days,
+        reason=reason,
+        extended_by=actor_id,
+    )
+    db.add(log)
+    await db.flush()
+
+    if effective_type in ("extend", "shorten"):
+        await queue_webhook_event(
+            session=db,
+            institute_id=institute_id,
+            event_type="enrollment.access_changed",
+            data={
+                "student_id": str(student_id),
+                "batch_id": str(batch_id),
+                "previous_end_date": previous_end.isoformat() if previous_end else None,
+                "new_end_date": target.isoformat(),
+                "extension_type": effective_type,
+                "reason": reason,
+            },
+        )
+
+    if not skip_notification:
+        from app.services import notification_service
+        try:
+            await notification_service.create_notification(
+                db,
+                user_id=student_id,
+                type="batch_extension",
+                title="Access Window Updated",
+                message=f"Your access window has been updated. New end date: {target.strftime('%b %d, %Y')}.",
+                link=f"/batches/{batch_id}",
+                institute_id=institute_id,
+            )
+        except Exception:
+            pass  # Don't fail the operation if notification fails
+
+    return {
+        "previous_end_date": previous_end,
+        "new_end_date": target,
+        "extension_type": effective_type,
     }

@@ -31,6 +31,33 @@ export interface ExtensionOut {
   reason?: string;
 }
 
+export interface AccessDurationInput {
+  accessDays?: number;
+  accessEndDate?: string; // "YYYY-MM-DD"
+  reason?: string;
+}
+
+export interface AccessAdjustResult {
+  studentId: string;
+  batchId: string;
+  previousEndDate: string | null;
+  newEndDate: string;
+  extensionType: 'initial' | 'extend' | 'shorten';
+  durationDays?: number | null;
+  reason?: string | null;
+}
+
+export interface BulkAdjustResult {
+  results: AccessAdjustResult[];
+  count: number;
+}
+
+export interface BulkEnrollResult {
+  enrolled: Array<{ studentId: string; status: string }>;
+  errors: Array<{ studentId: string; error: string }>;
+  count: number;
+}
+
 export interface ExtensionHistoryItem {
   id: string;
   previousEndDate?: string;
@@ -55,7 +82,7 @@ export interface StudentExpiryInfo {
 export interface ExpirySummary {
   expiringSoon: StudentExpiryInfo[];
   expired: StudentExpiryInfo[];
-  extended: StudentExpiryInfo[];
+  adjusted: StudentExpiryInfo[];
 }
 
 export interface PaginatedBatches {
@@ -112,10 +139,14 @@ export async function listBatchStudents(
   });
 }
 
-export async function enrollStudent(batchId: string, studentId: string) {
+export async function enrollStudent(
+  batchId: string,
+  studentId: string,
+  options?: AccessDurationInput,
+) {
   return apiClient(`/batches/${batchId}/students`, {
     method: 'POST',
-    body: JSON.stringify({ student_id: studentId }),
+    body: JSON.stringify({ student_id: studentId, ...options }),
   });
 }
 
@@ -171,4 +202,35 @@ export async function getExtensionHistory(
 
 export async function getExpirySummary(batchId: string): Promise<ExpirySummary> {
   return apiClient(`/batches/${batchId}/expiry-summary`);
+}
+
+export async function setStudentAccess(
+  batchId: string,
+  studentId: string,
+  data: AccessDurationInput & { skipNotifications?: boolean },
+): Promise<AccessAdjustResult> {
+  return apiClient(`/batches/${batchId}/students/${studentId}/access`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function bulkEnrollStudents(
+  batchId: string,
+  data: { studentIds: string[] } & AccessDurationInput & { skipNotifications?: boolean },
+): Promise<BulkEnrollResult> {
+  return apiClient(`/batches/${batchId}/students/bulk-enroll`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function bulkSetStudentAccess(
+  batchId: string,
+  data: { studentIds: string[] } & AccessDurationInput & { skipNotifications?: boolean },
+): Promise<BulkAdjustResult> {
+  return apiClient(`/batches/${batchId}/students/bulk-set-access`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
 }
