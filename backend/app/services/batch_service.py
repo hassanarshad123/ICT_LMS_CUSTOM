@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +11,7 @@ from app.models.zoom import ZoomClass
 from app.models.announcement import Announcement
 from app.models.user import User
 from app.models.enums import UserRole, BatchHistoryAction
+from app.services.webhook_event_service import queue_webhook_event
 
 
 def _compute_status(start_date: date, end_date: date, effective_end_date: date | None = None) -> str:
@@ -853,4 +854,112 @@ async def get_expiry_summary(
         "expiring_soon": expiring_soon,
         "expired": expired,
         "adjusted": extended,
+    }
+
+
+# ── Unified student access helper ────────────────────────────────────────────
+
+
+async def set_student_access(
+    db: AsyncSession,
+    *,
+    institute_id: uuid.UUID,
+    student_id: uuid.UUID,
+    batch_id: uuid.UUID,
+    days: Optional[int] = None,
+    end_date: Optional[date] = None,
+    actor_id: uuid.UUID,
+    reason: Optional[str] = None,
+    context: str,  # "initial" | "extend" | "shorten" | "adjust"
+    skip_notification: bool = False,
+) -> dict:
+    """Unified helper to set StudentBatch.extended_end_date.
+
+    Validates days/end_date are mutually exclusive and resolved date > today.
+    Auto-detects direction when context == 'adjust'.
+    Writes a BatchExtensionLog row and queues a webhook event for extend/shorten
+    (not for initial — enrollment.created already carries effective_end_date).
+    """
+    if days is not None and end_date is not None:
+        raise ValueError("Provide either days or end_date, not both.")
+    if days is None and end_date is None:
+        raise ValueError("Provide either days or end_date.")
+
+    target = end_date if end_date is not None else date.today() + timedelta(days=days)
+    if target <= date.today():
+        raise ValueError("New end date must be in the future.")
+
+    stmt = (
+        select(StudentBatch, Batch)
+        .join(Batch, Batch.id == StudentBatch.batch_id)
+        .where(
+            StudentBatch.student_id == student_id,
+            StudentBatch.batch_id == batch_id,
+            StudentBatch.institute_id == institute_id,
+            StudentBatch.removed_at.is_(None),
+            Batch.deleted_at.is_(None),
+        )
+    )
+    row = (await db.execute(stmt)).scalar_one_or_none()
+    if row is None:
+        raise LookupError("Enrollment not found")
+    enrollment, batch = row
+
+    previous_end = enrollment.extended_end_date or batch.end_date
+
+    effective_type = context
+    if context == "adjust":
+        effective_type = "extend" if target > previous_end else "shorten"
+
+    enrollment.extended_end_date = target
+
+    log = BatchExtensionLog(
+        student_batch_id=enrollment.id,
+        student_id=student_id,
+        batch_id=batch_id,
+        institute_id=institute_id,
+        previous_end_date=previous_end,
+        new_end_date=target,
+        extension_type=effective_type,
+        duration_days=days,
+        reason=reason,
+        extended_by=actor_id,
+    )
+    db.add(log)
+    await db.flush()
+
+    if effective_type in ("extend", "shorten"):
+        await queue_webhook_event(
+            session=db,
+            institute_id=institute_id,
+            event_type="enrollment.access_changed",
+            data={
+                "student_id": str(student_id),
+                "batch_id": str(batch_id),
+                "previous_end_date": previous_end.isoformat() if previous_end else None,
+                "new_end_date": target.isoformat(),
+                "extension_type": effective_type,
+                "reason": reason,
+            },
+        )
+
+    if not skip_notification:
+        from app.services import notification_service
+        try:
+            await notification_service.create_notification(
+                db,
+                user_id=student_id,
+                type="batch_extension",
+                title="Access Window Updated",
+                message=f"Your access window has been updated. New end date: {target.strftime('%b %d, %Y')}.",
+                link=f"/batches/{batch_id}",
+                institute_id=institute_id,
+            )
+        except Exception:
+            pass  # Don't fail the operation if notification fails
+
+    return {
+        "previous_end_date": previous_end,
+        "new_end_date": target,
+        "extension_type": effective_type,
     }
