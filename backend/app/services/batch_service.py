@@ -950,7 +950,9 @@ async def set_student_access(
             Batch.deleted_at.is_(None),
         )
     )
-    row = (await db.execute(stmt)).scalar_one_or_none()
+    # Multi-entity SELECT returns a Row object — use .one_or_none() not .scalar_one_or_none()
+    # (scalar_one_or_none would silently return only StudentBatch, not the tuple).
+    row = (await db.execute(stmt)).one_or_none()
     if row is None:
         raise LookupError("Enrollment not found")
     enrollment, batch = row

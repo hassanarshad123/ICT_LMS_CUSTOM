@@ -11,6 +11,9 @@ from app.models.batch import StudentBatch, Batch
 def _make_mock_session(student_batch, batch):
     session = AsyncMock()
     exec_result = MagicMock()
+    # set_student_access now uses .one_or_none() for multi-entity selects;
+    # keep scalar_one_or_none configured as a fallback for other helpers.
+    exec_result.one_or_none = MagicMock(return_value=(student_batch, batch))
     exec_result.scalar_one_or_none = MagicMock(return_value=(student_batch, batch))
     session.execute = AsyncMock(return_value=exec_result)
     session.add = MagicMock()
@@ -86,6 +89,7 @@ class TestSetStudentAccessValidation:
     async def test_rejects_enrollment_not_found(self, sample_ids, sample_batch):
         session = AsyncMock()
         exec_result = MagicMock()
+        exec_result.one_or_none = MagicMock(return_value=None)
         exec_result.scalar_one_or_none = MagicMock(return_value=None)
         session.execute = AsyncMock(return_value=exec_result)
         with pytest.raises(LookupError):
@@ -284,6 +288,7 @@ class TestExtendStudentAccessShortening:
         from app.services.batch_service import extend_student_access
         session = AsyncMock()
         exec_result = MagicMock()
+        exec_result.one_or_none = MagicMock(return_value=None)
         exec_result.scalar_one_or_none = MagicMock(return_value=None)
         session.execute = AsyncMock(return_value=exec_result)
         with pytest.raises(ValueError, match="not found"):
@@ -295,6 +300,43 @@ class TestExtendStudentAccessShortening:
                 duration_days=30,
                 extended_by=sample_ids["actor_id"],
             )
+
+
+class TestSetStudentAccessQueryContract:
+    """Regression guard: the query must use .one_or_none() on a multi-entity select.
+
+    Using .scalar_one_or_none() silently returns only the first column (StudentBatch),
+    then unpacking fails with TypeError. This test simulates SQLAlchemy's real contract
+    by making scalar_one_or_none return a non-iterable — if the implementation ever
+    switches back to scalar_one_or_none, this test fails loudly instead of the tests
+    passing and production crashing.
+    """
+
+    @pytest.mark.asyncio
+    async def test_uses_one_or_none_not_scalar_one_or_none(self, sample_ids, sample_batch, sample_enrollment):
+        session = AsyncMock()
+        exec_result = MagicMock()
+        exec_result.one_or_none = MagicMock(return_value=(sample_enrollment, sample_batch))
+        # Make scalar_one_or_none return ONLY the first entity — mimics real SQLA behavior.
+        exec_result.scalar_one_or_none = MagicMock(return_value=sample_enrollment)
+        session.execute = AsyncMock(return_value=exec_result)
+        session.add = MagicMock()
+        session.flush = AsyncMock()
+        session.commit = AsyncMock()
+
+        # If the implementation uses .one_or_none(), unpacking succeeds and we get a result.
+        # If it uses .scalar_one_or_none(), unpacking raises TypeError.
+        with patch("app.services.batch_service.queue_webhook_event", new=AsyncMock()):
+            result = await set_student_access(
+                session,
+                institute_id=sample_ids["institute_id"],
+                student_id=sample_ids["student_id"],
+                batch_id=sample_ids["batch_id"],
+                days=30,
+                actor_id=sample_ids["actor_id"],
+                context="initial",
+            )
+        assert result["new_end_date"] == date.today() + timedelta(days=30)
 
 
 # ---------------------------------------------------------------------------
