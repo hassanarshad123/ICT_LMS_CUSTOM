@@ -58,7 +58,6 @@ export function CustomDurationPicker({ value, onChange, disableUntilBatchEnd }: 
       {value.kind === 'end-date' && (
         <Input
           type="date"
-          min={new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)}
           value={value.value}
           onChange={(e) => onChange({ kind: 'end-date', value: e.target.value })}
           className="w-full"

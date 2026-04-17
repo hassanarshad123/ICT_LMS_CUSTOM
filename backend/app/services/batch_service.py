@@ -404,8 +404,7 @@ async def enroll_student(
         extended_target = date.today() + timedelta(days=access_days)
     elif access_end_date is not None:
         extended_target = access_end_date
-    if extended_target is not None and extended_target <= date.today():
-        raise ValueError("Access end date must be in the future.")
+    # Past dates are allowed — they represent retroactive/immediate access expiry.
 
     # Check student exists, is a student, and belongs to the same institute
     r = await session.execute(select(User).where(User.id == student_id, User.deleted_at.is_(None)))
@@ -942,8 +941,10 @@ async def set_student_access(
         raise ValueError("Provide either days or end_date.")
 
     target = end_date if end_date is not None else date.today() + timedelta(days=days)
-    if target <= date.today():
-        raise ValueError("New end date must be in the future.")
+    # No date floor — past dates are valid for retroactive access corrections
+    # (e.g. recording that a student's access should have ended earlier).
+    # Read paths filter via coalesce(extended_end_date, batch.end_date) >= today,
+    # so a past date effectively revokes access immediately and is audited.
 
     stmt = (
         select(StudentBatch, Batch)

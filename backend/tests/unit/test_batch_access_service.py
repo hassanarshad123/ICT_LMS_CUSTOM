@@ -72,18 +72,24 @@ class TestSetStudentAccessValidation:
             )
 
     @pytest.mark.asyncio
-    async def test_rejects_past_date(self, sample_ids, sample_batch, sample_enrollment):
+    async def test_accepts_past_date_as_shorten(self, sample_ids, sample_batch, sample_enrollment):
+        # Past end dates are allowed — represent retroactive/immediate expiry.
+        # Direction auto-detects as "shorten" because past < current effective end.
+        past = date.today() - timedelta(days=1)
         session = _make_mock_session(sample_enrollment, sample_batch)
-        with pytest.raises(ValueError, match="future"):
-            await set_student_access(
+        with patch("app.services.batch_service.queue_webhook_event", new=AsyncMock()):
+            result = await set_student_access(
                 session,
                 institute_id=sample_ids["institute_id"],
                 student_id=sample_ids["student_id"],
                 batch_id=sample_ids["batch_id"],
-                end_date=date.today() - timedelta(days=1),
+                end_date=past,
                 actor_id=sample_ids["actor_id"],
                 context="adjust",
             )
+        assert result["new_end_date"] == past
+        assert result["extension_type"] == "shorten"
+        assert sample_enrollment.extended_end_date == past
 
     @pytest.mark.asyncio
     async def test_rejects_enrollment_not_found(self, sample_ids, sample_batch):
@@ -281,18 +287,21 @@ class TestExtendStudentAccessShortening:
         assert result["extension_type"] == "shorten"
 
     @pytest.mark.asyncio
-    async def test_extend_still_rejects_past_date(self, sample_ids, sample_batch, sample_enrollment):
+    async def test_extend_accepts_past_date_as_shorten(self, sample_ids, sample_batch, sample_enrollment):
         from app.services.batch_service import extend_student_access
+        past = date.today() - timedelta(days=1)
         session = _make_mock_session(sample_enrollment, sample_batch)
-        with pytest.raises(ValueError, match="future"):
-            await extend_student_access(
+        with patch("app.services.batch_service.queue_webhook_event", new=AsyncMock()):
+            result = await extend_student_access(
                 session,
                 institute_id=sample_ids["institute_id"],
                 student_id=sample_ids["student_id"],
                 batch_id=sample_ids["batch_id"],
-                end_date=date.today() - timedelta(days=1),
+                end_date=past,
                 extended_by=sample_ids["actor_id"],
             )
+        assert result["new_end_date"] == past
+        assert result["extension_type"] == "shorten"
 
     @pytest.mark.asyncio
     async def test_extend_with_duration_days_works(self, sample_ids, sample_batch, sample_enrollment):
@@ -533,18 +542,21 @@ class TestEnrollStudentWithAccessDuration:
             )
 
     @pytest.mark.asyncio
-    async def test_enroll_rejects_past_access_end_date(self, sample_ids, sample_batch):
+    async def test_enroll_accepts_past_access_end_date(self, sample_ids, sample_batch):
+        # Past access_end_date is valid — represents an enrollment whose
+        # access has already expired (e.g. retroactive data migration).
         from app.services.batch_service import enroll_student
 
         student = _make_mock_student(sample_ids)
         session = _make_enroll_session(student, sample_batch, existing_enrollment=None)
+        past = date.today() - timedelta(days=1)
 
-        with pytest.raises(ValueError, match="future"):
-            await enroll_student(
-                session,
-                batch_id=sample_ids["batch_id"],
-                student_id=sample_ids["student_id"],
-                enrolled_by=sample_ids["actor_id"],
-                institute_id=sample_ids["institute_id"],
-                access_end_date=date.today() - timedelta(days=1),
-            )
+        await enroll_student(
+            session,
+            batch_id=sample_ids["batch_id"],
+            student_id=sample_ids["student_id"],
+            enrolled_by=sample_ids["actor_id"],
+            institute_id=sample_ids["institute_id"],
+            access_end_date=past,
+        )
+        # No exception raised — past date accepted.
