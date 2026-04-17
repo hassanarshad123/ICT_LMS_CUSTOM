@@ -295,3 +295,161 @@ class TestExtendStudentAccessShortening:
                 duration_days=30,
                 extended_by=sample_ids["actor_id"],
             )
+
+
+# ---------------------------------------------------------------------------
+# Helpers for enroll_student tests
+# The real enroll_student makes 3 session.execute() calls:
+#   1. Check student exists (User query)
+#   2. Check batch belongs to institute (Batch query)
+#   3. Check not already enrolled (StudentBatch query)
+# ---------------------------------------------------------------------------
+
+def _make_enroll_session(student_mock, batch_mock, existing_enrollment=None):
+    """Build a mock session for enroll_student with the correct 3-execute sequence."""
+    from app.models.user import User as UserModel
+
+    session = AsyncMock()
+
+    exec_student = MagicMock()
+    exec_student.scalar_one_or_none = MagicMock(return_value=student_mock)
+
+    exec_batch = MagicMock()
+    exec_batch.scalar_one_or_none = MagicMock(return_value=batch_mock)
+
+    exec_no_row = MagicMock()
+    exec_no_row.scalar_one_or_none = MagicMock(return_value=existing_enrollment)
+
+    session.execute = AsyncMock(side_effect=[exec_student, exec_batch, exec_no_row])
+    added = []
+    session.add = MagicMock(side_effect=added.append)
+    session.flush = AsyncMock()
+    session.commit = AsyncMock()
+    session.refresh = AsyncMock()
+    # get() is used after commit to load Batch for email; return None to skip email path
+    session.get = AsyncMock(return_value=None)
+    session._added = added
+    return session
+
+
+def _make_mock_student(sample_ids):
+    """Create a minimal User mock that passes enroll_student's student check."""
+    from app.models.user import User as UserModel
+    from app.models.enums import UserRole
+    student = MagicMock(spec=UserModel)
+    student.id = sample_ids["student_id"]
+    student.role = UserRole.student
+    student.institute_id = sample_ids["institute_id"]
+    student.name = "Test Student"
+    student.email = "student@test.com"
+    return student
+
+
+class TestEnrollStudentWithAccessDuration:
+    @pytest.mark.asyncio
+    async def test_enroll_with_access_days_sets_extended_end_date(self, sample_ids, sample_batch):
+        from app.services.batch_service import enroll_student
+        from app.models.batch import StudentBatch as SB, BatchExtensionLog
+
+        student = _make_mock_student(sample_ids)
+        session = _make_enroll_session(student, sample_batch, existing_enrollment=None)
+
+        with patch("app.utils.email_sender.send_email_background"):
+            result = await enroll_student(
+                session,
+                batch_id=sample_ids["batch_id"],
+                student_id=sample_ids["student_id"],
+                enrolled_by=sample_ids["actor_id"],
+                institute_id=sample_ids["institute_id"],
+                access_days=30,
+            )
+
+        sb_added = [o for o in session._added if isinstance(o, SB)]
+        assert len(sb_added) == 1
+        assert sb_added[0].extended_end_date == date.today() + timedelta(days=30)
+
+        log_added = [o for o in session._added if isinstance(o, BatchExtensionLog)]
+        assert len(log_added) == 1
+        assert log_added[0].extension_type == "initial"
+        assert log_added[0].duration_days == 30
+        assert log_added[0].previous_end_date is None
+
+    @pytest.mark.asyncio
+    async def test_enroll_with_access_end_date_sets_extended_end_date(self, sample_ids, sample_batch):
+        from app.services.batch_service import enroll_student
+        from app.models.batch import StudentBatch as SB
+
+        student = _make_mock_student(sample_ids)
+        session = _make_enroll_session(student, sample_batch, existing_enrollment=None)
+        target = date.today() + timedelta(days=45)
+
+        with patch("app.utils.email_sender.send_email_background"):
+            await enroll_student(
+                session,
+                batch_id=sample_ids["batch_id"],
+                student_id=sample_ids["student_id"],
+                enrolled_by=sample_ids["actor_id"],
+                institute_id=sample_ids["institute_id"],
+                access_end_date=target,
+            )
+
+        sb_added = [o for o in session._added if isinstance(o, SB)]
+        assert sb_added[0].extended_end_date == target
+
+    @pytest.mark.asyncio
+    async def test_enroll_without_duration_leaves_extended_end_date_null(self, sample_ids, sample_batch):
+        from app.services.batch_service import enroll_student
+        from app.models.batch import StudentBatch as SB, BatchExtensionLog
+
+        student = _make_mock_student(sample_ids)
+        session = _make_enroll_session(student, sample_batch, existing_enrollment=None)
+
+        with patch("app.utils.email_sender.send_email_background"):
+            await enroll_student(
+                session,
+                batch_id=sample_ids["batch_id"],
+                student_id=sample_ids["student_id"],
+                enrolled_by=sample_ids["actor_id"],
+                institute_id=sample_ids["institute_id"],
+            )
+
+        sb_added = [o for o in session._added if isinstance(o, SB)]
+        assert sb_added[0].extended_end_date is None
+
+        log_added = [o for o in session._added if isinstance(o, BatchExtensionLog)]
+        assert len(log_added) == 0
+
+    @pytest.mark.asyncio
+    async def test_enroll_rejects_both_access_fields(self, sample_ids, sample_batch):
+        from app.services.batch_service import enroll_student
+
+        student = _make_mock_student(sample_ids)
+        session = _make_enroll_session(student, sample_batch, existing_enrollment=None)
+
+        with pytest.raises(ValueError, match="either.*or"):
+            await enroll_student(
+                session,
+                batch_id=sample_ids["batch_id"],
+                student_id=sample_ids["student_id"],
+                enrolled_by=sample_ids["actor_id"],
+                institute_id=sample_ids["institute_id"],
+                access_days=30,
+                access_end_date=date.today() + timedelta(days=60),
+            )
+
+    @pytest.mark.asyncio
+    async def test_enroll_rejects_past_access_end_date(self, sample_ids, sample_batch):
+        from app.services.batch_service import enroll_student
+
+        student = _make_mock_student(sample_ids)
+        session = _make_enroll_session(student, sample_batch, existing_enrollment=None)
+
+        with pytest.raises(ValueError, match="future"):
+            await enroll_student(
+                session,
+                batch_id=sample_ids["batch_id"],
+                student_id=sample_ids["student_id"],
+                enrolled_by=sample_ids["actor_id"],
+                institute_id=sample_ids["institute_id"],
+                access_end_date=date.today() - timedelta(days=1),
+            )

@@ -386,7 +386,21 @@ async def enroll_student(
     student_id: uuid.UUID,
     enrolled_by: uuid.UUID,
     institute_id: Optional[uuid.UUID] = None,
+    access_days: Optional[int] = None,
+    access_end_date: Optional[date] = None,
+    reason: Optional[str] = None,
 ) -> StudentBatch:
+    # Validate custom access window args up front
+    if access_days is not None and access_end_date is not None:
+        raise ValueError("Provide either access_days or access_end_date, not both.")
+    extended_target: Optional[date] = None
+    if access_days is not None:
+        extended_target = date.today() + timedelta(days=access_days)
+    elif access_end_date is not None:
+        extended_target = access_end_date
+    if extended_target is not None and extended_target <= date.today():
+        raise ValueError("Access end date must be in the future.")
+
     # Check student exists, is a student, and belongs to the same institute
     r = await session.execute(select(User).where(User.id == student_id, User.deleted_at.is_(None)))
     student = r.scalar_one_or_none()
@@ -419,6 +433,7 @@ async def enroll_student(
         student_id=student_id,
         enrolled_by=enrolled_by,
         institute_id=institute_id,
+        extended_end_date=extended_target,
     )
     session.add(sb)
 
@@ -430,6 +445,23 @@ async def enroll_student(
         institute_id=institute_id,
     )
     session.add(history)
+
+    await session.flush()
+
+    # Audit log when a custom access window is set at enrollment time
+    if extended_target is not None:
+        session.add(BatchExtensionLog(
+            student_batch_id=sb.id,
+            student_id=student_id,
+            batch_id=batch_id,
+            institute_id=institute_id,
+            previous_end_date=None,
+            new_end_date=extended_target,
+            extension_type="initial",
+            duration_days=access_days,
+            reason=reason,
+            extended_by=enrolled_by,
+        ))
 
     await session.commit()
     await session.refresh(sb)
