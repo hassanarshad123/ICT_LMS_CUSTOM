@@ -178,6 +178,9 @@ async def enroll_student(
         sb = await batch_service.enroll_student(
             session, batch_id, body.student_id, current_user.id,
             institute_id=current_user.institute_id,
+            access_days=body.access_days,
+            access_end_date=body.access_end_date,
+            reason=body.reason,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
