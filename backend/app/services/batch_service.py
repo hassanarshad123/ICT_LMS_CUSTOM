@@ -76,8 +76,14 @@ async def list_batches(
         query = query.where(Batch.start_date > today)
         count_query = count_query.where(Batch.start_date > today)
     elif status_filter == "active":
-        query = query.where(Batch.start_date <= today, Batch.end_date >= today)
-        count_query = count_query.where(Batch.start_date <= today, Batch.end_date >= today)
+        query = query.where(Batch.start_date <= today)
+        count_query = count_query.where(Batch.start_date <= today)
+        # For students the subquery above already filters by effective end
+        # (coalesce of extended_end_date, batch.end_date). Adding a raw
+        # Batch.end_date >= today here would re-exclude extended batches.
+        if current_user.role != UserRole.student:
+            query = query.where(Batch.end_date >= today)
+            count_query = count_query.where(Batch.end_date >= today)
     elif status_filter == "completed":
         query = query.where(Batch.end_date < today)
         count_query = count_query.where(Batch.end_date < today)
@@ -965,6 +971,13 @@ async def set_student_access(
 
     enrollment.extended_end_date = target
 
+    # Granting or extending access should also ensure the enrollment is active.
+    # A deactivated enrollment would otherwise still be hidden from the student's
+    # course list even though access has been granted. Shortening leaves is_active
+    # alone so manual deactivations are respected.
+    if effective_type in ("initial", "extend"):
+        enrollment.is_active = True
+
     log = BatchExtensionLog(
         student_batch_id=enrollment.id,
         student_id=student_id,
@@ -1004,7 +1017,7 @@ async def set_student_access(
                 type="batch_extension",
                 title="Access Window Updated",
                 message=f"Your access window has been updated. New end date: {target.strftime('%b %d, %Y')}.",
-                link=f"/batches/{batch_id}",
+                link=f"/courses?batch={batch_id}",
                 institute_id=institute_id,
             )
         except Exception:
