@@ -377,6 +377,27 @@ async def get_extension_history(
     return [ExtensionHistoryItem(**item) for item in history]
 
 
+@router.post("/{batch_id}/students/bulk-enroll")
+async def bulk_enroll(
+    batch_id: uuid.UUID,
+    body: BulkEnrollRequest,
+    current_user: AdminOrCC,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """Enroll multiple students in this batch with a shared access window."""
+    return await batch_service.bulk_enroll_students(
+        session,
+        institute_id=current_user.institute_id,
+        batch_id=batch_id,
+        student_ids=body.student_ids,
+        enrolled_by=current_user.id,
+        access_days=body.access_days,
+        access_end_date=body.access_end_date,
+        reason=body.reason,
+        skip_notifications=body.skip_notifications,
+    )
+
+
 @router.get("/{batch_id}/expiry-summary", response_model=ExpirySummary)
 async def get_expiry_summary(
     batch_id: uuid.UUID,

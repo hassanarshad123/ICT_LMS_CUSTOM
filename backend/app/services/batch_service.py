@@ -501,6 +501,43 @@ async def enroll_student(
     return sb
 
 
+async def bulk_enroll_students(
+    db: AsyncSession,
+    *,
+    institute_id: uuid.UUID,
+    batch_id: uuid.UUID,
+    student_ids: list[uuid.UUID],
+    enrolled_by: uuid.UUID,
+    access_days: Optional[int] = None,
+    access_end_date: Optional[date] = None,
+    reason: Optional[str] = None,
+    skip_notifications: bool = False,
+) -> dict:
+    """Bulk-enroll students with a shared access window.
+
+    Each row commits individually (enroll_student owns its own transaction).
+    On any failure, returns partial success with the successful rows and the error.
+    """
+    enrolled: list[dict] = []
+    errors: list[dict] = []
+    for sid in student_ids:
+        try:
+            await enroll_student(
+                db,
+                institute_id=institute_id,
+                batch_id=batch_id,
+                student_id=sid,
+                enrolled_by=enrolled_by,
+                access_days=access_days,
+                access_end_date=access_end_date,
+                reason=reason,
+            )
+            enrolled.append({"student_id": str(sid), "status": "enrolled"})
+        except (ValueError, LookupError) as e:
+            errors.append({"student_id": str(sid), "error": str(e)})
+    return {"enrolled": enrolled, "errors": errors, "count": len(enrolled)}
+
+
 async def remove_student(
     session: AsyncSession,
     batch_id: uuid.UUID,
