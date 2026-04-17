@@ -65,23 +65,19 @@ class AccessDuration(BaseModel):
         return self
 
 
-class StudentIdList(BaseModel):
-    student_ids: List[uuid.UUID] = Field(min_length=1, max_length=500)
-
-
 class BatchStudentEnroll(AccessDuration):
     student_id: uuid.UUID
-    reason: Optional[str] = None
+    reason: Optional[str] = Field(default=None, max_length=500)
 
 
 class BulkEnrollRequest(AccessDuration):
     student_ids: List[uuid.UUID] = Field(min_length=1, max_length=500)
-    reason: Optional[str] = None
+    reason: Optional[str] = Field(default=None, max_length=500)
     skip_notifications: bool = False
 
 
 class AccessAdjustRequest(AccessDuration):
-    reason: Optional[str] = None
+    reason: Optional[str] = Field(default=None, max_length=500)
     skip_notifications: bool = False
 
 
