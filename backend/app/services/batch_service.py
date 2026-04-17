@@ -76,8 +76,14 @@ async def list_batches(
         query = query.where(Batch.start_date > today)
         count_query = count_query.where(Batch.start_date > today)
     elif status_filter == "active":
-        query = query.where(Batch.start_date <= today, Batch.end_date >= today)
-        count_query = count_query.where(Batch.start_date <= today, Batch.end_date >= today)
+        query = query.where(Batch.start_date <= today)
+        count_query = count_query.where(Batch.start_date <= today)
+        # For students the subquery above already filters by effective end
+        # (coalesce of extended_end_date, batch.end_date). Adding a raw
+        # Batch.end_date >= today here would re-exclude extended batches.
+        if current_user.role != UserRole.student:
+            query = query.where(Batch.end_date >= today)
+            count_query = count_query.where(Batch.end_date >= today)
     elif status_filter == "completed":
         query = query.where(Batch.end_date < today)
         count_query = count_query.where(Batch.end_date < today)
