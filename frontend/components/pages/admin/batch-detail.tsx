@@ -13,6 +13,7 @@ import { getBatch, listBatchStudents, enrollStudent, updateBatch, toggleEnrollme
 import CsvImportPanel from '@/components/shared/csv-import-panel';
 import { AdjustAccessModal } from '@/components/shared/adjust-access-modal';
 import { BulkAdjustAccessModal } from '@/components/shared/bulk-adjust-access-modal';
+import { AccessEndsBadge } from '@/components/shared/access-ends-badge';
 import { SearchableCombobox } from '@/components/ui/searchable-combobox';
 import { listUsers } from '@/lib/api/users';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
@@ -487,7 +488,7 @@ export default function AdminBatchDetail() {
                         </th>
                         <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Name</th>
                         <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Email</th>
-                        <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Access Until</th>
+                        <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Access ends</th>
                         <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Status</th>
                         <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase"></th>
                       </tr>
@@ -496,6 +497,7 @@ export default function AdminBatchDetail() {
                       {students.map((student: any) => {
                         const isActive = student.isActive ?? true;
                         const isChecked = selectedStudents.has(student.studentId);
+                        const effectiveEnd = student.effectiveEndDate ?? student.extendedEndDate ?? batch?.endDate ?? null;
                         return (
                           <tr key={student.id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${isChecked ? 'bg-primary/5' : ''}`}>
                             <td className="px-3 sm:px-4 py-3 sm:py-4">
@@ -517,10 +519,7 @@ export default function AdminBatchDetail() {
                             <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm font-medium text-primary">{student.name}</td>
                             <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{student.email}</td>
                             <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm">
-                              {(() => {
-                                const status = getAccessStatus(student);
-                                return <span className={`font-medium ${status.color}`}>{status.label}</span>;
-                              })()}
+                              <AccessEndsBadge effectiveEnd={effectiveEnd} />
                             </td>
                             <td className="px-3 sm:px-6 py-3 sm:py-4">
                               <button
