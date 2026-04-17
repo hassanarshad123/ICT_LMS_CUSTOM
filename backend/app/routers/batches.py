@@ -377,6 +377,32 @@ async def get_extension_history(
     return [ExtensionHistoryItem(**item) for item in history]
 
 
+@router.post("/{batch_id}/students/bulk-set-access")
+async def bulk_set_access(
+    batch_id: uuid.UUID,
+    body: BulkAccessAdjustRequest,
+    current_user: AdminOrCC,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """Adjust access end for multiple students at once (extend or shorten)."""
+    try:
+        return await batch_service.bulk_set_student_access(
+            session,
+            institute_id=current_user.institute_id,
+            batch_id=batch_id,
+            student_ids=body.student_ids,
+            actor_id=current_user.id,
+            days=body.access_days,
+            end_date=body.access_end_date,
+            reason=body.reason,
+            skip_notifications=body.skip_notifications,
+        )
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.post("/{batch_id}/students/bulk-enroll")
 async def bulk_enroll(
     batch_id: uuid.UUID,

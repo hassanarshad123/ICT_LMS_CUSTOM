@@ -859,6 +859,51 @@ async def get_expiry_summary(
     }
 
 
+async def bulk_set_student_access(
+    db: AsyncSession,
+    *,
+    institute_id: uuid.UUID,
+    batch_id: uuid.UUID,
+    student_ids: list[uuid.UUID],
+    actor_id: uuid.UUID,
+    days: Optional[int] = None,
+    end_date: Optional[date] = None,
+    reason: Optional[str] = None,
+    skip_notifications: bool = False,
+) -> dict:
+    """Adjust access end for multiple students in one transaction.
+
+    set_student_access flushes but does not commit, so we wrap N calls in a
+    single transaction boundary here: all-or-nothing.
+    """
+    results: list[dict] = []
+    try:
+        for sid in student_ids:
+            r = await set_student_access(
+                db,
+                institute_id=institute_id,
+                student_id=sid,
+                batch_id=batch_id,
+                days=days,
+                end_date=end_date,
+                actor_id=actor_id,
+                reason=reason,
+                context="adjust",
+                skip_notification=skip_notifications,
+            )
+            results.append({
+                "student_id": str(sid),
+                "previous_end_date": r["previous_end_date"].isoformat() if r["previous_end_date"] else None,
+                "new_end_date": r["new_end_date"].isoformat(),
+                "extension_type": r["extension_type"],
+            })
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
+    return {"results": results, "count": len(results)}
+
+
 # ── Unified student access helper ────────────────────────────────────────────
 
 
