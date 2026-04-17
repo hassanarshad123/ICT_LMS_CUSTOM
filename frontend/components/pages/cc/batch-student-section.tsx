@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { EmptyState } from '@/components/shared/page-states';
 import CsvImportPanel from '@/components/shared/csv-import-panel';
 import { AdjustAccessModal } from '@/components/shared/adjust-access-modal';
+import { BulkAdjustAccessModal } from '@/components/shared/bulk-adjust-access-modal';
 import { SearchableCombobox } from '@/components/ui/searchable-combobox';
 import {
   Users,
@@ -64,6 +65,8 @@ export function BatchStudentSection({
 }: BatchStudentSectionProps) {
   const [showImport, setShowImport] = useState(false);
   const [extendingStudent, setExtendingStudent] = useState<{ id: string; name: string; effectiveEndDate?: string } | null>(null);
+  const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
+  const [showBulkAdjust, setShowBulkAdjust] = useState(false);
 
   const getAccessStatus = (student: any) => {
     const effectiveEnd = student.extendedEndDate || batchEndDate;
@@ -89,6 +92,24 @@ export function BatchStudentSection({
           currentEffectiveEndDate={extendingStudent.effectiveEndDate}
           onClose={() => setExtendingStudent(null)}
           onSuccess={() => onImportComplete?.()}
+        />
+      )}
+
+      {showBulkAdjust && batchId && (
+        <BulkAdjustAccessModal
+          batchId={batchId}
+          selectedStudents={
+            (Array.isArray(students) ? students : [])
+              .filter((s: any) => selectedStudents.has(s.studentId))
+              .map((s: any) => ({
+                id: s.studentId,
+                name: s.name,
+                currentEffectiveEnd: s.extendedEndDate || batchEndDate || null,
+              }))
+          }
+          open={showBulkAdjust}
+          onClose={() => setShowBulkAdjust(false)}
+          onSuccess={() => { setSelectedStudents(new Set()); onImportComplete?.(); }}
         />
       )}
 
@@ -141,7 +162,18 @@ export function BatchStudentSection({
       <div className="bg-white rounded-2xl card-shadow overflow-hidden mb-6">
         <div className="px-6 py-4 border-b border-gray-100">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <h3 className="text-lg font-semibold text-primary">Enrolled Students ({studentsTotal ?? (Array.isArray(students) ? students.length : 0)})</h3>
+            <div className="flex items-center gap-3">
+              <h3 className="text-lg font-semibold text-primary">Enrolled Students ({studentsTotal ?? (Array.isArray(students) ? students.length : 0)})</h3>
+              {selectedStudents.size > 0 && (
+                <button
+                  onClick={() => setShowBulkAdjust(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary border border-primary/30 rounded-lg hover:bg-primary/5 transition-colors"
+                >
+                  <CalendarPlus size={13} />
+                  Adjust access ({selectedStudents.size})
+                </button>
+              )}
+            </div>
             {onStudentSearchChange && (
               <div className="relative w-full sm:w-64">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -216,6 +248,20 @@ export function BatchStudentSection({
               <table className="w-full min-w-[600px]">
                 <thead>
                   <tr className="border-b border-gray-100">
+                    <th className="px-3 sm:px-4 py-3 sm:py-4 w-8">
+                      <input
+                        type="checkbox"
+                        checked={Array.isArray(students) && selectedStudents.size === students.length && students.length > 0}
+                        onChange={() => {
+                          if (Array.isArray(students) && selectedStudents.size === students.length) {
+                            setSelectedStudents(new Set());
+                          } else if (Array.isArray(students)) {
+                            setSelectedStudents(new Set(students.map((s: any) => s.studentId)));
+                          }
+                        }}
+                        className="w-4 h-4 rounded border-gray-300"
+                      />
+                    </th>
                     <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Name</th>
                     <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Email</th>
                     <th className="text-left px-3 sm:px-6 py-3 sm:py-4 text-xs font-semibold text-gray-500 uppercase">Access Until</th>
@@ -226,8 +272,25 @@ export function BatchStudentSection({
                 <tbody>
                   {students.map((student: any) => {
                     const isActive = student.isActive ?? true;
+                    const isChecked = selectedStudents.has(student.studentId);
                     return (
-                      <tr key={student.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                      <tr key={student.id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${isChecked ? 'bg-primary/5' : ''}`}>
+                        <td className="px-3 sm:px-4 py-3 sm:py-4">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {
+                              const next = new Set(selectedStudents);
+                              if (next.has(student.studentId)) {
+                                next.delete(student.studentId);
+                              } else {
+                                next.add(student.studentId);
+                              }
+                              setSelectedStudents(next);
+                            }}
+                            className="w-4 h-4 rounded border-gray-300"
+                          />
+                        </td>
                         <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm font-medium text-primary">{student.name}</td>
                         <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm text-gray-600">{student.email}</td>
                         <td className="px-3 sm:px-6 py-3 sm:py-4 text-sm">
