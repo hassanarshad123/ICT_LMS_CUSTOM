@@ -965,6 +965,13 @@ async def set_student_access(
 
     enrollment.extended_end_date = target
 
+    # Granting or extending access should also ensure the enrollment is active.
+    # A deactivated enrollment would otherwise still be hidden from the student's
+    # course list even though access has been granted. Shortening leaves is_active
+    # alone so manual deactivations are respected.
+    if effective_type in ("initial", "extend"):
+        enrollment.is_active = True
+
     log = BatchExtensionLog(
         student_batch_id=enrollment.id,
         student_id=student_id,
