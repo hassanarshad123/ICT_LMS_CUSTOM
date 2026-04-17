@@ -11,6 +11,7 @@ from app.utils.rate_limit import limiter
 from app.schemas.batch import (
     BatchCreate, BatchUpdate, BatchOut, BatchStudentEnroll, BatchCourseLink,
     EnrollmentToggle, ExtendAccessRequest, ExtensionOut, ExtensionHistoryItem, ExpirySummary,
+    AccessAdjustRequest, BulkEnrollRequest, BulkAccessAdjustRequest,
 )
 from app.schemas.common import PaginatedResponse
 from app.services import batch_service, webhook_event_service
@@ -320,6 +321,45 @@ async def extend_student_access(
         await session.commit()
 
     return ExtensionOut(**result)
+
+
+@router.post("/{batch_id}/students/{student_id}/access", response_model=ExtensionOut)
+async def set_student_access_endpoint(
+    batch_id: uuid.UUID,
+    student_id: uuid.UUID,
+    body: AccessAdjustRequest,
+    current_user: AdminOrCC,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """Adjust a single student's access end for this batch (extend or shorten)."""
+    try:
+        result = await batch_service.set_student_access(
+            session,
+            institute_id=current_user.institute_id,
+            student_id=student_id,
+            batch_id=batch_id,
+            days=body.access_days,
+            end_date=body.access_end_date,
+            actor_id=current_user.id,
+            reason=body.reason,
+            context="adjust",
+            skip_notification=body.skip_notifications,
+        )
+    except LookupError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    await session.commit()
+    return ExtensionOut(
+        student_id=student_id,
+        batch_id=batch_id,
+        previous_end_date=result["previous_end_date"],
+        new_end_date=result["new_end_date"],
+        extension_type=result["extension_type"],
+        duration_days=body.access_days,
+        reason=body.reason,
+    )
 
 
 @router.get("/{batch_id}/students/{student_id}/extensions", response_model=list[ExtensionHistoryItem])
