@@ -793,7 +793,7 @@ async def get_expiry_summary(
 
     expiring_soon = []
     expired = []
-    extended = []
+    adjusted = []
 
     for sb, name, email in rows:
         effective_end = sb.extended_end_date or batch.end_date
@@ -806,8 +806,8 @@ async def get_expiry_summary(
             "effective_end_date": effective_end,
         }
 
-        if sb.extended_end_date and sb.extended_end_date > batch.end_date:
-            extended.append(info)
+        if sb.extended_end_date is not None:
+            adjusted.append(info)
 
         if today > effective_end:
             expired.append(info)
@@ -817,7 +817,7 @@ async def get_expiry_summary(
     return {
         "expiring_soon": expiring_soon,
         "expired": expired,
-        "adjusted": extended,
+        "adjusted": adjusted,
     }
 
 
