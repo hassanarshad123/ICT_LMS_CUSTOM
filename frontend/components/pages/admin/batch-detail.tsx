@@ -33,11 +33,19 @@ export default function AdminBatchDetail() {
   const [debouncedStudentSearch, setDebouncedStudentSearch] = useState('');
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
   const [showBulkAdjust, setShowBulkAdjust] = useState(false);
+  // Enroll-dropdown search — server-driven so large institutes (>100 students) work
+  const [enrollSearch, setEnrollSearch] = useState('');
+  const [debouncedEnrollSearch, setDebouncedEnrollSearch] = useState('');
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedStudentSearch(studentSearch), 300);
     return () => clearTimeout(t);
   }, [studentSearch]);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedEnrollSearch(enrollSearch), 300);
+    return () => clearTimeout(t);
+  }, [enrollSearch]);
 
   const { data: batch, loading: batchLoading, error: batchError, refetch: refetchBatch } = useApi(
     () => getBatch(batchId),
@@ -59,8 +67,12 @@ export default function AdminBatchDetail() {
     [batchId, debouncedStudentSearch],
   );
 
-  const { data: allStudentsData } = useApi(
-    () => listUsers({ role: 'student', per_page: 100 }),
+  const { data: allStudentsData, loading: searchingEnrollStudents } = useApi(
+    () =>
+      debouncedEnrollSearch.length >= 2
+        ? listUsers({ role: 'student', search: debouncedEnrollSearch, per_page: 100 })
+        : Promise.resolve({ data: [], total: 0, page: 1, perPage: 100, totalPages: 0 }),
+    [debouncedEnrollSearch],
   );
 
   const { data: teachersData } = useApi(
@@ -372,10 +384,12 @@ export default function AdminBatchDetail() {
                 options={availableStudents.map((s) => ({ value: s.id, label: `${s.name} (${s.email})` }))}
                 value={selectedStudentId}
                 onChange={setSelectedStudentId}
-                placeholder="Select a student..."
-                searchPlaceholder="Search students..."
-                emptyMessage="No students found"
+                placeholder="Type to search students..."
+                searchPlaceholder="Search by name, email, or phone..."
+                emptyMessage={debouncedEnrollSearch.length < 2 ? 'Type at least 2 characters to search' : 'No students match'}
                 className="flex-1"
+                onSearchChange={setEnrollSearch}
+                loading={searchingEnrollStudents}
               />
               <button
                 onClick={handleEnroll}
