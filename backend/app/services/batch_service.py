@@ -482,11 +482,12 @@ async def enroll_student(
             if teacher:
                 teacher_name = teacher.name
 
+        effective_end = extended_target if extended_target is not None else (batch.end_date if batch else None)
         subject, html = enrollment_email(
             student_name=student.name,
             batch_name=batch.name if batch else "Unknown",
             start_date=batch.start_date.isoformat() if batch and batch.start_date else "",
-            end_date=batch.end_date.isoformat() if batch and batch.end_date else "",
+            effective_end_date=effective_end.isoformat() if effective_end else "",
             teacher_name=teacher_name,
             login_url=build_login_url(branding["slug"]) if branding["slug"] else "",
             institute_name=branding["name"],

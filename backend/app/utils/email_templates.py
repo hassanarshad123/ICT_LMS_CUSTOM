@@ -103,13 +103,16 @@ def enrollment_email(
     student_name: str,
     batch_name: str,
     start_date: str,
-    end_date: str,
+    effective_end_date: str,
     teacher_name: Optional[str],
     login_url: str,
     institute_name: str = "",
     logo_url: Optional[str] = None,
     accent_color: str = "#C5D86D",
+    # Legacy alias — callers that passed end_date= still work
+    end_date: Optional[str] = None,
 ) -> tuple[str, str]:
+    display_end = effective_end_date or end_date or ""
     teacher_row = f'<tr><td style="color:#71717a;font-size:13px;">Teacher</td><td style="color:#1a1a1a;font-size:14px;">{teacher_name}</td></tr>' if teacher_name else ""
     body = f"""
 <h2 style="margin:0 0 8px;color:#1a1a1a;font-size:22px;">You've Been Enrolled!</h2>
@@ -119,7 +122,7 @@ Hi {student_name}, you have been enrolled in a new batch:
 <table style="background-color:#f4f4f5;border-radius:8px;padding:16px;width:100%;margin:16px 0;" cellpadding="8" cellspacing="0">
 <tr><td style="color:#71717a;font-size:13px;width:100px;">Batch</td><td style="color:#1a1a1a;font-size:14px;font-weight:bold;">{batch_name}</td></tr>
 <tr><td style="color:#71717a;font-size:13px;">Start Date</td><td style="color:#1a1a1a;font-size:14px;">{start_date}</td></tr>
-<tr><td style="color:#71717a;font-size:13px;">End Date</td><td style="color:#1a1a1a;font-size:14px;">{end_date}</td></tr>
+<tr><td style="color:#71717a;font-size:13px;">End Date</td><td style="color:#1a1a1a;font-size:14px;">{display_end}</td></tr>
 {teacher_row}
 </table>
 <p style="margin:20px 0;text-align:center;">
