@@ -1004,7 +1004,7 @@ async def set_student_access(
                 type="batch_extension",
                 title="Access Window Updated",
                 message=f"Your access window has been updated. New end date: {target.strftime('%b %d, %Y')}.",
-                link=f"/batches/{batch_id}",
+                link=f"/courses?batch={batch_id}",
                 institute_id=institute_id,
             )
         except Exception:
