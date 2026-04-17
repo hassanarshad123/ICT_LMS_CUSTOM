@@ -879,6 +879,9 @@ async def set_student_access(
     Auto-detects direction when context == 'adjust'.
     Writes a BatchExtensionLog row and queues a webhook event for extend/shorten
     (not for initial — enrollment.created already carries effective_end_date).
+
+    Transaction: flushes but does NOT commit. The caller owns the transaction
+    boundary (router or outer service wrapping a bulk operation).
     """
     if days is not None and end_date is not None:
         raise ValueError("Provide either days or end_date, not both.")

@@ -164,8 +164,17 @@ class TestSetStudentAccessSideEffects:
         from app.models.batch import BatchExtensionLog
         logged = [c.args[0] for c in add_calls if isinstance(c.args[0], BatchExtensionLog)]
         assert len(logged) == 1
-        assert logged[0].extension_type == "initial"
-        assert logged[0].reason == "scholarship"
+        log = logged[0]
+        assert log.extension_type == "initial"
+        assert log.reason == "scholarship"
+        assert log.previous_end_date == sample_batch.end_date
+        assert log.new_end_date == date.today() + timedelta(days=30)
+        assert log.duration_days == 30
+        assert log.extended_by == sample_ids["actor_id"]
+        assert log.institute_id == sample_ids["institute_id"]
+        assert log.student_id == sample_ids["student_id"]
+        assert log.batch_id == sample_ids["batch_id"]
+        assert log.student_batch_id == sample_enrollment.id
 
     @pytest.mark.asyncio
     async def test_fires_webhook_on_extend_not_on_initial(self, sample_ids, sample_batch, sample_enrollment):
