@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { EmptyState } from '@/components/shared/page-states';
 import CsvImportPanel from '@/components/shared/csv-import-panel';
-import { ExtendAccessModal } from '@/components/shared/extend-access-modal';
+import { AdjustAccessModal } from '@/components/shared/adjust-access-modal';
 import { SearchableCombobox } from '@/components/ui/searchable-combobox';
 import {
   Users,
@@ -81,7 +81,7 @@ export function BatchStudentSection({
     <>
       {/* Extension Modal */}
       {extendingStudent && batchId && batchEndDate && (
-        <ExtendAccessModal
+        <AdjustAccessModal
           batchId={batchId}
           batchEndDate={batchEndDate}
           studentId={extendingStudent.id}
@@ -203,7 +203,7 @@ export function BatchStudentSection({
                         className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-primary border border-primary/20 rounded-md hover:bg-primary/5"
                       >
                         <CalendarPlus size={10} />
-                        Extend
+                        Adjust access
                       </button>
                     </div>
                   </div>
@@ -249,10 +249,10 @@ export function BatchStudentSection({
                           <button
                             onClick={() => setExtendingStudent({ id: student.studentId, name: student.name, effectiveEndDate: student.extendedEndDate || batchEndDate })}
                             className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-primary border border-primary/20 rounded-lg hover:bg-primary/5 transition-colors"
-                            title="Extend access"
+                            title="Adjust access"
                           >
                             <CalendarPlus size={12} />
-                            Extend
+                            Adjust access
                           </button>
                         </td>
                       </tr>
