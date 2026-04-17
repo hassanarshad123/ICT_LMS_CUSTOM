@@ -653,22 +653,36 @@ async def extend_student_access(
     """Legacy wrapper — delegates to set_student_access with context='adjust'.
 
     Kept for backwards compatibility with the /extend router and other callers.
-    Unlike set_student_access, this helper commits the transaction itself so
-    existing callers that do not call db.commit() continue to work.
+    The helper auto-detects whether the new date is an extension or a shortening;
+    unlike the pre-refactor version, dates earlier than batch.end_date are allowed.
+
+    Commits the transaction so callers that do not own the transaction boundary
+    (including the /extend router when institute_id is None) keep working.
+    Translates LookupError (enrollment missing) to ValueError so existing
+    `except ValueError` handlers map it to 400.
     """
-    result = await set_student_access(
-        db,
-        institute_id=institute_id,
-        student_id=student_id,
-        batch_id=batch_id,
-        days=duration_days,
-        end_date=end_date,
-        actor_id=extended_by,
-        reason=reason,
-        context="adjust",
-    )
+    try:
+        result = await set_student_access(
+            db,
+            institute_id=institute_id,
+            student_id=student_id,
+            batch_id=batch_id,
+            days=duration_days,
+            end_date=end_date,
+            actor_id=extended_by,
+            reason=reason,
+            context="adjust",
+        )
+    except LookupError as exc:
+        raise ValueError(str(exc)) from exc
     await db.commit()
-    return result
+    return {
+        "student_id": student_id,
+        "batch_id": batch_id,
+        "duration_days": duration_days,
+        "reason": reason,
+        **result,
+    }
 
 
 async def get_extension_history(

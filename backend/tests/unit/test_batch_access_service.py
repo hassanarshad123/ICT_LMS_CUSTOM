@@ -253,3 +253,45 @@ class TestExtendStudentAccessShortening:
             )
         assert result["new_end_date"] == date.today() + timedelta(days=180)
         assert result["extension_type"] == "extend"
+
+    @pytest.mark.asyncio
+    async def test_extend_returns_ExtensionOut_compatible_shape(self, sample_ids, sample_batch, sample_enrollment):
+        # Router validates this shape as ExtensionOut. Must include student_id, batch_id,
+        # previous_end_date, new_end_date, extension_type, duration_days, reason.
+        from app.services.batch_service import extend_student_access
+        from app.schemas.batch import ExtensionOut
+        session = _make_mock_session(sample_enrollment, sample_batch)
+        with patch("app.services.batch_service.queue_webhook_event", new=AsyncMock()):
+            result = await extend_student_access(
+                session,
+                institute_id=sample_ids["institute_id"],
+                student_id=sample_ids["student_id"],
+                batch_id=sample_ids["batch_id"],
+                duration_days=180,
+                reason="scholarship",
+                extended_by=sample_ids["actor_id"],
+            )
+        out = ExtensionOut(**result)
+        assert out.student_id == sample_ids["student_id"]
+        assert out.batch_id == sample_ids["batch_id"]
+        assert out.duration_days == 180
+        assert out.reason == "scholarship"
+        assert out.extension_type == "extend"
+
+    @pytest.mark.asyncio
+    async def test_extend_translates_lookup_error_to_value_error(self, sample_ids, sample_batch):
+        # Router catches ValueError; must not let LookupError escape as 500.
+        from app.services.batch_service import extend_student_access
+        session = AsyncMock()
+        exec_result = MagicMock()
+        exec_result.scalar_one_or_none = MagicMock(return_value=None)
+        session.execute = AsyncMock(return_value=exec_result)
+        with pytest.raises(ValueError, match="not found"):
+            await extend_student_access(
+                session,
+                institute_id=sample_ids["institute_id"],
+                student_id=sample_ids["student_id"],
+                batch_id=sample_ids["batch_id"],
+                duration_days=30,
+                extended_by=sample_ids["actor_id"],
+            )
