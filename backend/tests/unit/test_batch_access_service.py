@@ -209,6 +209,59 @@ class TestSetStudentAccessSideEffects:
             assert args["event_type"] == "enrollment.access_changed"
 
 
+class TestSetStudentAccessIsActiveFlip:
+    """Extending/granting access must re-activate a deactivated enrollment.
+    Shortening must leave is_active untouched."""
+
+    @pytest.mark.asyncio
+    async def test_extend_reactivates_deactivated_enrollment(self, sample_ids, sample_batch, sample_enrollment):
+        sample_enrollment.is_active = False
+        session = _make_mock_session(sample_enrollment, sample_batch)
+        with patch("app.services.batch_service.queue_webhook_event", new=AsyncMock()):
+            await set_student_access(
+                session,
+                institute_id=sample_ids["institute_id"],
+                student_id=sample_ids["student_id"],
+                batch_id=sample_ids["batch_id"],
+                days=200,  # extends beyond batch.end_date (today+90)
+                actor_id=sample_ids["actor_id"],
+                context="adjust",
+            )
+        assert sample_enrollment.is_active is True
+
+    @pytest.mark.asyncio
+    async def test_initial_ensures_enrollment_is_active(self, sample_ids, sample_batch, sample_enrollment):
+        sample_enrollment.is_active = False
+        session = _make_mock_session(sample_enrollment, sample_batch)
+        with patch("app.services.batch_service.queue_webhook_event", new=AsyncMock()):
+            await set_student_access(
+                session,
+                institute_id=sample_ids["institute_id"],
+                student_id=sample_ids["student_id"],
+                batch_id=sample_ids["batch_id"],
+                days=30,
+                actor_id=sample_ids["actor_id"],
+                context="initial",
+            )
+        assert sample_enrollment.is_active is True
+
+    @pytest.mark.asyncio
+    async def test_shorten_does_not_touch_is_active(self, sample_ids, sample_batch, sample_enrollment):
+        sample_enrollment.is_active = False
+        session = _make_mock_session(sample_enrollment, sample_batch)
+        with patch("app.services.batch_service.queue_webhook_event", new=AsyncMock()):
+            await set_student_access(
+                session,
+                institute_id=sample_ids["institute_id"],
+                student_id=sample_ids["student_id"],
+                batch_id=sample_ids["batch_id"],
+                days=10,  # shorter than current effective end
+                actor_id=sample_ids["actor_id"],
+                context="adjust",
+            )
+        assert sample_enrollment.is_active is False  # unchanged
+
+
 class TestExtendStudentAccessShortening:
     @pytest.mark.asyncio
     async def test_extend_can_shorten_below_batch_end(self, sample_ids, sample_batch, sample_enrollment):
