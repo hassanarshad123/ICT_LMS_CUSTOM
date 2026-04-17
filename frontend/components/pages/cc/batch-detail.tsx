@@ -127,8 +127,21 @@ export default function BatchContentPage() {
     [batchId, debouncedStudentSearch],
   );
 
-  const { data: allStudentsData } = useApi(
-    () => listUsers({ role: 'student', per_page: 100 }),
+  // Enroll-dropdown search — server-driven so >100-student institutes work
+  const [enrollSearch, setEnrollSearch] = useState('');
+  const [debouncedEnrollSearch, setDebouncedEnrollSearch] = useState('');
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedEnrollSearch(enrollSearch), 300);
+    return () => clearTimeout(t);
+  }, [enrollSearch]);
+
+  const { data: allStudentsData, loading: searchingEnrollStudents } = useApi(
+    () =>
+      debouncedEnrollSearch.length >= 2
+        ? listUsers({ role: 'student', search: debouncedEnrollSearch, per_page: 100 })
+        : Promise.resolve({ data: [], total: 0, page: 1, perPage: 100, totalPages: 0 }),
+    [debouncedEnrollSearch],
   );
 
   const { execute: doEnroll, loading: enrolling } = useMutation(
@@ -549,6 +562,10 @@ export default function BatchContentPage() {
         onSetStudentsPage={setStudentsPage}
         studentSearch={studentSearch}
         onStudentSearchChange={setStudentSearch}
+        enrollSearch={enrollSearch}
+        onEnrollSearchChange={setEnrollSearch}
+        enrollSearchDebounced={debouncedEnrollSearch}
+        searchingEnrollStudents={searchingEnrollStudents}
       />
 
       {/* Content grouped by course */}

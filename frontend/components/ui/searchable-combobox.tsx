@@ -20,6 +20,14 @@ interface SearchableComboboxProps {
   emptyMessage?: string;
   className?: string;
   disabled?: boolean;
+  /**
+   * When set, the parent owns filtering (usually a debounced server fetch).
+   * The built-in cmdk client-side filter is disabled and every keystroke is
+   * forwarded via this callback so the parent can refetch.
+   */
+  onSearchChange?: (query: string) => void;
+  /** Show a loading hint inside the listbox (only meaningful with onSearchChange). */
+  loading?: boolean;
 }
 
 export function SearchableCombobox({
@@ -31,10 +39,14 @@ export function SearchableCombobox({
   emptyMessage = 'No results found',
   className,
   disabled = false,
+  onSearchChange,
+  loading = false,
 }: SearchableComboboxProps) {
   const [open, setOpen] = React.useState(false);
+  const [search, setSearch] = React.useState('');
 
   const selectedLabel = options.find((o) => o.value === value)?.label;
+  const serverMode = typeof onSearchChange === 'function';
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -55,10 +67,22 @@ export function SearchableCombobox({
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-        <Command>
-          <CommandInput placeholder={searchPlaceholder} className="h-9" />
+        <Command shouldFilter={!serverMode}>
+          <CommandInput
+            placeholder={searchPlaceholder}
+            className="h-9"
+            value={serverMode ? search : undefined}
+            onValueChange={(v) => {
+              if (serverMode) {
+                setSearch(v);
+                onSearchChange!(v);
+              }
+            }}
+          />
           <CommandList className="max-h-60">
-            <CommandEmpty>{emptyMessage}</CommandEmpty>
+            <CommandEmpty>
+              {loading ? 'Searching...' : emptyMessage}
+            </CommandEmpty>
             <CommandGroup>
               {/* Empty option to clear selection */}
               <CommandItem

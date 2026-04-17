@@ -42,6 +42,11 @@ export interface BatchStudentSectionProps {
   onSetStudentsPage?: (page: number) => void;
   studentSearch?: string;
   onStudentSearchChange?: (search: string) => void;
+  /** Enroll-dropdown server-side search — parent owns the fetch */
+  enrollSearch?: string;
+  onEnrollSearchChange?: (search: string) => void;
+  enrollSearchDebounced?: string;
+  searchingEnrollStudents?: boolean;
 }
 
 export function BatchStudentSection({
@@ -63,6 +68,10 @@ export function BatchStudentSection({
   onSetStudentsPage,
   studentSearch,
   onStudentSearchChange,
+  enrollSearch,
+  onEnrollSearchChange,
+  enrollSearchDebounced,
+  searchingEnrollStudents,
 }: BatchStudentSectionProps) {
   const [showImport, setShowImport] = useState(false);
   const [extendingStudent, setExtendingStudent] = useState<{ id: string; name: string; effectiveEndDate?: string } | null>(null);
@@ -143,10 +152,16 @@ export function BatchStudentSection({
             options={availableStudents.map((s) => ({ value: s.id, label: `${s.name} (${s.email})` }))}
             value={selectedStudentId}
             onChange={onSelectedStudentIdChange}
-            placeholder="Select a student..."
-            searchPlaceholder="Search students..."
-            emptyMessage="No students found"
+            placeholder="Type to search students..."
+            searchPlaceholder="Search by name, email, or phone..."
+            emptyMessage={
+              (enrollSearchDebounced?.length ?? 0) < 2
+                ? 'Type at least 2 characters to search'
+                : 'No students match'
+            }
             className="flex-1"
+            onSearchChange={onEnrollSearchChange}
+            loading={searchingEnrollStudents}
           />
           <button
             onClick={onEnrollStudent}
