@@ -400,7 +400,7 @@ export default function AdminBatchDetail() {
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary border border-primary/30 rounded-lg hover:bg-primary/5 transition-colors"
                     >
                       <CalendarPlus size={13} />
-                      Adjust access ({selectedStudents.size})
+                      Update Access ({selectedStudents.size})
                     </button>
                   )}
                 </div>
@@ -459,7 +459,7 @@ export default function AdminBatchDetail() {
                             className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-primary border border-primary/20 rounded-md hover:bg-primary/5"
                           >
                             <CalendarPlus size={10} />
-                            Adjust access
+                            Update Access
                           </button>
                         </div>
                       </div>
@@ -534,10 +534,10 @@ export default function AdminBatchDetail() {
                               <button
                                 onClick={() => setExtendingStudent({ id: student.studentId, name: student.name, effectiveEndDate: student.extendedEndDate || batch?.endDate })}
                                 className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-primary border border-primary/20 rounded-lg hover:bg-primary/5 transition-colors"
-                                title="Adjust access"
+                                title="Update Access"
                               >
                                 <CalendarPlus size={12} />
-                                Adjust access
+                                Update Access
                               </button>
                             </td>
                           </tr>

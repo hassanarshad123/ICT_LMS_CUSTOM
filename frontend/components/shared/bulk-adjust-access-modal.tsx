@@ -73,7 +73,7 @@ export function BulkAdjustAccessModal({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <h3 className="text-lg font-semibold text-primary">
-            Adjust access for {selectedStudents.length} student(s)
+            Update Access for {selectedStudents.length} student(s)
           </h3>
           <button
             onClick={onClose}

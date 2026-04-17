@@ -86,11 +86,11 @@ export function AdjustAccessModal({
       if (reason.trim()) data.reason = reason.trim();
 
       const result = await setStudentAccess(batchId, studentId, data);
-      toast.success(`Access adjusted to ${new Date(result.newEndDate).toLocaleDateString()}`);
+      toast.success(`Access updated to ${new Date(result.newEndDate).toLocaleDateString()}`);
       onSuccess();
       onClose();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to adjust access');
+      toast.error(err.message || 'Failed to update access');
     } finally {
       setSubmitting(false);
     }
@@ -112,7 +112,7 @@ export function AdjustAccessModal({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div>
-            <h3 className="text-lg font-semibold text-primary">Adjust Access</h3>
+            <h3 className="text-lg font-semibold text-primary">Update Access</h3>
             <p className="text-sm text-gray-500 mt-0.5">{studentName}</p>
           </div>
           <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
