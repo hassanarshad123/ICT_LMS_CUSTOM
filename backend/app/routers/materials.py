@@ -14,7 +14,8 @@ from app.schemas.material import (
 from app.schemas.common import PaginatedResponse
 from app.services import material_service
 from app.middleware.auth import require_roles, get_current_user
-from app.middleware.access_control import verify_batch_access
+from app.middleware.access_control import check_billing_restriction, verify_batch_access
+from app.models.institute import Institute
 from app.models.user import User
 from app.models.enums import UserRole
 from app.utils.tenant import check_institute_ownership
@@ -59,6 +60,12 @@ async def get_upload_url(
 
     # Atomically check storage quota and pre-increment (locked with FOR UPDATE)
     if current_user.institute_id:
+        # Pricing v2 billing-restriction gate — blocks uploads for v2 tiers
+        # that are 15+ days overdue. Grandfathered tiers (ICT) always pass.
+        _inst = await session.get(Institute, current_user.institute_id)
+        if _inst is not None:
+            check_billing_restriction(_inst, "POST", is_upload=True)
+
         from app.services.institute_service import check_and_increment_storage_quota
         try:
             await check_and_increment_storage_quota(session, current_user.institute_id, body.file_size or 0)

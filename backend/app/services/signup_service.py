@@ -9,13 +9,26 @@ from sqlalchemy import or_, func
 from sqlmodel import select
 
 from app.models.institute import Institute, InstituteUsage, InstituteStatus, PlanTier
+from app.models.billing import InstituteBilling
 from app.models.user import User
 from app.models.enums import UserRole
 from app.models.activity import ActivityLog
 from app.utils.security import hash_password
-from app.utils.plan_limits import PLAN_LIMITS
+from app.utils.plan_limits import PLAN_LIMITS, is_v2_billing_tier
 from app.config import get_settings
 from app.schemas.validators import _SLUG_RE
+
+# Sentinel "soft unlimited" — used for v2 tiers where per-student caps are
+# replaced by overage billing (see InstituteBilling.extra_user_rate).
+# A 7-digit cap large enough to never be hit in practice keeps the column
+# type `int NOT NULL` without introducing nullable plumbing everywhere.
+_UNLIMITED_SENTINEL_INT = 1_000_000
+
+# Professional tier billing defaults (pricing-model-v2). These get persisted
+# into InstituteBilling at signup so the monthly invoice cron has a row to
+# read from on the 1st of each month.
+_PROFESSIONAL_EXTRA_USER_RATE_PKR = 80
+_PROFESSIONAL_FREE_USERS_INCLUDED = 10
 
 RESERVED_SLUGS = frozenset({
     # System routes
@@ -131,6 +144,98 @@ async def _check_signup_cooldown(
             )
 
 
+def _resolve_signup_tier(raw: str) -> PlanTier:
+    """Resolve the SIGNUP_DEFAULT_TIER env value to a PlanTier enum.
+
+    Falls back to PlanTier.free if the configured value is not a known
+    tier — this keeps a broken env var from breaking signups entirely.
+    """
+    try:
+        return PlanTier(raw)
+    except ValueError:
+        return PlanTier.free
+
+
+def _institute_kwargs_for_tier(tier: PlanTier) -> dict:
+    """Build Institute() kwargs (status, expires_at, quota caps) for a tier.
+
+    v2 tiers (professional, custom):
+      - status=active (no trial)
+      - expires_at=None (no auto-suspend)
+      - max_students uses a soft-unlimited sentinel; overage is billed
+        monthly via InstituteBilling.extra_user_rate
+      - storage/video limits from PLAN_LIMITS (None → sentinel)
+
+    Free / grandfathered tiers:
+      - status=trial, expires_at=now+TRIAL_DURATION_DAYS
+      - hard caps from PLAN_LIMITS
+    """
+    limits = PLAN_LIMITS[tier]
+
+    if is_v2_billing_tier(tier):
+        max_students = limits.get("students") or _UNLIMITED_SENTINEL_INT
+        return {
+            "status": InstituteStatus.active,
+            "plan_tier": tier,
+            "max_users": _UNLIMITED_SENTINEL_INT,
+            "max_students": max_students,
+            "max_storage_gb": limits.get("storage_gb") or float(_UNLIMITED_SENTINEL_INT),
+            "max_video_gb": limits.get("video_gb") or float(_UNLIMITED_SENTINEL_INT),
+            "expires_at": None,
+        }
+
+    settings = get_settings()
+    max_students = limits["students"]
+    return {
+        "status": InstituteStatus.trial,
+        "plan_tier": tier,
+        "max_users": max_students + 5,
+        "max_students": max_students,
+        "max_storage_gb": limits["storage_gb"],
+        "max_video_gb": limits["video_gb"],
+        "expires_at": datetime.now(timezone.utc) + timedelta(days=settings.TRIAL_DURATION_DAYS),
+    }
+
+
+def _initial_billing_for_tier(
+    institute_id: uuid.UUID, tier: PlanTier,
+) -> Optional[InstituteBilling]:
+    """Provision the InstituteBilling row for v2 signups.
+
+    Professional gets the standard Rs 80/extra-student rate plus 10 free
+    seats. Custom is negotiated per deal, so SA fills in extra_user_rate
+    and custom_pricing_config later — we still create the row so the
+    monthly invoice cron has something to read.
+
+    Returns None for grandfathered / trial tiers (they have no v2 billing
+    row).
+    """
+    if not is_v2_billing_tier(tier):
+        return None
+
+    if tier == PlanTier.professional:
+        return InstituteBilling(
+            institute_id=institute_id,
+            base_amount=0,
+            currency="PKR",
+            billing_cycle="monthly",
+            extra_user_rate=_PROFESSIONAL_EXTRA_USER_RATE_PKR,
+            free_users_included=_PROFESSIONAL_FREE_USERS_INCLUDED,
+        )
+
+    # Custom tier: SA will fill in extra_user_rate + custom_pricing_config
+    # post-signup when the deal is quoted. Default to zero-billed so nothing
+    # accidental gets charged before the deal is finalized.
+    return InstituteBilling(
+        institute_id=institute_id,
+        base_amount=0,
+        currency="PKR",
+        billing_cycle="monthly",
+        extra_user_rate=0,
+        free_users_included=0,
+    )
+
+
 async def create_institute_with_admin(
     session: AsyncSession,
     name: str,
@@ -140,36 +245,31 @@ async def create_institute_with_admin(
     institute_name: str,
     institute_slug: str,
 ) -> tuple[Institute, User]:
-    """Create institute + admin user in one atomic transaction."""
+    """Create institute + admin user in one atomic transaction.
+
+    The tier assigned to new signups is controlled by
+    settings.SIGNUP_DEFAULT_TIER (defaults to "professional" in v2).
+    V2 tiers skip the trial path, activate immediately, and get an
+    InstituteBilling row provisioned for the monthly invoice cron.
+    """
     email = email.strip().lower()
     settings = get_settings()
 
     # Re-signup cooldown: block repeat trials from the same contact info.
+    # Still applies on v2 signups so a single admin can't spin up N free
+    # Professional tenants to abuse the free-forever student allowance.
     await _check_signup_cooldown(
         session, email, phone, settings.TRIAL_COOLDOWN_DAYS,
     )
 
-    trial_days = settings.TRIAL_DURATION_DAYS
-    # Source trial defaults from the authoritative PLAN_LIMITS dict
-    trial_limits = PLAN_LIMITS[PlanTier.free]
-    max_students = trial_limits["students"]
-    max_storage_gb = trial_limits["storage_gb"]
-    max_video_gb = trial_limits["video_gb"]
-    # max_users stays generous (staff uncounted); not the enforcement lever
-    max_users = max_students + 5
+    tier = _resolve_signup_tier(settings.SIGNUP_DEFAULT_TIER)
+    inst_kwargs = _institute_kwargs_for_tier(tier)
 
-    # Create institute
     institute = Institute(
         name=institute_name,
         slug=institute_slug,
         contact_email=email,
-        status=InstituteStatus.trial,
-        plan_tier=PlanTier.free,
-        max_users=max_users,
-        max_students=max_students,
-        max_storage_gb=max_storage_gb,
-        max_video_gb=max_video_gb,
-        expires_at=datetime.now(timezone.utc) + timedelta(days=trial_days),
+        **inst_kwargs,
     )
     session.add(institute)
     await session.flush()  # get institute.id without committing
@@ -181,6 +281,13 @@ async def create_institute_with_admin(
         last_calculated_at=datetime.now(timezone.utc),
     )
     session.add(usage)
+
+    # V2 tiers (professional, custom) get an InstituteBilling row so the
+    # monthly invoice cron can find them. Grandfathered / trial tiers
+    # deliberately skip this — they're handled outside the v2 engine.
+    billing = _initial_billing_for_tier(institute.id, tier)
+    if billing is not None:
+        session.add(billing)
 
     # Create admin user
     user = User(
