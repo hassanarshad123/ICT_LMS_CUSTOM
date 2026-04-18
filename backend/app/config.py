@@ -79,6 +79,11 @@ class Settings(BaseSettings):
     # Trial tier defaults now sourced from PLAN_LIMITS[PlanTier.free] in
     # backend/app/utils/plan_limits.py. Override per-tier values there.
     SIGNUP_ENABLED: bool = True
+    # Pricing v2 rollout: default tier assigned to new self-signups.
+    # "professional" = new v2 flow (free forever, 10 students included, overage billed).
+    # "free"         = legacy 14-day trial (kept for rollback safety).
+    # Values must match a PlanTier enum in app.models.institute.
+    SIGNUP_DEFAULT_TIER: str = "professional"
 
     # Pricing v2 billing engine (pricing-model-v2)
     # Monthly invoice cron + late-payment enforcement. True = log-only,

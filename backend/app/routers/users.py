@@ -27,8 +27,10 @@ from app.services.user_service import (
     force_logout_user,
 )
 from app.middleware.auth import require_roles, get_current_user
+from app.middleware.access_control import check_billing_restriction
 from app.models.user import User
 from app.models.batch import StudentBatch, Batch
+from app.models.institute import Institute
 from app.models.enums import UserRole, UserStatus
 from app.utils.security import hash_password
 from app.utils.transformers import to_db
@@ -230,6 +232,14 @@ async def create_user_endpoint(
     # Students are capped (max_students); staff (admin/teacher/course_creator)
     # are uncapped but still tracked in current_users for SA visibility.
     if current_user.institute_id:
+        # Pricing v2 billing-restriction gate — raises 402 on v2 tiers that
+        # are 15+ days overdue. Grandfathered tiers (ICT, etc.) always pass.
+        _inst = await session.get(Institute, current_user.institute_id)
+        if _inst is not None:
+            check_billing_restriction(
+                _inst, "POST", is_student_add=(db_role == "student"),
+            )
+
         if db_role == "student":
             try:
                 await check_and_increment_student_quota(session, current_user.institute_id)
@@ -680,6 +690,14 @@ async def bulk_import(
 
     default_student_password = await _get_default_student_password(session, current_user.institute_id)
     valid_rows, errors, total_rows, truncated = _parse_and_validate_csv(text, default_student_password)
+
+    # Pricing v2 billing-restriction gate — fail the whole bulk import fast
+    # rather than processing 500 rows and stopping mid-way with a 402. Bulk
+    # import always creates students, so is_student_add=True.
+    if current_user.institute_id:
+        _inst = await session.get(Institute, current_user.institute_id)
+        if _inst is not None:
+            check_billing_restriction(_inst, "POST", is_student_add=True)
 
     # Pre-fetch existing users if enroll_set is provided
     existing_map: dict[str, User] = {}

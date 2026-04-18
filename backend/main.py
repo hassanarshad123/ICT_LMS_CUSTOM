@@ -9,7 +9,7 @@ from slowapi.errors import RateLimitExceeded
 from app.utils.rate_limit import limiter
 
 from app.config import get_settings
-from app.routers import auth, users, batches, courses, curriculum, lectures, materials, jobs, announcements, zoom, admin, certificates, monitoring, branding, notifications, search, super_admin, api_keys, webhooks, public_api, quizzes, signup, sa_analytics, sa_monitoring, sa_operations, sa_billing, feedback, upgrade, admissions, integrations
+from app.routers import auth, users, batches, courses, curriculum, lectures, materials, jobs, announcements, zoom, admin, certificates, monitoring, branding, notifications, search, super_admin, api_keys, webhooks, public_api, quizzes, signup, sa_analytics, sa_monitoring, sa_operations, sa_billing, feedback, upgrade, admissions, integrations, billing
 from app.websockets.routes import router as ws_router
 from app.middleware.error_tracking import ErrorTrackingMiddleware
 from app.exceptions import NotFoundError, DuplicateError, ForbiddenError, ValidationError
@@ -221,6 +221,9 @@ app.include_router(feedback.router, prefix="/api/v1/feedback", tags=["Feedback"]
 app.include_router(upgrade.router, prefix="/api/v1/upgrade", tags=["Upgrade"])
 app.include_router(admissions.router, prefix="/api/v1/admissions", tags=["Admissions"])
 app.include_router(integrations.router, prefix="/api/v1/integrations", tags=["Integrations"])
+# Admin-facing billing (pricing v2). Tier-gated internally — grandfathered
+# institutes (like ICT) get 403 from every endpoint.
+app.include_router(billing.router, prefix="/api/v1/billing", tags=["Billing"])
 
 # WebSocket routes
 app.include_router(ws_router)
