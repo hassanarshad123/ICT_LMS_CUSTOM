@@ -45,7 +45,21 @@ function PlanBadge({ plan }: { plan: string }) {
   );
 }
 
-function UsageBar({ current, max, label }: { current: number; max: number; label: string }) {
+function UsageBar({ current, max, label }: { current: number; max: number | null; label: string }) {
+  // Unlimited plan: render a neutral full-width bar and the "∞" suffix.
+  if (max === null) {
+    return (
+      <div className="min-w-0">
+        <div className="text-xs text-gray-500 mb-1">{label}</div>
+        <div className="flex items-center gap-2">
+          <div className="flex-1 bg-gray-100 rounded-full h-1.5">
+            <div className="h-1.5 rounded-full bg-gray-300" style={{ width: '100%' }} />
+          </div>
+          <span className="text-xs text-gray-500 whitespace-nowrap">{current}/∞</span>
+        </div>
+      </div>
+    );
+  }
   const pct = max > 0 ? Math.min((current / max) * 100, 100) : 0;
   const color = pct > 90 ? 'bg-red-500' : pct > 70 ? 'bg-yellow-500' : 'bg-green-500';
   return (
@@ -161,6 +175,9 @@ export default function InstitutesPage() {
           className="px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm"
         >
           <option value="">All Plans</option>
+          <option value="professional">Professional</option>
+          <option value="custom">Custom</option>
+          <option value="unlimited">Unlimited</option>
           <option value="free">Trial</option>
           <option value="starter">Starter</option>
           <option value="basic">Basic</option>
@@ -205,7 +222,9 @@ export default function InstitutesPage() {
                   <UsageBar
                     current={parseFloat(inst.currentStorageGb.toFixed(1))}
                     max={inst.maxStorageGb}
-                    label={`${inst.currentStorageGb.toFixed(1)}/${inst.maxStorageGb} GB`}
+                    label={inst.maxStorageGb === null
+                      ? `${inst.currentStorageGb.toFixed(1)} GB (unlimited)`
+                      : `${inst.currentStorageGb.toFixed(1)}/${inst.maxStorageGb} GB`}
                   />
                 </div>
                 <div className="flex items-center gap-2">
@@ -266,7 +285,9 @@ export default function InstitutesPage() {
                       <UsageBar
                         current={parseFloat(inst.currentStorageGb.toFixed(1))}
                         max={inst.maxStorageGb}
-                        label={`${inst.currentStorageGb.toFixed(1)}/${inst.maxStorageGb} GB`}
+                        label={inst.maxStorageGb === null
+                          ? `${inst.currentStorageGb.toFixed(1)} GB (unlimited)`
+                          : `${inst.currentStorageGb.toFixed(1)}/${inst.maxStorageGb} GB`}
                       />
                     </td>
                     <td className="px-4 py-3">

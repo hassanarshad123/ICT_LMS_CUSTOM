@@ -7,7 +7,7 @@ import { ArrowLeft, Loader2, Edit2, Check, X, LogIn } from 'lucide-react';
 import {
   getInstitute, updateInstitute, suspendInstitute, activateInstitute,
   getInstituteUsers, getInstituteCourses, getInstituteBatches,
-  impersonateUser, InstituteOut,
+  impersonateUser, InstituteOut, PlanTier, PLAN_TIER_LABELS,
 } from '@/lib/api/super-admin';
 import { toast } from 'sonner';
 import {
@@ -15,7 +15,21 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
-function UsageBar({ label, current, max, unit = '' }: { label: string; current: number; max: number; unit?: string }) {
+function UsageBar({ label, current, max, unit = '' }: { label: string; current: number; max: number | null; unit?: string }) {
+  // max=null signals the Unlimited plan — render a neutral bar and "Unlimited" label.
+  if (max === null) {
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-sm text-gray-600">{label}</span>
+          <span className="text-sm font-medium">{current}{unit} / Unlimited</span>
+        </div>
+        <div className="w-full bg-gray-100 rounded-full h-2">
+          <div className="h-2 rounded-full bg-gray-300 transition-all" style={{ width: '100%' }} />
+        </div>
+      </div>
+    );
+  }
   const pct = max > 0 ? Math.min((current / max) * 100, 100) : 0;
   const color = pct > 90 ? 'bg-red-500' : pct > 70 ? 'bg-yellow-500' : 'bg-green-500';
   return (
@@ -93,15 +107,39 @@ export default function InstituteDetailPage() {
 
   useEffect(() => { fetchTabData(); }, [fetchTabData]);
 
-  const handleSave = async () => {
+  const [showUnlimitedDialog, setShowUnlimitedDialog] = useState(false);
+  const [unlimitedReason, setUnlimitedReason] = useState('');
+
+  // Does the pending edit cross the Unlimited boundary (assign or revoke)?
+  const tierChangeCrossesUnlimited = (): boolean => {
+    if (!institute) return false;
+    const nextTier = editForm.planTier as PlanTier | undefined;
+    if (!nextTier || nextTier === institute.planTier) return false;
+    return nextTier === 'unlimited' || institute.planTier === 'unlimited';
+  };
+
+  const commitSave = async (tierChangeReason?: string) => {
     try {
-      const updated = await updateInstitute(instituteId, editForm);
+      const payload = tierChangeReason
+        ? { ...editForm, tierChangeReason }
+        : editForm;
+      const updated = await updateInstitute(instituteId, payload);
       setInstitute(updated);
       setEditing(false);
+      setShowUnlimitedDialog(false);
+      setUnlimitedReason('');
       toast.success('Institute updated');
     } catch (e: any) {
       toast.error(e.message || 'Failed to update');
     }
+  };
+
+  const handleSave = async () => {
+    if (tierChangeCrossesUnlimited()) {
+      setShowUnlimitedDialog(true);
+      return;
+    }
+    await commitSave();
   };
 
   const [showSuspendDialog, setShowSuspendDialog] = useState(false);
@@ -174,6 +212,42 @@ export default function InstituteDetailPage() {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+
+          <AlertDialog open={showUnlimitedDialog} onOpenChange={setShowUnlimitedDialog}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  {editForm.planTier === 'unlimited' ? 'Assign Unlimited Plan?' : 'Revoke Unlimited Plan?'}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  {editForm.planTier === 'unlimited'
+                    ? `This will comp ${institute.name} to the Unlimited plan — no quotas, no billing, no invoices. Action is logged to the Activity Log.`
+                    : `This will revoke ${institute.name}'s Unlimited plan and enforce the quotas from the new tier. Action is logged to the Activity Log.`}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="px-1">
+                <label className="text-sm text-gray-600 block mb-1">
+                  Reason <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={unlimitedReason}
+                  onChange={(e) => setUnlimitedReason(e.target.value)}
+                  placeholder="e.g. Founding partner comp — approved by Hassan 2026-04-20"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm resize-none h-20"
+                />
+              </div>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setUnlimitedReason('')}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => unlimitedReason.trim() && commitSave(unlimitedReason.trim())}
+                  disabled={!unlimitedReason.trim()}
+                  className="bg-gray-900 hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Confirm
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
 
@@ -223,7 +297,7 @@ export default function InstituteDetailPage() {
                 { label: 'Slug', key: 'slug', type: 'text' },
                 { label: 'Status', key: 'status', type: 'readonly' },
                 { label: 'Contact Email', key: 'contactEmail', type: 'email' },
-                { label: 'Plan', key: 'planTier', type: 'select', options: ['free', 'starter', 'basic', 'pro', 'enterprise'] },
+                { label: 'Plan', key: 'planTier', type: 'select', options: ['professional', 'custom', 'unlimited', 'free', 'starter', 'basic', 'pro', 'enterprise'] },
                 { label: 'Max Students', key: 'maxStudents', type: 'number' },
                 { label: 'Max Users (staff+students)', key: 'maxUsers', type: 'number' },
                 { label: 'Max Storage (GB)', key: 'maxStorageGb', type: 'number' },
@@ -238,7 +312,7 @@ export default function InstituteDetailPage() {
                         onChange={(e) => setEditForm((f) => ({ ...f, [key]: e.target.value }))}
                         className="px-2 py-1 border border-gray-200 rounded-lg text-sm w-32"
                       >
-                        {options!.map((o) => <option key={o} value={o}>{o}</option>)}
+                        {options!.map((o) => <option key={o} value={o}>{PLAN_TIER_LABELS[o as PlanTier] ?? o}</option>)}
                       </select>
                     ) : (
                       <input
@@ -251,8 +325,14 @@ export default function InstituteDetailPage() {
                   ) : (
                     key === 'status' ? (
                       <StatusBadge status={(institute as any)[key]} />
+                    ) : key === 'planTier' ? (
+                      <span className="font-medium text-gray-900">
+                        {PLAN_TIER_LABELS[institute.planTier] ?? institute.planTier}
+                      </span>
                     ) : (
-                      <span className="font-medium text-gray-900">{(institute as any)[key]}</span>
+                      <span className="font-medium text-gray-900">
+                        {(institute as any)[key] ?? <span className="text-gray-400">Unlimited</span>}
+                      </span>
                     )
                   )}
                 </div>

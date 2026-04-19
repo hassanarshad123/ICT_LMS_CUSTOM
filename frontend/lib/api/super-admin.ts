@@ -1,6 +1,28 @@
 import { apiClient } from './client';
 
-export type PlanTier = 'free' | 'starter' | 'basic' | 'pro' | 'enterprise';
+// v2 public tiers: professional, custom.
+// SA-only internal tier: unlimited (comped, no billing — excluded from v2 billing engine).
+// Legacy grandfathered tiers: free, starter, basic, pro, enterprise.
+export type PlanTier =
+  | 'professional'
+  | 'custom'
+  | 'unlimited'
+  | 'free'
+  | 'starter'
+  | 'basic'
+  | 'pro'
+  | 'enterprise';
+
+export const PLAN_TIER_LABELS: Record<PlanTier, string> = {
+  professional: 'Professional',
+  custom: 'Custom',
+  unlimited: 'Unlimited',
+  free: 'Free Trial',
+  starter: 'Starter',
+  basic: 'Basic',
+  pro: 'Pro',
+  enterprise: 'Enterprise',
+};
 
 export interface InstituteOut {
   id: string;
@@ -8,10 +30,12 @@ export interface InstituteOut {
   slug: string;
   status: string;
   planTier: PlanTier;
-  maxUsers: number;
-  maxStudents: number;
-  maxStorageGb: number;
-  maxVideoGb: number;
+  // Caps are nullable: institutes on the 'unlimited' tier have their
+  // quota columns NULL-ed out to indicate truly unlimited capacity.
+  maxUsers: number | null;
+  maxStudents: number | null;
+  maxStorageGb: number | null;
+  maxVideoGb: number | null;
   contactEmail: string;
   expiresAt: string | null;
   createdAt: string | null;
@@ -89,7 +113,26 @@ export async function createInstitute(data: InstituteCreate): Promise<InstituteO
   });
 }
 
-export async function updateInstitute(id: string, data: Partial<InstituteCreate> & { status?: string }): Promise<InstituteOut> {
+export interface InstituteUpdateInput {
+  name?: string;
+  slug?: string;
+  contactEmail?: string;
+  planTier?: PlanTier;
+  // Nullable because switching to 'unlimited' nulls the quota columns.
+  maxUsers?: number | null;
+  maxStudents?: number | null;
+  maxStorageGb?: number | null;
+  maxVideoGb?: number | null;
+  expiresAt?: string | null;
+  status?: string;
+  /** Required when the PATCH changes plan_tier to or from 'unlimited'. */
+  tierChangeReason?: string;
+}
+
+export async function updateInstitute(
+  id: string,
+  data: InstituteUpdateInput,
+): Promise<InstituteOut> {
   return apiClient<InstituteOut>(`/super-admin/institutes/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(data),

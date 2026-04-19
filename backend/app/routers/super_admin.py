@@ -19,7 +19,7 @@ from app.schemas.common import PaginatedResponse
 from app.services.institute_service import (
     create_institute, create_admin_for_institute, get_platform_stats,
     recalculate_usage, get_or_create_usage,
-    increment_staff_usage,
+    increment_staff_usage, change_institute_tier,
 )
 from app.utils.security import create_impersonation_token
 from app.utils.rate_limit import limiter
@@ -167,6 +167,11 @@ async def update_institute(
         raise HTTPException(404, "Institute not found")
 
     update_data = body.model_dump(exclude_unset=True)
+    # tier_change_reason is a write-only audit field — pulled out so it
+    # never gets setattr'd onto Institute (column doesn't exist).
+    tier_change_reason = update_data.pop("tier_change_reason", None)
+    old_tier = institute.plan_tier
+
     if "slug" in update_data and update_data["slug"] != institute.slug:
         existing = await session.execute(
             select(Institute).where(
@@ -179,14 +184,40 @@ async def update_institute(
             raise HTTPException(400, f"Slug '{update_data['slug']}' is already taken")
 
     if "plan_tier" in update_data:
-        update_data["plan_tier"] = PlanTier(update_data["plan_tier"])
+        new_tier = PlanTier(update_data.pop("plan_tier"))
+        try:
+            await change_institute_tier(
+                session,
+                institute=institute,
+                new_tier=new_tier,
+                reason=tier_change_reason,
+            )
+        except ValueError as e:
+            raise HTTPException(400, str(e))
 
+    # Apply remaining field updates (slug / name / contact_email / caps / expires_at).
     for key, val in update_data.items():
         setattr(institute, key, val)
 
     institute.updated_at = datetime.now(timezone.utc)
     session.add(institute)
-    await log_sa_action(session, sa.id, "institute_updated", "institute", institute_id, institute_id=institute_id, details=update_data)
+
+    # Record the SA action; tier change gets a dedicated activity for easy filtering.
+    await log_sa_action(
+        session, sa.id, "institute_updated", "institute", institute_id,
+        institute_id=institute_id, details=update_data,
+    )
+    if old_tier != institute.plan_tier:
+        await log_sa_action(
+            session, sa.id, "institute_tier_changed", "institute", institute_id,
+            institute_id=institute_id,
+            details={
+                "from": old_tier.value,
+                "to": institute.plan_tier.value,
+                "reason": tier_change_reason,
+            },
+        )
+
     await session.commit()
     await session.refresh(institute)
     return await _institute_to_out(session, institute)

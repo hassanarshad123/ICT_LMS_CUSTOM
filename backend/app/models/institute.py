@@ -20,8 +20,13 @@ class PlanTier(str, enum.Enum):
     professional = "professional"  # Free forever — 10 students + 10 GB docs + 50 GB video included; Rs 80/mo per extra student
     custom = "custom"              # Quoted per deal — volume discount + dedicated infra + white-label
 
-    # Grandfathered tiers — preserved so existing paying institutes (ICT, etc.)
-    # keep their current plan and are never touched by the v2 billing engine.
+    # Internal SA-only tier: truly unlimited, fully comped. Excluded from the
+    # v2 billing engine (no invoices, no late-payment enforcement). Assigned
+    # by Super Admin only for partner / founding / internal institutes.
+    unlimited = "unlimited"
+
+    # Grandfathered tiers — preserved so existing paying institutes keep their
+    # current plan and are never touched by the v2 billing engine.
     # The v2 billing cron explicitly filters to plan_tier IN ('professional', 'custom').
     free = "free"          # 14-day trial — retired for new signups in v2
     starter = "starter"    # Rs 2,500/mo — 50 students
