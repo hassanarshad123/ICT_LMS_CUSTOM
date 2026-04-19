@@ -46,6 +46,32 @@ export interface SlugCheckResponse {
   reason: string;
 }
 
+export interface EmailCheckResponse {
+  email: string;
+  available: boolean;
+  message?: string;
+}
+
+export async function checkEmailAvailability(
+  email: string,
+  signal?: AbortSignal,
+): Promise<EmailCheckResponse> {
+  const res = await fetchWithTimeout(
+    `${API_BASE}/signup/check-email?email=${encodeURIComponent(email)}`,
+    { timeoutMs: 10_000, signal },
+  );
+  if (!res.ok) {
+    // Fail-open: if the backend isn't responding, don't block the user.
+    return { email, available: true };
+  }
+  const data = await res.json();
+  return {
+    email: data.email,
+    available: Boolean(data.available),
+    message: data.message,
+  };
+}
+
 export async function checkSlug(slug: string, signal?: AbortSignal): Promise<SlugCheckResponse> {
   const res = await fetchWithTimeout(
     `${API_BASE}/signup/check-slug?slug=${encodeURIComponent(slug)}`,

@@ -42,3 +42,9 @@ class SlugCheckResponse(BaseModel):
     slug: str
     available: bool
     reason: str
+
+
+class EmailCheckResponse(BaseModel):
+    email: str
+    available: bool
+    message: Optional[str] = None

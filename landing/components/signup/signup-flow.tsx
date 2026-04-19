@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { signup, createHandoffToken } from '@/lib/api/public';
+import { isPhoneValid } from '@/lib/phone';
 import { uploadLogo, updateBranding } from '@/lib/api/branding';
 import { trackMetaEvent } from '@/lib/meta-pixel';
 import { SHOW_ONBOARDING_ANIMATION } from '@/lib/feature-flags';
@@ -61,7 +62,9 @@ export function SignupFlow() {
   // Step 1: About You
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
+  // Default to Pakistan — phone starts pre-populated with the country prefix so
+  // the PhoneInput mounts on +92 and the user only types the local number.
+  const [phone, setPhone] = useState('+92');
 
   // Step 2: Password
   const [password, setPassword] = useState('');
@@ -150,8 +153,7 @@ export function SignupFlow() {
   const validateStep1 = (): string | null => {
     if (!name.trim() || !email.trim() || !phone.trim()) return 'Please fill in all fields';
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return 'Please enter a valid email address';
-    const normalizedPhone = phone.replace(/[\s\-()]/g, '');
-    if (!/^\+?[1-9]\d{1,14}$/.test(normalizedPhone)) return 'Phone must be in international format (e.g. +923001234567)';
+    if (!isPhoneValid(phone)) return 'Please enter a valid phone number for the selected country';
     return null;
   };
 
@@ -220,6 +222,8 @@ export function SignupFlow() {
     setStep(6); // Move to "Creating Your LMS" step
 
     try {
+      // PhoneInput already returns the number in E.164 (e.g. +923001234567);
+      // strip any residual whitespace/punctuation just in case.
       const normalizedPhone = phone.replace(/[\s\-()]/g, '');
 
       // 1. Create institute + user
