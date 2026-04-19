@@ -37,9 +37,9 @@ depends_on = None
 def upgrade() -> None:
     # 1. Relax NOT NULL on quota columns so 'unlimited' can truly be NULL.
     op.execute("ALTER TABLE institutes ALTER COLUMN max_users DROP NOT NULL")
+    op.execute("ALTER TABLE institutes ALTER COLUMN max_students DROP NOT NULL")
     op.execute("ALTER TABLE institutes ALTER COLUMN max_storage_gb DROP NOT NULL")
     op.execute("ALTER TABLE institutes ALTER COLUMN max_video_gb DROP NOT NULL")
-    # max_students is already nullable per migration 029.
 
     # 2. Move ict + ictbusiness to unlimited, null their caps.
     op.execute(
@@ -88,5 +88,6 @@ def downgrade() -> None:
     # Re-apply NOT NULL — safe now because the two ict* rows have been
     # restored to concrete values and no other existing row was NULL'd.
     op.execute("ALTER TABLE institutes ALTER COLUMN max_users SET NOT NULL")
+    op.execute("ALTER TABLE institutes ALTER COLUMN max_students SET NOT NULL")
     op.execute("ALTER TABLE institutes ALTER COLUMN max_storage_gb SET NOT NULL")
     op.execute("ALTER TABLE institutes ALTER COLUMN max_video_gb SET NOT NULL")
