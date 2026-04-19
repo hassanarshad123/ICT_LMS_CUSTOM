@@ -27,8 +27,14 @@ ValidatedPhone = Annotated[Optional[str], Field(default=None, max_length=20, pat
 # Slug — 3-30 lowercase alphanumeric + hyphens
 ValidatedSlug = Annotated[str, Field(min_length=3, max_length=30)]
 
-# Plan tier — only valid enum values
-PlanTierField = Literal["free", "starter", "basic", "pro", "enterprise"]
+# Plan tier — only valid enum values.
+# v2 public tiers: professional, custom.
+# SA-only internal tier: unlimited (comped, no billing).
+# Legacy grandfathered tiers: free, starter, basic, pro, enterprise.
+PlanTierField = Literal[
+    "professional", "custom", "unlimited",
+    "free", "starter", "basic", "pro", "enterprise",
+]
 
 # Billing cycle — only valid enum values
 BillingCycleField = Literal["monthly", "quarterly", "yearly"]

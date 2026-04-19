@@ -459,3 +459,57 @@ async def get_platform_stats(session: AsyncSession) -> dict:
             for i in recent
         ],
     }
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Tier-change helper — centralizes the unlimited-tier comp/revoke flow.
+# ──────────────────────────────────────────────────────────────────────
+
+async def change_institute_tier(
+    session: AsyncSession,
+    *,
+    institute: Institute,
+    new_tier: "PlanTier",
+    reason: Optional[str],
+) -> Institute:
+    """Move an institute to a different plan_tier, with extra handling
+    when entering or leaving the SA-only `unlimited` tier.
+
+    Entering `unlimited`:
+      - Null out max_users / max_students / max_storage_gb / max_video_gb
+        so quota checks pass unconditionally (effective_limit is None).
+      - `reason` is required (non-empty string); recorded in ActivityLog.
+
+    Leaving `unlimited`:
+      - `reason` is required (non-empty string); recorded in ActivityLog.
+      - Caller is responsible for setting appropriate new caps via the
+        same PATCH body. We do NOT auto-apply defaults — it is an
+        intentional, audited action.
+
+    Plain tier swaps that don't touch `unlimited` pass through with no
+    special handling (caller still sets whatever fields they want).
+
+    Returns the mutated institute (not yet flushed).
+    """
+    from app.models.institute import PlanTier as _PlanTier
+    tier = new_tier if isinstance(new_tier, _PlanTier) else _PlanTier(new_tier)
+    old_tier = institute.plan_tier
+
+    entering_unlimited = tier == _PlanTier.unlimited and old_tier != _PlanTier.unlimited
+    leaving_unlimited = old_tier == _PlanTier.unlimited and tier != _PlanTier.unlimited
+
+    if (entering_unlimited or leaving_unlimited) and not (reason and reason.strip()):
+        raise ValueError(
+            "tier_change_reason is required when assigning or revoking the "
+            "Unlimited plan (recorded in ActivityLog for audit)."
+        )
+
+    institute.plan_tier = tier
+    if entering_unlimited:
+        institute.max_users = None
+        institute.max_students = None
+        institute.max_storage_gb = None
+        institute.max_video_gb = None
+    institute.updated_at = datetime.now(timezone.utc)
+    session.add(institute)
+    return institute

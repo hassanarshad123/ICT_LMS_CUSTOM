@@ -78,6 +78,23 @@ PLAN_LIMITS: dict[PlanTier, dict] = {
         "ai_tools": True,
         "custom_domain": True,
     },
+    PlanTier.unlimited: {
+        # SA-assigned comped tier. No quotas, no billing, no soft-lock.
+        # Usage is still tracked via InstituteUsage for monitoring. White-label
+        # stays off — unlimited institutes are branded as normal Zensbot tenants.
+        "students": None,
+        "storage_gb": None,
+        "video_gb": None,
+        "courses": None,
+        "batches": None,
+        "quizzes": None,
+        "announcements_per_day": None,
+        "api_keys": None,
+        "webhooks": None,
+        "zoom_classes": None,
+        "ai_tools": True,
+        "custom_domain": True,
+    },
     PlanTier.free: {  # 14-day trial
         "students": 15,
         "storage_gb": 1.0,
@@ -156,6 +173,8 @@ TIER_LABELS: dict[PlanTier, str] = {
     # v2 tiers
     PlanTier.professional: "Professional",
     PlanTier.custom: "Custom",
+    # Internal comped tier (SA-only)
+    PlanTier.unlimited: "Unlimited",
     # Grandfathered tiers
     PlanTier.free: "Free Trial",
     PlanTier.starter: "Starter",

@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from app.schemas.validators import (
     ValidatedEmail,
@@ -40,6 +40,10 @@ class InstituteUpdate(BaseModel):
     max_storage_gb: Optional[float] = None
     max_video_gb: Optional[float] = None
     expires_at: Optional[datetime] = None
+    # Required when changing plan_tier to or from "unlimited" — captured
+    # in the ActivityLog so every comp assignment (and revocation) has a
+    # recorded rationale. Ignored for other tier changes.
+    tier_change_reason: Optional[str] = Field(default=None, max_length=500)
 
     _validate_slug = field_validator("slug")(validate_slug_format)
 
