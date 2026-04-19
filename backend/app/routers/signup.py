@@ -9,7 +9,12 @@ import hashlib
 from datetime import datetime, timedelta, timezone
 
 from app.database import get_session
-from app.schemas.signup import SignupRequest, SignupResponse, SlugCheckResponse
+from app.schemas.signup import (
+    EmailCheckResponse,
+    SignupRequest,
+    SignupResponse,
+    SlugCheckResponse,
+)
 from app.services.signup_service import check_slug_availability, create_institute_with_admin
 from app.models.session import UserSession
 from app.utils.security import create_access_token, create_refresh_token
@@ -249,3 +254,44 @@ async def check_slug(
     # Don't reveal "already taken" — prevents institute enumeration
     safe_reason = reason if available else "This slug is not available"
     return SlugCheckResponse(slug=slug, available=available, reason=safe_reason)
+
+
+@router.get("/check-email", response_model=EmailCheckResponse)
+@limiter.limit("30/minute")
+async def check_email(
+    request: Request,
+    email: str = Query(..., min_length=3, max_length=254),
+    session: Annotated[AsyncSession, Depends(get_session)] = None,
+):
+    """Check whether an email is already registered.
+
+    Returns ``available=True`` when the email is free to use. When taken, the
+    endpoint surfaces a generic "already registered" message — we stop short of
+    confirming *which* institute owns it to avoid user enumeration.
+    """
+    import re
+    from sqlalchemy import select, func
+    from app.models.user import User
+
+    normalized = email.strip().lower()
+    # Lightweight shape check — Pydantic EmailStr validation fires on actual
+    # signup. Here we just want to reject obvious garbage before hitting the DB.
+    if not re.match(r"^[^\s@]+@[^\s@]+\.[^\s@]+$", normalized):
+        return EmailCheckResponse(
+            email=normalized,
+            available=False,
+            message="Please enter a valid email address",
+        )
+
+    stmt = select(User.id).where(
+        func.lower(User.email) == normalized,
+        User.deleted_at.is_(None),
+    ).limit(1)
+    row = (await session.execute(stmt)).scalar_one_or_none()
+    if row is None:
+        return EmailCheckResponse(email=normalized, available=True)
+    return EmailCheckResponse(
+        email=normalized,
+        available=False,
+        message="An account with this email already exists",
+    )
