@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { AnimatePresence } from 'framer-motion';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { AnimatePresence, useReducedMotion } from 'framer-motion';
 import { SceneHero } from './animation-scenes/scene-hero';
 import { SceneFeatures } from './animation-scenes/scene-features';
 import { ScenePakistan } from './animation-scenes/scene-pakistan';
 import { SceneWelcome } from './animation-scenes/scene-welcome';
+import { ProgressBar } from './animation-scenes/progress-bar';
 
 /**
  * Personalized "Hero's Welcome" animation shown during the subdomain
@@ -39,27 +40,93 @@ export interface OnboardingAnimationProps {
 }
 
 const SCENE_DURATION_MS = 15_000;
+const TOTAL_DURATION_MS = SCENE_DURATION_MS * 4;
+const PROGRESS_CEILING_BEFORE_READY = 95;
 
 export function OnboardingAnimation(props: OnboardingAnimationProps) {
   const [sceneIndex, setSceneIndex] = useState(0);
+  const [progress, setProgress] = useState(0);
+  const [skippedEarly, setSkippedEarly] = useState(false);
   const completeCalledRef = useRef(false);
+  const startedAtRef = useRef<number>(0);
+  const reducedMotion = useReducedMotion();
 
   // Schedule scene transitions. Each scene is exactly SCENE_DURATION_MS long
   // except the last one, which manages its own end via the onCountdownComplete
   // callback so it can wait for isReadyToRedirect.
+  //
+  // Early-ready: if the subdomain becomes reachable while the user is still
+  // on Scene 1/2/3, let the current scene finish its beat, then skip straight
+  // to Scene 4 (SceneWelcome) in fast-forward mode so the countdown fires
+  // immediately instead of making the user wait for the full 60s narrative.
   useEffect(() => {
     if (sceneIndex >= 3) return;
     const t = setTimeout(() => {
-      setSceneIndex((i) => i + 1);
+      if (props.isReadyToRedirect && sceneIndex < 3) {
+        setSkippedEarly(true);
+        setSceneIndex(3);
+      } else {
+        setSceneIndex((i) => i + 1);
+      }
     }, SCENE_DURATION_MS);
     return () => clearTimeout(t);
-  }, [sceneIndex]);
+  }, [sceneIndex, props.isReadyToRedirect]);
+
+  // rAF-driven progress. Fills 0→95% linearly over the 60s narrative; the
+  // last 5% only closes when the parent signals `isReadyToRedirect`, which
+  // is the real "your LMS is reachable" signal. The lerp keeps the jump
+  // from `timeProgress` to 100 smooth instead of snapping.
+  useEffect(() => {
+    if (startedAtRef.current === 0) {
+      startedAtRef.current = performance.now();
+    }
+    let frame = 0;
+    const tick = () => {
+      const elapsed = performance.now() - startedAtRef.current;
+      const timeProgress = Math.min(
+        PROGRESS_CEILING_BEFORE_READY,
+        (elapsed / TOTAL_DURATION_MS) * PROGRESS_CEILING_BEFORE_READY,
+      );
+      const target = props.isReadyToRedirect ? 100 : timeProgress;
+      setProgress((prev) => {
+        if (reducedMotion) return target;
+        const delta = target - prev;
+        return Math.abs(delta) < 0.15 ? target : prev + delta * 0.12;
+      });
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [props.isReadyToRedirect, reducedMotion]);
 
   const handleCountdownComplete = () => {
     if (completeCalledRef.current) return;
     completeCalledRef.current = true;
     props.onComplete();
   };
+
+  // Step labels mirror each scene's narrative so the bar feels connected
+  // to what the user is seeing. Once the subdomain is reachable and the
+  // bar has almost filled, we surface the personalised almost-there line.
+  const label = useMemo(() => {
+    if (props.isReadyToRedirect && progress >= 99) {
+      return `Almost there, ${props.firstName}…`;
+    }
+    switch (sceneIndex) {
+      case 0:
+        return 'Creating your institute…';
+      case 1:
+        return 'Setting up your classrooms…';
+      case 2:
+        return 'Configuring your region…';
+      case 3:
+        return props.isReadyToRedirect
+          ? `Welcome home, ${props.firstName}.`
+          : 'Provisioning your subdomain…';
+      default:
+        return 'Building your LMS…';
+    }
+  }, [sceneIndex, props.isReadyToRedirect, props.firstName, progress]);
 
   return (
     <div
@@ -102,10 +169,19 @@ export function OnboardingAnimation(props: OnboardingAnimationProps) {
             primaryColor={props.primaryColor}
             accentColor={props.accentColor}
             isReadyToRedirect={props.isReadyToRedirect}
+            fastForward={skippedEarly}
             onCountdownComplete={handleCountdownComplete}
           />
         )}
       </AnimatePresence>
+
+      <ProgressBar
+        progress={progress}
+        label={label}
+        primaryColor={props.primaryColor}
+        accentColor={props.accentColor}
+        reducedMotion={Boolean(reducedMotion)}
+      />
     </div>
   );
 }

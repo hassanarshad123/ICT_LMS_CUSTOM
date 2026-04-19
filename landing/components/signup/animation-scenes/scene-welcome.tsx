@@ -34,6 +34,7 @@ interface Props {
   primaryColor: string;
   accentColor: string;
   isReadyToRedirect: boolean;
+  fastForward?: boolean;
   onCountdownComplete: () => void;
 }
 
@@ -46,15 +47,16 @@ const PHASE_INTRO_END_MS = 9_000;
 const PHASE_ALMOST_READY_AT_MS = 12_000;
 
 export function SceneWelcome(props: Props) {
-  const [phase, setPhase] = useState<Phase>('intro');
+  const [phase, setPhase] = useState<Phase>(props.fastForward ? 'almost-ready' : 'intro');
   const [countdownNumber, setCountdownNumber] = useState(3);
   const completedRef = useRef(false);
 
-  // Phase transitions: intro → almost-ready at 12s
+  // Phase transitions: intro → almost-ready at 12s (skipped in fast-forward)
   useEffect(() => {
+    if (props.fastForward) return;
     const t = setTimeout(() => setPhase('almost-ready'), PHASE_ALMOST_READY_AT_MS);
     return () => clearTimeout(t);
-  }, []);
+  }, [props.fastForward]);
 
   // When in almost-ready phase AND subdomain is ready, start countdown
   useEffect(() => {
