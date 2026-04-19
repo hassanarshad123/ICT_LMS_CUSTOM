@@ -173,6 +173,21 @@ async def register(
     from app.utils.subdomain_warmup import warmup_subdomain
     background_tasks.add_task(warmup_subdomain, institute.slug)
 
+    # WhatsApp alert to Zensbot team (fire-and-forget).
+    # Primitives extracted at call time — the BG task runs after the response
+    # is sent, at which point the ORM objects may be detached/expired.
+    from app.utils.waha import notify_new_signup
+    background_tasks.add_task(
+        notify_new_signup,
+        institute_name=institute.name,
+        institute_slug=institute.slug,
+        admin_name=user.name,
+        admin_email=user.email,
+        admin_phone=user.phone,
+        plan_tier=institute.plan_tier.value,
+        base_domain=settings.FRONTEND_BASE_DOMAIN or None,
+    )
+
     # Send email verification (fire-and-forget)
     try:
         from app.utils.security import create_email_verification_token
