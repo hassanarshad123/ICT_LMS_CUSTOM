@@ -1,4 +1,5 @@
 import { ScrollReveal } from "./scroll-reveal";
+import { ViewContentTracker } from "@/components/analytics/ViewContentTracker";
 
 const QUIZ_QUESTIONS = [
   {
@@ -151,6 +152,7 @@ function AiTutorCard() {
 export function AiShowcase() {
   return (
     <section id="ai" className="py-24 px-6">
+      <ViewContentTracker contentName="AI Features" contentCategory="landing-section" />
       <div className="max-w-[1200px] mx-auto">
         <ScrollReveal animation="fade-up">
           <div className="text-center mb-16">

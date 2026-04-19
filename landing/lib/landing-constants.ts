@@ -4,6 +4,14 @@ export const REGISTER_URL = "/register";
 export const LOGIN_URL = "https://zensbot.online/login";
 export const CONTACT_EMAIL = "hello@zensbot.com";
 
+// WhatsApp sales line (Pakistan). Digits only in the wa.me URL.
+export const WHATSAPP_NUMBER_DISPLAY = "+92 336 2219755";
+export const WHATSAPP_URL =
+  "https://wa.me/923362219755?text=" +
+  encodeURIComponent(
+    "Hi Zenslearn team, I saw your ad and want to know more about the LMS for my institute.",
+  );
+
 export const STATS = [
   { value: "50+", label: "Institutes" },
   { value: "10,000+", label: "Students" },

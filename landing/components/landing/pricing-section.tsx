@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Check } from "lucide-react";
 import { PRICING_TIERS } from "@/lib/landing-constants";
 import { ScrollReveal } from "./scroll-reveal";
+import { ViewContentTracker } from "@/components/analytics/ViewContentTracker";
 
 type BillingCycle = "monthly" | "yearly";
 
@@ -12,6 +13,7 @@ export function PricingSection() {
 
   return (
     <section id="pricing" className="py-24 px-6">
+      <ViewContentTracker contentName="Pricing" contentCategory="landing-section" />
       <div className="max-w-[1200px] mx-auto">
         <ScrollReveal animation="fade-up">
           <div className="text-center mb-10">
