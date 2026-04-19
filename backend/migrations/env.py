@@ -41,7 +41,19 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    # transaction_per_migration=True: start a fresh transaction for each
+    # migration file instead of wrapping all pending migrations in one big
+    # transaction. Required when a later migration uses DDL committed by an
+    # earlier one in the same `alembic upgrade` run — notably
+    # `ALTER TYPE ... ADD VALUE` followed by a row update using that new
+    # enum value. Postgres forbids using a just-added enum value in the
+    # same transaction, so we need the ADD VALUE migration to commit
+    # before the consuming migration begins.
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        transaction_per_migration=True,
+    )
     with context.begin_transaction():
         context.run_migrations()
 
