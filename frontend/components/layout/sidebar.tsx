@@ -31,6 +31,7 @@ import {
   Plug,
   Upload,
   Wallet,
+  CreditCard,
   LogOut,
   Menu,
   X,
@@ -69,6 +70,7 @@ const navConfig: Record<UserRole, NavItem[]> = {
     { label: 'Monitoring', path: '/monitoring', icon: 'activity', navId: 'nav-monitoring' },
     { label: 'Branding', path: '/branding', icon: 'palette', navId: 'nav-branding' },
     { label: 'Integrations', path: '/integrations', icon: 'plug', navId: 'nav-integrations' },
+    { label: 'Billing', path: '/billing', icon: 'credit-card', navId: 'nav-billing' },
     { label: 'Feedback', path: '/feedback', icon: 'message-square', navId: 'nav-feedback' },
     { label: 'Settings', path: '/settings', icon: 'settings', navId: 'nav-settings' },
   ],
@@ -140,6 +142,7 @@ const iconMap: Record<string, React.ReactNode> = {
   'message-square': <MessageSquare size={20} />,
   settings: <Settings size={20} />,
   wallet: <Wallet size={20} />,
+  'credit-card': <CreditCard size={20} />,
 };
 
 export function MobileTrigger() {
