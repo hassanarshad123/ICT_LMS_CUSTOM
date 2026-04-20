@@ -97,7 +97,10 @@ async def get_billing_config(
     sa: SA,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    data = await sa_billing_service.get_billing_config(session, institute_id)
+    try:
+        data = await sa_billing_service.get_billing_config(session, institute_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     return BillingConfigOut(**data)
 
 

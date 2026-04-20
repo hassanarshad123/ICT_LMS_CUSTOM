@@ -29,11 +29,19 @@ async def get_or_create_billing(
 async def get_billing_config(
     session: AsyncSession, institute_id: uuid.UUID
 ) -> dict:
-    billing = await get_or_create_billing(session, institute_id)
+    """Return billing config for an institute.
+
+    Raises ValueError if the institute does not exist — routers should
+    translate that to a 404 response. Previously returned the string
+    "Unknown" which was a silent failure.
+    """
     inst = await session.get(Institute, institute_id)
+    if inst is None or inst.deleted_at is not None:
+        raise ValueError(f"Institute {institute_id} not found")
+    billing = await get_or_create_billing(session, institute_id)
     return {
         "institute_id": str(institute_id),
-        "institute_name": inst.name if inst else "Unknown",
+        "institute_name": inst.name,
         "base_amount": billing.base_amount,
         "currency": billing.currency,
         "billing_cycle": billing.billing_cycle,
@@ -81,11 +89,16 @@ async def _next_invoice_number(session: AsyncSession) -> str:
 async def _auto_calculate_line_items(
     session: AsyncSession, institute_id: uuid.UUID
 ) -> tuple[list[dict], "Institute", "InstituteBilling"]:
-    """Calculate line items from billing config and current usage."""
-    billing = await get_or_create_billing(session, institute_id)
+    """Calculate line items from billing config and current usage.
+
+    Overage line items are only emitted when the corresponding cap is
+    non-null. Unlimited-tier institutes (max_* is None) produce no
+    overage lines — they still emit the base fee if one is configured.
+    """
     inst = await session.get(Institute, institute_id)
-    if not inst:
-        raise ValueError("Institute not found")
+    if inst is None or inst.deleted_at is not None:
+        raise ValueError(f"Institute {institute_id} not found")
+    billing = await get_or_create_billing(session, institute_id)
 
     r = await session.execute(text("""
         SELECT COALESCE(current_users, 0),
@@ -109,34 +122,41 @@ async def _auto_calculate_line_items(
             "amount": billing.base_amount,
         })
 
-    extra_users = max(0, current_users - inst.max_users)
-    if extra_users > 0 and billing.extra_user_rate > 0:
-        line_items.append({
-            "description": f"Extra users ({extra_users} beyond {inst.max_users} limit)",
-            "quantity": extra_users,
-            "unit_price": billing.extra_user_rate,
-            "amount": extra_users * billing.extra_user_rate,
-        })
+    # Overage lines are only meaningful when the tier has a cap. Null
+    # caps mean "unlimited" — no overage billing, ever. Guard each
+    # dimension independently so a partially-null config still bills
+    # the capped dimensions.
+    if inst.max_users is not None:
+        extra_users = max(0, current_users - inst.max_users)
+        if extra_users > 0 and billing.extra_user_rate > 0:
+            line_items.append({
+                "description": f"Extra users ({extra_users} beyond {inst.max_users} limit)",
+                "quantity": extra_users,
+                "unit_price": billing.extra_user_rate,
+                "amount": extra_users * billing.extra_user_rate,
+            })
 
-    extra_storage = max(0, round(current_storage_gb - inst.max_storage_gb, 2))
-    if extra_storage > 0 and billing.extra_storage_rate > 0:
-        amt = int(extra_storage * billing.extra_storage_rate)
-        line_items.append({
-            "description": f"Extra storage ({extra_storage:.2f} GB beyond {inst.max_storage_gb} GB)",
-            "quantity": round(extra_storage, 2),
-            "unit_price": billing.extra_storage_rate,
-            "amount": amt,
-        })
+    if inst.max_storage_gb is not None:
+        extra_storage = max(0, round(current_storage_gb - inst.max_storage_gb, 2))
+        if extra_storage > 0 and billing.extra_storage_rate > 0:
+            amt = int(extra_storage * billing.extra_storage_rate)
+            line_items.append({
+                "description": f"Extra storage ({extra_storage:.2f} GB beyond {inst.max_storage_gb} GB)",
+                "quantity": round(extra_storage, 2),
+                "unit_price": billing.extra_storage_rate,
+                "amount": amt,
+            })
 
-    extra_video = max(0, round(current_video_gb - inst.max_video_gb, 2))
-    if extra_video > 0 and billing.extra_video_rate > 0:
-        amt = int(extra_video * billing.extra_video_rate)
-        line_items.append({
-            "description": f"Extra video ({extra_video:.2f} GB beyond {inst.max_video_gb} GB)",
-            "quantity": round(extra_video, 2),
-            "unit_price": billing.extra_video_rate,
-            "amount": amt,
-        })
+    if inst.max_video_gb is not None:
+        extra_video = max(0, round(current_video_gb - inst.max_video_gb, 2))
+        if extra_video > 0 and billing.extra_video_rate > 0:
+            amt = int(extra_video * billing.extra_video_rate)
+            line_items.append({
+                "description": f"Extra video ({extra_video:.2f} GB beyond {inst.max_video_gb} GB)",
+                "quantity": round(extra_video, 2),
+                "unit_price": billing.extra_video_rate,
+                "amount": amt,
+            })
 
     return line_items, inst, billing
 

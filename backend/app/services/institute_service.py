@@ -16,14 +16,18 @@ async def _effective_storage_limit_gb(
     session: AsyncSession,
     institute: Institute,
     kind: str,
-) -> float:
+) -> float | None:
     """Base institute cap + active addon bonus (v2 tiers only).
 
-    Grandfathered tiers (ICT is on 'pro') return the bare max_*_gb value
-    without ever touching the institute_addons table. This is the
-    ICT-protection invariant — any regression here could silently grant
-    ICT addon capacity or trigger an addon lookup for a tier that never
-    uses them.
+    Returns None when the tier has no cap at all (unlimited/custom with
+    null max_*_gb). Callers must treat None as "no enforcement" — do
+    NOT treat it as zero.
+
+    Grandfathered tiers (ICT was on 'pro' before PR #61) return the bare
+    max_*_gb value without ever touching the institute_addons table.
+    This is the ICT-protection invariant — any regression here could
+    silently grant ICT addon capacity or trigger an addon lookup for a
+    tier that never uses them.
 
     kind: "docs" → uses max_storage_gb + docs addons
           "video" → uses max_video_gb + video addons
@@ -34,6 +38,10 @@ async def _effective_storage_limit_gb(
         base = institute.max_video_gb
     else:
         raise ValueError(f"Unknown storage kind '{kind}'")
+
+    # Unlimited / custom-with-null-cap: no enforcement at all.
+    if base is None:
+        return None
 
     if not is_v2_billing_tier(institute.plan_tier):
         return base
@@ -89,39 +97,6 @@ async def decrement_usage(
     session.add(usage)
 
 
-async def check_user_quota(session: AsyncSession, institute_id: uuid.UUID) -> None:
-    usage = await get_or_create_usage(session, institute_id)
-    institute = await session.get(Institute, institute_id)
-    if not institute:
-        raise ValueError("Institute not found — cannot check user quota")
-    if usage.current_users >= institute.max_users:
-        raise ValueError(f"User limit reached ({institute.max_users}). Upgrade your plan to add more users.")
-
-
-async def check_storage_quota(
-    session: AsyncSession, institute_id: uuid.UUID, file_size_bytes: int
-) -> None:
-    usage = await get_or_create_usage(session, institute_id)
-    institute = await session.get(Institute, institute_id)
-    if not institute:
-        raise ValueError("Institute not found — cannot check storage quota")
-    max_bytes = int(institute.max_storage_gb * 1024 ** 3)
-    if (usage.current_storage_bytes + file_size_bytes) > max_bytes:
-        raise ValueError(f"Storage limit reached ({institute.max_storage_gb}GB). Upgrade your plan.")
-
-
-async def check_video_quota(
-    session: AsyncSession, institute_id: uuid.UUID, estimated_bytes: int
-) -> None:
-    usage = await get_or_create_usage(session, institute_id)
-    institute = await session.get(Institute, institute_id)
-    if not institute:
-        raise ValueError("Institute not found — cannot check video quota")
-    max_bytes = int(institute.max_video_gb * 1024 ** 3)
-    if (usage.current_video_bytes + estimated_bytes) > max_bytes:
-        raise ValueError(f"Video storage limit reached ({institute.max_video_gb}GB). Upgrade your plan.")
-
-
 # ── Atomic check-and-increment functions ─────────────────────────
 # These use FOR UPDATE to prevent concurrent requests from bypassing
 # quotas. Must be called BEFORE the service's create function so
@@ -166,6 +141,12 @@ async def check_and_increment_student_quota(
     if not institute:
         return
 
+    # Unlimited / custom-with-null-cap: no hard cap, just track usage.
+    if institute.max_students is None:
+        usage.current_users += 1
+        session.add(usage)
+        return
+
     # Count actual students (not all users) to honor the tier cap exactly.
     # Recounting on every create is cheap (indexed by institute_id + role).
     student_count_result = await session.execute(
@@ -205,18 +186,6 @@ async def increment_staff_usage(
     session.add(usage)
 
 
-async def check_and_increment_user_quota(
-    session: AsyncSession, institute_id: uuid.UUID,
-) -> None:
-    """DEPRECATED — kept for backwards compatibility with pre-Phase-2 callers.
-
-    This function assumes student creation and routes to
-    check_and_increment_student_quota. New code should call the specific
-    helper directly based on the role being created.
-    """
-    await check_and_increment_student_quota(session, institute_id)
-
-
 async def check_and_increment_storage_quota(
     session: AsyncSession, institute_id: uuid.UUID, file_size_bytes: int,
 ) -> None:
@@ -233,6 +202,11 @@ async def check_and_increment_storage_quota(
     if not institute:
         return
     effective_gb = await _effective_storage_limit_gb(session, institute, "docs")
+    # None = unlimited storage; just track usage and skip the cap check.
+    if effective_gb is None:
+        usage.current_storage_bytes += file_size_bytes
+        session.add(usage)
+        return
     max_bytes = int(effective_gb * 1024 ** 3)
     if (usage.current_storage_bytes + file_size_bytes) > max_bytes:
         raise ValueError(
@@ -249,6 +223,7 @@ async def check_and_increment_video_quota(
 
     Effective limit = institute.max_video_gb + active video addons
     (v2 tiers only). Grandfathered institutes use bare max_video_gb.
+    Unlimited tier returns None — skips the cap check.
 
     Call BEFORE create_lecture() so the service's internal commit
     also persists this increment.
@@ -258,6 +233,10 @@ async def check_and_increment_video_quota(
     if not institute:
         return
     effective_gb = await _effective_storage_limit_gb(session, institute, "video")
+    if effective_gb is None:
+        usage.current_video_bytes += estimated_bytes
+        session.add(usage)
+        return
     max_bytes = int(effective_gb * 1024 ** 3)
     if (usage.current_video_bytes + estimated_bytes) > max_bytes:
         raise ValueError(
