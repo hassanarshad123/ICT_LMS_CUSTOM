@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Optional, TYPE_CHECKING
 
 from sqlmodel import SQLModel, Field, Column, Relationship
+import sqlalchemy as sa
 from sqlalchemy import Boolean, Enum as SAEnum, UniqueConstraint, Index, ForeignKey
 from sqlalchemy.dialects.postgresql import TIMESTAMP, UUID as PG_UUID
 
@@ -65,6 +66,11 @@ class User(SQLModel, table=True):
     locked_until: Optional[datetime] = Field(
         default=None,
         sa_column=Column(TIMESTAMP(timezone=True), nullable=True),
+    )
+    employee_id: Optional[str] = Field(
+        default=None,
+        max_length=64,
+        sa_column=Column(sa.String(64), nullable=True),
     )
 
     institute: Optional["Institute"] = Relationship(
