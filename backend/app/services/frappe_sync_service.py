@@ -186,7 +186,7 @@ async def _dispatch(
     payload = task.payload or {}
 
     if task.event_type == "fee.plan_created":
-        return await _sync_sales_invoice(session, client, task, payload)
+        return await _sync_sales_order(session, client, task, payload)
     if task.event_type == "fee.payment_recorded":
         return await _sync_payment_entry(session, client, task, payload)
     if task.event_type == "fee.plan_cancelled":
@@ -196,6 +196,125 @@ async def _dispatch(
         return True, _build_log_row(task, status="skipped", error="Event has no Frappe side effect")
 
     return True, _build_log_row(task, status="skipped", error=f"Unknown event: {task.event_type}")
+
+
+def _commission_rate_value(raw: Optional[str]) -> Optional[str]:
+    """Normalize Frappe commission_rate ("10", "10%", "") to a numeric string.
+
+    Returns None for empty/blank inputs so the Sales Order uses Frappe default.
+    """
+    if raw is None:
+        return None
+    s = str(raw).strip().replace("%", "").strip()
+    return s if s else None
+
+
+async def _sync_sales_order(
+    session: AsyncSession,
+    client: FrappeClient,
+    task: IntegrationSyncTask,
+    payload: dict,
+) -> tuple[bool, IntegrationSyncLog]:
+    """Create + submit a Sales Order for a newly-onboarded fee plan.
+
+    Pulls the AO Frappe Sales Person name from User.employee_id ->
+    Sales Person.employee so commission attribution flows automatically.
+    """
+    fee_plan_id_str = payload.get("fee_plan_id")
+    student_id_str = payload.get("student_id")
+    if not (fee_plan_id_str and student_id_str):
+        return False, _build_log_row(
+            task, status="failed", error="Missing fee_plan_id or student_id",
+        )
+
+    plan = await session.get(FeePlan, uuid.UUID(fee_plan_id_str))
+    student = await session.get(User, uuid.UUID(student_id_str))
+    batch = await session.get(Batch, plan.batch_id) if plan else None
+    if plan is None or student is None or batch is None:
+        return False, _build_log_row(
+            task, status="failed", error="Fee plan / student / batch missing",
+        )
+
+    # Auto-create Customer if needed (same pattern as _sync_sales_invoice).
+    if getattr(client.cfg, "auto_create_customers", True):
+        await client.create_customer(customer_name=student.name, email=student.email)
+
+    # Resolve the Frappe Sales Person from the officer employee_id.
+    sales_person: Optional[str] = None
+    commission_rate: Optional[str] = None
+    officer = await session.get(User, plan.onboarded_by_user_id) if plan.onboarded_by_user_id else None
+    if officer and officer.employee_id:
+        sp_lookup = await client.list_resource(
+            "Sales Person",
+            fields=["name", "commission_rate"],
+            filters=[["employee", "=", officer.employee_id], ["enabled", "=", 1]],
+            limit=1,
+        )
+        if sp_lookup.ok:
+            rows = (sp_lookup.response or {}).get("data") or []
+            if rows:
+                sales_person = rows[0].get("name")
+                commission_rate = _commission_rate_value(rows[0].get("commission_rate"))
+
+    # Resolve payment proof view URL + payment_id from the first FeePayment.
+    payment_id: Optional[str] = None
+    payment_proof_view_url: Optional[str] = None
+    from sqlmodel import select as _select
+    from app.utils.s3 import generate_payment_proof_view_url
+
+    first_payment_q = (
+        _select(FeePayment)
+        .where(FeePayment.fee_plan_id == plan.id)
+        .order_by(FeePayment.created_at.asc())
+        .limit(1)
+    )
+    first_payment_row = (await session.execute(first_payment_q)).scalar_one_or_none()
+    if first_payment_row is not None:
+        payment_id = str(first_payment_row.id)
+        if first_payment_row.payment_proof_key:
+            try:
+                payment_proof_view_url = generate_payment_proof_view_url(
+                    first_payment_row.payment_proof_key,
+                )
+            except Exception as e:  # noqa: BLE001
+                logger.warning(
+                    "Failed to presign payment proof for plan %s: %s",
+                    plan.id, e,
+                )
+
+    # Choose item_code: explicit pick from the wizard wins; fall back to batch name.
+    item_code = plan.frappe_item_code or batch.name
+    posting_date = (
+        plan.created_at.date().isoformat()
+        if plan.created_at
+        else datetime.utcnow().date().isoformat()
+    )
+
+    result = await client.submit_sales_order(
+        fee_plan_id=str(plan.id),
+        payment_id=payment_id,
+        customer_name=student.name,
+        contact_email=student.email,
+        posting_date=posting_date,
+        delivery_date=posting_date,
+        currency=plan.currency,
+        item_code=item_code,
+        item_description=f"{batch.name} -- {plan.plan_type}",
+        rate=plan.final_amount,
+        sales_person=sales_person,
+        commission_rate=commission_rate,
+        payment_terms_template=plan.frappe_payment_terms_template,
+        payment_proof_view_url=payment_proof_view_url,
+    )
+
+    # Persist the Frappe SO name on the plan for idempotent re-syncs.
+    if result.ok and result.doc_name and plan.frappe_sales_order_name != result.doc_name:
+        plan.frappe_sales_order_name = result.doc_name
+        session.add(plan)
+
+    return _finalize_outbound(
+        task, result, entity_type="sales_order", lms_entity_id=plan.id,
+    )
 
 
 async def _sync_sales_invoice(
