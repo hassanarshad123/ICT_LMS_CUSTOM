@@ -112,7 +112,10 @@ async def update_billing_config(
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     updates = body.model_dump(exclude_none=True)
-    data = await sa_billing_service.update_billing_config(session, institute_id, updates)
+    try:
+        data = await sa_billing_service.update_billing_config(session, institute_id, updates)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     await log_sa_action(session, sa.id, "billing_config_updated", "institute", institute_id, institute_id=institute_id, details=updates)
     await session.commit()
     return BillingConfigOut(**data)
@@ -248,11 +251,15 @@ async def record_payment(
     sa: SA,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    payment = await sa_billing_service.record_payment(
-        session, body.institute_id, body.amount, body.payment_date,
-        body.payment_method, sa.id, body.reference_number, body.notes,
-        body.invoice_id,
-    )
+    try:
+        payment = await sa_billing_service.record_payment(
+            session, body.institute_id, body.amount, body.payment_date,
+            body.payment_method, sa.id, body.reference_number, body.notes,
+            body.invoice_id,
+        )
+    except ValueError as e:
+        # e.g. invoice missing, institute mismatch, would overpay.
+        raise HTTPException(status_code=400, detail=str(e))
     await log_sa_action(session, sa.id, "payment_recorded", "payment", payment.id, institute_id=body.institute_id, details={"amount": body.amount, "method": body.payment_method})
     await session.commit()
     return PaymentOut.model_validate(payment)

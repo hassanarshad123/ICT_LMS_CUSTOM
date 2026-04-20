@@ -55,14 +55,32 @@ async def get_billing_config(
 async def update_billing_config(
     session: AsyncSession, institute_id: uuid.UUID, updates: dict
 ) -> dict:
+    """Apply billing config updates.
+
+    Flushes only — caller (router) is responsible for commit so the
+    audit log entry is atomic with the billing change.
+    """
+    inst = await session.get(Institute, institute_id)
+    if inst is None or inst.deleted_at is not None:
+        raise ValueError(f"Institute {institute_id} not found")
     billing = await get_or_create_billing(session, institute_id)
     for key, value in updates.items():
         if value is not None and hasattr(billing, key):
             setattr(billing, key, value)
     billing.updated_at = datetime.now(timezone.utc)
     session.add(billing)
-    await session.commit()
-    return await get_billing_config(session, institute_id)
+    await session.flush()
+    return {
+        "institute_id": str(institute_id),
+        "institute_name": inst.name,
+        "base_amount": billing.base_amount,
+        "currency": billing.currency,
+        "billing_cycle": billing.billing_cycle,
+        "extra_user_rate": billing.extra_user_rate,
+        "extra_storage_rate": billing.extra_storage_rate,
+        "extra_video_rate": billing.extra_video_rate,
+        "notes": billing.notes,
+    }
 
 
 async def _next_invoice_number(session: AsyncSession) -> str:
@@ -228,8 +246,10 @@ async def generate_invoice(
         generated_by=generated_by,
     )
     session.add(invoice)
-    await session.commit()
-    await session.refresh(invoice)
+    # Flush to populate PK and persist to the current transaction so
+    # the caller (router) can audit-log + commit atomically. Caller
+    # owns the commit.
+    await session.flush()
     return invoice
 
 
@@ -381,33 +401,74 @@ async def record_payment(
     notes: Optional[str] = None,
     invoice_id: Optional[uuid.UUID] = None,
 ) -> Payment:
-    payment = Payment(
-        institute_id=institute_id,
-        invoice_id=invoice_id,
-        amount=amount,
-        payment_date=payment_date,
-        payment_method=payment_method,
-        status="received",
-        reference_number=reference_number,
-        notes=notes,
-        recorded_by=recorded_by,
-    )
-    session.add(payment)
-
-    # If linked to invoice and amount covers it, mark as paid
-    # Use FOR UPDATE lock to prevent concurrent payment race conditions
+    # When linked to an invoice, lock + guard BEFORE writing the
+    # Payment. Concurrent payments could otherwise both flip status
+    # to paid and overpay the invoice. Overpayment beyond invoice
+    # total is rejected.
     if invoice_id:
         r = await session.execute(
             select(Invoice).where(Invoice.id == invoice_id).with_for_update()
         )
         inv = r.scalar_one_or_none()
-        if inv and amount >= inv.total_amount:
+        if inv is None:
+            raise ValueError(f"Invoice {invoice_id} not found")
+        if inv.institute_id != institute_id:
+            raise ValueError(
+                f"Invoice {invoice_id} belongs to a different institute"
+            )
+
+        # Sum prior Payments on this invoice (within the lock) so two
+        # concurrent record_payment calls cannot each see "unpaid" and
+        # both flip status.
+        prior_sum_r = await session.execute(
+            select(func.coalesce(func.sum(Payment.amount), 0)).where(
+                Payment.invoice_id == invoice_id,
+            )
+        )
+        prior_total = int(prior_sum_r.scalar_one() or 0)
+        if prior_total + amount > inv.total_amount:
+            raise ValueError(
+                f"Payment would overpay invoice: already "
+                f"Rs {prior_total} received on a Rs {inv.total_amount} "
+                f"invoice; cannot accept another Rs {amount}."
+            )
+
+        payment = Payment(
+            institute_id=institute_id,
+            invoice_id=invoice_id,
+            amount=amount,
+            payment_date=payment_date,
+            payment_method=payment_method,
+            status="received",
+            reference_number=reference_number,
+            notes=notes,
+            recorded_by=recorded_by,
+        )
+        session.add(payment)
+
+        if prior_total + amount >= inv.total_amount:
             inv.status = "paid"
             inv.updated_at = datetime.now(timezone.utc)
             session.add(inv)
+    else:
+        # Institute-level payment (not tied to an invoice). No lock
+        # needed — just record it.
+        payment = Payment(
+            institute_id=institute_id,
+            invoice_id=None,
+            amount=amount,
+            payment_date=payment_date,
+            payment_method=payment_method,
+            status="received",
+            reference_number=reference_number,
+            notes=notes,
+            recorded_by=recorded_by,
+        )
+        session.add(payment)
 
-    await session.commit()
-    await session.refresh(payment)
+    # Caller (router) owns the commit so audit log is atomic with the
+    # payment insert.
+    await session.flush()
     return payment
 
 

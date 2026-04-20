@@ -289,8 +289,9 @@ async def _create_invoice(
             f"{datetime.now(timezone.utc).isoformat(timespec='seconds')}."
         ),
     )
-    # generate_invoice issues its own commit internally. Mark as "sent"
-    # since we are about to email it. Separate update for clarity.
+    # generate_invoice flushes only (Phase 3 refactor) — caller owns
+    # the commit. Mark as "sent" here since we are about to email it;
+    # the outer commit in generate_monthly_invoices persists both.
     invoice.status = "sent"
     session.add(invoice)
     return invoice
