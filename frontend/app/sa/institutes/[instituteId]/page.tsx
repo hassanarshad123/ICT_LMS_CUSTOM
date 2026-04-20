@@ -403,7 +403,9 @@ export default function InstituteDetailPage() {
                                 try {
                                   const res = await impersonateUser(item.id);
                                   const host = `${res.instituteSlug}.zensbot.online`;
-                                  const url = `https://${host}/impersonate-callback?token=${res.token}`;
+                                  // Phase 4 handover: pass the single-use id,
+                                  // not the JWT. See /auth/impersonation-handover.
+                                  const url = `https://${host}/impersonate-callback?hid=${encodeURIComponent(res.handoverId)}`;
                                   window.open(url, '_blank');
                                   toast.success(`Impersonating ${res.targetUserName}`);
                                 } catch (e: any) {

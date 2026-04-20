@@ -9,43 +9,63 @@ function ImpersonateCallbackContent() {
   const router = useRouter();
 
   useEffect(() => {
-    const token = params.get('token');
-    // Strip token from URL immediately to prevent leakage via browser history/Referer
+    // Phase 4: the URL carries a single-use handover id, NOT the JWT.
+    // We still defensively strip the URL in case anything else ever
+    // lands here with a token query param.
+    const handoverId = params.get('hid');
+    const legacyToken = params.get('token');  // legacy path — reject cleanly
     window.history.replaceState({}, '', '/impersonate-callback');
-    if (!token) {
+
+    if (legacyToken && !handoverId) {
+      // Old SA frontends could still hit this; once Phase 4 is deployed
+      // everywhere the legacy branch is dead. Refuse — safer than
+      // honoring a token that leaked via URL.
+      router.replace('/login');
+      return;
+    }
+    if (!handoverId) {
       router.replace('/login');
       return;
     }
 
-    let payload: { sub?: string; imp?: string };
-    try {
-      payload = JSON.parse(atob(token.split('.')[1]));
-    } catch {
-      router.replace('/login');
-      return;
-    }
+    const redeemAndHydrate = async () => {
+      // Redeem the handover id for the JWT via POST body.
+      let token: string;
+      try {
+        const resp = await fetch(
+          `/api/v1/auth/impersonation-handover/${encodeURIComponent(handoverId)}`,
+          { method: 'POST' },
+        );
+        if (!resp.ok) {
+          router.replace('/login');
+          return;
+        }
+        const body = await resp.json();
+        token = body.access_token;
+      } catch {
+        router.replace('/login');
+        return;
+      }
 
-    if (!payload || typeof payload !== 'object' || typeof payload.sub !== 'string') {
-      router.replace('/login');
-      return;
-    }
+      let payload: { sub?: string; imp?: string };
+      try {
+        payload = JSON.parse(atob(token.split('.')[1]));
+      } catch {
+        router.replace('/login');
+        return;
+      }
+      if (!payload || typeof payload.sub !== 'string' || !payload.imp) {
+        router.replace('/login');
+        return;
+      }
+      const userId = payload.sub;
+      const impersonatorId = payload.imp;
 
-    const userId = payload.sub;
-    const impersonatorId = payload.imp;
+      localStorage.setItem('access_token', token);
+      localStorage.removeItem('refresh_token');
+      localStorage.setItem('is_impersonating', 'true');
+      localStorage.setItem('impersonator_id', impersonatorId);
 
-    if (!userId || !impersonatorId) {
-      router.replace('/login');
-      return;
-    }
-
-    // Store impersonation token (no refresh token for impersonation)
-    localStorage.setItem('access_token', token);
-    localStorage.removeItem('refresh_token');
-    localStorage.setItem('is_impersonating', 'true');
-    localStorage.setItem('impersonator_id', impersonatorId);
-
-    // Fetch real user data so sidebar/nav shows correct info (Fix 6)
-    const hydrateAndRedirect = async () => {
       try {
         const meResp = await fetch('/api/v1/auth/me', {
           headers: { 'Authorization': `Bearer ${token}` },
@@ -78,7 +98,7 @@ function ImpersonateCallbackContent() {
       router.replace(`/${userId}`);
     };
 
-    hydrateAndRedirect();
+    redeemAndHydrate();
   }, [params, router]);
 
   return (

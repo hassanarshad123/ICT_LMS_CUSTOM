@@ -164,7 +164,13 @@ export async function getInstituteBatches(id: string, params?: { page?: number; 
 }
 
 export interface ImpersonateResponse {
-  token: string;
+  /**
+   * Single-use handover id (Phase 4). Redeem via
+   * POST /api/v1/auth/impersonation-handover/{handoverId}
+   * from the target subdomain's callback page. The JWT itself is
+   * never returned here so it cannot leak via URL/history/CDN logs.
+   */
+  handoverId: string;
   instituteSlug: string;
   targetUserId: string;
   targetUserName: string;

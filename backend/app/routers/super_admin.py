@@ -496,7 +496,23 @@ async def impersonate_user(
     sa: SA,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    """Create a short-lived impersonation token for SA to act as a target user."""
+    """Start SA impersonation of a target user.
+
+    Security gates (Phase 4):
+      - Self-impersonation is rejected (SA cannot impersonate itself).
+      - Target must be a non-SA, non-deleted user.
+      - Target's institute must exist, not be soft-deleted, and be
+        active (suspended institutes can't be impersonated into —
+        their regular users are already locked out).
+      - Token is stored in a Redis-backed single-use handover keyed
+        by a random id; the response returns the HANDOVER ID, not
+        the JWT. Token never appears in any URL.
+    """
+    # Self-impersonation is a footgun — SA could mint a user-level
+    # token for themselves and bypass SA audit scoping.
+    if user_id == sa.id:
+        raise HTTPException(403, "Cannot impersonate yourself")
+
     target = await session.get(User, user_id)
     if not target or target.deleted_at:
         raise HTTPException(404, "User not found")
@@ -504,18 +520,38 @@ async def impersonate_user(
         raise HTTPException(403, "Cannot impersonate another super admin")
 
     institute = await session.get(Institute, target.institute_id)
-    if not institute:
+    if not institute or institute.deleted_at is not None:
         raise HTTPException(404, "Institute not found")
+    if institute.status != InstituteStatus.active:
+        raise HTTPException(
+            403,
+            f"Cannot impersonate into institute with status "
+            f"'{institute.status.value}' — activate it first.",
+        )
 
     token = create_impersonation_token(target.id, sa.id, target.token_version)
 
-    # Audit log
+    # Redis handover: store token keyed by short-lived random id.
+    from app.utils.impersonation_handover import issue
+    handover_id = await issue(token)
+    if handover_id is None:
+        raise HTTPException(
+            503,
+            "Impersonation unavailable: handover store is offline. "
+            "Try again in a moment.",
+        )
+
+    # Audit log records the start. Token itself is never logged.
     log = ActivityLog(
         user_id=sa.id,
         action="sa_impersonation_start",
         entity_type="user",
         entity_id=target.id,
-        details={"target_email": target.email, "institute_name": institute.name},
+        details={
+            "target_email": target.email,
+            "institute_name": institute.name,
+            "handover_id_prefix": handover_id[:8],  # for cross-ref only
+        },
         ip_address=request.client.host if request.client else None,
         impersonated_by=sa.id,
     )
@@ -523,7 +559,7 @@ async def impersonate_user(
     await session.commit()
 
     return {
-        "token": token,
+        "handover_id": handover_id,
         "institute_slug": institute.slug,
         "target_user_id": str(target.id),
         "target_user_name": target.name,
