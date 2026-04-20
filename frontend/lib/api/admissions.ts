@@ -355,6 +355,56 @@ export async function getPaymentProofUploadUrl(
   });
 }
 
+// ── Payment proof direct upload (LMS-proxied, no S3 CORS required) ────────
+
+export interface PaymentProofDirectUploadRequest {
+  file: File;
+  feePlanId: string;
+}
+
+export interface PaymentProofDirectUploadResponse {
+  objectKey: string;
+  viewUrl: string;
+}
+
+/**
+ * Upload a payment screenshot via the LMS backend (server-side proxy to S3).
+ * Bypasses S3 CORS entirely — the browser POSTs multipart form-data to the
+ * LMS, which uploads to S3 using its own IAM identity.
+ */
+export async function uploadPaymentProofDirect(
+  req: PaymentProofDirectUploadRequest,
+): Promise<PaymentProofDirectUploadResponse> {
+  const fd = new FormData();
+  fd.append('file', req.file);
+  fd.append('fee_plan_id', req.feePlanId);
+
+  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+  const base = (process.env.NEXT_PUBLIC_API_URL ?? '').replace(/\/$/, '');
+  const url = `${base}/api/v1/admissions/payment-proof/upload`;
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: fd,
+  });
+  if (!res.ok) {
+    let message = `Upload failed (${res.status})`;
+    try {
+      const j = await res.json();
+      if (j?.detail) message = typeof j.detail === 'string' ? j.detail : JSON.stringify(j.detail);
+    } catch {
+      /* non-JSON body */
+    }
+    throw new Error(message);
+  }
+  const j = await res.json();
+  return {
+    objectKey: j.object_key,
+    viewUrl: j.view_url,
+  };
+}
+
 /** Fetch the PDF with the bearer token and trigger a download client-side. */
 export async function downloadReceipt(paymentId: string, filename: string): Promise<void> {
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
