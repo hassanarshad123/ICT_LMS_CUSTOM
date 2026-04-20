@@ -203,6 +203,23 @@ class FrappeClient:
         data = resp.json().get("data") or []
         return FrappeResult(ok=True, status_code=200, response={"data": data})
 
+    async def get_single(self, doctype: str, name: str) -> FrappeResult:
+        """GET /api/resource/{doctype}/{name} — full document including child tables.
+
+        Used for cases where you need the nested detail (e.g. Payment Terms
+        Template with its terms[]), which list_resource can't return.
+        """
+        from urllib.parse import quote
+        url = f"{self.base_url}/api/resource/{quote(doctype)}/{quote(name)}"
+        try:
+            async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
+                resp = await client.get(url, headers=self._auth_header)
+        except httpx.RequestError as e:
+            return FrappeResult(ok=False, error=f"Network error: {type(e).__name__}")
+        if resp.status_code != 200:
+            return FrappeResult(ok=False, status_code=resp.status_code, error=resp.text[:500])
+        return FrappeResult(ok=True, status_code=200, response=resp.json())
+
     # ── schema setup (Tier 2: auto-install fields + webhook) ──────
 
     async def get_custom_field(self, doctype: str, fieldname: str) -> FrappeResult:
