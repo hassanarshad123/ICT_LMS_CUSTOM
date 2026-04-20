@@ -22,6 +22,12 @@ class User(SQLModel, table=True):
             unique=True,
             postgresql_where=Column("deleted_at").is_(None),
         ),
+        Index(
+            "uq_user_employee_id_institute",
+            "institute_id", "employee_id",
+            unique=True,
+            postgresql_where=sa.text("deleted_at IS NULL AND employee_id IS NOT NULL"),
+        ),
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -69,7 +75,6 @@ class User(SQLModel, table=True):
     )
     employee_id: Optional[str] = Field(
         default=None,
-        max_length=64,
         sa_column=Column(sa.String(64), nullable=True),
     )
 

@@ -15,7 +15,7 @@ class UserCreate(BaseModel):
     employee_id: Optional[str] = Field(
         default=None,
         max_length=64,
-        pattern=r"^[A-Za-z0-9_-]+$",
+        pattern=r"^[A-Za-z0-9_.\-]+$",
     )
 
     @field_validator("email")
@@ -47,7 +47,11 @@ class UserUpdate(BaseModel):
     email: Optional[str] = None
     specialization: Optional[str] = None
     avatar_url: Optional[str] = None
-    employee_id: Optional[str] = None
+    employee_id: Optional[str] = Field(
+        default=None,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9_.\-]+$",
+    )
 
 
 class StatusUpdate(BaseModel):
