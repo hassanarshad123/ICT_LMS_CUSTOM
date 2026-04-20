@@ -165,17 +165,52 @@ async def get_system_health(session: AsyncSession) -> dict:
     except Exception:
         pass
 
-    # Scheduled jobs (static metadata -- jobs don't persist run status to DB)
-    jobs = [
-        {"name": "cleanup_expired_sessions", "description": "Deactivate expired sessions", "frequency": "Hourly", "status": "active"},
-        {"name": "retry_failed_recordings", "description": "Retry stuck recordings", "frequency": "Every 30 min", "status": "active"},
-        {"name": "send_zoom_reminders", "description": "Send class reminders", "frequency": "Every 10 min", "status": "active"},
-        {"name": "auto_suspend_expired_institutes", "description": "Suspend expired institutes", "frequency": "Daily", "status": "active"},
-        {"name": "process_webhook_deliveries", "description": "Process pending webhooks", "frequency": "Every 1 min", "status": "active"},
-        {"name": "cleanup_stale_uploads", "description": "Clean up stale uploads", "frequency": "Daily", "status": "active"},
-        {"name": "recalculate_all_usage", "description": "Recalculate usage counters", "frequency": "Daily", "status": "active"},
-        {"name": "send_batch_expiry_notifications", "description": "Batch expiry alerts", "frequency": "Daily", "status": "active"},
+    # Scheduled jobs — static metadata merged with live heartbeat data.
+    # system_jobs is upserted by sentry_job_wrapper on every actual run
+    # (see app/core/sentry.py + app/utils/job_heartbeat.py). If the
+    # heartbeat row is missing, the job has never run successfully
+    # since the heartbeat migration landed.
+    job_metadata = [
+        ("cleanup_expired_sessions", "Deactivate expired sessions", "Hourly"),
+        ("retry_failed_recordings", "Retry stuck recordings", "Every 30 min"),
+        ("send_zoom_reminders", "Send class reminders", "Every 10 min"),
+        ("auto_suspend_expired_institutes", "Suspend expired institutes", "Daily"),
+        ("send_trial_expiry_warnings", "Trial expiry warnings", "Daily"),
+        ("deactivate_unverified_users", "Deactivate unverified users", "Every 12h"),
+        ("process_webhook_deliveries", "Process pending webhooks", "Every 1 min"),
+        ("process_frappe_sync_tasks", "Frappe sync tasks", "Every 30s"),
+        ("send_integration_weekly_digest", "Integration weekly digest", "Daily"),
+        ("cleanup_stale_uploads", "Clean up stale uploads", "Daily"),
+        ("sync_stuck_video_statuses", "Sync stuck video statuses", "Every 30 min"),
+        ("backfill_video_durations", "Backfill video durations", "Every 6h"),
+        ("recalculate_all_usage", "Recalculate usage counters", "Daily"),
+        ("send_batch_expiry_notifications", "Batch expiry alerts", "Daily"),
+        ("send_fee_reminders", "Fee reminders", "Daily"),
+        ("purge_stale_records", "Purge stale records", "Daily"),
+        ("generate_monthly_invoices", "Monthly v2 invoice cron", "1st of month"),
+        ("enforce_late_payments", "Late-payment enforcement", "Daily"),
     ]
+
+    r = await session.execute(text("""
+        SELECT name, last_run_at, last_status, last_error, last_duration_ms
+        FROM system_jobs
+    """))
+    heartbeats = {row[0]: row for row in r.all()}
+
+    jobs = []
+    for name, desc, freq in job_metadata:
+        hb = heartbeats.get(name)
+        jobs.append({
+            "name": name,
+            "description": desc,
+            "frequency": freq,
+            # Live status from heartbeat; falls back to 'unknown' if
+            # the job has not run since the heartbeat table landed.
+            "status": (hb[2] if hb else "unknown"),
+            "last_run_at": (hb[1].isoformat() if hb and hb[1] else None),
+            "last_error": (hb[3] if hb else None),
+            "last_duration_ms": (hb[4] if hb else None),
+        })
 
     # Video pipeline
     r = await session.execute(text("""

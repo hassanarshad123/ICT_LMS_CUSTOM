@@ -276,6 +276,16 @@ async def update_institute(
 
     await session.commit()
     await session.refresh(institute)
+
+    # Invalidate dashboard/insights cache so the next SA load reflects
+    # the new tier/caps instead of returning stale quota numbers.
+    # Best-effort — cache service fails open on Redis outage.
+    try:
+        from app.core.cache import cache
+        await cache.invalidate_dashboard(str(institute_id))
+    except Exception:
+        pass
+
     return await _institute_to_out(session, institute)
 
 

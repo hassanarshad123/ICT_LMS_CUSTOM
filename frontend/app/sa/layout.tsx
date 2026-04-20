@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { SASidebar } from '@/components/layout/sa-sidebar';
 import { SidebarProvider } from '@/components/layout/sidebar-context';
+import { SAErrorBoundary } from '@/components/layout/sa-error-boundary';
 
 export default function SALayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -75,7 +76,7 @@ export default function SALayout({ children }: { children: React.ReactNode }) {
       <div className="flex h-screen bg-zinc-50 overflow-hidden">
         <SASidebar />
         <main className="flex-1 overflow-y-auto">
-          {children}
+          <SAErrorBoundary>{children}</SAErrorBoundary>
         </main>
       </div>
     </SidebarProvider>

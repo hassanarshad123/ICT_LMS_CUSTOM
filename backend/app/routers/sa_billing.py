@@ -118,6 +118,14 @@ async def update_billing_config(
         raise HTTPException(status_code=404, detail=str(e))
     await log_sa_action(session, sa.id, "billing_config_updated", "institute", institute_id, institute_id=institute_id, details=updates)
     await session.commit()
+
+    # Invalidate dashboard cache so the admin sees fresh billing figures.
+    try:
+        from app.core.cache import cache
+        await cache.invalidate_dashboard(str(institute_id))
+    except Exception:
+        pass
+
     return BillingConfigOut(**data)
 
 

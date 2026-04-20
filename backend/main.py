@@ -109,6 +109,27 @@ async def lifespan(app: FastAPI):
     else:
         logging.getLogger("ict_lms").info("Scheduler disabled (slot=%s)", settings.DEPLOY_SLOT)
 
+    # DRY_RUN prod alarm — if the billing cron is in dry-run mode while
+    # running in production, log a loud warning and send a Sentry
+    # breadcrumb. Dry-run is the safe default for first deploys, but
+    # leaving it on silently would mean v2 invoices never actually
+    # issue. See docs/pricing-model-v2.md for the flip procedure.
+    app_env = (settings.APP_ENV or "").lower()
+    if app_env == "production" and settings.BILLING_CRON_DRY_RUN:
+        logging.getLogger("ict_lms").warning(
+            "BILLING_CRON_DRY_RUN=True in production — v2 invoice "
+            "generation is disabled. Flip the env var after one "
+            "verified dry cycle.",
+        )
+        try:
+            import sentry_sdk
+            sentry_sdk.capture_message(
+                "billing_cron_dry_run_enabled_in_prod",
+                level="warning",
+            )
+        except Exception:
+            pass
+
     yield
 
     # Shutdown

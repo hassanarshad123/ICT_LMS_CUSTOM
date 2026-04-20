@@ -323,7 +323,11 @@ export interface JobStatus {
   name: string;
   description: string;
   frequency: string;
+  /** success | failure | running | unknown */
   status: string;
+  lastRunAt?: string | null;
+  lastError?: string | null;
+  lastDurationMs?: number | null;
 }
 
 export interface VideoPipelineStatus {
