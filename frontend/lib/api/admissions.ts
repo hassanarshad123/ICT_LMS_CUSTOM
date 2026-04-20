@@ -27,6 +27,8 @@ export interface FeePlanCreatePayload {
   firstDueDate?: string | null;
   installments?: InstallmentDraft[];
   notes?: string | null;
+  frappeItemCode?: string | null;
+  frappePaymentTermsTemplate?: string | null;
 }
 
 export interface OnboardStudentPayload {
@@ -36,6 +38,8 @@ export interface OnboardStudentPayload {
   batchId: string;
   feePlan: FeePlanCreatePayload;
   notes?: string;
+  paymentProofObjectKey?: string | null;
+  initialPaymentAmount?: number | null;
 }
 
 export interface OnboardStudentResult {
@@ -326,6 +330,29 @@ export async function getAdmissionsAdminStats(
 /** Absolute URL — callers should open in a new tab or anchor with download attr. */
 export function receiptPdfUrl(paymentId: string): string {
   return `/api/v1/admissions/payments/${paymentId}/receipt.pdf`;
+}
+
+// ── Payment proof upload (two-step signed URL) ─────────────────────
+
+export interface PaymentProofUploadUrlRequest {
+  fileName: string;
+  contentType: string;
+  feePlanId: string;
+}
+
+export interface PaymentProofUploadUrlResponse {
+  uploadUrl: string;
+  objectKey: string;
+  viewUrl: string;
+}
+
+export async function getPaymentProofUploadUrl(
+  req: PaymentProofUploadUrlRequest,
+): Promise<PaymentProofUploadUrlResponse> {
+  return apiClient('/admissions/payment-proof/upload-url', {
+    method: 'POST',
+    body: JSON.stringify(req),
+  });
 }
 
 /** Fetch the PDF with the bearer token and trigger a download client-side. */
