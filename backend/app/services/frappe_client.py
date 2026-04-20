@@ -138,15 +138,39 @@ class FrappeClient:
         the Sales Order is created without a sales_team row -- acceptable for
         admin-created fee plans that bypass the AO flow.
         """
-        # 1. Idempotency check -- if a Sales Order with this fee_plan_id exists,
-        #    return it unchanged (even if docstatus happens to be 2/cancelled;
-        #    recovering from a cancel is a separate user-driven workflow).
+        # 1. Idempotency check -- a Sales Order with this fee_plan_id may already
+        #    exist from a prior attempt. We must inspect its docstatus to decide:
+        #      0 (Draft)     -> a previous attempt inserted but submit failed;
+        #                       resume by submitting it now.
+        #      1 (Submitted) -> done, return as-is.
+        #      2 (Cancelled) -> terminal state; return as-is (re-opening requires
+        #                       manual intervention in Frappe).
         existing = await self._find_by_zensbot_id("Sales Order", fee_plan_id)
-        if existing.ok and existing.doc_name:
-            return existing
-        # Non-404 errors on the lookup are transient -- bail so the retry ladder fires.
         if not existing.ok and existing.status_code not in (None, 200, 404):
+            # Lookup itself failed with a non-404 error — transient, let retry fire.
             return existing
+        if existing.ok and existing.doc_name:
+            detail = await self.get_single("Sales Order", existing.doc_name)
+            if not detail.ok:
+                # Couldn't read the existing doc; treat as transient.
+                return FrappeResult(
+                    ok=False,
+                    status_code=detail.status_code,
+                    doc_name=existing.doc_name,
+                    error=f"Found Sales Order {existing.doc_name} but could not fetch detail",
+                )
+            existing_doc = (detail.response or {}).get("data") or {}
+            existing_docstatus = int(existing_doc.get("docstatus", 0))
+            if existing_docstatus != 0:
+                # Already submitted (1) or cancelled (2) — nothing to do.
+                return FrappeResult(
+                    ok=True,
+                    status_code=200,
+                    doc_name=existing.doc_name,
+                    response={"data": existing_doc},
+                )
+            # docstatus == 0: resume the submit step below with this doc.
+            return await self._submit_existing_sales_order(existing.doc_name, existing_doc)
 
         # 2. Assemble the doc.
         item_row: dict[str, Any] = {
@@ -215,23 +239,34 @@ class FrappeClient:
                 error=f"Frappe did not return a doc name: {ins.text[:500]}",
             )
 
-        # 4. Submit -- flips docstatus 0 -> 1. Failure here means we have an
-        #    orphan Draft in Frappe; return the name so the caller can record
-        #    it and surface the error via the retry/log machinery.
+        # 4. Submit -- flips docstatus 0 -> 1. Delegates to the shared helper so
+        #    the resume-existing-Draft path (step 1) and the just-inserted path
+        #    both run the exact same submit logic.
+        return await self._submit_existing_sales_order(so_name, created)
+
+    async def _submit_existing_sales_order(
+        self,
+        so_name: str,
+        doc: dict,
+    ) -> FrappeResult:
+        """Run the submit step (docstatus 0 -> 1) on an already-inserted doc.
+
+        Returns doc_name on every path (including failure) so the caller can
+        persist it for idempotent retries.
+        """
         submit_url = f"{self.base_url}/api/method/frappe.client.submit"
         try:
             async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
                 sub = await client.post(
                     submit_url,
-                    json={"doc": created},
+                    json={"doc": doc},
                     headers=self._auth_header,
                 )
         except httpx.RequestError as e:
             return FrappeResult(
                 ok=False,
-                status_code=ins.status_code,
                 doc_name=so_name,
-                error=f"Inserted but submit failed (network): {type(e).__name__}",
+                error=f"Submit failed (network): {type(e).__name__}",
             )
 
         if sub.status_code not in (200, 201):
@@ -239,10 +274,10 @@ class FrappeClient:
                 ok=False,
                 status_code=sub.status_code,
                 doc_name=so_name,
-                error=f"Inserted but submit failed: {sub.text[:1000]}",
+                error=f"Submit failed: {sub.text[:1000]}",
             )
 
-        submitted = (sub.json() or {}).get("message") or created
+        submitted = (sub.json() or {}).get("message") or doc
         return FrappeResult(
             ok=True,
             status_code=200,
