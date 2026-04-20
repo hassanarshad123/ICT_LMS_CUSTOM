@@ -52,6 +52,7 @@ logger = logging.getLogger("ict_lms.integrations.router")
 router = APIRouter()
 
 Admin = Annotated[User, Depends(require_roles("admin"))]
+AdminOrAO = Annotated[User, Depends(require_roles("admin", "admissions_officer"))]
 
 
 # ── Frappe config ──────────────────────────────────────────────────
@@ -442,7 +443,7 @@ async def list_frappe_sales_persons(
 @limiter.limit("20/minute")
 async def list_frappe_items(
     request: Request,
-    current_user: Admin,
+    current_user: AdminOrAO,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """List active ERP Items (Services by default) for the onboarding wizard."""
@@ -455,7 +456,7 @@ async def list_frappe_items(
 @limiter.limit("20/minute")
 async def list_frappe_payment_terms_templates(
     request: Request,
-    current_user: Admin,
+    current_user: AdminOrAO,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """List Payment Terms Templates for the AO wizard's installment picker."""
@@ -472,7 +473,7 @@ async def list_frappe_payment_terms_templates(
 async def get_frappe_payment_terms_template(
     request: Request,
     template_name: str,
-    current_user: Admin,
+    current_user: AdminOrAO,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Full PTT including the terms[] schedule for UI preview."""
