@@ -28,6 +28,12 @@ class User(SQLModel, table=True):
             unique=True,
             postgresql_where=sa.text("deleted_at IS NULL AND employee_id IS NOT NULL"),
         ),
+        Index(
+            "ix_users_suspension_reason",
+            "suspension_reason",
+            unique=False,
+            postgresql_where=sa.text("suspension_reason IS NOT NULL"),
+        ),
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -74,6 +80,10 @@ class User(SQLModel, table=True):
         sa_column=Column(TIMESTAMP(timezone=True), nullable=True),
     )
     employee_id: Optional[str] = Field(
+        default=None,
+        sa_column=Column(sa.String(64), nullable=True),
+    )
+    suspension_reason: Optional[str] = Field(
         default=None,
         sa_column=Column(sa.String(64), nullable=True),
     )
