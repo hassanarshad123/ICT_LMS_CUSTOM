@@ -156,6 +156,33 @@ export default function OnboardWizard() {
       .finally(() => setPttDetailLoading(false));
   }, [frappePaymentTermsTemplate]);
 
+  const recentBatchIds = useMemo(() => {
+    const rows = rosterData?.data || [];
+    const sorted = [...rows].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const r of sorted) {
+      if (!seen.has(r.batchId)) {
+        seen.add(r.batchId);
+        out.push(r.batchId);
+      }
+      if (out.length >= 5) break;
+    }
+    return out;
+  }, [rosterData]);
+
+  const { execute: submit, loading: submitting } = useMutation(onboardStudent);
+
+  const totalNum = Number(fee.totalAmount) || 0;
+  const discountNum = fee.discountType === 'none' ? 0 : Number(fee.discountValue) || 0;
+  const finalAmount = useMemo(
+    () => calcFinalAmount(totalNum, fee.discountType, discountNum),
+    [totalNum, fee.discountType, discountNum],
+  );
+  const installmentSum = fee.installments.reduce((s, i) => s + (Number(i.amountDue) || 0), 0);
+
   // Auto-sync the installment schedule when a PTT is selected.
   // The template drives everything: plan_type becomes "installment" and each
   // term's invoice_portion × final_amount becomes one installment, with
@@ -191,37 +218,19 @@ export default function OnboardWizard() {
       planType: 'installment',
       installments: generated,
     }));
+
+    // Auto-fill the "initial payment received" amount with the first
+    // installment's value — the AO typically collects that upfront and
+    // uploads the screenshot for it. First share is floor(total * pct / 100)
+    // which is unaffected by the last-row rounding remainder.
+    const firstInstallment =
+      Math.floor((finalAmount * (terms[0]?.invoicePortion ?? 0)) / 100);
+    setInitialPaymentAmount(firstInstallment);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pttDetail, finalAmount, fee.firstDueDate]);
 
   // Flag the wizard uses to skip the manual installment editor step.
   const scheduleFromPtt = !!(pttDetail && pttDetail.terms.length > 0);
-  const recentBatchIds = useMemo(() => {
-    const rows = rosterData?.data || [];
-    const sorted = [...rows].sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    );
-    const out: string[] = [];
-    const seen = new Set<string>();
-    for (const r of sorted) {
-      if (!seen.has(r.batchId)) {
-        seen.add(r.batchId);
-        out.push(r.batchId);
-      }
-      if (out.length >= 5) break;
-    }
-    return out;
-  }, [rosterData]);
-
-  const { execute: submit, loading: submitting } = useMutation(onboardStudent);
-
-  const totalNum = Number(fee.totalAmount) || 0;
-  const discountNum = fee.discountType === 'none' ? 0 : Number(fee.discountValue) || 0;
-  const finalAmount = useMemo(
-    () => calcFinalAmount(totalNum, fee.discountType, discountNum),
-    [totalNum, fee.discountType, discountNum],
-  );
-  const installmentSum = fee.installments.reduce((s, i) => s + (Number(i.amountDue) || 0), 0);
 
   const canAdvanceStep1 =
     student.name.trim().length > 1 &&
@@ -647,7 +656,16 @@ export default function OnboardWizard() {
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
               />
               <p className="text-xs text-gray-500 mt-1">
-                Leave 0 if no payment has been collected yet.
+                {scheduleFromPtt && pttDetail && pttDetail.terms.length > 0 ? (
+                  <>
+                    Pre-filled from the first installment of{' '}
+                    <span className="font-medium">{pttDetail.templateName}</span>
+                    {' '}({pttDetail.terms[0].invoicePortion}% of {formatMoney(finalAmount)}).
+                    Edit if the student paid a different amount.
+                  </>
+                ) : (
+                  'Leave 0 if no payment has been collected yet.'
+                )}
               </p>
             </div>
 
