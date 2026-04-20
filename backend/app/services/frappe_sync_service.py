@@ -284,11 +284,16 @@ async def _sync_sales_order(
 
     # Choose item_code: explicit pick from the wizard wins; fall back to batch name.
     item_code = plan.frappe_item_code or batch.name
-    posting_date = (
-        plan.created_at.date().isoformat()
+    posting_date_obj = (
+        plan.created_at.date()
         if plan.created_at
-        else datetime.utcnow().date().isoformat()
+        else datetime.utcnow().date()
     )
+    posting_date = posting_date_obj.isoformat()
+    # Delivery date = posting_date + 3 days. Course onboarding usually has a
+    # 3-day window from sale to enrollment start; this keeps Frappe's
+    # per_delivered % and delivery_status in line with reality.
+    delivery_date = (posting_date_obj + timedelta(days=3)).isoformat()
 
     result = await client.submit_sales_order(
         fee_plan_id=str(plan.id),
@@ -296,7 +301,7 @@ async def _sync_sales_order(
         customer_name=student.name,
         contact_email=student.email,
         posting_date=posting_date,
-        delivery_date=posting_date,
+        delivery_date=delivery_date,
         currency=plan.currency,
         item_code=item_code,
         item_description=f"{batch.name} -- {plan.plan_type}",
