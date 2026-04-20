@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime
 from dataclasses import dataclass
 from typing import Any, Optional
 
@@ -46,6 +47,23 @@ class FrappeResult:
     status_code: Optional[int] = None
     response: Optional[dict] = None
     error: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class OverdueInstallment:
+    payment_term: str
+    due_date: str              # ISO YYYY-MM-DD
+    amount_due: int
+    outstanding: int
+
+
+@dataclass(frozen=True)
+class OverdueSalesOrder:
+    name: str                  # Frappe SO doc name, e.g. "SAL-ORD-2026-00007"
+    fee_plan_id: str           # value of custom_zensbot_fee_plan_id (LMS FeePlan UUID as str)
+    customer: str
+    grand_total: int
+    overdue_installments: list["OverdueInstallment"]
 
 
 class FrappeClient:
@@ -285,6 +303,71 @@ class FrappeClient:
             response={"data": submitted},
         )
 
+
+    async def list_overdue_sales_orders(self) -> list[OverdueSalesOrder]:
+        """Enumerate Sales Orders in this institute's Frappe that have at least
+        one payment_schedule row with due_date < today AND outstanding > 0.
+
+        Two-step fetch:
+          1. GET /api/resource/Sales Order filtered to submitted (docstatus=1),
+             non-cancelled, and with custom_zensbot_fee_plan_id set.
+          2. For each hit, GET the full doc to inspect the payment_schedule
+             child table (not returned by list queries).
+
+        Returns [] on any Frappe error -- the caller treats that as "nothing to
+        enforce this run" rather than aborting the whole batch.
+        """
+        today = datetime.utcnow().date().isoformat()
+        listing = await self.list_resource(
+            "Sales Order",
+            fields=["name", FEE_PLAN_FIELD, "customer", "grand_total"],
+            filters=[
+                [FEE_PLAN_FIELD, "is", "set"],
+                ["docstatus", "=", 1],
+                ["status", "not in", ["Closed", "Cancelled"]],
+            ],
+            limit=5000,
+        )
+        if not listing.ok:
+            logger.warning(
+                "Failed to list Sales Orders for overdue check: %s", listing.error,
+            )
+            return []
+
+        rows = (listing.response or {}).get("data") or []
+        out: list[OverdueSalesOrder] = []
+
+        for row in rows:
+            detail = await self.get_single("Sales Order", row["name"])
+            if not detail.ok:
+                logger.warning(
+                    "Failed to fetch Sales Order %s for overdue inspection: %s",
+                    row.get("name"), detail.error,
+                )
+                continue
+            doc = (detail.response or {}).get("data") or {}
+            schedule = doc.get("payment_schedule") or []
+            overdue_rows: list[OverdueInstallment] = []
+            for sched in schedule:
+                due = sched.get("due_date") or ""
+                outstanding = float(sched.get("outstanding") or 0)
+                if due and due < today and outstanding > 0:
+                    overdue_rows.append(OverdueInstallment(
+                        payment_term=sched.get("payment_term", "") or "",
+                        due_date=due,
+                        amount_due=int(float(sched.get("payment_amount") or 0)),
+                        outstanding=int(outstanding),
+                    ))
+            if overdue_rows:
+                fee_plan_id_value = doc.get(FEE_PLAN_FIELD) or row.get(FEE_PLAN_FIELD) or ""
+                out.append(OverdueSalesOrder(
+                    name=doc["name"],
+                    fee_plan_id=str(fee_plan_id_value),
+                    customer=doc.get("customer") or "",
+                    grand_total=int(float(doc.get("grand_total") or 0)),
+                    overdue_installments=overdue_rows,
+                ))
+        return out
 
     async def upsert_payment_entry(
         self,
