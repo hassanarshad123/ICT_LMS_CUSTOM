@@ -53,13 +53,7 @@ export interface PlatformDashboard {
   totalUsers: number;
   totalStorageGb: number;
   totalVideoGb: number;
-  institutesByPlan: {
-    free: number;
-    starter: number;
-    basic: number;
-    pro: number;
-    enterprise: number;
-  };
+  institutesByPlan: Partial<Record<PlanTier, number>>;
   recentInstitutes: Array<{
     id: string;
     name: string;
@@ -211,12 +205,9 @@ export interface GrowthTrends {
   newInstitutes: GrowthPoint[];
 }
 
-export interface PlanDistribution {
-  free: number;
-  basic: number;
-  pro: number;
-  enterprise: number;
-}
+// Keyed by every PlanTier value. Using Partial + Record so any future
+// tier added to the backend enum widens the type without a PR here.
+export type PlanDistribution = Partial<Record<PlanTier, number>>;
 
 export interface TopInstituteItem {
   instituteId: string;
