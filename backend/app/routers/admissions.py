@@ -364,6 +364,7 @@ async def admissions_admin_stats_endpoint(
             "officer_id": str(officer.id),
             "name": officer.name,
             "email": officer.email,
+            "employee_id": officer.employee_id,
             "status": officer.status.value,
             "students_onboarded": plans_total,
             "active_students": active_count,
