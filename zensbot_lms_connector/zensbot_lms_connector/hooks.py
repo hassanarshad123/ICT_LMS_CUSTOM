@@ -11,11 +11,11 @@ app_license = "MIT"
 
 fixtures = [
     {"dt": "Custom Field", "filters": [["name", "in", [
-        "Sales Invoice-zensbot_fee_plan_id",
-        "Payment Entry-zensbot_fee_plan_id",
-        "Payment Entry-zensbot_payment_id",
-        "Sales Order-zensbot_fee_plan_id",
-        "Sales Order-zensbot_payment_id",
-        "Sales Order-zensbot_payment_proof_url",
+        "Sales Invoice-custom_zensbot_fee_plan_id",
+        "Payment Entry-custom_zensbot_fee_plan_id",
+        "Payment Entry-custom_zensbot_payment_id",
+        "Sales Order-custom_zensbot_fee_plan_id",
+        "Sales Order-custom_zensbot_payment_id",
+        "Sales Order-custom_zensbot_payment_proof_url",
     ]]]},
 ]
