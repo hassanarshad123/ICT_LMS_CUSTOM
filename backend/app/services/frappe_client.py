@@ -109,6 +109,148 @@ class FrappeClient:
             return await self._put_resource("Sales Invoice", existing.doc_name, body)
         return await self._post_resource("Sales Invoice", body)
 
+    async def submit_sales_order(
+        self,
+        *,
+        fee_plan_id: str,
+        payment_id: Optional[str],
+        customer_name: str,
+        contact_email: Optional[str],
+        posting_date: str,
+        delivery_date: str,
+        currency: str,
+        item_code: str,
+        item_description: str,
+        rate: int,
+        sales_person: Optional[str],
+        commission_rate: Optional[str],
+        payment_terms_template: Optional[str],
+        payment_proof_view_url: Optional[str],
+    ) -> FrappeResult:
+        """Create AND submit (docstatus 0 -> 1) a Sales Order in one request.
+
+        Idempotent by custom_zensbot_fee_plan_id: a second call with the same
+        fee_plan_id returns the existing document without re-inserting or
+        re-submitting. Callers should treat doc_name as the stable identifier.
+
+        sales_person is the Frappe Sales Person name (resolved by the sync
+        layer from User.employee_id -> Sales Person.employee). When None,
+        the Sales Order is created without a sales_team row -- acceptable for
+        admin-created fee plans that bypass the AO flow.
+        """
+        # 1. Idempotency check -- if a Sales Order with this fee_plan_id exists,
+        #    return it unchanged (even if docstatus happens to be 2/cancelled;
+        #    recovering from a cancel is a separate user-driven workflow).
+        existing = await self._find_by_zensbot_id("Sales Order", fee_plan_id)
+        if existing.ok and existing.doc_name:
+            return existing
+        # Non-404 errors on the lookup are transient -- bail so the retry ladder fires.
+        if not existing.ok and existing.status_code not in (None, 200, 404):
+            return existing
+
+        # 2. Assemble the doc.
+        item_row: dict[str, Any] = {
+            "item_code": item_code,
+            "item_name": item_code,
+            "description": item_description,
+            "qty": 1,
+            "rate": rate,
+            "delivery_date": delivery_date,
+        }
+        if self.cfg.default_cost_center:
+            item_row["cost_center"] = self.cfg.default_cost_center
+
+        body: dict[str, Any] = {
+            "doctype": "Sales Order",
+            "customer": customer_name,
+            "transaction_date": posting_date,
+            "delivery_date": delivery_date,
+            "order_type": "Sales",
+            "currency": currency,
+            FEE_PLAN_FIELD: fee_plan_id,
+            "items": [item_row],
+        }
+        if self.cfg.default_company:
+            body["company"] = self.cfg.default_company
+        if contact_email:
+            body["contact_email"] = contact_email
+        if payment_terms_template:
+            body["payment_terms_template"] = payment_terms_template
+        if sales_person:
+            body["sales_team"] = [{
+                "sales_person": sales_person,
+                "allocated_percentage": 100.0,
+                "commission_rate": commission_rate or "0",
+            }]
+        if payment_id:
+            body[PAYMENT_FIELD] = payment_id
+        if payment_proof_view_url:
+            body["custom_zensbot_payment_proof_url"] = payment_proof_view_url
+
+        # 3. Insert.
+        insert_url = f"{self.base_url}/api/method/frappe.client.insert"
+        try:
+            async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
+                ins = await client.post(
+                    insert_url,
+                    json={"doc": body},
+                    headers=self._auth_header,
+                )
+        except httpx.RequestError as e:
+            return FrappeResult(ok=False, error=f"Network error (insert): {type(e).__name__}")
+
+        if ins.status_code not in (200, 201):
+            return FrappeResult(
+                ok=False,
+                status_code=ins.status_code,
+                error=f"Insert failed: {ins.text[:1000]}",
+            )
+
+        created = (ins.json() or {}).get("message") or {}
+        so_name = created.get("name")
+        if not so_name:
+            return FrappeResult(
+                ok=False,
+                status_code=ins.status_code,
+                error=f"Frappe did not return a doc name: {ins.text[:500]}",
+            )
+
+        # 4. Submit -- flips docstatus 0 -> 1. Failure here means we have an
+        #    orphan Draft in Frappe; return the name so the caller can record
+        #    it and surface the error via the retry/log machinery.
+        submit_url = f"{self.base_url}/api/method/frappe.client.submit"
+        try:
+            async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
+                sub = await client.post(
+                    submit_url,
+                    json={"doc": created},
+                    headers=self._auth_header,
+                )
+        except httpx.RequestError as e:
+            return FrappeResult(
+                ok=False,
+                status_code=ins.status_code,
+                doc_name=so_name,
+                error=f"Inserted but submit failed (network): {type(e).__name__}",
+            )
+
+        if sub.status_code not in (200, 201):
+            return FrappeResult(
+                ok=False,
+                status_code=sub.status_code,
+                doc_name=so_name,
+                error=f"Inserted but submit failed: {sub.text[:1000]}",
+            )
+
+        submitted = (sub.json() or {}).get("message") or created
+        return FrappeResult(
+            ok=True,
+            status_code=200,
+            doc_name=so_name,
+            response={"data": submitted},
+        )
+
+
     async def upsert_payment_entry(
         self,
         *,
