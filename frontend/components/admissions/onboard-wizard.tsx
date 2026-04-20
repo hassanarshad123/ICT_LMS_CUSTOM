@@ -218,6 +218,14 @@ export default function OnboardWizard() {
       planType: 'installment',
       installments: generated,
     }));
+
+    // Auto-fill the "initial payment received" amount with the first
+    // installment's value — the AO typically collects that upfront and
+    // uploads the screenshot for it. First share is floor(total * pct / 100)
+    // which is unaffected by the last-row rounding remainder.
+    const firstInstallment =
+      Math.floor((finalAmount * (terms[0]?.invoicePortion ?? 0)) / 100);
+    setInitialPaymentAmount(firstInstallment);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pttDetail, finalAmount, fee.firstDueDate]);
 
@@ -648,7 +656,16 @@ export default function OnboardWizard() {
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
               />
               <p className="text-xs text-gray-500 mt-1">
-                Leave 0 if no payment has been collected yet.
+                {scheduleFromPtt && pttDetail && pttDetail.terms.length > 0 ? (
+                  <>
+                    Pre-filled from the first installment of{' '}
+                    <span className="font-medium">{pttDetail.templateName}</span>
+                    {' '}({pttDetail.terms[0].invoicePortion}% of {formatMoney(finalAmount)}).
+                    Edit if the student paid a different amount.
+                  </>
+                ) : (
+                  'Leave 0 if no payment has been collected yet.'
+                )}
               </p>
             </div>
 
