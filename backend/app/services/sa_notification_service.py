@@ -84,17 +84,72 @@ async def list_sa_announcements(
         LIMIT :lim OFFSET :off
     """), {"lim": per_page, "off": offset})
 
+    rows = list(r.all())
+    if not rows:
+        return [], total
+
+    # Resolve delivery_count as "number of admin-role recipients at the
+    # time of display". Announcements fan out to admin users of the
+    # target institutes (or all institutes when targets is empty).
+    # We COUNT those admins here so SA sees a real number instead of
+    # a stubbed zero.
+    broadcast_ids: list[uuid.UUID] = []
+    targeted_id_sets: list[list[uuid.UUID]] = []
+    for row in rows:
+        target_ids = [uuid.UUID(str(i)) for i in (row[3] or [])]
+        if not target_ids:
+            broadcast_ids.append(row[0])
+        else:
+            targeted_id_sets.append(target_ids)
+
+    # Single query for broadcast: count admins across all active institutes.
+    broadcast_count = 0
+    if broadcast_ids:
+        br = await session.execute(text("""
+            SELECT COUNT(*)
+            FROM users u
+            JOIN institutes i ON i.id = u.institute_id
+            WHERE u.role = 'admin'
+              AND u.deleted_at IS NULL
+              AND i.deleted_at IS NULL
+        """))
+        broadcast_count = br.scalar() or 0
+
+    # Per-announcement counts for targeted announcements: one aggregate
+    # per unique set. Most SA announcements target one or a few
+    # institutes so this scales fine.
+    targeted_counts: dict[tuple, int] = {}
+    for ids in targeted_id_sets:
+        key = tuple(sorted(str(i) for i in ids))
+        if key in targeted_counts:
+            continue
+        tr = await session.execute(
+            text(
+                "SELECT COUNT(*) FROM users "
+                "WHERE role = 'admin' AND deleted_at IS NULL "
+                "AND institute_id = ANY(:ids)"
+            ),
+            {"ids": list(ids)},
+        )
+        targeted_counts[key] = tr.scalar() or 0
+
     items = []
-    for row in r.all():
+    for row in rows:
+        target_ids = [str(i) for i in (row[3] or [])]
+        if not target_ids:
+            dc = broadcast_count
+        else:
+            key = tuple(sorted(target_ids))
+            dc = targeted_counts.get(key, 0)
         items.append({
             "id": str(row[0]),
             "title": row[1],
             "message": row[2],
-            "target_institute_ids": [str(i) for i in (row[3] or [])],
+            "target_institute_ids": target_ids,
             "sent_by": str(row[4]),
             "sent_by_name": row[5],
             "created_at": row[6].isoformat() if row[6] else None,
-            "delivery_count": 0,
+            "delivery_count": dc,
         })
 
     return items, total
