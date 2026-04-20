@@ -4,11 +4,12 @@ import { useState } from 'react';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import DashboardHeader from '@/components/layout/dashboard-header';
 import { usePaginatedApi } from '@/hooks/use-paginated-api';
-import { useMutation } from '@/hooks/use-api';
+import { useApi, useMutation } from '@/hooks/use-api';
 import { listUsers, createUser, changeUserStatus, deleteUser } from '@/lib/api/users';
+import { listFrappeSalesPersons, type SalesPersonItem } from '@/lib/api/integrations';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { toast } from 'sonner';
-import { Plus, X, Trash2, UserPlus, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Plus, X, Trash2, UserPlus, Loader2, Eye, EyeOff, ChevronsUpDown, AlertCircle, Check } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,19 +20,39 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 export default function AdminAdmissionsOfficers() {
   const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({ name: '', email: '', phone: '', password: '' });
+  const [formData, setFormData] = useState({ name: '', email: '', phone: '', password: '', employeeId: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [selectedAgent, setSelectedAgent] = useState<SalesPersonItem | null>(null);
+  const [manualMode, setManualMode] = useState(false);
+  const [agentPickerOpen, setAgentPickerOpen] = useState(false);
 
   const { data: officers, total, page, totalPages, loading, error, setPage, refetch } = usePaginatedApi(
     (params) => listUsers({ ...params, role: 'admissions-officer', search: search || undefined }),
     15,
     [search],
   );
+
+  const {
+    data: frappeData,
+    loading: agentsLoading,
+    refetch: refetchAgents,
+  } = useApi(() => listFrappeSalesPersons(), []);
 
   const { execute: doCreate, loading: creating } = useMutation(createUser);
   const { execute: doToggleStatus } = useMutation(changeUserStatus);
@@ -55,12 +76,16 @@ export default function AdminAdmissionsOfficers() {
         phone: formData.phone,
         role: 'admissions-officer',
         password: formData.password,
+        employeeId: formData.employeeId || undefined,
       });
       toast.success('Admissions officer created successfully');
-      setFormData({ name: '', email: '', phone: '', password: '' });
+      setFormData({ name: '', email: '', phone: '', password: '', employeeId: '' });
+      setSelectedAgent(null);
+      setManualMode(false);
       setShowPassword(false);
       setShowForm(false);
       refetch();
+      refetchAgents();
     } catch (err: any) {
       toast.error(err.message);
     }
@@ -90,6 +115,9 @@ export default function AdminAdmissionsOfficers() {
     }
   };
 
+  const showPicker = frappeData?.enabled && !manualMode;
+  const showManualFields = manualMode || !frappeData?.enabled;
+
   return (
     <DashboardLayout>
       <DashboardHeader
@@ -118,6 +146,102 @@ export default function AdminAdmissionsOfficers() {
         <div className="bg-white rounded-2xl p-6 card-shadow mb-6">
           <h3 className="text-lg font-semibold text-primary mb-4">New Admissions Officer</h3>
           <form onSubmit={handleAdd} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {showPicker && (
+              <div className="sm:col-span-2 lg:col-span-3 mb-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Select Sales Agent from ERP
+                </label>
+                <Popover open={agentPickerOpen} onOpenChange={setAgentPickerOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-gray-200 text-sm bg-gray-50 hover:bg-gray-100"
+                    >
+                      <span className="truncate">
+                        {selectedAgent
+                          ? `${selectedAgent.fullName} · ${selectedAgent.employeeId}`
+                          : agentsLoading
+                          ? 'Loading sales agents…'
+                          : 'Pick a sales agent…'}
+                      </span>
+                      <ChevronsUpDown className="h-4 w-4 opacity-50 flex-none ml-2" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Search by name or employee ID…" />
+                      <CommandList>
+                        <CommandEmpty>No agents found.</CommandEmpty>
+                        <CommandGroup>
+                          {(frappeData?.salesPersons ?? []).map((sp) => (
+                            <CommandItem
+                              key={sp.employeeId}
+                              value={`${sp.fullName} ${sp.employeeId}`}
+                              disabled={sp.alreadyMapped}
+                              onSelect={() => {
+                                setSelectedAgent(sp);
+                                setFormData((prev) => ({
+                                  name: sp.fullName,
+                                  email: sp.email ?? '',
+                                  phone: sp.phone ?? '',
+                                  password: prev.password,
+                                  employeeId: sp.employeeId,
+                                }));
+                                setAgentPickerOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  'mr-2 h-4 w-4',
+                                  selectedAgent?.employeeId === sp.employeeId
+                                    ? 'opacity-100'
+                                    : 'opacity-0',
+                                )}
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium truncate">{sp.fullName}</div>
+                                <div className="text-xs text-gray-500 truncate">
+                                  {sp.employeeId} · {sp.email ?? 'no email'}
+                                  {sp.commissionRate ? ` · ${sp.commissionRate}` : ''}
+                                </div>
+                              </div>
+                              {sp.alreadyMapped && (
+                                <Badge variant="secondary" className="ml-2">
+                                  Already linked
+                                </Badge>
+                              )}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setManualMode(true);
+                    setSelectedAgent(null);
+                  }}
+                  className="mt-2 text-xs text-gray-500 hover:text-gray-700 underline"
+                >
+                  Can't find them? Enter manually
+                </button>
+              </div>
+            )}
+
+            {frappeData && !frappeData.enabled && (
+              <div className="sm:col-span-2 lg:col-span-3 mb-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm flex items-start gap-2">
+                <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-none" />
+                <div>
+                  Frappe ERP not connected. Enter the officer's details manually below.
+                  <a href="integrations" className="ml-1 text-amber-800 underline">
+                    Configure Frappe →
+                  </a>
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name</label>
               <input
@@ -172,6 +296,20 @@ export default function AdminAdmissionsOfficers() {
                 </button>
               </div>
             </div>
+            {showManualFields && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Employee ID (optional)
+                </label>
+                <input
+                  type="text"
+                  value={formData.employeeId}
+                  onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
+                  placeholder="e.g. MITT5037"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
+                />
+              </div>
+            )}
             <div className="sm:col-span-2 lg:col-span-3">
               <button
                 type="submit"
@@ -224,6 +362,11 @@ export default function AdminAdmissionsOfficers() {
               <div className="space-y-2 text-sm text-gray-600 mb-4">
                 <p>{officer.email}</p>
                 <p>{officer.phone || '—'}</p>
+                {officer.employeeId && (
+                  <p className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-xs font-mono">
+                    {officer.employeeId}
+                  </p>
+                )}
               </div>
               <div className="flex items-center justify-between pt-4 border-t border-gray-100">
                 <span
