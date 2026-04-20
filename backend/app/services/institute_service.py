@@ -378,6 +378,21 @@ async def create_admin_for_institute(
     return user
 
 
+def _plan_distribution_dict(raw_counts: dict[str, int]) -> dict[str, int]:
+    """Zero-seeded plan-tier distribution using the canonical tier registry.
+
+    Keeps the response shape stable across rollouts — new PlanTier enum
+    values automatically widen the dict without edits here.
+    """
+    from app.utils.tier_registry import default_distribution_dict
+
+    dist = default_distribution_dict()
+    for tier_name, count in raw_counts.items():
+        if tier_name in dist:
+            dist[tier_name] = count
+    return dist
+
+
 async def get_platform_stats(session: AsyncSession) -> dict:
     from app.models.institute import Institute, InstituteUsage, InstituteStatus, PlanTier
 
@@ -440,13 +455,7 @@ async def get_platform_stats(session: AsyncSession) -> dict:
         "total_users": total_users,
         "total_storage_gb": total_storage_gb,
         "total_video_gb": total_video_gb,
-        "institutes_by_plan": {
-            "free": plan_counts.get("free", 0),
-            "starter": plan_counts.get("starter", 0),
-            "basic": plan_counts.get("basic", 0),
-            "pro": plan_counts.get("pro", 0),
-            "enterprise": plan_counts.get("enterprise", 0),
-        },
+        "institutes_by_plan": _plan_distribution_dict(plan_counts),
         "recent_institutes": [
             {
                 "id": str(i.id),

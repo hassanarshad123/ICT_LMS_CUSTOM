@@ -463,9 +463,13 @@ async def get_revenue_dashboard(session: AsyncSession) -> dict:
         WHERE p.status IN ('received', 'verified')
         GROUP BY i.plan_tier
     """))
-    revenue_by_plan = {"free": 0, "starter": 0, "basic": 0, "pro": 0, "enterprise": 0}
+    # Zero-seed over every canonical tier so v2 (professional/custom)
+    # and SA-comped (unlimited) revenue is reported as 0 instead of
+    # silently dropped. Adding a new PlanTier enum value does not
+    # require editing this code.
+    from app.utils.tier_registry import default_distribution_dict
+    revenue_by_plan = default_distribution_dict()
     for row in r.all():
-        # Defensive: handle any tier value we might add in the future
         if row[0] in revenue_by_plan:
             revenue_by_plan[row[0]] = row[1]
 

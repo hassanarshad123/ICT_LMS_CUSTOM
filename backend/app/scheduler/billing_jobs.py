@@ -87,9 +87,13 @@ async def generate_monthly_invoices() -> None:
 
     async with async_session() as session:
         # Fetch every v2-billable institute in one query.
+        # Tier filter sourced from the canonical registry. `unlimited` is
+        # intentionally excluded — it's SA-comped and never invoiced.
+        from app.utils.tier_registry import V2_TIERS
+        v2_tier_values = [t.value for t in V2_TIERS]
         result = await session.execute(
             select(Institute).where(
-                Institute.plan_tier.in_(["professional", "custom"]),
+                Institute.plan_tier.in_(v2_tier_values),
                 Institute.status == InstituteStatus.active,
                 Institute.deleted_at.is_(None),
             )
@@ -182,12 +186,15 @@ async def enforce_late_payments() -> None:
 
     async with async_session() as session:
         # Every non-terminal invoice owned by a v2 institute.
+        # V2 tier filter from canonical registry — same intent as above.
+        from app.utils.tier_registry import V2_TIERS
+        v2_tier_values = [t.value for t in V2_TIERS]
         stmt = (
             select(Invoice, Institute)
             .join(Institute, Invoice.institute_id == Institute.id)
             .where(
                 Invoice.status.in_(["sent", "draft", "overdue"]),
-                Institute.plan_tier.in_(["professional", "custom"]),
+                Institute.plan_tier.in_(v2_tier_values),
                 Institute.deleted_at.is_(None),
             )
         )
