@@ -35,6 +35,7 @@ from app.schemas.integration import (
     FrappeConfigOut,
     FrappeInboundSecretOut,
     FrappeTestConnectionOut,
+    SalesPersonListOut,
     SyncLogItem,
     SyncLogKPIs,
 )
@@ -416,4 +417,17 @@ async def update_auto_create_customers(
     flag = bool(body.get("auto_create_customers", True))
     return await integration_service.set_auto_create_customers(
         session, current_user.institute_id, flag,
+    )
+
+
+@router.get("/frappe/sales-persons", response_model=SalesPersonListOut)
+@limiter.limit("20/minute")
+async def list_frappe_sales_persons(
+    request: Request,
+    current_user: Admin,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """List active Frappe Sales Persons for the AO onboarding dropdown."""
+    return await integration_service.fetch_sales_persons(
+        session, current_user.institute_id,
     )
