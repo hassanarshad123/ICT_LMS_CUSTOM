@@ -155,6 +155,47 @@ export default function OnboardWizard() {
       .catch(() => setPttDetail(null))
       .finally(() => setPttDetailLoading(false));
   }, [frappePaymentTermsTemplate]);
+
+  // Auto-sync the installment schedule when a PTT is selected.
+  // The template drives everything: plan_type becomes "installment" and each
+  // term's invoice_portion × final_amount becomes one installment, with
+  // credit_days (+ credit_months) as the due-date offset from today.
+  // Recomputes whenever the PTT, total, or discount changes.
+  useEffect(() => {
+    if (!pttDetail || pttDetail.terms.length === 0) return;
+    if (finalAmount <= 0) return;
+
+    const baseDate = fee.firstDueDate || isoToday();
+    const base = new Date(baseDate + 'T00:00:00');
+    const terms = pttDetail.terms;
+
+    // Compute shares by exact percentage; absorb rounding remainder on last row.
+    const shares = terms.map((t) => Math.floor((finalAmount * t.invoicePortion) / 100));
+    const remainder = finalAmount - shares.reduce((s, v) => s + v, 0);
+    if (shares.length > 0) shares[shares.length - 1] += remainder;
+
+    const generated: InstallmentDraft[] = terms.map((t, i) => {
+      const d = new Date(base);
+      d.setDate(d.getDate() + (t.creditDays || 0));
+      if (t.creditMonths) d.setMonth(d.getMonth() + t.creditMonths);
+      return {
+        sequence: i + 1,
+        amountDue: shares[i],
+        dueDate: d.toISOString().slice(0, 10),
+        label: t.paymentTerm || `Installment ${i + 1}`,
+      };
+    });
+
+    setFee((prev) => ({
+      ...prev,
+      planType: 'installment',
+      installments: generated,
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pttDetail, finalAmount, fee.firstDueDate]);
+
+  // Flag the wizard uses to skip the manual installment editor step.
+  const scheduleFromPtt = !!(pttDetail && pttDetail.terms.length > 0);
   const recentBatchIds = useMemo(() => {
     const rows = rosterData?.data || [];
     const sorted = [...rows].sort(
@@ -519,14 +560,14 @@ export default function OnboardWizard() {
 
           <WizardNav
             onBack={() => setStep(2)}
-            onNext={() => setStep(fee.planType === 'installment' ? 4 : 5)}
+            onNext={() => setStep(fee.planType === 'installment' && !scheduleFromPtt ? 4 : 5)}
             nextDisabled={!canAdvanceStep3}
-            nextLabel={fee.planType === 'installment' ? 'Next' : 'Review'}
+            nextLabel={fee.planType === 'installment' && !scheduleFromPtt ? 'Next' : 'Review'}
           />
         </StepCard>
       )}
 
-      {step === 4 && (
+      {step === 4 && !scheduleFromPtt && (
         <StepCard title="Installment schedule" subtitle={`Split ${formatMoney(finalAmount)} across installments`}>
           <InstallmentEditor
             installments={fee.installments}
@@ -623,7 +664,7 @@ export default function OnboardWizard() {
           </div>
 
           <WizardNav
-            onBack={() => setStep((fee.planType === 'installment' ? 4 : 3) as Step)}
+            onBack={() => setStep((fee.planType === 'installment' && !scheduleFromPtt ? 4 : 3) as Step)}
             onNext={handleSubmit}
             nextDisabled={submitting}
             nextLabel={submitting ? 'Creating account…' : 'Onboard Student'}

@@ -172,3 +172,32 @@ def generate_payment_proof_view_url(
         },
         ExpiresIn=expires_in_seconds,
     )
+
+
+def upload_payment_proof_bytes(
+    *,
+    data: bytes,
+    file_name: str,
+    content_type: str,
+    institute_id: uuid.UUID,
+    fee_plan_id: uuid.UUID,
+) -> str:
+    """Upload a payment-proof file to S3 server-side and return the object key.
+
+    Used by the direct-upload endpoint (POST /payment-proof/upload) that
+    tunnels the upload through the LMS backend to bypass S3 CORS.
+    Key shape mirrors ``generate_payment_proof_upload_url``.
+    """
+    client = _get_client()
+    safe_name = file_name.replace("/", "_").replace("\\", "_")[:80]
+    object_key = _prefix(
+        institute_id,
+        f"admissions/payment-proof/{fee_plan_id}/{uuid.uuid4()}_{safe_name}",
+    )
+    client.put_object(
+        Bucket=settings.S3_BUCKET_NAME,
+        Key=object_key,
+        Body=data,
+        ContentType=content_type,
+    )
+    return object_key

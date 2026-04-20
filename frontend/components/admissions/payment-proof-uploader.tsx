@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { Upload, X, Check, Loader2, FileText } from 'lucide-react';
-import { getPaymentProofUploadUrl } from '@/lib/api/admissions';
+import { uploadPaymentProofDirect } from '@/lib/api/admissions';
 import { toast } from 'sonner';
 
 interface PaymentProofValue {
@@ -46,21 +46,11 @@ export default function PaymentProofUploader({
       }
       setUploading(true);
       try {
-        // 1) Ask LMS for a presigned PUT URL
-        const { uploadUrl, objectKey, viewUrl } = await getPaymentProofUploadUrl({
-          fileName: file.name,
-          contentType: ct,
+        // Server-side proxy upload — bypasses S3 CORS entirely.
+        const { objectKey, viewUrl } = await uploadPaymentProofDirect({
+          file,
           feePlanId,
         });
-        // 2) PUT the bytes directly to S3 (raw fetch, not apiClient)
-        const putRes = await fetch(uploadUrl, {
-          method: 'PUT',
-          headers: { 'Content-Type': ct },
-          body: file,
-        });
-        if (!putRes.ok) {
-          throw new Error(`S3 upload failed: ${putRes.status}`);
-        }
         onChange({ objectKey, viewUrl, fileName: file.name, fileType: ct });
         toast.success('Payment proof uploaded');
       } catch (e: any) {
@@ -81,7 +71,6 @@ export default function PaymentProofUploader({
 
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    if (disabled || uploading) return;
     const f = e.dataTransfer.files?.[0];
     if (f) handleFile(f);
   };
@@ -103,12 +92,7 @@ export default function PaymentProofUploader({
           <p className="text-xs text-gray-500 mt-0.5 inline-flex items-center gap-1">
             <Check className="h-3 w-3 text-emerald-600" /> Uploaded
           </p>
-          <a
-            href={value.viewUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-primary underline mt-1 inline-block"
-          >
+          <a href={value.viewUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline mt-1 inline-block">
             View
           </a>
         </div>
@@ -130,11 +114,8 @@ export default function PaymentProofUploader({
       onDrop={onDrop}
       onDragOver={(e) => e.preventDefault()}
       className={`block border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors
-        ${
-          disabled
-            ? 'border-gray-200 bg-gray-50 cursor-not-allowed opacity-60'
-            : 'border-gray-300 bg-white hover:border-primary hover:bg-gray-50'
-        }`}
+        ${disabled ? 'border-gray-200 bg-gray-50 cursor-not-allowed opacity-60'
+                   : 'border-gray-300 bg-white hover:border-primary hover:bg-gray-50'}`}
     >
       <input
         type="file"
