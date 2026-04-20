@@ -154,3 +154,24 @@ class SyncLogKPIs(BaseModel):
     failure_count_24h: int
     pending_retries: int
     failures_7d: int
+
+
+# ── Sales Person listing (Phase 2 — AO onboarding dropdown) ──────────
+
+class SalesPersonItem(BaseModel):
+    employee_id: str
+    sales_person_name: str
+    full_name: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    commission_rate: Optional[str] = None
+    hr_status: Optional[str] = None
+    already_mapped: bool = False
+    linked_officer_id: Optional[str] = None
+
+
+class SalesPersonListOut(BaseModel):
+    enabled: bool
+    cached_at: Optional[str] = None
+    error: Optional[str] = None
+    sales_persons: list[SalesPersonItem] = []
