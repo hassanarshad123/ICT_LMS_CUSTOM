@@ -224,6 +224,26 @@ async def onboard_student(
         },
     )
 
+    # -- Initial payment at onboarding (optional) --
+    # Record a FeePayment row when the officer uploads proof at onboarding time.
+    # We construct FeePayment directly because fee_service.record_payment requires
+    # amount >= 1 and a restricted payment_method allowlist -- both intentionally
+    # bypassed here (proof-only upload has amount=0; method is onboarding_upload).
+    if payload.payment_proof_object_key or (payload.initial_payment_amount or 0) > 0:
+        from app.models.fee import FeePayment as _FeePayment
+        _initial_payment = _FeePayment(
+            fee_plan_id=plan.id,
+            institute_id=officer.institute_id,
+            amount=payload.initial_payment_amount or 0,
+            payment_date=datetime.now(timezone.utc),
+            payment_method="onboarding_upload",
+            status="received",
+            recorded_by_user_id=officer.id,
+            payment_proof_key=payload.payment_proof_object_key,
+        )
+        session.add(_initial_payment)
+        await session.flush()
+
     await session.commit()
     await session.refresh(plan)
 
@@ -346,6 +366,8 @@ async def _create_enrollment_with_plan(
         status=FeePlanStatus.active.value,
         notes=notes,
     )
+    plan.frappe_item_code = getattr(payload_fee, "frappe_item_code", None)
+    plan.frappe_payment_terms_template = getattr(payload_fee, "frappe_payment_terms_template", None)
     session.add(plan)
     await session.flush()
 
@@ -585,6 +607,8 @@ async def add_enrollment(
     batch_id: uuid.UUID,
     fee_plan: FeePlanCreate,
     notes: Optional[str] = None,
+    payment_proof_object_key: Optional[str] = None,
+    initial_payment_amount: Optional[int] = None,
 ) -> FeePlan:
     """Enroll an existing student in another batch with a new fee plan."""
     student = await _ensure_officer_owns_student(session, officer=officer, student_id=student_id)
@@ -639,6 +663,22 @@ async def add_enrollment(
             "occurred_at": datetime.now(timezone.utc).isoformat(),
         },
     )
+
+    # -- Initial payment at onboarding (optional) --
+    if payment_proof_object_key or (initial_payment_amount or 0) > 0:
+        from app.models.fee import FeePayment as _FeePayment
+        _initial_payment = _FeePayment(
+            fee_plan_id=plan.id,
+            institute_id=officer.institute_id,
+            amount=initial_payment_amount or 0,
+            payment_date=datetime.now(timezone.utc),
+            payment_method="onboarding_upload",
+            status="received",
+            recorded_by_user_id=officer.id,
+            payment_proof_key=payment_proof_object_key,
+        )
+        session.add(_initial_payment)
+        await session.flush()
 
     await session.commit()
     await session.refresh(plan)

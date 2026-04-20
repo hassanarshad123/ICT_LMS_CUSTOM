@@ -175,3 +175,50 @@ class SalesPersonListOut(BaseModel):
     cached_at: Optional[str] = None
     error: Optional[str] = None
     sales_persons: list[SalesPersonItem] = []
+
+
+# ── Frappe Item listing (Phase 1 — AO onboarding course-SKU picker) ──────────
+
+class FrappeItemItem(BaseModel):
+    item_code: str
+    item_name: str
+    item_group: Optional[str] = None
+    standard_rate: Optional[float] = None
+    stock_uom: Optional[str] = None
+
+
+class FrappeItemListOut(BaseModel):
+    enabled: bool
+    cached_at: Optional[str] = None
+    error: Optional[str] = None
+    items: list[FrappeItemItem] = []
+
+
+# ── Payment Terms Templates (Phase 1 — AO onboarding installment-plan picker) ──
+
+class PaymentTermsTemplateItem(BaseModel):
+    name: str
+    template_name: str
+
+
+class PaymentTermsTemplateTermRow(BaseModel):
+    payment_term: str
+    invoice_portion: float
+    credit_days: int
+    credit_months: int
+    mode_of_payment: Optional[str] = None
+    due_date_based_on: Optional[str] = None
+
+
+class PaymentTermsTemplateDetail(BaseModel):
+    name: str
+    template_name: str
+    allocate_payment_based_on_payment_terms: bool
+    terms: list[PaymentTermsTemplateTermRow] = []
+
+
+class PaymentTermsTemplateListOut(BaseModel):
+    enabled: bool
+    cached_at: Optional[str] = None
+    error: Optional[str] = None
+    templates: list[PaymentTermsTemplateItem] = []
