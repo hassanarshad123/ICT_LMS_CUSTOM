@@ -15,6 +15,7 @@ export interface UserOut {
   batchNames?: string[];
   batchActiveStatuses?: boolean[];
   joinDate?: string;
+  employeeId?: string | null;
 }
 
 export interface PaginatedUsers {
@@ -47,6 +48,7 @@ export async function createUser(data: {
   phone?: string;
   role: string;
   specialization?: string;
+  employeeId?: string;
 }): Promise<{ id: string; temporaryPassword: string }> {
   return apiClient('/users', {
     method: 'POST',

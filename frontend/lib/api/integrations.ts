@@ -234,3 +234,28 @@ export function listBulkImportJobs(
 export function bulkImportTemplateUrl(entity: BulkImportEntity): string {
   return `/api/v1/admin/bulk-import/template/${entity}`;
 }
+
+// ── Sales persons (for AO onboarding picker) ────────────────────────
+
+export interface SalesPersonItem {
+  employeeId: string;
+  salesPersonName: string;
+  fullName: string;
+  email: string | null;
+  phone: string | null;
+  commissionRate: string | null;
+  hrStatus: string | null;
+  alreadyMapped: boolean;
+  linkedOfficerId: string | null;
+}
+
+export interface SalesPersonListResponse {
+  enabled: boolean;
+  cachedAt: string | null;
+  error: string | null;
+  salesPersons: SalesPersonItem[];
+}
+
+export async function listFrappeSalesPersons(): Promise<SalesPersonListResponse> {
+  return apiClient('/integrations/frappe/sales-persons');
+}

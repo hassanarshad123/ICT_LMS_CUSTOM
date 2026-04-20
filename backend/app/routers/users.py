@@ -16,6 +16,7 @@ from app.utils.rate_limit import limiter
 from app.schemas.user import UserCreate, UserUpdate, UserOut, UserPublicOut, UserListResponse, StatusUpdate
 from app.schemas.common import PaginatedResponse
 from app.services.user_service import (
+    _ensure_employee_id_unique,
     create_user,
     find_users_by_emails,
     get_user,
@@ -78,6 +79,7 @@ async def _enrich_user(session: AsyncSession, user: User) -> dict:
         "status": user.status.value,
         "created_at": user.created_at,
         "updated_at": user.updated_at,
+        "employee_id": user.employee_id,
         "batch_ids": [],
         "batch_names": [],
         "batch_active_statuses": [],
@@ -191,6 +193,7 @@ async def list_users_endpoint(
             phone=u.phone,
             role=u.role.value,
             specialization=u.specialization,
+            employee_id=u.employee_id,
             avatar_url=u.avatar_url,
             status=u.status.value,
             created_at=u.created_at,
@@ -258,6 +261,7 @@ async def create_user_endpoint(
             phone=body.phone,
             specialization=body.specialization,
             institute_id=current_user.institute_id,
+            employee_id=body.employee_id,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -348,8 +352,14 @@ async def update_user_endpoint(
     if not target or target.institute_id != current_user.institute_id:
         raise HTTPException(status_code=404, detail="User not found")
     # Whitelist allowed fields — prevent escalation via role/institute_id/email
-    allowed_fields = {"name", "phone", "specialization", "status", "bio", "social_links"}
+    allowed_fields = {"name", "phone", "specialization", "status", "bio", "social_links", "employee_id"}
     fields = {k: v for k, v in body.model_dump(exclude_unset=True).items() if k in allowed_fields}
+    # Enforce per-institute uniqueness when employee_id is being changed
+    if body.employee_id is not None and body.employee_id != target.employee_id:
+        try:
+            await _ensure_employee_id_unique(session, current_user.institute_id, body.employee_id)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
     try:
         user = await update_user(session, user_id, **fields)
     except ValueError as e:

@@ -14,6 +14,27 @@ from app.models.enums import UserRole, UserStatus
 from app.utils.security import hash_password
 
 
+async def _ensure_employee_id_unique(
+    session: AsyncSession,
+    institute_id: Optional[uuid.UUID],
+    employee_id: str,
+) -> None:
+    """Raise ValueError if employee_id is already linked within this institute."""
+    if institute_id is None:
+        raise ValueError("Cannot link employee_id without an institute")
+    existing = await session.execute(
+        select(User.id).where(
+            User.institute_id == institute_id,
+            User.employee_id == employee_id,
+            User.deleted_at.is_(None),
+        ).limit(1)
+    )
+    if existing.scalar_one_or_none() is not None:
+        raise ValueError(
+            f"Employee ID '{employee_id}' is already linked to another officer"
+        )
+
+
 async def create_user(
     session: AsyncSession,
     email: str,
@@ -23,6 +44,7 @@ async def create_user(
     phone: Optional[str] = None,
     specialization: Optional[str] = None,
     institute_id: Optional[uuid.UUID] = None,
+    employee_id: Optional[str] = None,
 ) -> User:
     """Create a new user (admin only)."""
     email = email.strip().lower()
@@ -33,6 +55,10 @@ async def create_user(
     result = await session.execute(dup_query)
     if result.scalar_one_or_none():
         raise ValueError(f"Email '{email}' is already in use")
+
+    # Check duplicate employee_id within same institute
+    if employee_id:
+        await _ensure_employee_id_unique(session, institute_id, employee_id)
 
     # Validate specialization
     if role != "teacher" and specialization:
@@ -46,6 +72,7 @@ async def create_user(
         phone=phone,
         specialization=specialization,
         institute_id=institute_id,
+        employee_id=employee_id,
         email_verified=True,  # Admin-created users are trusted
     )
     session.add(user)

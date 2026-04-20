@@ -301,6 +301,7 @@ export interface AdmissionsOfficerStat {
   totalBilled: number;
   avgFee: number;
   paymentsCount: number;
+  employeeId: string | null;
 }
 
 export interface AdmissionsStatsResponse {
