@@ -81,6 +81,7 @@ Read these docs ON-DEMAND when the task involves the topic.
 | API endpoints | `docs/API.md` | Complete REST API reference -- all routers, request/response schemas, auth, pagination |
 | Branding & certificates | `docs/claude/branding-certificates.md` | SystemSetting key conventions, BrandingProvider, CertDesign dataclass, PDF generation |
 | Admissions officer portal | `docs/claude/admissions-officer.md` | New role + fee lifecycle — onboarding, installments, payments, receipts, soft-lock enforcement, reminders, admin stats |
+| SuperAdmin playbook | `docs/claude/sa-playbook.md` | 8-tier registry, unlimited-tier contract, impersonation security, heartbeat invariants, DRY_RUN flip checklist — read BEFORE touching SA code |
 | Video pipeline (Bunny) | `docs/claude/video-infrastructure.md` | TUS upload flow, critical caveats (parallelUploads conflict, library API key), playback, status lifecycle |
 | Security & auth | `docs/Security.md` | JWT flow, RBAC, password hashing, rate limiting, encryption, CORS, activity logging |
 | Auth flow audit | `docs/backend-auth-flow-audit-2026-03-14.md` | Detailed JWT auth flow analysis |
