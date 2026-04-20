@@ -34,6 +34,11 @@ class FeePlanCreate(BaseModel):
     installments: Optional[list[InstallmentDraft]] = None
     notes: Optional[str] = None
 
+    # Optional Frappe linkage -- when provided, the onboarding sync posts a
+    # Sales Order to the institute ERP with these as Item code and Payment Terms.
+    frappe_item_code: Optional[str] = Field(default=None, max_length=140)
+    frappe_payment_terms_template: Optional[str] = Field(default=None, max_length=140)
+
     @field_validator("plan_type")
     @classmethod
     def _validate_plan_type(cls, v: str) -> str:
@@ -124,6 +129,12 @@ class OnboardStudentRequest(BaseModel):
     # Optional notes stored on the fee plan
     notes: Optional[str] = None
 
+    # Optional initial payment recorded at onboarding time (bank transfer
+    # screenshot, cash slip, etc.). The object_key must have been returned
+    # by POST /admissions/payment-proof/upload-url and the file uploaded.
+    payment_proof_object_key: Optional[str] = Field(default=None, max_length=1024)
+    initial_payment_amount: Optional[int] = Field(default=None, ge=0)
+
 
 class StudentUpdateRequest(BaseModel):
     name: Optional[str] = None
@@ -135,6 +146,8 @@ class AddEnrollmentRequest(BaseModel):
     batch_id: uuid.UUID
     fee_plan: FeePlanCreate
     notes: Optional[str] = None
+    payment_proof_object_key: Optional[str] = Field(default=None, max_length=1024)
+    initial_payment_amount: Optional[int] = Field(default=None, ge=0)
 
 
 class OnboardStudentResponse(BaseModel):
