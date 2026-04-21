@@ -135,3 +135,34 @@ def build_reset_url(slug: str) -> str:
 
 def build_portal_url(slug: str, user_id: str, path: str = "") -> str:
     return f"https://{slug}.zensbot.online/{user_id}/{path}"
+
+
+async def send_templated_email(
+    session,
+    institute_id: uuid.UUID,
+    user_id: uuid.UUID,
+    email_type: str,
+    template_key: str,
+    to: str,
+    variables: dict[str, str],
+) -> None:
+    """Send an email using the template override system with preference checks."""
+    if not await should_send_email(session, institute_id, user_id, email_type):
+        return
+
+    branding = await get_institute_branding(session, institute_id)
+    login_url = build_login_url(branding["slug"])
+
+    from app.services.email_template_service import render_with_overrides
+
+    subject, html = await render_with_overrides(
+        session=session,
+        institute_id=institute_id,
+        template_key=template_key,
+        variables=variables,
+        institute_name=branding["name"],
+        logo_url=branding.get("logo_url"),
+        accent_color=branding.get("accent_color", "#C5D86D"),
+        login_url=login_url,
+    )
+    send_email_background(to, subject, html, from_name=branding["name"])

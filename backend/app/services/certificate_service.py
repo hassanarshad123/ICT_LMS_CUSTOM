@@ -414,10 +414,7 @@ async def approve_existing_certificate(
 
     # Send certificate issued email
     try:
-        from app.utils.email_sender import send_email_background, get_institute_branding, build_portal_url, should_send_email
-        from app.utils.email_templates import certificate_issued_email
-        if not await should_send_email(session, cert.institute_id, cert.student_id, "email_certificate"):
-            return cert
+        from app.utils.email_sender import send_templated_email, build_portal_url, get_institute_branding
 
         student = await session.get(User, cert.student_id)
         course = None
@@ -429,17 +426,17 @@ async def approve_existing_certificate(
             branding = await get_institute_branding(session, cert.institute_id)
             portal_url = build_portal_url(branding["slug"], str(student.id), "certificates")
 
-            subj, html = certificate_issued_email(
-                student_name=student.name,
-                course_name=course.title if course else cert.certificate_name or "Course",
-                cert_id=cert.certificate_id or "",
-                verification_code=cert.verification_code or "",
-                portal_url=portal_url,
-                institute_name=branding["name"],
-                logo_url=branding.get("logo_url"),
-                accent_color=branding.get("accent_color", "#C5D86D"),
+            await send_templated_email(
+                session=session, institute_id=cert.institute_id, user_id=cert.student_id,
+                email_type="email_certificate", template_key="certificate_issued", to=student.email,
+                variables={
+                    "student_name": student.name,
+                    "course_name": course.title if course else cert.certificate_name or "Course",
+                    "cert_id": cert.certificate_id or "",
+                    "verification_code": cert.verification_code or "",
+                    "portal_url": portal_url,
+                },
             )
-            send_email_background(student.email, subj, html, from_name=branding["name"])
     except Exception:
         pass  # Best-effort
 

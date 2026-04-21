@@ -75,6 +75,7 @@ async def send_zoom_reminders():
     from app.models.batch import StudentBatch
     from app.models.enums import ZoomClassStatus
     from app.utils.email import send_zoom_reminder
+    from app.utils.email_sender import send_templated_email
 
     now = datetime.now(timezone.utc)
     reminder_window = now + timedelta(minutes=15)
@@ -105,7 +106,18 @@ async def send_zoom_reminders():
                     )
                     teacher = teacher_result.scalar_one_or_none()
                     if teacher and teacher.email:
-                        send_zoom_reminder(teacher.email, zc.title, meeting_url, scheduled_str)
+                        if zc.institute_id:
+                            await send_templated_email(
+                                session=session, institute_id=zc.institute_id, user_id=teacher.id,
+                                email_type="email_zoom_reminder", template_key="zoom_reminder", to=teacher.email,
+                                variables={
+                                    "class_title": zc.title,
+                                    "meeting_url": meeting_url,
+                                    "scheduled_time": scheduled_str,
+                                },
+                            )
+                        else:
+                            send_zoom_reminder(teacher.email, zc.title, meeting_url, scheduled_str)
                 except Exception as e:
                     logger.error("Failed to send reminder to teacher for class %s: %s", zc.title, e)
 
@@ -124,9 +136,20 @@ async def send_zoom_reminders():
                     )
                     student_rows = student_result.all()
                     student_ids = [row[0] for row in student_rows]
-                    for _, student_email in student_rows:
+                    for student_id, student_email in student_rows:
                         try:
-                            send_zoom_reminder(student_email, zc.title, meeting_url, scheduled_str)
+                            if zc.institute_id:
+                                await send_templated_email(
+                                    session=session, institute_id=zc.institute_id, user_id=student_id,
+                                    email_type="email_zoom_reminder", template_key="zoom_reminder", to=student_email,
+                                    variables={
+                                        "class_title": zc.title,
+                                        "meeting_url": meeting_url,
+                                        "scheduled_time": scheduled_str,
+                                    },
+                                )
+                            else:
+                                send_zoom_reminder(student_email, zc.title, meeting_url, scheduled_str)
                         except Exception as e:
                             logger.error("Failed to send reminder to %s for class %s: %s", student_email, zc.title, e)
                 except Exception as e:
@@ -603,35 +626,36 @@ async def send_batch_expiry_notifications():
 
                     # Also send email (respects admin + student preferences)
                     try:
-                        from app.utils.email_sender import send_email_background, get_institute_branding, build_login_url, should_send_email
-                        from app.utils.email_templates import batch_expiry_warning_email, batch_expired_email
+                        from app.utils.email_sender import send_templated_email, build_login_url, get_institute_branding
+                        from app.models.user import User as UserModel
 
                         email_type = f"email_batch_expiry_{window['offset_days']}d" if window["offset_days"] > 0 else "email_batch_expired"
-                        from app.models.user import User as UserModel
-                        if not await should_send_email(session, sb.institute_id, sb.student_id, email_type):
-                            raise Exception("skip")
-
                         student = await session.get(UserModel, sb.student_id)
-                        if student and student.email:
-                            branding = await get_institute_branding(session, sb.institute_id) if sb.institute_id else {"name": "", "slug": "", "logo_url": None, "accent_color": "#C5D86D"}
+                        if student and student.email and sb.institute_id:
+                            branding = await get_institute_branding(session, sb.institute_id)
                             login_url = build_login_url(branding["slug"]) if branding["slug"] else ""
 
                             if window["offset_days"] > 0:
-                                subj, html = batch_expiry_warning_email(
-                                    student_name=student.name, batch_name=batch.name,
-                                    days_remaining=window["offset_days"],
-                                    end_date=effective_end.strftime("%b %d, %Y"),
-                                    login_url=login_url,
-                                    institute_name=branding["name"], logo_url=branding.get("logo_url"),
-                                    accent_color=branding.get("accent_color", "#C5D86D"),
+                                await send_templated_email(
+                                    session=session, institute_id=sb.institute_id, user_id=sb.student_id,
+                                    email_type=email_type, template_key="batch_expiry_warning", to=student.email,
+                                    variables={
+                                        "student_name": student.name,
+                                        "batch_name": batch.name,
+                                        "days_remaining": str(window["offset_days"]),
+                                        "end_date": effective_end.strftime("%b %d, %Y"),
+                                        "login_url": login_url,
+                                    },
                                 )
                             else:
-                                subj, html = batch_expired_email(
-                                    student_name=student.name, batch_name=batch.name,
-                                    institute_name=branding["name"], logo_url=branding.get("logo_url"),
-                                    accent_color=branding.get("accent_color", "#C5D86D"),
+                                await send_templated_email(
+                                    session=session, institute_id=sb.institute_id, user_id=sb.student_id,
+                                    email_type=email_type, template_key="batch_expired", to=student.email,
+                                    variables={
+                                        "student_name": student.name,
+                                        "batch_name": batch.name,
+                                    },
                                 )
-                            send_email_background(student.email, subj, html, from_name=branding["name"])
                     except Exception as email_err:
                         logger.warning("Failed to send expiry email to %s: %s", sb.student_id, email_err)
 
@@ -801,55 +825,40 @@ async def send_fee_reminders():
 
                 # Email to the student — best effort, respects preferences
                 try:
-                    from app.utils.email_sender import (
-                        send_email_background,
-                        get_institute_branding,
-                        build_login_url,
-                        should_send_email,
-                    )
-                    from app.utils.email_templates import fee_due_soon_email, fee_overdue_email
+                    from app.utils.email_sender import send_templated_email, build_login_url, get_institute_branding
 
-                    pref_key = "email_fee_due" if window["offset_days"] > 0 else "email_fee_overdue"
-                    if plan.institute_id and not await should_send_email(
-                        session, plan.institute_id, student.id, pref_key
-                    ):
+                    if not plan.institute_id:
                         continue
 
-                    branding = (
-                        await get_institute_branding(session, plan.institute_id)
-                        if plan.institute_id
-                        else {"name": "", "slug": "", "logo_url": None, "accent_color": "#C5D86D"}
-                    )
+                    branding = await get_institute_branding(session, plan.institute_id)
                     login_url = build_login_url(branding["slug"]) if branding.get("slug") else ""
 
                     if window["offset_days"] > 0:
-                        subj, html = fee_due_soon_email(
-                            student_name=student.name,
-                            batch_name=batch.name,
-                            amount_due=amount_due,
-                            currency=plan.currency,
-                            due_date=due_str,
-                            days_remaining=window["offset_days"],
-                            login_url=login_url,
-                            institute_name=branding.get("name", ""),
-                            logo_url=branding.get("logo_url"),
-                            accent_color=branding.get("accent_color", "#C5D86D"),
+                        await send_templated_email(
+                            session=session, institute_id=plan.institute_id, user_id=student.id,
+                            email_type="email_fee_due", template_key="fee_due_soon", to=student.email,
+                            variables={
+                                "student_name": student.name,
+                                "batch_name": batch.name,
+                                "amount_due": str(amount_due),
+                                "currency": plan.currency,
+                                "due_date": due_str,
+                                "days_remaining": str(window["offset_days"]),
+                                "login_url": login_url,
+                            },
                         )
                     else:
-                        subj, html = fee_overdue_email(
-                            student_name=student.name,
-                            batch_name=batch.name,
-                            amount_due=amount_due,
-                            currency=plan.currency,
-                            due_date=due_str,
-                            login_url=login_url,
-                            institute_name=branding.get("name", ""),
-                            logo_url=branding.get("logo_url"),
-                            accent_color=branding.get("accent_color", "#C5D86D"),
-                        )
-                    if student.email:
-                        send_email_background(
-                            student.email, subj, html, from_name=branding.get("name", "")
+                        await send_templated_email(
+                            session=session, institute_id=plan.institute_id, user_id=student.id,
+                            email_type="email_fee_overdue", template_key="fee_overdue", to=student.email,
+                            variables={
+                                "student_name": student.name,
+                                "batch_name": batch.name,
+                                "amount_due": str(amount_due),
+                                "currency": plan.currency,
+                                "due_date": due_str,
+                                "login_url": login_url,
+                            },
                         )
                 except Exception as e:
                     logger.warning("Fee reminder email failed for %s: %s", student.id, e)

@@ -461,27 +461,25 @@ async def submit_attempt(
     # Send quiz graded email for auto-graded quizzes (no short answers)
     if not has_short_answers:
         try:
-            from app.utils.email_sender import send_email_background, get_institute_branding, build_login_url, should_send_email
-            from app.utils.email_templates import quiz_graded_email
+            from app.utils.email_sender import send_templated_email, build_login_url, get_institute_branding
             from app.models.user import User
 
             student = await session.get(User, attempt.student_id)
             if student and student.email and attempt.institute_id:
-                if await should_send_email(session, attempt.institute_id, attempt.student_id, "email_quiz_graded"):
-                    branding = await get_institute_branding(session, attempt.institute_id)
-                    subj, html = quiz_graded_email(
-                        student_name=student.name,
-                        quiz_title=quiz.title if quiz else "Quiz",
-                        score=attempt.score or 0,
-                        max_score=attempt.max_score or 0,
-                        percentage=float(attempt.percentage or 0),
-                        passed=bool(attempt.passed),
-                        login_url=build_login_url(branding["slug"]),
-                        institute_name=branding["name"],
-                        logo_url=branding.get("logo_url"),
-                        accent_color=branding.get("accent_color", "#C5D86D"),
-                    )
-                    send_email_background(student.email, subj, html, from_name=branding["name"])
+                branding = await get_institute_branding(session, attempt.institute_id)
+                await send_templated_email(
+                    session=session, institute_id=attempt.institute_id, user_id=attempt.student_id,
+                    email_type="email_quiz_graded", template_key="quiz_graded", to=student.email,
+                    variables={
+                        "student_name": student.name,
+                        "quiz_title": quiz.title if quiz else "Quiz",
+                        "score": str(attempt.score or 0),
+                        "max_score": str(attempt.max_score or 0),
+                        "percentage": f"{float(attempt.percentage or 0):.0f}",
+                        "passed": "Passed" if attempt.passed else "Not Passed",
+                        "login_url": build_login_url(branding["slug"]),
+                    },
+                )
         except Exception:
             pass
 
@@ -657,27 +655,25 @@ async def grade_answer(
     # Send quiz graded email when all answers are graded
     if all_graded:
         try:
-            from app.utils.email_sender import send_email_background, get_institute_branding, build_login_url, should_send_email
-            from app.utils.email_templates import quiz_graded_email
+            from app.utils.email_sender import send_templated_email, build_login_url, get_institute_branding
             from app.models.user import User
 
             student = await session.get(User, attempt.student_id)
             if student and student.email and attempt.institute_id:
-                if await should_send_email(session, attempt.institute_id, attempt.student_id, "email_quiz_graded"):
-                    branding = await get_institute_branding(session, attempt.institute_id)
-                    subj, html = quiz_graded_email(
-                        student_name=student.name,
-                        quiz_title=quiz.title if quiz else "Quiz",
-                        score=attempt.score or 0,
-                        max_score=attempt.max_score or 0,
-                        percentage=float(attempt.percentage or 0),
-                        passed=bool(attempt.passed),
-                        login_url=build_login_url(branding["slug"]),
-                        institute_name=branding["name"],
-                        logo_url=branding.get("logo_url"),
-                        accent_color=branding.get("accent_color", "#C5D86D"),
-                    )
-                    send_email_background(student.email, subj, html, from_name=branding["name"])
+                branding = await get_institute_branding(session, attempt.institute_id)
+                await send_templated_email(
+                    session=session, institute_id=attempt.institute_id, user_id=attempt.student_id,
+                    email_type="email_quiz_graded", template_key="quiz_graded", to=student.email,
+                    variables={
+                        "student_name": student.name,
+                        "quiz_title": quiz.title if quiz else "Quiz",
+                        "score": str(attempt.score or 0),
+                        "max_score": str(attempt.max_score or 0),
+                        "percentage": f"{float(attempt.percentage or 0):.0f}",
+                        "passed": "Passed" if attempt.passed else "Not Passed",
+                        "login_url": build_login_url(branding["slug"]),
+                    },
+                )
         except Exception:
             pass  # Best-effort
 

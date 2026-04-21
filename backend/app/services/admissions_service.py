@@ -290,28 +290,20 @@ async def onboard_student(
     # they already have a login and we don't want to re-send credentials.
     if is_new_user:
         try:
-            from app.utils.email_sender import (
-                send_email_background,
-                get_institute_branding,
-                build_login_url,
-                build_reset_url,
-                should_send_email,
-            )
-            from app.utils.email_templates import welcome_email
+            from app.utils.email_sender import send_templated_email, build_login_url, build_reset_url, get_institute_branding
 
-            if await should_send_email(session, officer.institute_id, student.id, "email_welcome"):
-                branding = await get_institute_branding(session, officer.institute_id)
-                subject, html = welcome_email(
-                    student_name=student.name,
-                    email=student.email,
-                    default_password=temp_password,
-                    login_url=build_login_url(branding["slug"]),
-                    reset_url=build_reset_url(branding["slug"]),
-                    institute_name=branding["name"],
-                    logo_url=branding.get("logo_url"),
-                    accent_color=branding.get("accent_color", "#C5D86D"),
-                )
-                send_email_background(student.email, subject, html, from_name=branding["name"])
+            branding = await get_institute_branding(session, officer.institute_id)
+            await send_templated_email(
+                session=session, institute_id=officer.institute_id, user_id=student.id,
+                email_type="email_welcome", template_key="welcome", to=student.email,
+                variables={
+                    "student_name": student.name,
+                    "email": student.email,
+                    "default_password": temp_password,
+                    "login_url": build_login_url(branding["slug"]),
+                    "reset_url": build_reset_url(branding["slug"]),
+                },
+            )
         except Exception:
             logger.exception("welcome email dispatch failed for user %s", student.id)
 
