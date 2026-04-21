@@ -1,7 +1,7 @@
 """Add UNIQUE constraint on invoices(institute_id, period_start, period_end).
 
-Revision ID: 042
-Revises: 041
+Revision ID: 046
+Revises: 045
 Create Date: 2026-04-20
 
 Belt-and-suspenders guard against duplicate invoices issued for the
@@ -21,8 +21,8 @@ from alembic import op
 
 
 # revision identifiers
-revision = "042"
-down_revision = "041"
+revision = "046"
+down_revision = "045"
 branch_labels = None
 depends_on = None
 

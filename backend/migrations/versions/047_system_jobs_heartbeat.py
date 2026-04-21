@@ -1,7 +1,7 @@
 """Create system_jobs heartbeat table.
 
-Revision ID: 043
-Revises: 042
+Revision ID: 047
+Revises: 046
 Create Date: 2026-04-20
 
 Before this migration, /sa/health returned a hardcoded list of job
@@ -30,8 +30,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers
-revision = "043"
-down_revision = "042"
+revision = "047"
+down_revision = "046"
 branch_labels = None
 depends_on = None
 
