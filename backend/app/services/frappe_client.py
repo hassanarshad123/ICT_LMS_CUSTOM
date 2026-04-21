@@ -659,6 +659,12 @@ class FrappeClient:
         # Frappe will reject the posting but we avoid crashing on missing field.
         paid_to = self.cfg.default_bank_account or self.cfg.default_income_account
         body: dict[str, Any] = {
+            # Land as Draft — accounting reviews the proof screenshot
+            # (custom_zensbot_payment_proof_url) in Frappe, then submits.
+            # Only after the admin submit does the SI's payment_schedule
+            # row's paid_amount update and the LMS cron reactivate the
+            # student.
+            "docstatus": 0,
             "payment_type": "Receive",
             "party_type": "Customer",
             "party": customer_name,
