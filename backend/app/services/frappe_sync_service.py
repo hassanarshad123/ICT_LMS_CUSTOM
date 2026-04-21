@@ -309,13 +309,36 @@ async def _sync_sales_order(
         sales_person=sales_person,
         commission_rate=commission_rate,
         payment_terms_template=plan.frappe_payment_terms_template,
-        payment_proof_view_url=payment_proof_view_url,
+        # Payment proof now lives on the Sales Invoice, not the Sales Order.
+        payment_proof_view_url=None,
     )
 
     # Persist the Frappe SO name on the plan for idempotent re-syncs.
     if result.ok and result.doc_name and plan.frappe_sales_order_name != result.doc_name:
         plan.frappe_sales_order_name = result.doc_name
         session.add(plan)
+
+    # If the SO succeeded, ALSO create + submit the Sales Invoice from it.
+    # The SI carries the schedule-row-level tracking that the enforcement
+    # cron reads. Idempotent via custom_zensbot_fee_plan_id; resumes a
+    # Draft SI from a prior attempt.
+    if result.ok and result.doc_name:
+        si_result = await client.create_and_submit_sales_invoice_from_so(
+            so_name=result.doc_name,
+            fee_plan_id=str(plan.id),
+            payment_id=payment_id,
+            payment_proof_view_url=payment_proof_view_url,
+        )
+        if si_result.ok and si_result.doc_name:
+            plan.frappe_sales_invoice_name = si_result.doc_name
+            session.add(plan)
+        else:
+            # Log but don't fail the whole task -- the SO exists, SI creation
+            # can retry on the next run via the idempotency path.
+            logger.warning(
+                "SO %s submitted but SI creation failed for plan %s: %s",
+                result.doc_name, plan.id, si_result.error,
+            )
 
     return _finalize_outbound(
         task, result, entity_type="sales_order", lms_entity_id=plan.id,
@@ -378,9 +401,40 @@ async def _sync_payment_entry(
     if student is None:
         return False, _build_log_row(task, status="failed", error="Student missing")
 
-    # Look up the invoice the plan mirrors to for reference allocation
-    invoice_lookup = await client._find_by_zensbot_id("Sales Invoice", str(plan.id))  # noqa: SLF001
-    invoice_name = invoice_lookup.doc_name if invoice_lookup.ok else None
+    # Prefer the stamped SI name (set by _sync_sales_order after SI creation);
+    # fall back to a Frappe lookup for legacy plans that predate the SI-first
+    # flow.
+    invoice_name = plan.frappe_sales_invoice_name
+    if not invoice_name:
+        invoice_lookup = await client._find_by_zensbot_id("Sales Invoice", str(plan.id))  # noqa: SLF001
+        if invoice_lookup.ok and invoice_lookup.doc_name:
+            invoice_name = invoice_lookup.doc_name
+            plan.frappe_sales_invoice_name = invoice_name
+            session.add(plan)
+
+    # Resolve which payment_schedule row this LMS installment settles so
+    # Frappe updates the matching row's paid_amount (not just total_advance).
+    # Primary match: LMS FeeInstallment.sequence -> 1-indexed position in
+    # the SI's payment_schedule. Fallback: first row with outstanding > 0.
+    payment_term: Optional[str] = None
+    if invoice_name:
+        si_detail = await client.get_single("Sales Invoice", invoice_name)
+        if si_detail.ok:
+            schedule = ((si_detail.response or {}).get("data") or {}).get("payment_schedule") or []
+            target_installment = (
+                await session.get(FeeInstallment, payment.fee_installment_id)
+                if payment.fee_installment_id else None
+            )
+            if (
+                target_installment is not None
+                and 0 < target_installment.sequence <= len(schedule)
+            ):
+                payment_term = schedule[target_installment.sequence - 1].get("payment_term")
+            if not payment_term:
+                for row in schedule:
+                    if float(row.get("outstanding") or 0) > 0:
+                        payment_term = row.get("payment_term")
+                        break
 
     result = await client.upsert_payment_entry(
         payment_id=str(payment.id),
@@ -393,6 +447,7 @@ async def _sync_payment_entry(
         currency=plan.currency,
         mode_of_payment=payment.payment_method,
         reference_no=payment.reference_number or payment.receipt_number,
+        payment_term=payment_term,
     )
     return _finalize_outbound(task, result, entity_type="payment_entry", lms_entity_id=payment.id)
 

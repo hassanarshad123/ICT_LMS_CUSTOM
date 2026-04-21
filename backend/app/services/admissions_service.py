@@ -410,6 +410,10 @@ async def _create_enrollment_with_plan(
     )
     plan.frappe_item_code = getattr(payload_fee, "frappe_item_code", None)
     plan.frappe_payment_terms_template = getattr(payload_fee, "frappe_payment_terms_template", None)
+    # 72h unconditional grace window from creation. The SI-based suspension
+    # cron skips any plan whose grace hasn't elapsed, regardless of SI status.
+    # Once NOW() > grace_period_ends_at, SI status drives access.
+    plan.grace_period_ends_at = datetime.now(timezone.utc) + timedelta(hours=72)
     session.add(plan)
     await session.flush()
 
