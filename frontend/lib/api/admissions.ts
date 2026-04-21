@@ -154,6 +154,9 @@ export interface RecordPaymentPayload {
   paymentMethod: PaymentMethod;
   referenceNumber?: string | null;
   notes?: string | null;
+  /** S3 object key returned by POST /admissions/payment-proof/upload — the
+   *  screenshot the AO attaches when recording the payment. */
+  paymentProofObjectKey?: string | null;
 }
 
 export interface FeePaymentRow {

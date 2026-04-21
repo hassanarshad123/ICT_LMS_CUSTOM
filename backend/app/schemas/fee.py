@@ -101,6 +101,10 @@ class PaymentCreate(BaseModel):
     payment_method: str
     reference_number: Optional[str] = None
     notes: Optional[str] = None
+    # S3 object key from POST /admissions/payment-proof/upload — persisted on
+    # the FeePayment row so the Frappe sync can regenerate a signed view URL
+    # for the Sales Order's custom_zensbot_payment_proof_url field.
+    payment_proof_object_key: Optional[str] = Field(default=None, max_length=1024)
 
     @field_validator("payment_method")
     @classmethod
