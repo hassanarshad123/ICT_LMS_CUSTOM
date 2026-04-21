@@ -58,6 +58,50 @@ def _commission_to_number(rate: Optional[str]) -> float:
         return 0.0
 
 
+# LMS uses snake_case ad-hoc payment-method strings (from the Record Payment
+# dialog + the onboarding wizard). Frappe's Mode of Payment doctype has
+# proper record names that must match exactly — otherwise the PE insert
+# fails with LinkValidationError. Standard ERPNext ships with a small set:
+# Bank, Bank Draft, Cash, Cheque, Credit Card, Wire Transfer. Pakistan-
+# specific wallets (JazzCash, EasyPaisa) and generic "online" don't have
+# matching Frappe records on most deployments, so we map them to the closest
+# accounting bucket (usually Bank / Wire Transfer).
+_LMS_TO_FRAPPE_MODE_OF_PAYMENT: dict[str, str] = {
+    "cash": "Cash",
+    "bank_transfer": "Bank",
+    "jazzcash": "Bank",
+    "easypaisa": "Bank",
+    "cheque": "Cheque",
+    "online": "Wire Transfer",
+    # Pseudo-method used by admissions_service when an AO uploads a payment
+    # screenshot during onboarding without picking a specific method. Fall
+    # through to the institute's default (handled below).
+    "onboarding_upload": "",
+}
+
+
+def _normalize_mode_of_payment(
+    lms_value: Optional[str], institute_default: Optional[str],
+) -> Optional[str]:
+    """Map an LMS payment-method string to a Frappe Mode of Payment record
+    name. Falls back to the institute's configured default when no mapping
+    exists or the mapping is intentionally empty. Returns None when neither
+    is set, which lets Frappe apply its own default during insert.
+    """
+    if lms_value:
+        mapped = _LMS_TO_FRAPPE_MODE_OF_PAYMENT.get(lms_value.strip().lower())
+        if mapped:
+            return mapped
+        if mapped == "":
+            # Explicit empty in the table -> fall through to institute default
+            pass
+        else:
+            # Unknown LMS value -- trust it; maybe the institute has a
+            # custom Frappe record with exactly this name.
+            return lms_value
+    return institute_default or None
+
+
 @dataclass(frozen=True)
 class FrappeResult:
     ok: bool
@@ -673,7 +717,9 @@ class FrappeClient:
             "received_amount": amount,
             "paid_from": self.cfg.default_receivable_account,
             "paid_to": paid_to,
-            "mode_of_payment": mode_of_payment or self.cfg.default_mode_of_payment,
+            "mode_of_payment": _normalize_mode_of_payment(
+                mode_of_payment, self.cfg.default_mode_of_payment,
+            ),
             "reference_no": reference_no,
             "reference_date": posting_date,
             PAYMENT_FIELD: payment_id,
