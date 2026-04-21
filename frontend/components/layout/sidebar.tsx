@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { UserRole } from '@/lib/types';
 import { useAuth } from '@/lib/auth-context';
 import { useBranding } from '@/lib/branding-context';
 import { useSidebar } from './sidebar-context';
+import { useApi } from '@/hooks/use-api';
+import { getMyHasFees } from '@/lib/api/admissions';
 import {
   Home,
   Layers,
@@ -168,8 +170,23 @@ export default function Sidebar({ role, userName, onLogout }: SidebarProps) {
   const pathname = usePathname();
   const { id } = useAuth();
   const { instituteName, logoUrl } = useBranding();
-  const items = navConfig[role] || navConfig.student;
   const basePath = `/${id}`;
+
+  // Only students need a "My Fees" visibility check; skip the API call for
+  // other roles so they don't pay the round-trip.
+  const { data: hasFeesData } = useApi(
+    () => (role === 'student' ? getMyHasFees() : Promise.resolve({ hasFees: true })),
+    [role],
+  );
+  const hasFees = role !== 'student' ? true : !!hasFeesData?.hasFees;
+
+  const items = useMemo(() => {
+    const base = navConfig[role] || navConfig.student;
+    if (role === 'student' && !hasFees) {
+      return base.filter((i) => i.navId !== 'nav-fees');
+    }
+    return base;
+  }, [role, hasFees]);
   const { mobileOpen, setMobileOpen } = useSidebar();
   const { startTour } = useTour();
 

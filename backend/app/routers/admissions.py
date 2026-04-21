@@ -553,6 +553,31 @@ async def admissions_quota_endpoint(
     }
 
 
+@router.get("/me/has-fees")
+async def my_has_fees_endpoint(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """Lightweight check: does the current user have at least one active fee plan?
+
+    Used by the student sidebar to decide whether to render the "My Fees" nav
+    item. Separate from ``/me/fees`` so the check stays cheap — single EXISTS
+    query, no joins, no pagination.
+    """
+    from app.models.fee import FeePlan
+
+    result = await session.execute(
+        select(FeePlan.id)
+        .where(
+            FeePlan.student_id == current_user.id,
+            FeePlan.deleted_at.is_(None),
+        )
+        .limit(1)
+    )
+    has_fees = result.first() is not None
+    return {"has_fees": has_fees}
+
+
 @router.get("/me/fees")
 async def my_fees_endpoint(
     current_user: Annotated[User, Depends(get_current_user)],
