@@ -236,18 +236,24 @@ async def refresh_payment_erp_status_endpoint(
     from app.services import payment_status_service
     from app.models.fee import FeePlan
 
+    if current_user.institute_id is None:
+        raise HTTPException(status_code=403, detail="Institute scope required")
+
     payment = await session.get(FeePayment, payment_id)
     if payment is None or payment.institute_id != current_user.institute_id:
         raise HTTPException(status_code=404, detail="Payment not found")
 
+    fee_plan_id = payment.fee_plan_id
     new_status = await payment_status_service.refresh_payment_erp_status(session, payment_id)
 
-    plan = await session.get(FeePlan, payment.fee_plan_id) if payment.fee_plan_id else None
+    # Service committed; re-fetch to avoid expire_on_commit stale reads.
+    payment = await session.get(FeePayment, payment_id)
+    plan = await session.get(FeePlan, fee_plan_id) if fee_plan_id else None
 
     return {
         "payment_id": str(payment_id),
         "erp_status": new_status,
-        "frappe_payment_entry_name": payment.frappe_payment_entry_name,
+        "frappe_payment_entry_name": payment.frappe_payment_entry_name if payment else None,
         "erp_si_status": plan.erp_si_status if plan else None,
         "frappe_sales_invoice_name": plan.frappe_sales_invoice_name if plan else None,
     }
