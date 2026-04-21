@@ -304,6 +304,164 @@ class FrappeClient:
         )
 
 
+    async def create_and_submit_sales_invoice_from_so(
+        self,
+        *,
+        so_name: str,
+        fee_plan_id: str,
+        payment_id: Optional[str] = None,
+        payment_proof_view_url: Optional[str] = None,
+    ) -> FrappeResult:
+        """Generate + submit a Sales Invoice from an existing Sales Order.
+
+        Uses ERPNext's stock transform
+        ``erpnext.selling.doctype.sales_order.sales_order.make_sales_invoice``
+        to get a draft doc, stamps our custom fields, then inserts + submits
+        in the same request cycle. Idempotent via
+        ``custom_zensbot_fee_plan_id`` -- if an SI with that fee_plan_id
+        already exists, it's returned as-is (regardless of docstatus); a
+        Draft found in that state is submitted.
+        """
+        # 1. Idempotency check
+        existing = await self._find_by_zensbot_id("Sales Invoice", fee_plan_id)
+        if not existing.ok and existing.status_code not in (None, 200, 404):
+            return existing
+        if existing.ok and existing.doc_name:
+            detail = await self.get_single("Sales Invoice", existing.doc_name)
+            if not detail.ok:
+                return FrappeResult(
+                    ok=False,
+                    status_code=detail.status_code,
+                    doc_name=existing.doc_name,
+                    error=f"Found SI {existing.doc_name} but detail fetch failed",
+                )
+            existing_doc = (detail.response or {}).get("data") or {}
+            if int(existing_doc.get("docstatus", 0)) != 0:
+                return FrappeResult(
+                    ok=True,
+                    status_code=200,
+                    doc_name=existing.doc_name,
+                    response={"data": existing_doc},
+                )
+            # Draft found -- stamp missing fields and submit.
+            return await self._stamp_and_submit_sales_invoice(
+                existing_doc, fee_plan_id, payment_id, payment_proof_view_url,
+            )
+
+        # 2. Ask Frappe to build a draft SI from the SO.
+        transform_url = (
+            f"{self.base_url}/api/method/erpnext.selling.doctype.sales_order."
+            f"sales_order.make_sales_invoice"
+        )
+        try:
+            async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
+                resp = await client.get(
+                    transform_url,
+                    params={"source_name": so_name},
+                    headers=self._auth_header,
+                )
+        except httpx.RequestError as e:
+            return FrappeResult(
+                ok=False,
+                error=f"Network error (make_sales_invoice): {type(e).__name__}",
+            )
+        if resp.status_code != 200:
+            return FrappeResult(
+                ok=False,
+                status_code=resp.status_code,
+                error=f"make_sales_invoice failed: {resp.text[:800]}",
+            )
+        draft = (resp.json() or {}).get("message") or {}
+        if not draft:
+            return FrappeResult(
+                ok=False,
+                status_code=resp.status_code,
+                error="make_sales_invoice returned empty doc",
+            )
+
+        # 3. Stamp + submit.
+        return await self._stamp_and_submit_sales_invoice(
+            draft, fee_plan_id, payment_id, payment_proof_view_url,
+        )
+
+    async def _stamp_and_submit_sales_invoice(
+        self,
+        draft: dict,
+        fee_plan_id: str,
+        payment_id: Optional[str],
+        payment_proof_view_url: Optional[str],
+    ) -> FrappeResult:
+        """Stamp zensbot custom fields onto a draft SI dict, insert (if no
+        name yet), then submit. Shared by the create path and the
+        resume-existing-Draft path.
+        """
+        draft[FEE_PLAN_FIELD] = fee_plan_id
+        if payment_id:
+            draft["custom_zensbot_payment_id"] = payment_id
+        if payment_proof_view_url:
+            draft["custom_zensbot_payment_proof_url"] = payment_proof_view_url
+
+        has_name = bool(draft.get("name"))
+
+        if not has_name:
+            insert_url = f"{self.base_url}/api/method/frappe.client.insert"
+            try:
+                async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
+                    ins = await client.post(
+                        insert_url,
+                        json={"doc": draft},
+                        headers=self._auth_header,
+                    )
+            except httpx.RequestError as e:
+                return FrappeResult(
+                    ok=False,
+                    error=f"Network error (SI insert): {type(e).__name__}",
+                )
+            if ins.status_code not in (200, 201):
+                return FrappeResult(
+                    ok=False,
+                    status_code=ins.status_code,
+                    error=f"SI insert failed: {ins.text[:800]}",
+                )
+            created = (ins.json() or {}).get("message") or {}
+            si_name = created.get("name")
+            if not si_name:
+                return FrappeResult(
+                    ok=False,
+                    status_code=ins.status_code,
+                    error=f"SI insert returned no name: {ins.text[:400]}",
+                )
+            draft = created
+
+        submit_url = f"{self.base_url}/api/method/frappe.client.submit"
+        try:
+            async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
+                sub = await client.post(
+                    submit_url,
+                    json={"doc": draft},
+                    headers=self._auth_header,
+                )
+        except httpx.RequestError as e:
+            return FrappeResult(
+                ok=False,
+                doc_name=draft.get("name"),
+                error=f"SI submit failed (network): {type(e).__name__}",
+            )
+        if sub.status_code not in (200, 201):
+            return FrappeResult(
+                ok=False,
+                status_code=sub.status_code,
+                doc_name=draft.get("name"),
+                error=f"SI submit failed: {sub.text[:800]}",
+            )
+        submitted = (sub.json() or {}).get("message") or draft
+        return FrappeResult(
+            ok=True,
+            status_code=200,
+            doc_name=draft.get("name") or submitted.get("name"),
+            response={"data": submitted},
+        )
+
     async def list_overdue_sales_orders(self) -> list[OverdueSalesOrder]:
         """Enumerate Sales Orders in this institute's Frappe that have at least
         one payment_schedule row with due_date < today AND outstanding > 0.
@@ -381,6 +539,7 @@ class FrappeClient:
         currency: str,
         mode_of_payment: Optional[str],
         reference_no: Optional[str],
+        payment_term: Optional[str] = None,
     ) -> FrappeResult:
         existing = await self._find_by_zensbot_id("Payment Entry", payment_id, custom_field=PAYMENT_FIELD)
         if not existing.ok and existing.status_code not in (None, 200, 404):
@@ -410,11 +569,14 @@ class FrappeClient:
         if self.cfg.default_cost_center:
             body["cost_center"] = self.cfg.default_cost_center
         if invoice_name:
-            body["references"] = [{
+            ref: dict[str, Any] = {
                 "reference_doctype": "Sales Invoice",
                 "reference_name": invoice_name,
                 "allocated_amount": amount,
-            }]
+            }
+            if payment_term:
+                ref["payment_term"] = payment_term
+            body["references"] = [ref]
 
         if existing.ok and existing.doc_name:
             return await self._put_resource("Payment Entry", existing.doc_name, body)
