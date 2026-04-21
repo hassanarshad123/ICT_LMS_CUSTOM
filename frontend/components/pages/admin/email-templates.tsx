@@ -112,14 +112,14 @@ function TemplateEditor({ templateKey, onBack }: { templateKey: string; onBack: 
     }
   }, [template]);
 
-  const { mutate: save, loading: saving } = useMutation(async () => {
+  const { execute: save, loading: saving } = useMutation(async () => {
     const result = await updateEmailTemplate(templateKey, subject, bodyHtml);
     toast.success('Template saved');
     setDirty(false);
     return result;
   });
 
-  const { mutate: reset, loading: resetting } = useMutation(async () => {
+  const { execute: reset, loading: resetting } = useMutation(async () => {
     const result = await resetEmailTemplate(templateKey);
     setSubject(result.defaultSubject);
     setBodyHtml(result.defaultBody);
@@ -129,7 +129,7 @@ function TemplateEditor({ templateKey, onBack }: { templateKey: string; onBack: 
     return result;
   });
 
-  const { mutate: loadPreview, loading: previewing } = useMutation(async () => {
+  const { execute: loadPreview, loading: previewing } = useMutation(async () => {
     const result = await previewEmailTemplate(templateKey, subject, bodyHtml);
     setPreview(result);
     setShowPreview(true);
