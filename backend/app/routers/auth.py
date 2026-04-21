@@ -249,8 +249,19 @@ async def forgot_password(
         else:
             reset_url = f"{settings.FRONTEND_URL}/reset-password?token={token}"
         try:
-            from app.utils.email import send_password_reset
-            send_password_reset(user.email, user.name, reset_url)
+            if user.institute_id:
+                from app.utils.email_sender import send_templated_email
+                await send_templated_email(
+                    session=session, institute_id=user.institute_id, user_id=user.id,
+                    email_type="email_password_reset", template_key="password_reset", to=user.email,
+                    variables={
+                        "user_name": user.name,
+                        "reset_url": reset_url,
+                    },
+                )
+            else:
+                from app.utils.email import send_password_reset
+                send_password_reset(user.email, user.name, reset_url)
         except Exception:
             pass  # Don't leak email sending errors
 
@@ -363,8 +374,6 @@ async def resend_verification(
 ):
     """Resend email verification link. Rate limited to 3/hour."""
     from app.utils.security import create_email_verification_token
-    from app.utils.email import send_email
-    from app.utils.email_templates import email_verification_email
 
     email_addr = (body.get("email") or "").strip().lower()
     if not email_addr:
@@ -386,21 +395,31 @@ async def resend_verification(
         token = create_email_verification_token(user.id, user.email, user.token_version)
         verify_url = f"{settings.FRONTEND_URL or 'https://zensbot.online'}/verify-email?token={token}"
 
-        # Get institute name for branding
-        inst_result = await session.execute(
-            select(Institute.name).where(Institute.id == user.institute_id)
-        )
-        inst_name = inst_result.scalar_one_or_none() or ""
-
-        subject, html = email_verification_email(
-            user_name=user.name,
-            verification_url=verify_url,
-            institute_name=inst_name,
-        )
-        try:
-            send_email(to=user.email, subject=subject, html=html)
-        except Exception:
-            pass  # Don't reveal delivery failure
+        if user.institute_id:
+            try:
+                from app.utils.email_sender import send_templated_email
+                await send_templated_email(
+                    session=session, institute_id=user.institute_id, user_id=user.id,
+                    email_type="email_verification", template_key="email_verification", to=user.email,
+                    variables={
+                        "user_name": user.name,
+                        "verification_url": verify_url,
+                    },
+                )
+            except Exception:
+                pass  # Don't reveal delivery failure
+        else:
+            # No institute context — fall back to direct send
+            try:
+                from app.utils.email import send_email
+                from app.utils.email_templates import email_verification_email
+                subject, html = email_verification_email(
+                    user_name=user.name,
+                    verification_url=verify_url,
+                )
+                send_email(to=user.email, subject=subject, html=html)
+            except Exception:
+                pass  # Don't reveal delivery failure
 
     # Always return success (prevents email enumeration)
     return {"detail": "If that email exists and is unverified, a new verification link has been sent."}

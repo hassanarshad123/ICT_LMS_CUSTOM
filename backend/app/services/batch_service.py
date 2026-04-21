@@ -473,33 +473,31 @@ async def enroll_student(
 
     # Send enrollment confirmation email
     try:
-        from app.utils.email_sender import send_email_background, get_institute_branding, build_login_url, should_send_email
-        from app.utils.email_templates import enrollment_email
-        if not await should_send_email(session, institute_id, student_id, "email_enrollment"):
-            return sb
+        from app.utils.email_sender import send_templated_email, build_login_url, get_institute_branding
 
         batch = await session.get(Batch, batch_id)
         branding = await get_institute_branding(session, institute_id) if institute_id else {"name": "", "slug": "", "logo_url": None, "accent_color": "#C5D86D"}
 
-        teacher_name = None
+        teacher_name = ""
         if batch and batch.teacher_id:
             teacher = await session.get(User, batch.teacher_id)
             if teacher:
                 teacher_name = teacher.name
 
         effective_end = extended_target if extended_target is not None else (batch.end_date if batch else None)
-        subject, html = enrollment_email(
-            student_name=student.name,
-            batch_name=batch.name if batch else "Unknown",
-            start_date=batch.start_date.isoformat() if batch and batch.start_date else "",
-            effective_end_date=effective_end.isoformat() if effective_end else "",
-            teacher_name=teacher_name,
-            login_url=build_login_url(branding["slug"]) if branding["slug"] else "",
-            institute_name=branding["name"],
-            logo_url=branding.get("logo_url"),
-            accent_color=branding.get("accent_color", "#C5D86D"),
-        )
-        send_email_background(student.email, subject, html, from_name=branding["name"])
+        if institute_id:
+            await send_templated_email(
+                session=session, institute_id=institute_id, user_id=student_id,
+                email_type="email_enrollment", template_key="enrollment", to=student.email,
+                variables={
+                    "student_name": student.name,
+                    "batch_name": batch.name if batch else "Unknown",
+                    "start_date": batch.start_date.isoformat() if batch and batch.start_date else "",
+                    "effective_end_date": effective_end.isoformat() if effective_end else "",
+                    "teacher_name": teacher_name or "",
+                    "login_url": build_login_url(branding["slug"]) if branding["slug"] else "",
+                },
+            )
     except Exception:
         pass  # Best-effort
 

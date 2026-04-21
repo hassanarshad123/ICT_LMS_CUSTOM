@@ -44,13 +44,7 @@ from app.services.billing_calc import (
     compute_billing_preview,
     is_v2_billable,
 )
-from app.utils.email import send_email_for_institute
-from app.utils.email_sender import get_institute_branding
-from app.utils.email_templates import (
-    invoice_issued_email,
-    invoice_reminder_email,
-    late_payment_restricted_email,
-)
+from app.utils.email_sender import send_templated_email
 from app.utils.plan_limits import is_v2_billing_tier
 
 
@@ -321,27 +315,34 @@ async def _find_billing_author(session, institute_id: uuid.UUID) -> uuid.UUID:
 
 
 async def _send_invoice_issued_email(session, inst: Institute, invoice: Invoice, preview) -> None:
-    branding = await get_institute_branding(session, inst.id)
     admin = await _first_admin_email(session, inst.id)
     if not admin:
         logger.warning("No admin email for %s — invoice issued but not emailed", inst.slug)
         return
     admin_email, admin_name = admin
+    admin_user_id = await _find_billing_author(session, inst.id)
     period_label = invoice.period_start.strftime("%B %Y")
-    subject, html = invoice_issued_email(
-        admin_name=admin_name or "Admin",
-        invoice_number=invoice.invoice_number,
-        period_label=period_label,
-        total_pkr=invoice.total_amount,
-        line_items=preview.line_items,
-        due_date=invoice.due_date.isoformat(),
-        pay_now_url=_billing_url(inst.slug),
-        institute_name=branding.get("name", inst.name),
-        logo_url=branding.get("logo_url"),
-        accent_color=branding.get("accent_color", "#C5D86D"),
+    # Pre-render line items HTML for the template variable
+    from html import escape as _e
+    line_items_html = "".join(
+        f'<tr><td style="padding:8px 12px;border-bottom:1px solid #E4E4E7;color:#27272a;font-size:14px;">{_e(str(item.get("label","")))}</td>'
+        f'<td style="padding:8px 12px;border-bottom:1px solid #E4E4E7;color:#52525b;font-size:13px;text-align:right;">{int(item.get("qty",1))} x Rs {int(item.get("unit_pkr",0)):,}</td>'
+        f'<td style="padding:8px 12px;border-bottom:1px solid #E4E4E7;color:#18181b;font-size:14px;font-weight:bold;text-align:right;">Rs {int(item.get("amount",0)):,}</td></tr>'
+        for item in preview.line_items
     )
-    await send_email_for_institute(
-        to=admin_email, subject=subject, html=html, institute_id=inst.id,
+    await send_templated_email(
+        session=session, institute_id=inst.id, user_id=admin_user_id,
+        email_type="email_invoice_issued", template_key="invoice_issued", to=admin_email,
+        variables={
+            "admin_name": admin_name or "Admin",
+            "invoice_number": invoice.invoice_number,
+            "period_label": period_label,
+            "total_pkr": str(invoice.total_amount),
+            "total_pkr_formatted": f"Rs {int(invoice.total_amount):,}",
+            "line_items_html": line_items_html,
+            "due_date": invoice.due_date.isoformat(),
+            "pay_now_url": _billing_url(inst.slug),
+        },
     )
 
 
@@ -434,20 +435,19 @@ async def _send_reminder_if_new(
     admin = await _first_admin_email(session, inst.id)
     if admin:
         admin_email, admin_name = admin
-        branding = await get_institute_branding(session, inst.id)
-        subject, html = invoice_reminder_email(
-            admin_name=admin_name or "Admin",
-            invoice_number=invoice.invoice_number,
-            total_pkr=invoice.total_amount,
-            days_overdue=days_overdue,
-            due_date=invoice.due_date.isoformat(),
-            pay_now_url=_billing_url(inst.slug),
-            institute_name=branding.get("name", inst.name),
-            logo_url=branding.get("logo_url"),
-            accent_color=branding.get("accent_color", "#C5D86D"),
-        )
-        await send_email_for_institute(
-            to=admin_email, subject=subject, html=html, institute_id=inst.id,
+        admin_user_id = await _find_billing_author(session, inst.id)
+        await send_templated_email(
+            session=session, institute_id=inst.id, user_id=admin_user_id,
+            email_type="email_invoice_reminder", template_key="invoice_reminder", to=admin_email,
+            variables={
+                "admin_name": admin_name or "Admin",
+                "invoice_number": invoice.invoice_number,
+                "total_pkr": str(invoice.total_amount),
+                "total_pkr_formatted": f"Rs {int(invoice.total_amount):,}",
+                "days_overdue": str(days_overdue),
+                "due_date": invoice.due_date.isoformat(),
+                "pay_now_url": _billing_url(inst.slug),
+            },
         )
 
     session.add(ActivityLog(
@@ -486,20 +486,19 @@ async def _escalate_restriction(
     admin = await _first_admin_email(session, inst.id)
     if admin:
         admin_email, admin_name = admin
-        branding = await get_institute_branding(session, inst.id)
-        subject, html = late_payment_restricted_email(
-            admin_name=admin_name or "Admin",
-            invoice_number=invoice.invoice_number,
-            total_pkr=invoice.total_amount,
-            restriction=restriction,
-            days_overdue=days_overdue,
-            pay_now_url=_billing_url(inst.slug),
-            institute_name=branding.get("name", inst.name),
-            logo_url=branding.get("logo_url"),
-            accent_color=branding.get("accent_color", "#C5D86D"),
-        )
-        await send_email_for_institute(
-            to=admin_email, subject=subject, html=html, institute_id=inst.id,
+        admin_user_id = await _find_billing_author(session, inst.id)
+        await send_templated_email(
+            session=session, institute_id=inst.id, user_id=admin_user_id,
+            email_type="email_late_payment_restricted", template_key="late_payment_restricted", to=admin_email,
+            variables={
+                "admin_name": admin_name or "Admin",
+                "invoice_number": invoice.invoice_number,
+                "total_pkr": str(invoice.total_amount),
+                "total_pkr_formatted": f"Rs {int(invoice.total_amount):,}",
+                "restriction": restriction,
+                "days_overdue": str(days_overdue),
+                "pay_now_url": _billing_url(inst.slug),
+            },
         )
     logger.info(
         "[%s] billing_restriction=%s set (invoice %s, %d days overdue)",

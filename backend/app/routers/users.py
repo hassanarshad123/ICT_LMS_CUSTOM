@@ -279,18 +279,20 @@ async def create_user_endpoint(
     # Send welcome email for students
     if db_role == "student" and current_user.institute_id:
         try:
-            from app.utils.email_sender import send_email_background, get_institute_branding, build_login_url, build_reset_url, should_send_email
-            from app.utils.email_templates import welcome_email
-            if await should_send_email(session, current_user.institute_id, user.id, "email_welcome"):
-                branding = await get_institute_branding(session, current_user.institute_id)
-                subject, html = welcome_email(
-                    student_name=user.name, email=user.email, default_password=password,
-                    login_url=build_login_url(branding["slug"]),
-                    reset_url=build_reset_url(branding["slug"]),
-                    institute_name=branding["name"], logo_url=branding.get("logo_url"),
-                    accent_color=branding.get("accent_color", "#C5D86D"),
-                )
-                send_email_background(user.email, subject, html, from_name=branding["name"])
+            from app.utils.email_sender import send_templated_email, build_login_url, build_reset_url, get_institute_branding
+
+            branding = await get_institute_branding(session, current_user.institute_id)
+            await send_templated_email(
+                session=session, institute_id=current_user.institute_id, user_id=user.id,
+                email_type="email_welcome", template_key="welcome", to=user.email,
+                variables={
+                    "student_name": user.name,
+                    "email": user.email,
+                    "default_password": password,
+                    "login_url": build_login_url(branding["slug"]),
+                    "reset_url": build_reset_url(branding["slug"]),
+                },
+            )
         except Exception:
             pass
 
@@ -792,20 +794,22 @@ async def bulk_import(
             # Send welcome email for students (bulk import)
             if row.role == "student" and current_user.institute_id:
                 try:
-                    from app.utils.email_sender import send_email_background, get_institute_branding, build_login_url, build_reset_url, should_send_email
-                    from app.utils.email_templates import welcome_email as _welcome_tpl
-                    if await should_send_email(session, current_user.institute_id, user.id, "email_welcome"):
-                        if branding_cache is None:
-                            branding_cache = await get_institute_branding(session, current_user.institute_id)
-                        br = branding_cache
-                        subj, html = _welcome_tpl(
-                            student_name=row.name, email=row.email, default_password=row.password,
-                            login_url=build_login_url(br["slug"]),
-                            reset_url=build_reset_url(br["slug"]),
-                            institute_name=br["name"], logo_url=br.get("logo_url"),
-                            accent_color=br.get("accent_color", "#C5D86D"),
-                        )
-                        send_email_background(row.email, subj, html, from_name=br["name"])
+                    from app.utils.email_sender import send_templated_email, build_login_url, build_reset_url, get_institute_branding
+
+                    if branding_cache is None:
+                        branding_cache = await get_institute_branding(session, current_user.institute_id)
+                    br = branding_cache
+                    await send_templated_email(
+                        session=session, institute_id=current_user.institute_id, user_id=user.id,
+                        email_type="email_welcome", template_key="welcome", to=row.email,
+                        variables={
+                            "student_name": row.name,
+                            "email": row.email,
+                            "default_password": row.password,
+                            "login_url": build_login_url(br["slug"]),
+                            "reset_url": build_reset_url(br["slug"]),
+                        },
+                    )
                 except Exception:
                     pass
 
