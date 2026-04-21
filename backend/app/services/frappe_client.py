@@ -680,6 +680,42 @@ class FrappeClient:
             ))
         return out
 
+    async def get_payment_entry_status(self, pe_name: str) -> FrappeResult:
+        """Fetch a Payment Entry and return its docstatus-derived erp_status.
+
+        Returns FrappeResult with .response = {"erp_status": "pending" |
+        "confirmed" | "cancelled"} on success. 404 (Frappe doesn't know the
+        doc, e.g. it was deleted) is reported as erp_status="unknown" so
+        the caller can flag the LMS row and stop polling.
+        """
+        detail = await self.get_single("Payment Entry", pe_name)
+        if not detail.ok:
+            if detail.status_code == 404:
+                return FrappeResult(
+                    ok=True,
+                    status_code=404,
+                    response={"erp_status": "unknown"},
+                )
+            return detail
+        doc = (detail.response or {}).get("data") or {}
+        docstatus = int(doc.get("docstatus", 0))
+        mapped = {0: "pending", 1: "confirmed", 2: "cancelled"}.get(docstatus, "unknown")
+        return FrappeResult(
+            ok=True,
+            status_code=200,
+            doc_name=pe_name,
+            response={"erp_status": mapped, "docstatus": docstatus},
+        )
+
+    async def get_sales_invoice_status(self, si_name: str) -> Optional[str]:
+        """Return the Sales Invoice's status string or None if unreachable."""
+        detail = await self.get_single("Sales Invoice", si_name)
+        if not detail.ok:
+            return None
+        doc = (detail.response or {}).get("data") or {}
+        status = doc.get("status")
+        return str(status) if status else None
+
     async def upsert_payment_entry(
         self,
         *,

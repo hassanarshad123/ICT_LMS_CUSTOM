@@ -453,6 +453,28 @@ async def _sync_payment_entry(
         reference_no=payment.reference_number or payment.receipt_number,
         payment_term=payment_term,
     )
+
+    # Stamp the Frappe PE name on the LMS row so the refresh cron + the
+    # admin refresh endpoint can look it up directly. erp_status starts
+    # at 'pending' (PE is Draft until finance submits).
+    if result.ok and result.doc_name and payment.frappe_payment_entry_name != result.doc_name:
+        payment.frappe_payment_entry_name = result.doc_name
+        if not payment.erp_status or payment.erp_status == "unknown":
+            payment.erp_status = "pending"
+        session.add(payment)
+
+    # Opportunistic SI status refresh while we have a client handy.
+    if plan.frappe_sales_invoice_name:
+        try:
+            si_status = await client.get_sales_invoice_status(plan.frappe_sales_invoice_name)
+            if si_status and plan.erp_si_status != si_status:
+                plan.erp_si_status = si_status
+                session.add(plan)
+        except Exception:  # noqa: BLE001
+            logger.warning(
+                "Could not refresh SI status for plan %s during PE sync", plan.id,
+            )
+
     return _finalize_outbound(task, result, entity_type="payment_entry", lms_entity_id=payment.id)
 
 

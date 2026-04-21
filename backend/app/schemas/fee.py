@@ -92,6 +92,8 @@ class FeePlanOut(BaseModel):
     balance_due: int = 0
     next_due_date: Optional[date] = None
     is_overdue: bool = False
+    erp_si_status: Optional[str] = None
+    frappe_sales_invoice_name: Optional[str] = None
 
 
 class PaymentCreate(BaseModel):
@@ -206,3 +208,5 @@ class PaymentOut(BaseModel):
     recorded_by_user_id: uuid.UUID
     notes: Optional[str] = None
     created_at: datetime
+    erp_status: str = "pending"
+    frappe_payment_entry_name: Optional[str] = None
