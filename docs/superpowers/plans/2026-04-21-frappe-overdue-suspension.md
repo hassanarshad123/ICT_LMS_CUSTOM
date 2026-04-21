@@ -1,5 +1,15 @@
 # Frappe-Driven Overdue Suspension — Implementation Plan
 
+> **⚠️ SUPERSEDED 2026-04-21:** the spec evolved after Phases 1-5 of this
+> plan shipped. The new requirement introduces (a) auto-creation of a Sales
+> Invoice alongside the Sales Order, (b) payment-proof screenshots stored on
+> the SI instead of the SO, (c) a 72-hour unconditional grace window on
+> onboarding, and (d) SI-status-based suspension instead of SO-schedule-based.
+> See `2026-04-21-si-first-flow-72h-grace.md` for the active plan. The
+> structural elements already built from this plan (migration 044 for
+> `users.suspension_reason`, the `fee_enforcement_service` skeleton, and the
+> daily APScheduler job) are reused by the successor plan.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Every 24 hours, for each institute with Frappe integration enabled, query Frappe for students whose Sales Order has an overdue unpaid installment. Auto-suspend those students in LMS (block login, kill sessions, notify them + their admissions officer). Re-activate students the job previously suspended once their overdue balance clears.
