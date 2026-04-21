@@ -262,10 +262,13 @@ async def _send_suspension_email(
     session: AsyncSession, student: User, so: OverdueSalesOrder,
 ) -> None:
     try:
-        from app.utils.email_sender import send_email_background, should_send_email
+        from app.utils.email_sender import (
+            build_login_url,
+            get_institute_branding,
+            send_email_background,
+            should_send_email,
+        )
         try:
-            # Phase 5 adds these; import lazily so this module stays loadable
-            # before they exist.
             from app.utils.email_templates import overdue_suspension_email  # type: ignore
         except ImportError:
             return
@@ -273,13 +276,18 @@ async def _send_suspension_email(
             session, student.institute_id, student.id, "email_fee_overdue",
         ):
             return
+        branding = await get_institute_branding(session, student.institute_id)
         subject, html = overdue_suspension_email(
             student_name=student.name,
-            institute_id=student.institute_id,
             overdue_rows=so.overdue_installments,
             grand_total=so.grand_total,
+            currency="PKR",
+            login_url=build_login_url(branding["slug"]),
+            institute_name=branding["name"],
+            logo_url=branding.get("logo_url"),
+            accent_color=branding.get("accent_color", "#C5D86D"),
         )
-        send_email_background(student.email, subject, html)
+        send_email_background(student.email, subject, html, from_name=branding["name"])
     except Exception:  # noqa: BLE001
         logger.exception(
             "Failed to dispatch suspension email for user %s", student.id,
@@ -288,7 +296,12 @@ async def _send_suspension_email(
 
 async def _send_reactivation_email(session: AsyncSession, student: User) -> None:
     try:
-        from app.utils.email_sender import send_email_background, should_send_email
+        from app.utils.email_sender import (
+            build_login_url,
+            get_institute_branding,
+            send_email_background,
+            should_send_email,
+        )
         try:
             from app.utils.email_templates import overdue_reactivation_email  # type: ignore
         except ImportError:
@@ -297,11 +310,15 @@ async def _send_reactivation_email(session: AsyncSession, student: User) -> None
             session, student.institute_id, student.id, "email_fee_overdue",
         ):
             return
+        branding = await get_institute_branding(session, student.institute_id)
         subject, html = overdue_reactivation_email(
             student_name=student.name,
-            institute_id=student.institute_id,
+            login_url=build_login_url(branding["slug"]),
+            institute_name=branding["name"],
+            logo_url=branding.get("logo_url"),
+            accent_color=branding.get("accent_color", "#C5D86D"),
         )
-        send_email_background(student.email, subject, html)
+        send_email_background(student.email, subject, html, from_name=branding["name"])
     except Exception:  # noqa: BLE001
         logger.exception(
             "Failed to dispatch reactivation email for user %s", student.id,
