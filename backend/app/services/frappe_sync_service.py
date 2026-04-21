@@ -463,6 +463,35 @@ async def _sync_payment_entry(
             payment.erp_status = "pending"
         session.add(payment)
 
+    # Attach the payment-proof screenshot to the PE doc in Frappe (as a
+    # private File on the Draft) so Finance sees the evidence inline when
+    # they submit. The custom_zensbot_payment_proof_url field already
+    # carries a viewable S3 link, but an attached File surfaces in the
+    # PE sidebar which is where reviewers look.
+    if result.ok and result.doc_name and payment.payment_proof_key:
+        try:
+            from app.utils.s3 import download_payment_proof_bytes
+            file_bytes, content_type, file_name = download_payment_proof_bytes(
+                payment.payment_proof_key,
+            )
+            attach_res = await client.attach_file_to_doc(
+                doctype="Payment Entry",
+                docname=result.doc_name,
+                file_bytes=file_bytes,
+                file_name=file_name,
+                content_type=content_type,
+                is_private=True,
+            )
+            if not attach_res.ok:
+                logger.warning(
+                    "PE %s payment-proof attach failed: %s",
+                    result.doc_name, attach_res.error,
+                )
+        except Exception:  # noqa: BLE001
+            logger.exception(
+                "PE %s payment-proof attach crashed", result.doc_name,
+            )
+
     # Opportunistic SI status refresh while we have a client handy.
     if plan.frappe_sales_invoice_name:
         try:
