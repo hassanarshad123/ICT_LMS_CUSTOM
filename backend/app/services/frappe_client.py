@@ -779,6 +779,77 @@ class FrappeClient:
             return await self._put_resource("Payment Entry", existing.doc_name, body)
         return await self._post_resource("Payment Entry", body)
 
+    async def attach_file_to_doc(
+        self,
+        *,
+        doctype: str,
+        docname: str,
+        file_bytes: bytes,
+        file_name: str,
+        content_type: str = "application/octet-stream",
+        is_private: bool = True,
+    ) -> FrappeResult:
+        """Attach a binary file to any Frappe doc via ``/api/method/upload_file``.
+
+        Idempotent: if a File record with the same ``file_name`` is already
+        attached to (doctype, docname), return ok without re-uploading. This
+        matters because the PE sync may retry after a transient failure; we
+        don't want a new attachment on every retry.
+
+        Defaults to private files — the payment screenshot carries customer
+        bank / payment-slip details and should not be world-readable.
+        """
+        list_res = await self.list_resource(
+            "File",
+            fields=["name", "file_name"],
+            filters=[
+                ["attached_to_doctype", "=", doctype],
+                ["attached_to_name", "=", docname],
+            ],
+            limit=50,
+        )
+        if list_res.ok:
+            for row in (list_res.response or {}).get("data") or []:
+                if row.get("file_name") == file_name:
+                    return FrappeResult(
+                        ok=True,
+                        status_code=200,
+                        doc_name=row.get("name"),
+                        response={"skipped": True},
+                    )
+
+        url = f"{self.base_url}/api/method/upload_file"
+        files = {"file": (file_name, file_bytes, content_type)}
+        data = {
+            "doctype": doctype,
+            "docname": docname,
+            "is_private": "1" if is_private else "0",
+            "folder": "Home/Attachments",
+        }
+        try:
+            async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
+                resp = await client.post(
+                    url, data=data, files=files, headers=self._auth_header,
+                )
+        except httpx.RequestError as e:
+            return FrappeResult(
+                ok=False, error=f"Network error (attach): {type(e).__name__}",
+            )
+
+        if resp.status_code not in (200, 201):
+            return FrappeResult(
+                ok=False,
+                status_code=resp.status_code,
+                error=f"Attach failed: {resp.text[:500]}",
+            )
+        created = (resp.json() or {}).get("message") or {}
+        return FrappeResult(
+            ok=True,
+            status_code=resp.status_code,
+            doc_name=created.get("name"),
+            response=created,
+        )
+
     async def cancel_sales_invoice(self, *, fee_plan_id: str) -> FrappeResult:
         existing = await self._find_by_zensbot_id("Sales Invoice", fee_plan_id)
         if not existing.ok or not existing.doc_name:

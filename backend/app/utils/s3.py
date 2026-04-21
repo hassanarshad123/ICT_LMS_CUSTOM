@@ -174,6 +174,24 @@ def generate_payment_proof_view_url(
     )
 
 
+def download_payment_proof_bytes(object_key: str) -> tuple[bytes, str, str]:
+    """Fetch a payment-proof file from S3. Returns (body, content_type, file_name).
+
+    Used by the Frappe Payment Entry sync to attach the screenshot directly
+    to the PE doc in Frappe (not just link it via custom_zensbot_payment_proof_url).
+    The returned file_name is the user's original upload name; the <uuid>_
+    prefix the upload path adds is stripped.
+    """
+    import os
+    client = _get_client()
+    obj = client.get_object(Bucket=settings.S3_BUCKET_NAME, Key=object_key)
+    body = obj["Body"].read()
+    content_type = obj.get("ContentType") or "application/octet-stream"
+    tail = os.path.basename(object_key)
+    file_name = tail.split("_", 1)[1] if "_" in tail else tail
+    return body, content_type, file_name
+
+
 def upload_payment_proof_bytes(
     *,
     data: bytes,
