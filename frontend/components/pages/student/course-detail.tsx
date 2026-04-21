@@ -44,7 +44,7 @@ export default function CourseDetailPage() {
   // and clicks a specific card on the courses list / dashboard. Takes
   // precedence over the fallback intersection below.
   const batchFromQuery = searchParams?.get('batch') || null;
-  const { name, email, id: studentId, batchIds } = useAuth();
+  const { name, email, id: studentId, batchIds, refreshUser } = useAuth();
   const basePath = useBasePath();
   const { watermarkEnabled } = useBranding();
 
@@ -139,6 +139,23 @@ export default function CourseDetailPage() {
       trackCourseView(courseId, course.title);
     }
   }, [course, courseId]);
+
+  // Self-heal stale auth context: the login response snapshots batchIds once.
+  // If the student was enrolled AFTER logging in (e.g. an admissions officer
+  // just onboarded them into this batch mid-session), their useAuth().batchIds
+  // is empty but the server knows the enrollment exists. When that happens
+  // AND the course did load with ≥ 1 linked batch, refetch /auth/me once to
+  // refresh batchIds so the "Not enrolled" fallback stops triggering.
+  const refreshedRef = useRef(false);
+  useEffect(() => {
+    if (refreshedRef.current) return;
+    const courseBatches = course?.batchIds ?? [];
+    const studentBatches = batchIds ?? [];
+    if (course && courseBatches.length > 0 && studentBatches.length === 0) {
+      refreshedRef.current = true;
+      void refreshUser();
+    }
+  }, [course, batchIds, refreshUser]);
 
   // Auto-resume: select last in-progress lecture, or first unlocked lecture
   const autoResumedRef = useRef(false);
