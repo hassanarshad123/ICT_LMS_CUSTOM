@@ -321,13 +321,18 @@ async def _sync_sales_order(
     # If the SO succeeded, ALSO create + submit the Sales Invoice from it.
     # The SI carries the schedule-row-level tracking that the enforcement
     # cron reads. Idempotent via custom_zensbot_fee_plan_id; resumes a
-    # Draft SI from a prior attempt.
+    # Draft SI from a prior attempt. Commission (sales_person +
+    # commission_rate resolved above) is threaded through so the SI's
+    # sales_team + header commission_rate stay populated regardless of
+    # what the make_sales_invoice transform copied across.
     if result.ok and result.doc_name:
         si_result = await client.create_and_submit_sales_invoice_from_so(
             so_name=result.doc_name,
             fee_plan_id=str(plan.id),
             payment_id=payment_id,
             payment_proof_view_url=payment_proof_view_url,
+            sales_person=sales_person,
+            commission_rate=commission_rate,
         )
         if si_result.ok and si_result.doc_name:
             plan.frappe_sales_invoice_name = si_result.doc_name

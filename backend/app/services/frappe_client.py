@@ -40,6 +40,24 @@ FEE_PLAN_FIELD = "custom_zensbot_fee_plan_id"
 PAYMENT_FIELD = "custom_zensbot_payment_id"
 
 
+def _commission_to_number(rate: Optional[str]) -> float:
+    """Normalize a commission rate string ('10%', '10.5', '', None) to a float.
+
+    Frappe's commission fields accept numeric values; passing '10%' as a
+    string can be rejected by stricter validators. Returns 0.0 when the
+    input is empty/None/unparseable so the doc still submits cleanly.
+    """
+    if rate is None:
+        return 0.0
+    s = str(rate).strip().replace("%", "").strip()
+    if not s:
+        return 0.0
+    try:
+        return float(s)
+    except ValueError:
+        return 0.0
+
+
 @dataclass(frozen=True)
 class FrappeResult:
     ok: bool
@@ -236,11 +254,17 @@ class FrappeClient:
         if payment_terms_template:
             body["payment_terms_template"] = payment_terms_template
         if sales_person:
+            # Header-level commission mirrors the sales_team row so Frappe's
+            # total_commission / amount_eligible_for_commission rollups are
+            # populated even in edge cases where the row-level value gets
+            # lost in a transform.
+            _rate_num = _commission_to_number(commission_rate)
             body["sales_team"] = [{
                 "sales_person": sales_person,
                 "allocated_percentage": 100.0,
-                "commission_rate": commission_rate or "0",
+                "commission_rate": _rate_num,
             }]
+            body["commission_rate"] = _rate_num
         if payment_id:
             body[PAYMENT_FIELD] = payment_id
         if payment_proof_view_url:
@@ -328,6 +352,8 @@ class FrappeClient:
         fee_plan_id: str,
         payment_id: Optional[str] = None,
         payment_proof_view_url: Optional[str] = None,
+        sales_person: Optional[str] = None,
+        commission_rate: Optional[str] = None,
     ) -> FrappeResult:
         """Generate + submit a Sales Invoice from an existing Sales Order.
 
@@ -363,6 +389,7 @@ class FrappeClient:
             # Draft found -- stamp missing fields and submit.
             return await self._stamp_and_submit_sales_invoice(
                 existing_doc, fee_plan_id, payment_id, payment_proof_view_url,
+                sales_person, commission_rate,
             )
 
         # 2. Ask Frappe to build a draft SI from the SO.
@@ -399,6 +426,7 @@ class FrappeClient:
         # 3. Stamp + submit.
         return await self._stamp_and_submit_sales_invoice(
             draft, fee_plan_id, payment_id, payment_proof_view_url,
+            sales_person, commission_rate,
         )
 
     async def _stamp_and_submit_sales_invoice(
@@ -407,16 +435,36 @@ class FrappeClient:
         fee_plan_id: str,
         payment_id: Optional[str],
         payment_proof_view_url: Optional[str],
+        sales_person: Optional[str] = None,
+        commission_rate: Optional[str] = None,
     ) -> FrappeResult:
-        """Stamp zensbot custom fields onto a draft SI dict, insert (if no
-        name yet), then submit. Shared by the create path and the
-        resume-existing-Draft path.
+        """Stamp zensbot custom fields + commission onto a draft SI dict,
+        insert (if no name yet), then submit. Shared by the create path and
+        the resume-existing-Draft path.
+
+        Commission handling: ``make_sales_invoice`` copies ``sales_team``
+        from the source SO, but we still stamp it explicitly here so the
+        commission survives every edge case (partial transforms, Frappe
+        version drift). Also mirrors the rate at the header level via
+        ``commission_rate`` so Frappe's total_commission rollup is populated.
         """
         draft[FEE_PLAN_FIELD] = fee_plan_id
         if payment_id:
             draft["custom_zensbot_payment_id"] = payment_id
         if payment_proof_view_url:
             draft["custom_zensbot_payment_proof_url"] = payment_proof_view_url
+
+        # Commission: stamp sales_team + header commission_rate. When
+        # sales_person is not known (admin bypassing the AO flow), leave
+        # whatever the transform copied across untouched.
+        if sales_person:
+            _rate_num = _commission_to_number(commission_rate)
+            draft["sales_team"] = [{
+                "sales_person": sales_person,
+                "allocated_percentage": 100.0,
+                "commission_rate": _rate_num,
+            }]
+            draft["commission_rate"] = _rate_num
 
         has_name = bool(draft.get("name"))
 
