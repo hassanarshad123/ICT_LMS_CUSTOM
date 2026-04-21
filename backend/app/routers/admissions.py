@@ -220,7 +220,7 @@ async def list_student_payments_endpoint(
 
 
 @router.post("/payments/{payment_id}/refresh-erp-status")
-@limiter.limit("30/minute")
+@limiter.limit("10/minute")
 async def refresh_payment_erp_status_endpoint(
     request: Request,
     payment_id: uuid.UUID,
@@ -233,8 +233,9 @@ async def refresh_payment_erp_status_endpoint(
     the refreshed SI status of the parent plan. Rate-limited to keep
     the AO button from hammering Frappe if clicked repeatedly.
     """
-    from app.services import payment_status_service
+    from app.models.enums import UserRole
     from app.models.fee import FeePlan
+    from app.services import payment_status_service
 
     if current_user.institute_id is None:
         raise HTTPException(status_code=403, detail="Institute scope required")
@@ -244,6 +245,14 @@ async def refresh_payment_erp_status_endpoint(
         raise HTTPException(status_code=404, detail="Payment not found")
 
     fee_plan_id = payment.fee_plan_id
+
+    # AO roster gate: AOs can only refresh payments on plans they onboarded
+    # themselves. Admins see everything in their institute.
+    if current_user.role == UserRole.admissions_officer:
+        gate_plan = await session.get(FeePlan, fee_plan_id) if fee_plan_id else None
+        if gate_plan is None or gate_plan.onboarded_by_user_id != current_user.id:
+            raise HTTPException(status_code=404, detail="Payment not found")
+
     new_status = await payment_status_service.refresh_payment_erp_status(session, payment_id)
 
     # Service committed; re-fetch to avoid expire_on_commit stale reads.
