@@ -46,11 +46,15 @@ export interface OnboardStudentResult {
   userId: string;
   studentBatchId: string;
   feePlanId: string;
+  /** Empty string when onboarding reused an existing student account. */
   temporaryPassword: string;
   email: string;
   finalAmount: number;
   currency: string;
   installmentCount: number;
+  /** False when the email matched an existing student and we simply
+   *  enrolled them in a new batch instead of creating a new account. */
+  isNewUser: boolean;
 }
 
 export interface AdmissionsStudentRow {

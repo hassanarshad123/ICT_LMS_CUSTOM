@@ -158,11 +158,15 @@ class OnboardStudentResponse(BaseModel):
     user_id: uuid.UUID
     student_batch_id: uuid.UUID
     fee_plan_id: uuid.UUID
+    # Empty string when the onboarded email matched an existing student — no
+    # new credentials are generated, we simply enrolled them in the new batch.
     temporary_password: str
     email: str
     final_amount: int
     currency: str
     installment_count: int
+    # False when onboarding reused an existing student account.
+    is_new_user: bool = True
 
 
 class AdmissionsStudentListItem(BaseModel):
