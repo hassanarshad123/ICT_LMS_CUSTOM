@@ -290,10 +290,9 @@ async def _sync_sales_order(
         else datetime.utcnow().date()
     )
     posting_date = posting_date_obj.isoformat()
-    # Delivery date = posting_date + 3 days. Course onboarding usually has a
-    # 3-day window from sale to enrollment start; this keeps Frappe's
-    # per_delivered % and delivery_status in line with reality.
-    delivery_date = (posting_date_obj + timedelta(days=3)).isoformat()
+    # Delivery date matches transaction_date — enrollment is available to
+    # the student on the same day the Sales Order is booked.
+    delivery_date = posting_date
 
     result = await client.submit_sales_order(
         fee_plan_id=str(plan.id),
