@@ -284,6 +284,12 @@ export async function getMyFees(): Promise<MyFeesResponse> {
   return apiClient('/admissions/me/fees');
 }
 
+/** Lightweight check used by the student sidebar to decide whether to render
+ * the "My Fees" nav item. True iff the user has ≥ 1 non-deleted FeePlan. */
+export async function getMyHasFees(): Promise<{ hasFees: boolean }> {
+  return apiClient('/admissions/me/has-fees');
+}
+
 export interface InstituteQuota {
   maxStudents: number;
   currentStudents: number;
