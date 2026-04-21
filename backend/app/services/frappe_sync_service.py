@@ -445,7 +445,7 @@ async def _sync_payment_entry(
         fee_plan_id=str(plan.id),
         invoice_name=invoice_name,
         customer_name=student.name,
-        posting_date=(payment.payment_date.isoformat()
+        posting_date=(payment.payment_date.date().isoformat()
                       if payment.payment_date else datetime.utcnow().date().isoformat()),
         amount=payment.amount,
         currency=plan.currency,
