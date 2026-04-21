@@ -70,7 +70,7 @@ async def lifespan(app: FastAPI):
     if settings.SCHEDULER_ENABLED:
         try:
             from apscheduler.schedulers.asyncio import AsyncIOScheduler
-            from app.scheduler.jobs import cleanup_expired_sessions, send_zoom_reminders, retry_failed_recordings, cleanup_stale_uploads, auto_suspend_expired_institutes, process_webhook_deliveries, recalculate_all_usage, send_batch_expiry_notifications, sync_stuck_video_statuses, send_trial_expiry_warnings, deactivate_unverified_users, purge_stale_records, backfill_video_durations, send_fee_reminders, process_frappe_sync_tasks, send_integration_weekly_digest, enforce_overdue_access_revocation
+            from app.scheduler.jobs import cleanup_expired_sessions, send_zoom_reminders, retry_failed_recordings, cleanup_stale_uploads, auto_suspend_expired_institutes, process_webhook_deliveries, recalculate_all_usage, send_batch_expiry_notifications, sync_stuck_video_statuses, send_trial_expiry_warnings, deactivate_unverified_users, purge_stale_records, backfill_video_durations, send_fee_reminders, process_frappe_sync_tasks, send_integration_weekly_digest, enforce_overdue_access_revocation, refresh_payment_erp_statuses
             from app.scheduler.billing_jobs import generate_monthly_invoices, enforce_late_payments
 
             scheduler = AsyncIOScheduler()
@@ -89,6 +89,11 @@ async def lifespan(app: FastAPI):
             # local time so any installment that crossed its due_date during
             # the day is enforced before the next business morning.
             scheduler.add_job(enforce_overdue_access_revocation, "cron", hour=19, minute=0, id="frappe_overdue_suspension")
+            # Daily ERP-status refresh at 00:30 PKT (19:30 UTC). Mirrors every
+            # pending PE's docstatus + every linked SI's status so the AO UI
+            # shows live state without a round-trip. 30 min offset from the
+            # suspension job so they don't collide on Frappe concurrency.
+            scheduler.add_job(refresh_payment_erp_statuses, "cron", hour=19, minute=30, id="payment_erp_status_refresh")
             scheduler.add_job(sync_stuck_video_statuses, "interval", minutes=30, id="sync_stuck_videos")
             scheduler.add_job(send_trial_expiry_warnings, "interval", hours=24, id="trial_expiry_warnings")
             scheduler.add_job(deactivate_unverified_users, "interval", hours=12, id="deactivate_unverified")

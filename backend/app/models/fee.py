@@ -9,6 +9,7 @@ import uuid
 from datetime import date, datetime
 from typing import Optional
 
+import sqlalchemy as sa
 from sqlmodel import SQLModel, Field
 from sqlalchemy import Column, Text, Integer, String, Date, ForeignKey, Index
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID, TIMESTAMP
@@ -91,6 +92,10 @@ class FeePlan(SQLModel, table=True):
         default=None,
         sa_column=Column(String(140), nullable=True),
     )
+    erp_si_status: Optional[str] = Field(
+        default=None,
+        sa_column=Column(sa.String(32), nullable=True),
+    )
 
 
 class FeeInstallment(SQLModel, table=True):
@@ -132,6 +137,19 @@ class FeePayment(SQLModel, table=True):
         Index("ix_fee_payments_installment_id", "fee_installment_id"),
         Index("ix_fee_payments_institute_date", "institute_id", "payment_date"),
         Index("ix_fee_payments_recorded_by", "recorded_by_user_id"),
+        Index(
+            "ix_fee_payments_frappe_payment_entry_name",
+            "frappe_payment_entry_name",
+            unique=False,
+        ),
+        Index(
+            "ix_fee_payments_pending_with_pe_name",
+            "institute_id",
+            unique=False,
+            postgresql_where=sa.text(
+                "erp_status = 'pending' AND frappe_payment_entry_name IS NOT NULL"
+            ),
+        ),
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -174,6 +192,14 @@ class FeePayment(SQLModel, table=True):
     payment_proof_key: Optional[str] = Field(
         default=None,
         sa_column=Column(Text, nullable=True),
+    )
+    erp_status: str = Field(
+        default="pending",
+        sa_column=Column(sa.String(20), nullable=False, server_default="pending"),
+    )
+    frappe_payment_entry_name: Optional[str] = Field(
+        default=None,
+        sa_column=Column(sa.String(140), nullable=True),
     )
 
     created_at: Optional[datetime] = Field(

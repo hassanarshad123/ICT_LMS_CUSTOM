@@ -1014,3 +1014,59 @@ async def enforce_overdue_access_revocation():
         "newly_reactivated=%d errors=%d",
         total_new_sus, total_already_sus, total_lifted, total_err,
     )
+
+
+@sentry_job_wrapper("refresh_payment_erp_statuses")
+async def refresh_payment_erp_statuses():
+    """Daily at 00:30 PKT: for each Frappe-enabled institute, refresh every
+    pending payment's erp_status from Frappe (PE docstatus) and update the
+    mirrored SI status on each affected plan.
+
+    Runs 30 minutes after the overdue-suspension job so the two don't
+    overlap (both hammer Frappe). Non-Frappe institutes short-circuit.
+    """
+    from sqlmodel import select
+    from app.models.integration import InstituteIntegration
+    from app.services import payment_status_service
+
+    async with async_session() as session:
+        result = await session.execute(
+            select(InstituteIntegration.institute_id).where(
+                InstituteIntegration.frappe_enabled.is_(True),
+            )
+        )
+        institute_ids = [row[0] for row in result.all()]
+        logger.info(
+            "Payment ERP-status refresh: %d Frappe-enabled institute(s)",
+            len(institute_ids),
+        )
+
+        total_confirmed = total_cancelled = total_pending = 0
+        total_si_updated = total_err = 0
+        for institute_id in institute_ids:
+            try:
+                s = await payment_status_service.refresh_stale_payment_erp_statuses(
+                    session, institute_id,
+                )
+                total_confirmed += s.confirmed
+                total_cancelled += s.cancelled
+                total_pending += s.still_pending
+                total_si_updated += s.si_status_updated
+                total_err += s.errors
+                logger.info(
+                    "ERP-status refresh[%s]: checked=%d confirmed=%d cancelled=%d "
+                    "still_pending=%d si_updated=%d errors=%d",
+                    institute_id, s.checked, s.confirmed, s.cancelled,
+                    s.still_pending, s.si_status_updated, s.errors,
+                )
+            except Exception:  # noqa: BLE001
+                logger.exception(
+                    "Payment ERP-status refresh crashed for institute %s", institute_id,
+                )
+                total_err += 1
+
+    logger.info(
+        "Payment ERP-status refresh complete: confirmed=%d cancelled=%d "
+        "still_pending=%d si_updated=%d errors=%d",
+        total_confirmed, total_cancelled, total_pending, total_si_updated, total_err,
+    )
