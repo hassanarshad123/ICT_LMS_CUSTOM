@@ -17,10 +17,11 @@ import uuid
 from datetime import timedelta
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
+from app.utils.rate_limit import limiter
 from app.middleware.auth import require_roles
 from app.models.user import User
 from app.models.enums import FeeInstallmentStatus
@@ -145,6 +146,8 @@ async def get_student_detail_endpoint(
                     balance_due=p["balance_due"],
                     next_due_date=p["next_due_date"],
                     is_overdue=p["is_overdue"],
+                    erp_si_status=plan.erp_si_status,
+                    frappe_sales_invoice_name=plan.frappe_sales_invoice_name,
                 ).model_dump(),
                 batch_name=batch.name,
             )
@@ -214,6 +217,40 @@ async def list_student_payments_endpoint(
     )
     payments = result.scalars().all()
     return [PaymentOut(**_payment_to_dict(p)) for p in payments]
+
+
+@router.post("/payments/{payment_id}/refresh-erp-status")
+@limiter.limit("30/minute")
+async def refresh_payment_erp_status_endpoint(
+    request: Request,
+    payment_id: uuid.UUID,
+    current_user: AdminOrAO,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """Manually refresh one payment's erp_status from Frappe.
+
+    Admin + admissions_officer can call. Returns the new erp_status +
+    the refreshed SI status of the parent plan. Rate-limited to keep
+    the AO button from hammering Frappe if clicked repeatedly.
+    """
+    from app.services import payment_status_service
+    from app.models.fee import FeePlan
+
+    payment = await session.get(FeePayment, payment_id)
+    if payment is None or payment.institute_id != current_user.institute_id:
+        raise HTTPException(status_code=404, detail="Payment not found")
+
+    new_status = await payment_status_service.refresh_payment_erp_status(session, payment_id)
+
+    plan = await session.get(FeePlan, payment.fee_plan_id) if payment.fee_plan_id else None
+
+    return {
+        "payment_id": str(payment_id),
+        "erp_status": new_status,
+        "frappe_payment_entry_name": payment.frappe_payment_entry_name,
+        "erp_si_status": plan.erp_si_status if plan else None,
+        "frappe_sales_invoice_name": plan.frappe_sales_invoice_name if plan else None,
+    }
 
 
 def _pick_plan(plans, fee_plan_id):
@@ -794,4 +831,6 @@ def _payment_to_dict(p: FeePayment) -> dict:
         recorded_by_user_id=p.recorded_by_user_id,
         notes=p.notes,
         created_at=p.created_at,
+        erp_status=p.erp_status,
+        frappe_payment_entry_name=p.frappe_payment_entry_name,
     )
