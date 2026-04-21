@@ -951,3 +951,66 @@ async def purge_stale_records():
         await session.commit()
 
     logger.info("Stale records purged: sessions/notifications/errors/activity/webhooks")
+
+
+@sentry_job_wrapper("enforce_overdue_access_revocation")
+async def enforce_overdue_access_revocation():
+    """Daily at 00:00 PKT (19:00 UTC): for every institute with Frappe
+    integration enabled, suspend students whose Sales Order has an
+    overdue payment_schedule row and lift prior auto-suspensions whose
+    overdue balance has cleared.
+
+    Non-Frappe institutes are untouched. Errors on one institute are
+    logged and the loop continues for the rest.
+    """
+    from sqlmodel import select
+    from app.models.integration import InstituteIntegration
+    from app.services import fee_enforcement_service
+
+    async with async_session() as session:
+        result = await session.execute(
+            select(InstituteIntegration.institute_id).where(
+                InstituteIntegration.frappe_enabled.is_(True),
+            )
+        )
+        institute_ids = [row[0] for row in result.all()]
+        logger.info(
+            "Overdue enforcement: starting for %d Frappe-enabled institute(s)",
+            len(institute_ids),
+        )
+
+        total_new_sus = total_already_sus = total_lifted = total_err = 0
+        for institute_id in institute_ids:
+            try:
+                s1 = await fee_enforcement_service.enforce_overdue_suspensions(
+                    session, institute_id,
+                )
+                s2 = await fee_enforcement_service.lift_suspensions_if_cleared(
+                    session, institute_id,
+                )
+                total_new_sus += s1.newly_suspended
+                total_already_sus += s1.already_suspended
+                total_lifted += s2.newly_reactivated
+                total_err += s1.errors + s2.errors
+                logger.info(
+                    "Overdue enforcement[%s]: checked=%d "
+                    "newly_suspended=%d already_suspended=%d "
+                    "newly_reactivated=%d errors=%d",
+                    institute_id,
+                    s1.checked,
+                    s1.newly_suspended,
+                    s1.already_suspended,
+                    s2.newly_reactivated,
+                    s1.errors + s2.errors,
+                )
+            except Exception:  # noqa: BLE001
+                logger.exception(
+                    "Overdue enforcement crashed for institute %s", institute_id,
+                )
+                total_err += 1
+
+    logger.info(
+        "Overdue enforcement complete: newly_suspended=%d already_suspended=%d "
+        "newly_reactivated=%d errors=%d",
+        total_new_sus, total_already_sus, total_lifted, total_err,
+    )
