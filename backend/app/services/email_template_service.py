@@ -150,6 +150,16 @@ def render_template_html(
     variables.setdefault("accent_color", accent_color)
     variables.setdefault("login_url", login_url)
 
+    # Add camelCase aliases so both {{student_name}} and {{studentName}} work
+    def _to_camel(snake: str) -> str:
+        parts = snake.split("_")
+        return parts[0] + "".join(p.capitalize() for p in parts[1:])
+
+    for key, val in list(variables.items()):
+        camel = _to_camel(key)
+        if camel != key:
+            variables.setdefault(camel, val)
+
     # Replace {{variable}} placeholders
     def _replace(match):
         var_name = match.group(1).strip()
