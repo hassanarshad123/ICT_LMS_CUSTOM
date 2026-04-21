@@ -4,16 +4,14 @@ import RoleGuard from '@/components/shared/role-guard';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import DashboardHeader from '@/components/layout/dashboard-header';
 import { useApi } from '@/hooks/use-api';
-import { downloadReceipt, getMyFees, type MyFeesPlan } from '@/lib/api/admissions';
+import { getMyFees, type MyFeesPlan } from '@/lib/api/admissions';
 import { PageLoading, PageError, EmptyState } from '@/components/shared/page-states';
 import { formatDate, formatDateTime, formatMoney } from '@/lib/utils/format';
-import { toast } from 'sonner';
 import {
   Wallet,
   Calendar,
   AlertTriangle,
   Check,
-  Download,
   Receipt,
   Clock,
   CreditCard,
@@ -177,7 +175,6 @@ function PlanCard({ plan }: { plan: MyFeesPlan }) {
                 <th className="text-left py-2">Method</th>
                 <th className="text-left py-2">Reference</th>
                 <th className="text-right py-2">Amount</th>
-                <th className="text-right py-2 w-10"></th>
               </tr>
             </thead>
             <tbody>
@@ -196,21 +193,6 @@ function PlanCard({ plan }: { plan: MyFeesPlan }) {
                   <td className="py-2 text-gray-600">{p.referenceNumber || '—'}</td>
                   <td className="py-2 text-right font-medium text-emerald-700">
                     {formatMoney(p.amount, plan.currency)}
-                  </td>
-                  <td className="py-2 text-right">
-                    <button
-                      onClick={async () => {
-                        try {
-                          await downloadReceipt(p.id, `${p.receiptNumber || p.id}.pdf`);
-                        } catch (err: any) {
-                          toast.error(err?.message || 'Could not download receipt');
-                        }
-                      }}
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100"
-                    >
-                      <Download size={12} />
-                      PDF
-                    </button>
                   </td>
                 </tr>
               ))}
