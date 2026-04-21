@@ -75,5 +75,31 @@
     "hidden": 0,
     "insert_after": "custom_zensbot_payment_id",
     "description": "Signed URL to the onboarding payment screenshot stored by the Zensbot LMS."
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Sales Invoice-custom_zensbot_payment_id",
+    "dt": "Sales Invoice",
+    "fieldname": "custom_zensbot_payment_id",
+    "label": "Zensbot Payment ID",
+    "fieldtype": "Data",
+    "unique": 0,
+    "read_only": 1,
+    "hidden": 0,
+    "insert_after": "custom_zensbot_fee_plan_id",
+    "description": "LMS FeePayment UUID linked to this Sales Invoice. Populated by the Zensbot LMS sync."
+  },
+  {
+    "doctype": "Custom Field",
+    "name": "Sales Invoice-custom_zensbot_payment_proof_url",
+    "dt": "Sales Invoice",
+    "fieldname": "custom_zensbot_payment_proof_url",
+    "label": "Payment Proof",
+    "fieldtype": "Long Text",
+    "unique": 0,
+    "read_only": 1,
+    "hidden": 0,
+    "insert_after": "custom_zensbot_payment_id",
+    "description": "Signed URL to the onboarding payment screenshot stored by the Zensbot LMS."
   }
 ]

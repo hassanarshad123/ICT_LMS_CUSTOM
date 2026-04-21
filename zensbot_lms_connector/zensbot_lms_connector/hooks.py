@@ -17,5 +17,7 @@ fixtures = [
         "Sales Order-custom_zensbot_fee_plan_id",
         "Sales Order-custom_zensbot_payment_id",
         "Sales Order-custom_zensbot_payment_proof_url",
+        "Sales Invoice-custom_zensbot_payment_id",
+        "Sales Invoice-custom_zensbot_payment_proof_url",
     ]]]},
 ]
