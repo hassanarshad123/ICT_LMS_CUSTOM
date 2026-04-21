@@ -110,6 +110,8 @@ export interface FeePlanDetail {
   balanceDue: number;
   nextDueDate?: string | null;
   isOverdue: boolean;
+  erpSiStatus?: string | null;
+  frappeSalesInvoiceName?: string | null;
 }
 
 export interface StudentDetailResponse {
@@ -163,6 +165,8 @@ export interface RecordPaymentPayload {
   paymentProofObjectKey?: string | null;
 }
 
+export type ErpStatus = 'pending' | 'confirmed' | 'cancelled' | 'unknown';
+
 export interface FeePaymentRow {
   id: string;
   feePlanId: string;
@@ -176,6 +180,22 @@ export interface FeePaymentRow {
   recordedByUserId: string;
   notes?: string | null;
   createdAt: string;
+  erpStatus: ErpStatus;
+  frappePaymentEntryName?: string | null;
+}
+
+export interface RefreshPaymentErpStatusResult {
+  paymentId: string;
+  erpStatus: ErpStatus;
+  frappePaymentEntryName?: string | null;
+  erpSiStatus?: string | null;
+  frappeSalesInvoiceName?: string | null;
+}
+
+export async function refreshPaymentErpStatus(paymentId: string): Promise<RefreshPaymentErpStatusResult> {
+  return apiClient(`/admissions/payments/${paymentId}/refresh-erp-status`, {
+    method: 'POST',
+  });
 }
 
 export interface UpdateStudentPayload {

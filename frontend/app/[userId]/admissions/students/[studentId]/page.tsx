@@ -13,6 +13,7 @@ import {
   getAdmissionsStudent,
   listStudentPayments,
   reactivateAdmissionsStudent,
+  refreshPaymentErpStatus,
   removeAdmissionsEnrollment,
   suspendAdmissionsStudent,
   updateAdmissionsStudent,
@@ -47,6 +48,7 @@ import {
   Play,
   X,
   Loader2,
+  RefreshCw,
 } from 'lucide-react';
 
 export default function AdmissionsStudentDetailPage() {
@@ -176,6 +178,7 @@ export default function AdmissionsStudentDetailPage() {
                   payments={(payments || []).filter((p) => p.feePlanId === plan.id)}
                   onRecord={() => setActivePlan(plan)}
                   onRemoveEnrollment={() => setRemoveEnrollmentId(plan.studentBatchId)}
+                  onRefreshPayments={refetchPayments}
                 />
               ))}
             </div>
@@ -342,16 +345,70 @@ function EditStudentDialog({
   );
 }
 
+function ErpStatusPill({ status }: { status: string | undefined | null }) {
+  const cfg = ({
+    pending: { label: 'Pending', className: 'bg-amber-100 text-amber-800' },
+    confirmed: { label: 'Confirmed', className: 'bg-emerald-100 text-emerald-800' },
+    cancelled: { label: 'Cancelled', className: 'bg-red-100 text-red-800' },
+    unknown: { label: 'Unknown', className: 'bg-gray-100 text-gray-700' },
+  } as Record<string, { label: string; className: string }>)[status || 'unknown'] || {
+    label: status || '—',
+    className: 'bg-gray-100 text-gray-700',
+  };
+  return (
+    <span
+      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${cfg.className}`}
+    >
+      {cfg.label}
+    </span>
+  );
+}
+
+function RefreshErpButton({
+  paymentId,
+  onRefreshed,
+}: {
+  paymentId: string;
+  onRefreshed: () => void;
+}) {
+  const [refreshing, setRefreshing] = useState(false);
+  const handler = async () => {
+    setRefreshing(true);
+    try {
+      const r = await refreshPaymentErpStatus(paymentId);
+      toast.success(`Status: ${r.erpStatus}`);
+      onRefreshed();
+    } catch (err: any) {
+      toast.error(err?.message || 'Refresh failed');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+  return (
+    <button
+      type="button"
+      onClick={handler}
+      disabled={refreshing}
+      className="p-1.5 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-40"
+      title="Refresh ERP status"
+    >
+      <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+    </button>
+  );
+}
+
 function PlanCard({
   plan,
   payments,
   onRecord,
   onRemoveEnrollment,
+  onRefreshPayments,
 }: {
   plan: FeePlanDetail;
   payments: FeePaymentRow[];
   onRecord: () => void;
   onRemoveEnrollment: () => void;
+  onRefreshPayments: () => void;
 }) {
   return (
     <div className="bg-white rounded-2xl p-6 card-shadow">
@@ -360,6 +417,11 @@ function PlanCard({
           <h3 className="font-semibold text-primary">{plan.batchName}</h3>
           <p className="text-xs text-gray-500 mt-1">
             {planLabel(plan.planType)} · Created {formatDate(plan.createdAt)}
+            {plan.erpSiStatus && (
+              <>
+                {' · '}ERP: <span className="font-medium text-gray-700">{plan.erpSiStatus}</span>
+              </>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -435,6 +497,7 @@ function PlanCard({
                 <th className="text-left py-2">Method</th>
                 <th className="text-left py-2">Reference</th>
                 <th className="text-right py-2">Amount</th>
+                <th className="text-left py-2 pl-4">ERP status</th>
                 <th className="text-right py-2 w-10"></th>
               </tr>
             </thead>
@@ -452,6 +515,12 @@ function PlanCard({
                   <td className="py-2 text-gray-600">{p.referenceNumber || '—'}</td>
                   <td className="py-2 text-right font-medium text-emerald-700">
                     {formatMoney(p.amount, plan.currency)}
+                  </td>
+                  <td className="py-2 pl-4">
+                    <div className="flex items-center gap-1.5">
+                      <ErpStatusPill status={p.erpStatus} />
+                      <RefreshErpButton paymentId={p.id} onRefreshed={onRefreshPayments} />
+                    </div>
                   </td>
                   <td className="py-2 text-right">
                     <button
