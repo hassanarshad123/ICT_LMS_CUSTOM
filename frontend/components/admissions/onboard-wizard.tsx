@@ -33,7 +33,6 @@ import {
 import { formatMoney, formatDate } from '@/lib/utils/format';
 import { DatePopover } from '@/components/ui/date-popover';
 import BatchPicker from '@/components/admissions/batch-picker';
-import PaymentProofUploader from '@/components/admissions/payment-proof-uploader';
 import QuotaBanner from '@/components/admissions/quota-banner';
 import {
   Command,
@@ -112,17 +111,6 @@ export default function OnboardWizard() {
   const [pttDetail, setPttDetail] = useState<PaymentTermsTemplateDetail | null>(null);
   const [pttDetailLoading, setPttDetailLoading] = useState(false);
 
-  // Payment proof attachment
-  const [paymentProof, setPaymentProof] = useState<{
-    objectKey: string;
-    viewUrl: string;
-    fileName: string;
-    fileType: string;
-  } | null>(null);
-
-  // Client-side placeholder feePlanId used only for the S3 key namespace.
-  // The real FeePlan UUID is assigned server-side on submit.
-  const [clientFeePlanId] = useState(() => crypto.randomUUID());
 
   const { data: batchesData, loading: batchesLoading } = useApi(
     () => listBatches({ per_page: 100 }),
@@ -252,7 +240,6 @@ export default function OnboardWizard() {
           frappeItemCode: frappeItemCode || undefined,
           frappePaymentTermsTemplate: frappePaymentTermsTemplate || undefined,
         },
-        paymentProofObjectKey: paymentProof?.objectKey || undefined,
       };
       const res = await submit(payload);
       setResult(res);
@@ -598,19 +585,6 @@ export default function OnboardWizard() {
               className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm bg-gray-50"
               placeholder="Anything worth remembering about this deal?"
             />
-          </div>
-
-          <div className="mt-6 space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Payment proof screenshot (optional)
-              </label>
-              <PaymentProofUploader
-                feePlanId={clientFeePlanId}
-                value={paymentProof}
-                onChange={setPaymentProof}
-              />
-            </div>
           </div>
 
           <WizardNav
