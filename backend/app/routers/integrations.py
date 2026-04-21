@@ -34,7 +34,11 @@ from app.schemas.integration import (
     FrappeConfigIn,
     FrappeConfigOut,
     FrappeInboundSecretOut,
+    FrappeItemListOut,
     FrappeTestConnectionOut,
+    PaymentTermsTemplateDetail,
+    PaymentTermsTemplateListOut,
+    SalesPersonListOut,
     SyncLogItem,
     SyncLogKPIs,
 )
@@ -48,6 +52,7 @@ logger = logging.getLogger("ict_lms.integrations.router")
 router = APIRouter()
 
 Admin = Annotated[User, Depends(require_roles("admin"))]
+AdminOrAO = Annotated[User, Depends(require_roles("admin", "admissions_officer"))]
 
 
 # ── Frappe config ──────────────────────────────────────────────────
@@ -417,3 +422,67 @@ async def update_auto_create_customers(
     return await integration_service.set_auto_create_customers(
         session, current_user.institute_id, flag,
     )
+
+
+@router.get("/frappe/sales-persons", response_model=SalesPersonListOut)
+@limiter.limit("20/minute")
+async def list_frappe_sales_persons(
+    request: Request,
+    current_user: Admin,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """List active Frappe Sales Persons for the AO onboarding dropdown."""
+    return await integration_service.fetch_sales_persons(
+        session, current_user.institute_id,
+    )
+
+
+# ── Frappe Items (Phase 1 — AO onboarding course-SKU picker) ──────────────────
+
+@router.get("/frappe/items", response_model=FrappeItemListOut)
+@limiter.limit("20/minute")
+async def list_frappe_items(
+    request: Request,
+    current_user: AdminOrAO,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """List active ERP Items (Services by default) for the onboarding wizard."""
+    return await integration_service.fetch_items(session, current_user.institute_id)
+
+
+# ── Payment Terms Templates (Phase 1 — AO onboarding installment-plan picker) ─
+
+@router.get("/frappe/payment-terms-templates", response_model=PaymentTermsTemplateListOut)
+@limiter.limit("20/minute")
+async def list_frappe_payment_terms_templates(
+    request: Request,
+    current_user: AdminOrAO,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """List Payment Terms Templates for the AO wizard's installment picker."""
+    return await integration_service.fetch_payment_terms_templates(
+        session, current_user.institute_id,
+    )
+
+
+@router.get(
+    "/frappe/payment-terms-templates/{template_name}",
+    response_model=PaymentTermsTemplateDetail,
+)
+@limiter.limit("40/minute")
+async def get_frappe_payment_terms_template(
+    request: Request,
+    template_name: str,
+    current_user: AdminOrAO,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    """Full PTT including the terms[] schedule for UI preview."""
+    detail = await integration_service.fetch_payment_terms_template_detail(
+        session, current_user.institute_id, template_name,
+    )
+    if detail is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Template not found or Frappe integration disabled",
+        )
+    return detail

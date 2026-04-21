@@ -27,6 +27,8 @@ export interface FeePlanCreatePayload {
   firstDueDate?: string | null;
   installments?: InstallmentDraft[];
   notes?: string | null;
+  frappeItemCode?: string | null;
+  frappePaymentTermsTemplate?: string | null;
 }
 
 export interface OnboardStudentPayload {
@@ -36,17 +38,23 @@ export interface OnboardStudentPayload {
   batchId: string;
   feePlan: FeePlanCreatePayload;
   notes?: string;
+  paymentProofObjectKey?: string | null;
+  initialPaymentAmount?: number | null;
 }
 
 export interface OnboardStudentResult {
   userId: string;
   studentBatchId: string;
   feePlanId: string;
+  /** Empty string when onboarding reused an existing student account. */
   temporaryPassword: string;
   email: string;
   finalAmount: number;
   currency: string;
   installmentCount: number;
+  /** False when the email matched an existing student and we simply
+   *  enrolled them in a new batch instead of creating a new account. */
+  isNewUser: boolean;
 }
 
 export interface AdmissionsStudentRow {
@@ -150,6 +158,9 @@ export interface RecordPaymentPayload {
   paymentMethod: PaymentMethod;
   referenceNumber?: string | null;
   notes?: string | null;
+  /** S3 object key returned by POST /admissions/payment-proof/upload — the
+   *  screenshot the AO attaches when recording the payment. */
+  paymentProofObjectKey?: string | null;
 }
 
 export interface FeePaymentRow {
@@ -280,6 +291,12 @@ export async function getMyFees(): Promise<MyFeesResponse> {
   return apiClient('/admissions/me/fees');
 }
 
+/** Lightweight check used by the student sidebar to decide whether to render
+ * the "My Fees" nav item. True iff the user has ≥ 1 non-deleted FeePlan. */
+export async function getMyHasFees(): Promise<{ hasFees: boolean }> {
+  return apiClient('/admissions/me/has-fees');
+}
+
 export interface InstituteQuota {
   maxStudents: number;
   currentStudents: number;
@@ -301,6 +318,7 @@ export interface AdmissionsOfficerStat {
   totalBilled: number;
   avgFee: number;
   paymentsCount: number;
+  employeeId: string | null;
 }
 
 export interface AdmissionsStatsResponse {
@@ -325,6 +343,79 @@ export async function getAdmissionsAdminStats(
 /** Absolute URL — callers should open in a new tab or anchor with download attr. */
 export function receiptPdfUrl(paymentId: string): string {
   return `/api/v1/admissions/payments/${paymentId}/receipt.pdf`;
+}
+
+// ── Payment proof upload (two-step signed URL) ─────────────────────
+
+export interface PaymentProofUploadUrlRequest {
+  fileName: string;
+  contentType: string;
+  feePlanId: string;
+}
+
+export interface PaymentProofUploadUrlResponse {
+  uploadUrl: string;
+  objectKey: string;
+  viewUrl: string;
+}
+
+export async function getPaymentProofUploadUrl(
+  req: PaymentProofUploadUrlRequest,
+): Promise<PaymentProofUploadUrlResponse> {
+  return apiClient('/admissions/payment-proof/upload-url', {
+    method: 'POST',
+    body: JSON.stringify(req),
+  });
+}
+
+// ── Payment proof direct upload (LMS-proxied, no S3 CORS required) ────────
+
+export interface PaymentProofDirectUploadRequest {
+  file: File;
+  feePlanId: string;
+}
+
+export interface PaymentProofDirectUploadResponse {
+  objectKey: string;
+  viewUrl: string;
+}
+
+/**
+ * Upload a payment screenshot via the LMS backend (server-side proxy to S3).
+ * Bypasses S3 CORS entirely — the browser POSTs multipart form-data to the
+ * LMS, which uploads to S3 using its own IAM identity.
+ */
+export async function uploadPaymentProofDirect(
+  req: PaymentProofDirectUploadRequest,
+): Promise<PaymentProofDirectUploadResponse> {
+  const fd = new FormData();
+  fd.append('file', req.file);
+  fd.append('fee_plan_id', req.feePlanId);
+
+  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+  const base = (process.env.NEXT_PUBLIC_API_URL ?? '').replace(/\/$/, '');
+  const url = `${base}/api/v1/admissions/payment-proof/upload`;
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: fd,
+  });
+  if (!res.ok) {
+    let message = `Upload failed (${res.status})`;
+    try {
+      const j = await res.json();
+      if (j?.detail) message = typeof j.detail === 'string' ? j.detail : JSON.stringify(j.detail);
+    } catch {
+      /* non-JSON body */
+    }
+    throw new Error(message);
+  }
+  const j = await res.json();
+  return {
+    objectKey: j.object_key,
+    viewUrl: j.view_url,
+  };
 }
 
 /** Fetch the PDF with the bearer token and trigger a download client-side. */

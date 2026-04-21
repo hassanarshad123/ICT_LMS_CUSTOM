@@ -12,17 +12,25 @@ import secrets as _secrets
 import time
 import uuid
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Dict, Optional, Tuple
 
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.models.integration import InstituteIntegration
-from app.schemas.integration import FrappeConfigIn, FrappeConfigOut, FrappeTestConnectionOut
+from app.schemas.integration import FrappeConfigIn, FrappeConfigOut, FrappeTestConnectionOut, SalesPersonItem, SalesPersonListOut, FrappeItemItem, FrappeItemListOut, PaymentTermsTemplateItem, PaymentTermsTemplateTermRow, PaymentTermsTemplateDetail, PaymentTermsTemplateListOut
 from app.utils.encryption import decrypt, encrypt
 
+from app.models.user import User
+from app.models.enums import UserRole
+from app.services.frappe_client import FrappeClient
+
 logger = logging.getLogger("ict_lms.integrations")
+
+# Per-institute in-process cache: {institute_id: (expires_epoch, SalesPersonListOut)}
+_SALES_PERSON_CACHE: Dict[uuid.UUID, Tuple[float, SalesPersonListOut]] = {}
+_SALES_PERSON_TTL_SECONDS = 60
 
 
 class IntegrationError(ValueError):
@@ -500,3 +508,252 @@ def _serialize(row: InstituteIntegration) -> FrappeConfigOut:
         last_test_error=row.last_test_error,
         updated_at=row.updated_at,
     )
+
+
+async def fetch_sales_persons(
+    session: AsyncSession,
+    institute_id: uuid.UUID,
+) -> SalesPersonListOut:
+    """List Frappe Sales Persons joined with Employee details.
+
+    - Disabled integration → enabled=False, sales_persons=[].
+    - Frappe unreachable → enabled=True, error=<msg>, sales_persons=[].
+    - Caches per institute for 60s.
+    """
+    now = time.time()
+    cached = _SALES_PERSON_CACHE.get(institute_id)
+    if cached and cached[0] > now:
+        return cached[1]
+
+    cfg = await load_active_frappe_config(session, institute_id)
+    if cfg is None:
+        out = SalesPersonListOut(enabled=False)
+        _SALES_PERSON_CACHE[institute_id] = (now + _SALES_PERSON_TTL_SECONDS, out)
+        return out
+
+    client = FrappeClient(cfg)
+    sp_res = await client.list_resource(
+        "Sales Person",
+        fields=["name", "sales_person_name", "employee", "enabled", "commission_rate"],
+        filters=[["enabled", "=", 1]],
+        limit=500,
+    )
+    if not sp_res.ok:
+        out = SalesPersonListOut(enabled=True, error=sp_res.error or "Frappe error")
+        _SALES_PERSON_CACHE[institute_id] = (now + 30, out)
+        return out
+
+    rows = (sp_res.response or {}).get("data") or []
+    employee_ids = [r.get("employee") for r in rows if r.get("employee")]
+    employees_by_id: dict[str, dict] = {}
+    if employee_ids:
+        emp_res = await client.list_resource(
+            "Employee",
+            fields=["name", "employee_name", "prefered_email",
+                    "company_email", "personal_email",
+                    "cell_number", "status"],
+            filters=[["name", "in", employee_ids]],
+            limit=500,
+        )
+        if emp_res.ok:
+            for e in (emp_res.response or {}).get("data") or []:
+                employees_by_id[e["name"]] = e
+
+    result = await session.execute(
+        select(User.employee_id, User.id).where(
+            User.institute_id == institute_id,
+            User.role == UserRole.admissions_officer,
+            User.deleted_at.is_(None),
+            User.employee_id.is_not(None),
+        )
+    )
+    mapped = {eid: uid for eid, uid in result.all()}
+
+    items: list[SalesPersonItem] = []
+    for r in rows:
+        emp_id = r.get("employee")
+        if not emp_id:
+            continue
+        emp = employees_by_id.get(emp_id, {})
+        email = (emp.get("prefered_email")
+                 or emp.get("personal_email")
+                 or emp.get("company_email"))
+        items.append(SalesPersonItem(
+            employee_id=emp_id,
+            sales_person_name=r.get("sales_person_name") or r.get("name"),
+            full_name=emp.get("employee_name") or r.get("sales_person_name") or "",
+            email=email,
+            phone=(emp.get("cell_number") or "").strip() or None,
+            commission_rate=(r.get("commission_rate") or None),
+            hr_status=emp.get("status"),
+            already_mapped=emp_id in mapped,
+            linked_officer_id=str(mapped[emp_id]) if emp_id in mapped else None,
+        ))
+
+    items.sort(key=lambda x: x.full_name.lower())
+
+    out = SalesPersonListOut(
+        enabled=True,
+        cached_at=datetime.now(timezone.utc).isoformat(),
+        sales_persons=items,
+    )
+    _SALES_PERSON_CACHE[institute_id] = (now + _SALES_PERSON_TTL_SECONDS, out)
+    return out
+
+
+# ── Frappe Items (Phase 1 — AO onboarding course-SKU picker) ─────────────────
+
+_ITEMS_CACHE: Dict[uuid.UUID, Tuple[float, FrappeItemListOut]] = {}
+_ITEMS_TTL_SECONDS = 60
+
+
+async def fetch_items(
+    session: AsyncSession,
+    institute_id: uuid.UUID,
+    item_group: str = "Services",
+) -> FrappeItemListOut:
+    """List active ERP Items for the onboarding wizard's course-SKU picker.
+
+    Filters to a single item_group (default "Services") + disabled=0.
+    60s per-institute TTL cache.
+    """
+    now = time.time()
+    cached = _ITEMS_CACHE.get(institute_id)
+    if cached and cached[0] > now:
+        return cached[1]
+
+    cfg = await load_active_frappe_config(session, institute_id)
+    if cfg is None:
+        out = FrappeItemListOut(enabled=False)
+        _ITEMS_CACHE[institute_id] = (now + _ITEMS_TTL_SECONDS, out)
+        return out
+
+    client = FrappeClient(cfg)
+    res = await client.list_resource(
+        "Item",
+        fields=["name", "item_name", "item_group", "standard_rate", "stock_uom"],
+        filters=[["item_group", "=", item_group], ["disabled", "=", 0]],
+        limit=500,
+    )
+    if not res.ok:
+        out = FrappeItemListOut(enabled=True, error=res.error or "Frappe error")
+        _ITEMS_CACHE[institute_id] = (now + 30, out)
+        return out
+
+    rows = (res.response or {}).get("data") or []
+    items = [
+        FrappeItemItem(
+            item_code=r["name"],
+            item_name=r.get("item_name") or r["name"],
+            item_group=r.get("item_group"),
+            standard_rate=float(r["standard_rate"]) if r.get("standard_rate") is not None else None,
+            stock_uom=r.get("stock_uom"),
+        )
+        for r in rows
+    ]
+    items.sort(key=lambda x: x.item_name.lower())
+    out = FrappeItemListOut(
+        enabled=True,
+        cached_at=datetime.now(timezone.utc).isoformat(),
+        items=items,
+    )
+    _ITEMS_CACHE[institute_id] = (now + _ITEMS_TTL_SECONDS, out)
+    return out
+
+
+# ── Payment Terms Templates (Phase 1 — AO onboarding installment-plan picker) ─
+
+_PTT_LIST_CACHE: Dict[uuid.UUID, Tuple[float, PaymentTermsTemplateListOut]] = {}
+_PTT_DETAIL_CACHE: Dict[Tuple[uuid.UUID, str], Tuple[float, PaymentTermsTemplateDetail]] = {}
+_PTT_TTL_SECONDS = 60
+
+
+async def fetch_payment_terms_templates(
+    session: AsyncSession,
+    institute_id: uuid.UUID,
+) -> PaymentTermsTemplateListOut:
+    """List Payment Terms Templates for the AO wizard's installment-plan picker."""
+    now = time.time()
+    cached = _PTT_LIST_CACHE.get(institute_id)
+    if cached and cached[0] > now:
+        return cached[1]
+
+    cfg = await load_active_frappe_config(session, institute_id)
+    if cfg is None:
+        out = PaymentTermsTemplateListOut(enabled=False)
+        _PTT_LIST_CACHE[institute_id] = (now + _PTT_TTL_SECONDS, out)
+        return out
+
+    client = FrappeClient(cfg)
+    res = await client.list_resource(
+        "Payment Terms Template",
+        fields=["name", "template_name"],
+        limit=200,
+    )
+    if not res.ok:
+        out = PaymentTermsTemplateListOut(enabled=True, error=res.error or "Frappe error")
+        _PTT_LIST_CACHE[institute_id] = (now + 30, out)
+        return out
+
+    rows = (res.response or {}).get("data") or []
+    templates = [
+        PaymentTermsTemplateItem(
+            name=r["name"],
+            template_name=r.get("template_name") or r["name"],
+        )
+        for r in rows
+    ]
+    templates.sort(key=lambda x: x.template_name.lower())
+    out = PaymentTermsTemplateListOut(
+        enabled=True,
+        cached_at=datetime.now(timezone.utc).isoformat(),
+        templates=templates,
+    )
+    _PTT_LIST_CACHE[institute_id] = (now + _PTT_TTL_SECONDS, out)
+    return out
+
+
+async def fetch_payment_terms_template_detail(
+    session: AsyncSession,
+    institute_id: uuid.UUID,
+    template_name: str,
+) -> Optional[PaymentTermsTemplateDetail]:
+    """Return full PTT including terms[] schedule. None when Frappe disabled or
+    the template doesn't exist in the institute's ERP."""
+    now = time.time()
+    key = (institute_id, template_name)
+    cached = _PTT_DETAIL_CACHE.get(key)
+    if cached and cached[0] > now:
+        return cached[1]
+
+    cfg = await load_active_frappe_config(session, institute_id)
+    if cfg is None:
+        return None
+
+    client = FrappeClient(cfg)
+    res = await client.get_single("Payment Terms Template", template_name)
+    if not res.ok:
+        return None
+
+    doc = (res.response or {}).get("data") or {}
+    terms = [
+        PaymentTermsTemplateTermRow(
+            payment_term=t.get("payment_term", ""),
+            invoice_portion=float(t.get("invoice_portion", 0)),
+            credit_days=int(t.get("credit_days", 0)),
+            credit_months=int(t.get("credit_months", 0)),
+            mode_of_payment=t.get("mode_of_payment"),
+            due_date_based_on=t.get("due_date_based_on"),
+        )
+        for t in doc.get("terms", [])
+    ]
+    detail = PaymentTermsTemplateDetail(
+        name=doc.get("name", template_name),
+        template_name=doc.get("template_name", template_name),
+        allocate_payment_based_on_payment_terms=bool(
+            doc.get("allocate_payment_based_on_payment_terms", 0)
+        ),
+        terms=terms,
+    )
+    _PTT_DETAIL_CACHE[key] = (now + _PTT_TTL_SECONDS, detail)
+    return detail

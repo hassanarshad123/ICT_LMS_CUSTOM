@@ -9,7 +9,7 @@ from slowapi.errors import RateLimitExceeded
 from app.utils.rate_limit import limiter
 
 from app.config import get_settings
-from app.routers import auth, users, batches, courses, curriculum, lectures, materials, jobs, announcements, zoom, admin, certificates, monitoring, branding, notifications, search, super_admin, api_keys, webhooks, public_api, quizzes, signup, sa_analytics, sa_monitoring, sa_operations, sa_billing, feedback, upgrade, admissions, integrations, billing
+from app.routers import auth, users, batches, courses, curriculum, lectures, materials, jobs, announcements, zoom, admin, certificates, monitoring, branding, notifications, search, super_admin, api_keys, webhooks, public_api, quizzes, signup, sa_analytics, sa_monitoring, sa_operations, sa_billing, feedback, upgrade, admissions, integrations, billing, payment_proof
 from app.websockets.routes import router as ws_router
 from app.middleware.error_tracking import ErrorTrackingMiddleware
 from app.exceptions import NotFoundError, DuplicateError, ForbiddenError, ValidationError
@@ -70,7 +70,7 @@ async def lifespan(app: FastAPI):
     if settings.SCHEDULER_ENABLED:
         try:
             from apscheduler.schedulers.asyncio import AsyncIOScheduler
-            from app.scheduler.jobs import cleanup_expired_sessions, send_zoom_reminders, retry_failed_recordings, cleanup_stale_uploads, auto_suspend_expired_institutes, process_webhook_deliveries, recalculate_all_usage, send_batch_expiry_notifications, sync_stuck_video_statuses, send_trial_expiry_warnings, deactivate_unverified_users, purge_stale_records, backfill_video_durations, send_fee_reminders, process_frappe_sync_tasks, send_integration_weekly_digest
+            from app.scheduler.jobs import cleanup_expired_sessions, send_zoom_reminders, retry_failed_recordings, cleanup_stale_uploads, auto_suspend_expired_institutes, process_webhook_deliveries, recalculate_all_usage, send_batch_expiry_notifications, sync_stuck_video_statuses, send_trial_expiry_warnings, deactivate_unverified_users, purge_stale_records, backfill_video_durations, send_fee_reminders, process_frappe_sync_tasks, send_integration_weekly_digest, enforce_overdue_access_revocation
             from app.scheduler.billing_jobs import generate_monthly_invoices, enforce_late_payments
 
             scheduler = AsyncIOScheduler()
@@ -84,6 +84,11 @@ async def lifespan(app: FastAPI):
             scheduler.add_job(recalculate_all_usage, "interval", hours=24, id="recalculate_usage")
             scheduler.add_job(send_batch_expiry_notifications, "interval", hours=24, id="batch_expiry_notifications")
             scheduler.add_job(send_fee_reminders, "interval", hours=24, id="fee_reminders")
+            # Daily overdue-invoice enforcement for Frappe-enabled institutes.
+            # 19:00 UTC == 00:00 PKT (Asia/Karachi, UTC+5) — runs at midnight
+            # local time so any installment that crossed its due_date during
+            # the day is enforced before the next business morning.
+            scheduler.add_job(enforce_overdue_access_revocation, "cron", hour=19, minute=0, id="frappe_overdue_suspension")
             scheduler.add_job(sync_stuck_video_statuses, "interval", minutes=30, id="sync_stuck_videos")
             scheduler.add_job(send_trial_expiry_warnings, "interval", hours=24, id="trial_expiry_warnings")
             scheduler.add_job(deactivate_unverified_users, "interval", hours=12, id="deactivate_unverified")
@@ -241,6 +246,7 @@ app.include_router(feedback.router, prefix="/api/v1/feedback", tags=["Feedback"]
 # Router mounts both /upgrade/request (admin) and /upgrade/approve/:id (SA).
 app.include_router(upgrade.router, prefix="/api/v1/upgrade", tags=["Upgrade"])
 app.include_router(admissions.router, prefix="/api/v1/admissions", tags=["Admissions"])
+app.include_router(payment_proof.router, prefix="/api/v1/admissions", tags=["Admissions — Payment Proof"])
 app.include_router(integrations.router, prefix="/api/v1/integrations", tags=["Integrations"])
 # Admin-facing billing (pricing v2). Tier-gated internally — grandfathered
 # institutes (like ICT) get 403 from every endpoint.

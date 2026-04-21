@@ -1,0 +1,17 @@
+{
+  "CORSRules": [
+    {
+      "AllowedOrigins": [
+        "https://zensbot.online",
+        "https://*.zensbot.online",
+        "https://zensbot.site",
+        "https://*.zensbot.site",
+        "http://localhost:3000"
+      ],
+      "AllowedMethods": ["GET", "PUT", "POST", "HEAD"],
+      "AllowedHeaders": ["*"],
+      "ExposeHeaders": ["ETag"],
+      "MaxAgeSeconds": 3000
+    }
+  ]
+}

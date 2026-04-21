@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime
 from dataclasses import dataclass
 from typing import Any, Optional
 
@@ -39,6 +40,24 @@ FEE_PLAN_FIELD = "custom_zensbot_fee_plan_id"
 PAYMENT_FIELD = "custom_zensbot_payment_id"
 
 
+def _commission_to_number(rate: Optional[str]) -> float:
+    """Normalize a commission rate string ('10%', '10.5', '', None) to a float.
+
+    Frappe's commission fields accept numeric values; passing '10%' as a
+    string can be rejected by stricter validators. Returns 0.0 when the
+    input is empty/None/unparseable so the doc still submits cleanly.
+    """
+    if rate is None:
+        return 0.0
+    s = str(rate).strip().replace("%", "").strip()
+    if not s:
+        return 0.0
+    try:
+        return float(s)
+    except ValueError:
+        return 0.0
+
+
 @dataclass(frozen=True)
 class FrappeResult:
     ok: bool
@@ -46,6 +65,40 @@ class FrappeResult:
     status_code: Optional[int] = None
     response: Optional[dict] = None
     error: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class OverdueInstallment:
+    payment_term: str
+    due_date: str              # ISO YYYY-MM-DD
+    amount_due: int
+    outstanding: int
+
+
+@dataclass(frozen=True)
+class OverdueSalesOrder:
+    name: str                  # Frappe SO doc name, e.g. "SAL-ORD-2026-00007"
+    fee_plan_id: str           # value of custom_zensbot_fee_plan_id (LMS FeePlan UUID as str)
+    customer: str
+    grand_total: int
+    overdue_installments: list["OverdueInstallment"]
+
+
+@dataclass(frozen=True)
+class UnpaidSalesInvoice:
+    """Sales Invoice whose status indicates no payment has cleared yet.
+
+    The SI-based suspension cron uses this shape; a row is emitted whenever
+    status is NOT in Partly Paid / Paid / Cancelled / Return / Credit Note
+    Issued. Any other value (Draft, Unpaid, Overdue, Submitted, ...) is
+    treated as "customer hasn't paid anything yet".
+    """
+    name: str                  # e.g. "ACC-SINV-2026-00054"
+    fee_plan_id: str           # custom_zensbot_fee_plan_id value
+    customer: str
+    grand_total: int
+    outstanding_amount: int
+    status: str                # Frappe's SI status label
 
 
 class FrappeClient:
@@ -109,6 +162,480 @@ class FrappeClient:
             return await self._put_resource("Sales Invoice", existing.doc_name, body)
         return await self._post_resource("Sales Invoice", body)
 
+    async def submit_sales_order(
+        self,
+        *,
+        fee_plan_id: str,
+        payment_id: Optional[str],
+        customer_name: str,
+        contact_email: Optional[str],
+        posting_date: str,
+        delivery_date: str,
+        currency: str,
+        item_code: str,
+        item_description: str,
+        rate: int,
+        sales_person: Optional[str],
+        commission_rate: Optional[str],
+        payment_terms_template: Optional[str],
+        payment_proof_view_url: Optional[str],
+    ) -> FrappeResult:
+        """Create AND submit (docstatus 0 -> 1) a Sales Order in one request.
+
+        Idempotent by custom_zensbot_fee_plan_id: a second call with the same
+        fee_plan_id returns the existing document without re-inserting or
+        re-submitting. Callers should treat doc_name as the stable identifier.
+
+        sales_person is the Frappe Sales Person name (resolved by the sync
+        layer from User.employee_id -> Sales Person.employee). When None,
+        the Sales Order is created without a sales_team row -- acceptable for
+        admin-created fee plans that bypass the AO flow.
+        """
+        # 1. Idempotency check -- a Sales Order with this fee_plan_id may already
+        #    exist from a prior attempt. We must inspect its docstatus to decide:
+        #      0 (Draft)     -> a previous attempt inserted but submit failed;
+        #                       resume by submitting it now.
+        #      1 (Submitted) -> done, return as-is.
+        #      2 (Cancelled) -> terminal state; return as-is (re-opening requires
+        #                       manual intervention in Frappe).
+        existing = await self._find_by_zensbot_id("Sales Order", fee_plan_id)
+        if not existing.ok and existing.status_code not in (None, 200, 404):
+            # Lookup itself failed with a non-404 error — transient, let retry fire.
+            return existing
+        if existing.ok and existing.doc_name:
+            detail = await self.get_single("Sales Order", existing.doc_name)
+            if not detail.ok:
+                # Couldn't read the existing doc; treat as transient.
+                return FrappeResult(
+                    ok=False,
+                    status_code=detail.status_code,
+                    doc_name=existing.doc_name,
+                    error=f"Found Sales Order {existing.doc_name} but could not fetch detail",
+                )
+            existing_doc = (detail.response or {}).get("data") or {}
+            existing_docstatus = int(existing_doc.get("docstatus", 0))
+            if existing_docstatus != 0:
+                # Already submitted (1) or cancelled (2) — nothing to do.
+                return FrappeResult(
+                    ok=True,
+                    status_code=200,
+                    doc_name=existing.doc_name,
+                    response={"data": existing_doc},
+                )
+            # docstatus == 0: resume the submit step below with this doc.
+            return await self._submit_existing_sales_order(existing.doc_name, existing_doc)
+
+        # 2. Assemble the doc.
+        item_row: dict[str, Any] = {
+            "item_code": item_code,
+            "item_name": item_code,
+            "description": item_description,
+            "qty": 1,
+            "rate": rate,
+            "delivery_date": delivery_date,
+        }
+        if self.cfg.default_cost_center:
+            item_row["cost_center"] = self.cfg.default_cost_center
+
+        body: dict[str, Any] = {
+            "doctype": "Sales Order",
+            "customer": customer_name,
+            "transaction_date": posting_date,
+            "delivery_date": delivery_date,
+            "order_type": "Sales",
+            "currency": currency,
+            FEE_PLAN_FIELD: fee_plan_id,
+            "items": [item_row],
+        }
+        if self.cfg.default_company:
+            body["company"] = self.cfg.default_company
+        if contact_email:
+            body["contact_email"] = contact_email
+        if payment_terms_template:
+            body["payment_terms_template"] = payment_terms_template
+        if sales_person:
+            # Header-level commission mirrors the sales_team row so Frappe's
+            # total_commission / amount_eligible_for_commission rollups are
+            # populated even in edge cases where the row-level value gets
+            # lost in a transform.
+            _rate_num = _commission_to_number(commission_rate)
+            body["sales_team"] = [{
+                "sales_person": sales_person,
+                "allocated_percentage": 100.0,
+                "commission_rate": _rate_num,
+            }]
+            body["commission_rate"] = _rate_num
+        if payment_id:
+            body[PAYMENT_FIELD] = payment_id
+        if payment_proof_view_url:
+            body["custom_zensbot_payment_proof_url"] = payment_proof_view_url
+
+        # 3. Insert.
+        insert_url = f"{self.base_url}/api/method/frappe.client.insert"
+        try:
+            async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
+                ins = await client.post(
+                    insert_url,
+                    json={"doc": body},
+                    headers=self._auth_header,
+                )
+        except httpx.RequestError as e:
+            return FrappeResult(ok=False, error=f"Network error (insert): {type(e).__name__}")
+
+        if ins.status_code not in (200, 201):
+            return FrappeResult(
+                ok=False,
+                status_code=ins.status_code,
+                error=f"Insert failed: {ins.text[:1000]}",
+            )
+
+        created = (ins.json() or {}).get("message") or {}
+        so_name = created.get("name")
+        if not so_name:
+            return FrappeResult(
+                ok=False,
+                status_code=ins.status_code,
+                error=f"Frappe did not return a doc name: {ins.text[:500]}",
+            )
+
+        # 4. Submit -- flips docstatus 0 -> 1. Delegates to the shared helper so
+        #    the resume-existing-Draft path (step 1) and the just-inserted path
+        #    both run the exact same submit logic.
+        return await self._submit_existing_sales_order(so_name, created)
+
+    async def _submit_existing_sales_order(
+        self,
+        so_name: str,
+        doc: dict,
+    ) -> FrappeResult:
+        """Run the submit step (docstatus 0 -> 1) on an already-inserted doc.
+
+        Returns doc_name on every path (including failure) so the caller can
+        persist it for idempotent retries.
+        """
+        submit_url = f"{self.base_url}/api/method/frappe.client.submit"
+        try:
+            async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
+                sub = await client.post(
+                    submit_url,
+                    json={"doc": doc},
+                    headers=self._auth_header,
+                )
+        except httpx.RequestError as e:
+            return FrappeResult(
+                ok=False,
+                doc_name=so_name,
+                error=f"Submit failed (network): {type(e).__name__}",
+            )
+
+        if sub.status_code not in (200, 201):
+            return FrappeResult(
+                ok=False,
+                status_code=sub.status_code,
+                doc_name=so_name,
+                error=f"Submit failed: {sub.text[:1000]}",
+            )
+
+        submitted = (sub.json() or {}).get("message") or doc
+        return FrappeResult(
+            ok=True,
+            status_code=200,
+            doc_name=so_name,
+            response={"data": submitted},
+        )
+
+
+    async def create_and_submit_sales_invoice_from_so(
+        self,
+        *,
+        so_name: str,
+        fee_plan_id: str,
+        payment_id: Optional[str] = None,
+        payment_proof_view_url: Optional[str] = None,
+        sales_person: Optional[str] = None,
+        commission_rate: Optional[str] = None,
+    ) -> FrappeResult:
+        """Generate + submit a Sales Invoice from an existing Sales Order.
+
+        Uses ERPNext's stock transform
+        ``erpnext.selling.doctype.sales_order.sales_order.make_sales_invoice``
+        to get a draft doc, stamps our custom fields, then inserts + submits
+        in the same request cycle. Idempotent via
+        ``custom_zensbot_fee_plan_id`` -- if an SI with that fee_plan_id
+        already exists, it's returned as-is (regardless of docstatus); a
+        Draft found in that state is submitted.
+        """
+        # 1. Idempotency check
+        existing = await self._find_by_zensbot_id("Sales Invoice", fee_plan_id)
+        if not existing.ok and existing.status_code not in (None, 200, 404):
+            return existing
+        if existing.ok and existing.doc_name:
+            detail = await self.get_single("Sales Invoice", existing.doc_name)
+            if not detail.ok:
+                return FrappeResult(
+                    ok=False,
+                    status_code=detail.status_code,
+                    doc_name=existing.doc_name,
+                    error=f"Found SI {existing.doc_name} but detail fetch failed",
+                )
+            existing_doc = (detail.response or {}).get("data") or {}
+            if int(existing_doc.get("docstatus", 0)) != 0:
+                return FrappeResult(
+                    ok=True,
+                    status_code=200,
+                    doc_name=existing.doc_name,
+                    response={"data": existing_doc},
+                )
+            # Draft found -- stamp missing fields and submit.
+            return await self._stamp_and_submit_sales_invoice(
+                existing_doc, fee_plan_id, payment_id, payment_proof_view_url,
+                sales_person, commission_rate,
+            )
+
+        # 2. Ask Frappe to build a draft SI from the SO.
+        transform_url = (
+            f"{self.base_url}/api/method/erpnext.selling.doctype.sales_order."
+            f"sales_order.make_sales_invoice"
+        )
+        try:
+            async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
+                resp = await client.get(
+                    transform_url,
+                    params={"source_name": so_name},
+                    headers=self._auth_header,
+                )
+        except httpx.RequestError as e:
+            return FrappeResult(
+                ok=False,
+                error=f"Network error (make_sales_invoice): {type(e).__name__}",
+            )
+        if resp.status_code != 200:
+            return FrappeResult(
+                ok=False,
+                status_code=resp.status_code,
+                error=f"make_sales_invoice failed: {resp.text[:800]}",
+            )
+        draft = (resp.json() or {}).get("message") or {}
+        if not draft:
+            return FrappeResult(
+                ok=False,
+                status_code=resp.status_code,
+                error="make_sales_invoice returned empty doc",
+            )
+
+        # 3. Stamp + submit.
+        return await self._stamp_and_submit_sales_invoice(
+            draft, fee_plan_id, payment_id, payment_proof_view_url,
+            sales_person, commission_rate,
+        )
+
+    async def _stamp_and_submit_sales_invoice(
+        self,
+        draft: dict,
+        fee_plan_id: str,
+        payment_id: Optional[str],
+        payment_proof_view_url: Optional[str],
+        sales_person: Optional[str] = None,
+        commission_rate: Optional[str] = None,
+    ) -> FrappeResult:
+        """Stamp zensbot custom fields + commission onto a draft SI dict,
+        insert (if no name yet), then submit. Shared by the create path and
+        the resume-existing-Draft path.
+
+        Commission handling: ``make_sales_invoice`` copies ``sales_team``
+        from the source SO, but we still stamp it explicitly here so the
+        commission survives every edge case (partial transforms, Frappe
+        version drift). Also mirrors the rate at the header level via
+        ``commission_rate`` so Frappe's total_commission rollup is populated.
+        """
+        draft[FEE_PLAN_FIELD] = fee_plan_id
+        if payment_id:
+            draft["custom_zensbot_payment_id"] = payment_id
+        if payment_proof_view_url:
+            draft["custom_zensbot_payment_proof_url"] = payment_proof_view_url
+
+        # Commission: stamp sales_team + header commission_rate. When
+        # sales_person is not known (admin bypassing the AO flow), leave
+        # whatever the transform copied across untouched.
+        if sales_person:
+            _rate_num = _commission_to_number(commission_rate)
+            draft["sales_team"] = [{
+                "sales_person": sales_person,
+                "allocated_percentage": 100.0,
+                "commission_rate": _rate_num,
+            }]
+            draft["commission_rate"] = _rate_num
+
+        has_name = bool(draft.get("name"))
+
+        if not has_name:
+            insert_url = f"{self.base_url}/api/method/frappe.client.insert"
+            try:
+                async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
+                    ins = await client.post(
+                        insert_url,
+                        json={"doc": draft},
+                        headers=self._auth_header,
+                    )
+            except httpx.RequestError as e:
+                return FrappeResult(
+                    ok=False,
+                    error=f"Network error (SI insert): {type(e).__name__}",
+                )
+            if ins.status_code not in (200, 201):
+                return FrappeResult(
+                    ok=False,
+                    status_code=ins.status_code,
+                    error=f"SI insert failed: {ins.text[:800]}",
+                )
+            created = (ins.json() or {}).get("message") or {}
+            si_name = created.get("name")
+            if not si_name:
+                return FrappeResult(
+                    ok=False,
+                    status_code=ins.status_code,
+                    error=f"SI insert returned no name: {ins.text[:400]}",
+                )
+            draft = created
+
+        submit_url = f"{self.base_url}/api/method/frappe.client.submit"
+        try:
+            async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
+                sub = await client.post(
+                    submit_url,
+                    json={"doc": draft},
+                    headers=self._auth_header,
+                )
+        except httpx.RequestError as e:
+            return FrappeResult(
+                ok=False,
+                doc_name=draft.get("name"),
+                error=f"SI submit failed (network): {type(e).__name__}",
+            )
+        if sub.status_code not in (200, 201):
+            return FrappeResult(
+                ok=False,
+                status_code=sub.status_code,
+                doc_name=draft.get("name"),
+                error=f"SI submit failed: {sub.text[:800]}",
+            )
+        submitted = (sub.json() or {}).get("message") or draft
+        return FrappeResult(
+            ok=True,
+            status_code=200,
+            doc_name=draft.get("name") or submitted.get("name"),
+            response={"data": submitted},
+        )
+
+    async def list_overdue_sales_orders(self) -> list[OverdueSalesOrder]:
+        """Enumerate Sales Orders in this institute's Frappe that have at least
+        one payment_schedule row with due_date < today AND outstanding > 0.
+
+        Two-step fetch:
+          1. GET /api/resource/Sales Order filtered to submitted (docstatus=1),
+             non-cancelled, and with custom_zensbot_fee_plan_id set.
+          2. For each hit, GET the full doc to inspect the payment_schedule
+             child table (not returned by list queries).
+
+        Returns [] on any Frappe error -- the caller treats that as "nothing to
+        enforce this run" rather than aborting the whole batch.
+        """
+        today = datetime.utcnow().date().isoformat()
+        listing = await self.list_resource(
+            "Sales Order",
+            fields=["name", FEE_PLAN_FIELD, "customer", "grand_total"],
+            filters=[
+                [FEE_PLAN_FIELD, "is", "set"],
+                ["docstatus", "=", 1],
+                ["status", "not in", ["Closed", "Cancelled"]],
+            ],
+            limit=5000,
+        )
+        if not listing.ok:
+            logger.warning(
+                "Failed to list Sales Orders for overdue check: %s", listing.error,
+            )
+            return []
+
+        rows = (listing.response or {}).get("data") or []
+        out: list[OverdueSalesOrder] = []
+
+        for row in rows:
+            detail = await self.get_single("Sales Order", row["name"])
+            if not detail.ok:
+                logger.warning(
+                    "Failed to fetch Sales Order %s for overdue inspection: %s",
+                    row.get("name"), detail.error,
+                )
+                continue
+            doc = (detail.response or {}).get("data") or {}
+            schedule = doc.get("payment_schedule") or []
+            overdue_rows: list[OverdueInstallment] = []
+            for sched in schedule:
+                due = sched.get("due_date") or ""
+                outstanding = float(sched.get("outstanding") or 0)
+                if due and due < today and outstanding > 0:
+                    overdue_rows.append(OverdueInstallment(
+                        payment_term=sched.get("payment_term", "") or "",
+                        due_date=due,
+                        amount_due=int(float(sched.get("payment_amount") or 0)),
+                        outstanding=int(outstanding),
+                    ))
+            if overdue_rows:
+                fee_plan_id_value = doc.get(FEE_PLAN_FIELD) or row.get(FEE_PLAN_FIELD) or ""
+                out.append(OverdueSalesOrder(
+                    name=doc["name"],
+                    fee_plan_id=str(fee_plan_id_value),
+                    customer=doc.get("customer") or "",
+                    grand_total=int(float(doc.get("grand_total") or 0)),
+                    overdue_installments=overdue_rows,
+                ))
+        return out
+
+    async def list_unpaid_sales_invoices(self) -> list[UnpaidSalesInvoice]:
+        """Find zensbot-linked Sales Invoices whose status is not Paid or
+        Partly Paid.
+
+        Used by the SI-based suspension cron: the moment an SI flips to
+        Partly Paid (first installment cleared) or Paid (fully cleared),
+        this query stops returning it — the cron then lifts the suspension
+        on its next pass.
+        """
+        res = await self.list_resource(
+            "Sales Invoice",
+            fields=[
+                "name", FEE_PLAN_FIELD, "customer", "grand_total",
+                "outstanding_amount", "status",
+            ],
+            filters=[
+                [FEE_PLAN_FIELD, "is", "set"],
+                ["status", "not in", [
+                    "Partly Paid", "Paid", "Cancelled",
+                    "Return", "Credit Note Issued",
+                ]],
+            ],
+            limit=5000,
+        )
+        if not res.ok:
+            logger.warning(
+                "Failed to list unpaid Sales Invoices: %s", res.error,
+            )
+            return []
+        out: list[UnpaidSalesInvoice] = []
+        for row in (res.response or {}).get("data") or []:
+            fp_id = row.get(FEE_PLAN_FIELD)
+            if not fp_id:
+                continue
+            out.append(UnpaidSalesInvoice(
+                name=row["name"],
+                fee_plan_id=str(fp_id),
+                customer=row.get("customer") or "",
+                grand_total=int(float(row.get("grand_total") or 0)),
+                outstanding_amount=int(float(row.get("outstanding_amount") or 0)),
+                status=row.get("status") or "",
+            ))
+        return out
+
     async def upsert_payment_entry(
         self,
         *,
@@ -121,6 +648,7 @@ class FrappeClient:
         currency: str,
         mode_of_payment: Optional[str],
         reference_no: Optional[str],
+        payment_term: Optional[str] = None,
     ) -> FrappeResult:
         existing = await self._find_by_zensbot_id("Payment Entry", payment_id, custom_field=PAYMENT_FIELD)
         if not existing.ok and existing.status_code not in (None, 200, 404):
@@ -131,6 +659,12 @@ class FrappeClient:
         # Frappe will reject the posting but we avoid crashing on missing field.
         paid_to = self.cfg.default_bank_account or self.cfg.default_income_account
         body: dict[str, Any] = {
+            # Land as Draft — accounting reviews the proof screenshot
+            # (custom_zensbot_payment_proof_url) in Frappe, then submits.
+            # Only after the admin submit does the SI's payment_schedule
+            # row's paid_amount update and the LMS cron reactivate the
+            # student.
+            "docstatus": 0,
             "payment_type": "Receive",
             "party_type": "Customer",
             "party": customer_name,
@@ -150,11 +684,14 @@ class FrappeClient:
         if self.cfg.default_cost_center:
             body["cost_center"] = self.cfg.default_cost_center
         if invoice_name:
-            body["references"] = [{
+            ref: dict[str, Any] = {
                 "reference_doctype": "Sales Invoice",
                 "reference_name": invoice_name,
                 "allocated_amount": amount,
-            }]
+            }
+            if payment_term:
+                ref["payment_term"] = payment_term
+            body["references"] = [ref]
 
         if existing.ok and existing.doc_name:
             return await self._put_resource("Payment Entry", existing.doc_name, body)
@@ -202,6 +739,23 @@ class FrappeClient:
 
         data = resp.json().get("data") or []
         return FrappeResult(ok=True, status_code=200, response={"data": data})
+
+    async def get_single(self, doctype: str, name: str) -> FrappeResult:
+        """GET /api/resource/{doctype}/{name} — full document including child tables.
+
+        Used for cases where you need the nested detail (e.g. Payment Terms
+        Template with its terms[]), which list_resource can't return.
+        """
+        from urllib.parse import quote
+        url = f"{self.base_url}/api/resource/{quote(doctype)}/{quote(name)}"
+        try:
+            async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
+                resp = await client.get(url, headers=self._auth_header)
+        except httpx.RequestError as e:
+            return FrappeResult(ok=False, error=f"Network error: {type(e).__name__}")
+        if resp.status_code != 200:
+            return FrappeResult(ok=False, status_code=resp.status_code, error=resp.text[:500])
+        return FrappeResult(ok=True, status_code=200, response=resp.json())
 
     # ── schema setup (Tier 2: auto-install fields + webhook) ──────
 

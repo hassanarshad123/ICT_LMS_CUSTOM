@@ -154,3 +154,71 @@ class SyncLogKPIs(BaseModel):
     failure_count_24h: int
     pending_retries: int
     failures_7d: int
+
+
+# ── Sales Person listing (Phase 2 — AO onboarding dropdown) ──────────
+
+class SalesPersonItem(BaseModel):
+    employee_id: str
+    sales_person_name: str
+    full_name: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    commission_rate: Optional[str] = None
+    hr_status: Optional[str] = None
+    already_mapped: bool = False
+    linked_officer_id: Optional[str] = None
+
+
+class SalesPersonListOut(BaseModel):
+    enabled: bool
+    cached_at: Optional[str] = None
+    error: Optional[str] = None
+    sales_persons: list[SalesPersonItem] = []
+
+
+# ── Frappe Item listing (Phase 1 — AO onboarding course-SKU picker) ──────────
+
+class FrappeItemItem(BaseModel):
+    item_code: str
+    item_name: str
+    item_group: Optional[str] = None
+    standard_rate: Optional[float] = None
+    stock_uom: Optional[str] = None
+
+
+class FrappeItemListOut(BaseModel):
+    enabled: bool
+    cached_at: Optional[str] = None
+    error: Optional[str] = None
+    items: list[FrappeItemItem] = []
+
+
+# ── Payment Terms Templates (Phase 1 — AO onboarding installment-plan picker) ──
+
+class PaymentTermsTemplateItem(BaseModel):
+    name: str
+    template_name: str
+
+
+class PaymentTermsTemplateTermRow(BaseModel):
+    payment_term: str
+    invoice_portion: float
+    credit_days: int
+    credit_months: int
+    mode_of_payment: Optional[str] = None
+    due_date_based_on: Optional[str] = None
+
+
+class PaymentTermsTemplateDetail(BaseModel):
+    name: str
+    template_name: str
+    allocate_payment_based_on_payment_terms: bool
+    terms: list[PaymentTermsTemplateTermRow] = []
+
+
+class PaymentTermsTemplateListOut(BaseModel):
+    enabled: bool
+    cached_at: Optional[str] = None
+    error: Optional[str] = None
+    templates: list[PaymentTermsTemplateItem] = []

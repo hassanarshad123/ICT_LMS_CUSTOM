@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 import re
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class UserCreate(BaseModel):
@@ -12,6 +12,11 @@ class UserCreate(BaseModel):
     phone: Optional[str] = None
     role: str
     specialization: Optional[str] = None
+    employee_id: Optional[str] = Field(
+        default=None,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9_.\-]+$",
+    )
 
     @field_validator("email")
     @classmethod
@@ -42,6 +47,11 @@ class UserUpdate(BaseModel):
     email: Optional[str] = None
     specialization: Optional[str] = None
     avatar_url: Optional[str] = None
+    employee_id: Optional[str] = Field(
+        default=None,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9_.\-]+$",
+    )
 
 
 class StatusUpdate(BaseModel):
@@ -55,6 +65,7 @@ class UserOut(BaseModel):
     phone: Optional[str] = None
     role: str
     specialization: Optional[str] = None
+    employee_id: Optional[str] = None
     avatar_url: Optional[str] = None
     status: str
     batch_ids: Optional[list[str]] = None

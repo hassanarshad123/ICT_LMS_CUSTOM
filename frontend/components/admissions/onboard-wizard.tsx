@@ -1,9 +1,17 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ArrowLeft, ArrowRight, Check, Loader2, Plus, Trash2 } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  ChevronsUpDown,
+  Loader2,
+  Plus,
+  Trash2,
+} from 'lucide-react';
 import { useApi, useMutation } from '@/hooks/use-api';
 import { useBasePath } from '@/hooks/use-base-path';
 import { listBatches } from '@/lib/api/batches';
@@ -13,12 +21,30 @@ import {
   onboardStudent,
   type FeePlanType,
   type InstallmentDraft,
+  type OnboardStudentPayload,
   type OnboardStudentResult,
 } from '@/lib/api/admissions';
+import {
+  getFrappePaymentTermsTemplate,
+  listFrappeItems,
+  listFrappePaymentTermsTemplates,
+  type PaymentTermsTemplateDetail,
+} from '@/lib/api/integrations';
 import { formatMoney, formatDate } from '@/lib/utils/format';
 import { DatePopover } from '@/components/ui/date-popover';
 import BatchPicker from '@/components/admissions/batch-picker';
+import PaymentProofUploader from '@/components/admissions/payment-proof-uploader';
 import QuotaBanner from '@/components/admissions/quota-banner';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
@@ -80,6 +106,27 @@ export default function OnboardWizard() {
   const [fee, setFee] = useState<FeeForm>(defaultFeeForm());
   const [result, setResult] = useState<OnboardStudentResult | null>(null);
 
+  // Frappe Item + Payment Terms Template pickers
+  const [frappeItemCode, setFrappeItemCode] = useState<string | null>(null);
+  const [frappePaymentTermsTemplate, setFrappePaymentTermsTemplate] = useState<string | null>(null);
+  const [itemPickerOpen, setItemPickerOpen] = useState(false);
+  const [pttPickerOpen, setPttPickerOpen] = useState(false);
+  const [pttDetail, setPttDetail] = useState<PaymentTermsTemplateDetail | null>(null);
+  const [pttDetailLoading, setPttDetailLoading] = useState(false);
+
+  // Payment proof + initial payment
+  const [paymentProof, setPaymentProof] = useState<{
+    objectKey: string;
+    viewUrl: string;
+    fileName: string;
+    fileType: string;
+  } | null>(null);
+  const [initialPaymentAmount, setInitialPaymentAmount] = useState<number>(0);
+
+  // Client-side placeholder feePlanId used only for the S3 key namespace.
+  // The real FeePlan UUID is assigned server-side on submit.
+  const [clientFeePlanId] = useState(() => crypto.randomUUID());
+
   const { data: batchesData, loading: batchesLoading } = useApi(
     () => listBatches({ per_page: 100 }),
     [],
@@ -92,6 +139,23 @@ export default function OnboardWizard() {
     () => listAdmissionsStudents({ per_page: 100 }),
     [],
   );
+
+  const { data: itemsData } = useApi(() => listFrappeItems(), []);
+  const { data: pttData } = useApi(() => listFrappePaymentTermsTemplates(), []);
+
+  // When AO picks a template, fetch its detail for the schedule preview.
+  useEffect(() => {
+    if (!frappePaymentTermsTemplate) {
+      setPttDetail(null);
+      return;
+    }
+    setPttDetailLoading(true);
+    getFrappePaymentTermsTemplate(frappePaymentTermsTemplate)
+      .then(setPttDetail)
+      .catch(() => setPttDetail(null))
+      .finally(() => setPttDetailLoading(false));
+  }, [frappePaymentTermsTemplate]);
+
   const recentBatchIds = useMemo(() => {
     const rows = rosterData?.data || [];
     const sorted = [...rows].sort(
@@ -119,6 +183,55 @@ export default function OnboardWizard() {
   );
   const installmentSum = fee.installments.reduce((s, i) => s + (Number(i.amountDue) || 0), 0);
 
+  // Auto-sync the installment schedule when a PTT is selected.
+  // The template drives everything: plan_type becomes "installment" and each
+  // term's invoice_portion × final_amount becomes one installment, with
+  // credit_days (+ credit_months) as the due-date offset from today.
+  // Recomputes whenever the PTT, total, or discount changes.
+  useEffect(() => {
+    if (!pttDetail || pttDetail.terms.length === 0) return;
+    if (finalAmount <= 0) return;
+
+    const baseDate = fee.firstDueDate || isoToday();
+    const base = new Date(baseDate + 'T00:00:00');
+    const terms = pttDetail.terms;
+
+    // Compute shares by exact percentage; absorb rounding remainder on last row.
+    const shares = terms.map((t) => Math.floor((finalAmount * t.invoicePortion) / 100));
+    const remainder = finalAmount - shares.reduce((s, v) => s + v, 0);
+    if (shares.length > 0) shares[shares.length - 1] += remainder;
+
+    const generated: InstallmentDraft[] = terms.map((t, i) => {
+      const d = new Date(base);
+      d.setDate(d.getDate() + (t.creditDays || 0));
+      if (t.creditMonths) d.setMonth(d.getMonth() + t.creditMonths);
+      return {
+        sequence: i + 1,
+        amountDue: shares[i],
+        dueDate: d.toISOString().slice(0, 10),
+        label: t.paymentTerm || `Installment ${i + 1}`,
+      };
+    });
+
+    setFee((prev) => ({
+      ...prev,
+      planType: 'installment',
+      installments: generated,
+    }));
+
+    // Auto-fill the "initial payment received" amount with the first
+    // installment's value — the AO typically collects that upfront and
+    // uploads the screenshot for it. First share is floor(total * pct / 100)
+    // which is unaffected by the last-row rounding remainder.
+    const firstInstallment =
+      Math.floor((finalAmount * (terms[0]?.invoicePortion ?? 0)) / 100);
+    setInitialPaymentAmount(firstInstallment);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pttDetail, finalAmount, fee.firstDueDate]);
+
+  // Flag the wizard uses to skip the manual installment editor step.
+  const scheduleFromPtt = !!(pttDetail && pttDetail.terms.length > 0);
+
   const canAdvanceStep1 =
     student.name.trim().length > 1 &&
     /.+@.+\..+/.test(student.email) &&
@@ -131,7 +244,7 @@ export default function OnboardWizard() {
 
   const handleSubmit = async () => {
     try {
-      const payload = {
+      const payload: OnboardStudentPayload = {
         name: student.name.trim(),
         email: student.email.trim().toLowerCase(),
         phone: student.phone.trim(),
@@ -147,7 +260,11 @@ export default function OnboardWizard() {
           firstDueDate: fee.firstDueDate || null,
           installments: fee.planType === 'installment' ? fee.installments : undefined,
           notes: fee.notes.trim() || null,
+          frappeItemCode: frappeItemCode || undefined,
+          frappePaymentTermsTemplate: frappePaymentTermsTemplate || undefined,
         },
+        paymentProofObjectKey: paymentProof?.objectKey || undefined,
+        initialPaymentAmount: initialPaymentAmount || undefined,
       };
       const res = await submit(payload);
       setResult(res);
@@ -196,6 +313,76 @@ export default function OnboardWizard() {
       {step === 3 && (
         <StepCard title="Fee plan" subtitle="Set the total amount and how the student will pay">
           <div className="space-y-4">
+            {/* Frappe Item picker (or free-text fallback) */}
+            {itemsData?.enabled && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Course / Service Item (Frappe)
+                </label>
+                <Popover open={itemPickerOpen} onOpenChange={setItemPickerOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-gray-200 text-sm bg-gray-50 hover:bg-gray-100"
+                    >
+                      <span className="truncate">
+                        {frappeItemCode
+                          ? (itemsData?.items.find((i) => i.itemCode === frappeItemCode)?.itemName ?? frappeItemCode)
+                          : 'Pick a course…'}
+                      </span>
+                      <ChevronsUpDown className="h-4 w-4 opacity-50 flex-none ml-2" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Search items…" />
+                      <CommandList>
+                        <CommandEmpty>No items found.</CommandEmpty>
+                        <CommandGroup>
+                          {(itemsData?.items ?? []).map((it) => (
+                            <CommandItem
+                              key={it.itemCode}
+                              value={`${it.itemName} ${it.itemCode}`}
+                              onSelect={() => {
+                                setFrappeItemCode(it.itemCode);
+                                setItemPickerOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  'mr-2 h-4 w-4',
+                                  frappeItemCode === it.itemCode ? 'opacity-100' : 'opacity-0',
+                                )}
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium truncate">{it.itemName}</div>
+                                <div className="text-xs text-gray-500 truncate">{it.itemCode}</div>
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
+
+            {itemsData && !itemsData.enabled && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Course Code (optional)
+                </label>
+                <input
+                  type="text"
+                  value={frappeItemCode ?? ''}
+                  onChange={(e) => setFrappeItemCode(e.target.value || null)}
+                  placeholder="Leave blank if Frappe is not connected"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
+                />
+              </div>
+            )}
+
             <div className="grid grid-cols-3 gap-3">
               {(['one_time', 'monthly', 'installment'] as PlanTypeLocal[]).map((pt) => (
                 <button
@@ -210,6 +397,103 @@ export default function OnboardWizard() {
                 </button>
               ))}
             </div>
+
+            {/* Payment Terms Template picker — augments the plan-type selector.
+                One-time fee still bypasses the template. */}
+            {pttData?.enabled && fee.planType !== 'one_time' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Payment Terms Template (Frappe)
+                </label>
+                <Popover open={pttPickerOpen} onOpenChange={setPttPickerOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-gray-200 text-sm bg-gray-50 hover:bg-gray-100"
+                    >
+                      <span className="truncate">
+                        {frappePaymentTermsTemplate
+                          ? (pttData?.templates.find((t) => t.name === frappePaymentTermsTemplate)?.templateName ?? frappePaymentTermsTemplate)
+                          : 'Pick a template…'}
+                      </span>
+                      <ChevronsUpDown className="h-4 w-4 opacity-50 flex-none ml-2" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Search templates…" />
+                      <CommandList>
+                        <CommandEmpty>No templates found.</CommandEmpty>
+                        <CommandGroup>
+                          {frappePaymentTermsTemplate && (
+                            <CommandItem
+                              key="__clear"
+                              value="clear selection"
+                              onSelect={() => {
+                                setFrappePaymentTermsTemplate(null);
+                                setPttPickerOpen(false);
+                              }}
+                            >
+                              <span className="text-xs text-gray-500">Clear selection</span>
+                            </CommandItem>
+                          )}
+                          {(pttData?.templates ?? []).map((tpl) => (
+                            <CommandItem
+                              key={tpl.name}
+                              value={`${tpl.templateName} ${tpl.name}`}
+                              onSelect={() => {
+                                setFrappePaymentTermsTemplate(tpl.name);
+                                setPttPickerOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  'mr-2 h-4 w-4',
+                                  frappePaymentTermsTemplate === tpl.name ? 'opacity-100' : 'opacity-0',
+                                )}
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium truncate">{tpl.templateName}</div>
+                                <div className="text-xs text-gray-500 truncate">{tpl.name}</div>
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+                {pttDetailLoading && (
+                  <p className="text-xs text-gray-500 mt-1.5 inline-flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Loading schedule…
+                  </p>
+                )}
+              </div>
+            )}
+
+            {pttDetail && pttDetail.terms.length > 0 && fee.planType !== 'one_time' && (
+              <div className="border border-gray-200 rounded-xl p-3 bg-gray-50">
+                <p className="text-xs font-medium text-gray-600 mb-2">Schedule preview</p>
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-left text-gray-500">
+                      <th className="py-1">Installment</th>
+                      <th className="py-1 text-right">Share</th>
+                      <th className="py-1 text-right">Days</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pttDetail.terms.map((t, i) => (
+                      <tr key={i} className="border-t border-gray-200">
+                        <td className="py-1">{t.paymentTerm}</td>
+                        <td className="py-1 text-right font-medium">{t.invoicePortion}%</td>
+                        <td className="py-1 text-right">{t.creditDays + (t.creditMonths || 0) * 30}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field
@@ -285,14 +569,14 @@ export default function OnboardWizard() {
 
           <WizardNav
             onBack={() => setStep(2)}
-            onNext={() => setStep(fee.planType === 'installment' ? 4 : 5)}
+            onNext={() => setStep(fee.planType === 'installment' && !scheduleFromPtt ? 4 : 5)}
             nextDisabled={!canAdvanceStep3}
-            nextLabel={fee.planType === 'installment' ? 'Next' : 'Review'}
+            nextLabel={fee.planType === 'installment' && !scheduleFromPtt ? 'Next' : 'Review'}
           />
         </StepCard>
       )}
 
-      {step === 4 && (
+      {step === 4 && !scheduleFromPtt && (
         <StepCard title="Installment schedule" subtitle={`Split ${formatMoney(finalAmount)} across installments`}>
           <InstallmentEditor
             installments={fee.installments}
@@ -354,8 +638,51 @@ export default function OnboardWizard() {
               placeholder="Anything worth remembering about this deal?"
             />
           </div>
+
+          <div className="mt-6 space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Initial payment received (PKR)
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={initialPaymentAmount}
+                onChange={(e) =>
+                  setInitialPaymentAmount(Math.max(0, Number(e.target.value || 0)))
+                }
+                placeholder="0"
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                {scheduleFromPtt && pttDetail && pttDetail.terms.length > 0 ? (
+                  <>
+                    Pre-filled from the first installment of{' '}
+                    <span className="font-medium">{pttDetail.templateName}</span>
+                    {' '}({pttDetail.terms[0].invoicePortion}% of {formatMoney(finalAmount)}).
+                    Edit if the student paid a different amount.
+                  </>
+                ) : (
+                  'Leave 0 if no payment has been collected yet.'
+                )}
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Payment proof screenshot (optional)
+              </label>
+              <PaymentProofUploader
+                feePlanId={clientFeePlanId}
+                value={paymentProof}
+                onChange={setPaymentProof}
+              />
+            </div>
+          </div>
+
           <WizardNav
-            onBack={() => setStep((fee.planType === 'installment' ? 4 : 3) as Step)}
+            onBack={() => setStep((fee.planType === 'installment' && !scheduleFromPtt ? 4 : 3) as Step)}
             onNext={handleSubmit}
             nextDisabled={submitting}
             nextLabel={submitting ? 'Creating account…' : 'Onboard Student'}
@@ -633,28 +960,36 @@ function SuccessCard({
     }
   };
 
+  const isExisting = !result.isNewUser;
+
   return (
     <div className="bg-white rounded-2xl p-8 card-shadow text-center">
       <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-emerald-100 mb-4">
         <Check size={24} className="text-emerald-600" />
       </div>
-      <h2 className="text-xl font-bold text-primary mb-2">Student onboarded</h2>
+      <h2 className="text-xl font-bold text-primary mb-2">
+        {isExisting ? 'Enrolled in new batch' : 'Student onboarded'}
+      </h2>
       <p className="text-sm text-gray-500 mb-6">
-        Account created and enrolled. Share these credentials with the student.
+        {isExisting
+          ? 'Existing student added to this batch. Their login and password are unchanged.'
+          : 'Account created and enrolled. Share these credentials with the student.'}
       </p>
       <div className="bg-gray-50 rounded-xl p-4 text-left max-w-md mx-auto mb-6">
         <Row label="Email" value={result.email} />
-        <Row label="Password" value={result.temporaryPassword} />
+        {!isExisting && <Row label="Password" value={result.temporaryPassword} />}
         <Row label="Amount due" value={formatMoney(result.finalAmount, result.currency)} />
         <Row label="Installments" value={String(result.installmentCount)} />
       </div>
       <div className="flex items-center justify-center gap-3">
-        <button
-          onClick={copy}
-          className="px-5 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50"
-        >
-          {copied ? 'Copied!' : 'Copy credentials'}
-        </button>
+        {!isExisting && (
+          <button
+            onClick={copy}
+            className="px-5 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            {copied ? 'Copied!' : 'Copy credentials'}
+          </button>
+        )}
         <button
           onClick={onDone}
           className="px-5 py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/80"

@@ -234,3 +234,85 @@ export function listBulkImportJobs(
 export function bulkImportTemplateUrl(entity: BulkImportEntity): string {
   return `/api/v1/admin/bulk-import/template/${entity}`;
 }
+
+// ── Sales persons (for AO onboarding picker) ────────────────────────
+
+export interface SalesPersonItem {
+  employeeId: string;
+  salesPersonName: string;
+  fullName: string;
+  email: string | null;
+  phone: string | null;
+  commissionRate: string | null;
+  hrStatus: string | null;
+  alreadyMapped: boolean;
+  linkedOfficerId: string | null;
+}
+
+export interface SalesPersonListResponse {
+  enabled: boolean;
+  cachedAt: string | null;
+  error: string | null;
+  salesPersons: SalesPersonItem[];
+}
+
+export async function listFrappeSalesPersons(): Promise<SalesPersonListResponse> {
+  return apiClient('/integrations/frappe/sales-persons');
+}
+
+// ── Frappe Items + Payment Terms Templates (AO onboarding pickers) ───
+
+export interface FrappeItem {
+  itemCode: string;
+  itemName: string;
+  itemGroup: string | null;
+  standardRate: number | null;
+  stockUom: string | null;
+}
+
+export interface FrappeItemListResponse {
+  enabled: boolean;
+  cachedAt: string | null;
+  error: string | null;
+  items: FrappeItem[];
+}
+
+export interface PaymentTermsTemplate {
+  name: string;
+  templateName: string;
+}
+
+export interface PaymentTermsTemplateTermRow {
+  paymentTerm: string;
+  invoicePortion: number;
+  creditDays: number;
+  creditMonths: number;
+  modeOfPayment: string | null;
+  dueDateBasedOn: string | null;
+}
+
+export interface PaymentTermsTemplateDetail {
+  name: string;
+  templateName: string;
+  allocatePaymentBasedOnPaymentTerms: boolean;
+  terms: PaymentTermsTemplateTermRow[];
+}
+
+export interface PaymentTermsTemplateListResponse {
+  enabled: boolean;
+  cachedAt: string | null;
+  error: string | null;
+  templates: PaymentTermsTemplate[];
+}
+
+export async function listFrappeItems(): Promise<FrappeItemListResponse> {
+  return apiClient('/integrations/frappe/items');
+}
+
+export async function listFrappePaymentTermsTemplates(): Promise<PaymentTermsTemplateListResponse> {
+  return apiClient('/integrations/frappe/payment-terms-templates');
+}
+
+export async function getFrappePaymentTermsTemplate(name: string): Promise<PaymentTermsTemplateDetail> {
+  return apiClient(`/integrations/frappe/payment-terms-templates/${encodeURIComponent(name)}`);
+}

@@ -21,6 +21,12 @@ class FeePlan(SQLModel, table=True):
         Index("ix_fee_plans_student_id", "student_id"),
         Index("ix_fee_plans_onboarded_by", "onboarded_by_user_id"),
         Index("ix_fee_plans_institute_id", "institute_id"),
+        Index("ix_fee_plans_frappe_sales_order_name", "frappe_sales_order_name"),
+        Index(
+            "ix_fee_plans_frappe_sales_invoice_name",
+            "frappe_sales_invoice_name",
+            unique=False,
+        ),
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -63,6 +69,27 @@ class FeePlan(SQLModel, table=True):
     )
     deleted_at: Optional[datetime] = Field(
         default=None, sa_column=Column(TIMESTAMP(timezone=True), nullable=True)
+    )
+
+    frappe_item_code: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String(140), nullable=True),
+    )
+    frappe_payment_terms_template: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String(140), nullable=True),
+    )
+    frappe_sales_order_name: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String(140), nullable=True),
+    )
+    grace_period_ends_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(TIMESTAMP(timezone=True), nullable=True),
+    )
+    frappe_sales_invoice_name: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String(140), nullable=True),
     )
 
 
@@ -139,6 +166,15 @@ class FeePayment(SQLModel, table=True):
         sa_column=Column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     )
     notes: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
+
+    payment_proof_url: Optional[str] = Field(
+        default=None,
+        sa_column=Column(Text, nullable=True),
+    )
+    payment_proof_key: Optional[str] = Field(
+        default=None,
+        sa_column=Column(Text, nullable=True),
+    )
 
     created_at: Optional[datetime] = Field(
         sa_column=Column(TIMESTAMP(timezone=True), nullable=False, server_default="now()")

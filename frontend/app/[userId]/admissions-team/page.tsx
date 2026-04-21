@@ -24,9 +24,9 @@ export default function AdmissionsTeamPage() {
 
   const exportCsv = () => {
     if (!data) return;
-    const header = ['Officer', 'Email', 'Status', 'Students Onboarded', 'Active Students', 'Revenue Collected (PKR)', 'Total Billed (PKR)', 'Avg Fee (PKR)', 'Payments'];
+    const header = ['Officer', 'Email', 'Employee ID', 'Status', 'Students Onboarded', 'Active Students', 'Revenue Collected (PKR)', 'Total Billed (PKR)', 'Avg Fee (PKR)', 'Payments'];
     const rows = data.officers.map((o) => [
-      o.name, o.email, o.status,
+      o.name, o.email, o.employeeId ?? '', o.status,
       o.studentsOnboarded, o.activeStudents, o.revenueCollected, o.totalBilled, o.avgFee, o.paymentsCount,
     ]);
     const csv = [header, ...rows]
@@ -150,6 +150,7 @@ export default function AdmissionsTeamPage() {
                     <thead className="bg-gray-50">
                       <tr>
                         <th className="text-left px-4 py-3 font-medium text-gray-600">Officer</th>
+                        <th className="text-left px-4 py-3 font-medium text-gray-600">Employee ID</th>
                         <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
                         <th className="text-right px-4 py-3 font-medium text-gray-600">Onboarded</th>
                         <th className="text-right px-4 py-3 font-medium text-gray-600">Active</th>
@@ -166,6 +167,7 @@ export default function AdmissionsTeamPage() {
                             <div className="font-medium text-primary">{o.name}</div>
                             <div className="text-xs text-gray-500">{o.email}</div>
                           </td>
+                          <td className="px-4 py-3 font-mono text-xs text-gray-600">{o.employeeId ?? '—'}</td>
                           <td className="px-4 py-3">
                             <span
                               className={`px-2 py-0.5 rounded-full text-xs font-medium ${

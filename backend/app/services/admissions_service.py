@@ -161,29 +161,68 @@ async def onboard_student(
     batch = await _load_batch_in_institute(session, payload.batch_id, officer.institute_id)
     plan_type, final_amount, installments = _compute_plan_inputs(payload.fee_plan)
 
-    # ── Quota ──
-    try:
-        await check_and_increment_student_quota(session, officer.institute_id)
-    except ValueError as e:
-        raise AdmissionsError(str(e))
+    # ── Detect existing student by email in this institute ──
+    # If they're already here, enroll them in the new batch instead of
+    # refusing the onboarding with "email in use". Keeps the AO's flow
+    # single-purpose: "get this person into this batch".
+    from sqlalchemy import func as _sa_func
 
-    # ── Use institute's default student password (same as admin-created students) ──
-    from app.routers.users import _get_default_student_password
+    existing_email = payload.email.strip().lower()
+    existing_q = select(User).where(
+        _sa_func.lower(User.email) == existing_email,
+        User.institute_id == officer.institute_id,
+        User.deleted_at.is_(None),
+    )
+    existing = (await session.execute(existing_q)).scalar_one_or_none()
 
-    temp_password = await _get_default_student_password(session, officer.institute_id)
-    try:
-        student = await create_user(
-            session,
-            email=payload.email,
-            name=payload.name,
-            password=temp_password,
-            role=UserRole.student.value,
-            phone=payload.phone,
-            specialization=None,
-            institute_id=officer.institute_id,
+    if existing is not None and existing.role != UserRole.student:
+        raise AdmissionsError(
+            f"Email is already used by a {existing.role.value} in this institute — "
+            f"cannot enroll them as a student"
         )
-    except ValueError as e:
-        raise AdmissionsError(str(e))
+
+    is_new_user = existing is None
+    temp_password = ""
+
+    if existing is not None:
+        # Guard: reject if the student already has an active enrollment in
+        # THIS batch. StudentBatch has a partial unique index on
+        # (student_id, batch_id) where removed_at IS NULL, so the DB would
+        # reject anyway — surface a friendlier error first.
+        dup_enroll_q = select(StudentBatch.id).where(
+            StudentBatch.student_id == existing.id,
+            StudentBatch.batch_id == batch.id,
+            StudentBatch.removed_at.is_(None),
+        ).limit(1)
+        if (await session.execute(dup_enroll_q)).scalar_one_or_none() is not None:
+            raise AdmissionsError(
+                f"{existing.name} is already enrolled in {batch.name}"
+            )
+        student = existing
+    else:
+        # ── Quota (only when creating a NEW student) ──
+        try:
+            await check_and_increment_student_quota(session, officer.institute_id)
+        except ValueError as e:
+            raise AdmissionsError(str(e))
+
+        # ── Default student password ──
+        from app.routers.users import _get_default_student_password
+
+        temp_password = await _get_default_student_password(session, officer.institute_id)
+        try:
+            student = await create_user(
+                session,
+                email=payload.email,
+                name=payload.name,
+                password=temp_password,
+                role=UserRole.student.value,
+                phone=payload.phone,
+                specialization=None,
+                institute_id=officer.institute_id,
+            )
+        except ValueError as e:
+            raise AdmissionsError(str(e))
 
     # ── Enroll + fee plan (shared with add-batch flow) ──
     plan = await _create_enrollment_with_plan(
@@ -224,35 +263,57 @@ async def onboard_student(
         },
     )
 
+    # -- Initial payment at onboarding (optional) --
+    # Record a FeePayment row when the officer uploads proof at onboarding time.
+    # We construct FeePayment directly because fee_service.record_payment requires
+    # amount >= 1 and a restricted payment_method allowlist -- both intentionally
+    # bypassed here (proof-only upload has amount=0; method is onboarding_upload).
+    if payload.payment_proof_object_key or (payload.initial_payment_amount or 0) > 0:
+        from app.models.fee import FeePayment as _FeePayment
+        _initial_payment = _FeePayment(
+            fee_plan_id=plan.id,
+            institute_id=officer.institute_id,
+            amount=payload.initial_payment_amount or 0,
+            payment_date=datetime.now(timezone.utc),
+            payment_method="onboarding_upload",
+            status="received",
+            recorded_by_user_id=officer.id,
+            payment_proof_key=payload.payment_proof_object_key,
+        )
+        session.add(_initial_payment)
+        await session.flush()
+
     await session.commit()
     await session.refresh(plan)
 
-    # Best-effort welcome email (non-fatal)
-    try:
-        from app.utils.email_sender import (
-            send_email_background,
-            get_institute_branding,
-            build_login_url,
-            build_reset_url,
-            should_send_email,
-        )
-        from app.utils.email_templates import welcome_email
-
-        if await should_send_email(session, officer.institute_id, student.id, "email_welcome"):
-            branding = await get_institute_branding(session, officer.institute_id)
-            subject, html = welcome_email(
-                student_name=student.name,
-                email=student.email,
-                default_password=temp_password,
-                login_url=build_login_url(branding["slug"]),
-                reset_url=build_reset_url(branding["slug"]),
-                institute_name=branding["name"],
-                logo_url=branding.get("logo_url"),
-                accent_color=branding.get("accent_color", "#C5D86D"),
+    # Best-effort welcome email (non-fatal). Skip for existing students —
+    # they already have a login and we don't want to re-send credentials.
+    if is_new_user:
+        try:
+            from app.utils.email_sender import (
+                send_email_background,
+                get_institute_branding,
+                build_login_url,
+                build_reset_url,
+                should_send_email,
             )
-            send_email_background(student.email, subject, html, from_name=branding["name"])
-    except Exception:
-        logger.exception("welcome email dispatch failed for user %s", student.id)
+            from app.utils.email_templates import welcome_email
+
+            if await should_send_email(session, officer.institute_id, student.id, "email_welcome"):
+                branding = await get_institute_branding(session, officer.institute_id)
+                subject, html = welcome_email(
+                    student_name=student.name,
+                    email=student.email,
+                    default_password=temp_password,
+                    login_url=build_login_url(branding["slug"]),
+                    reset_url=build_reset_url(branding["slug"]),
+                    institute_name=branding["name"],
+                    logo_url=branding.get("logo_url"),
+                    accent_color=branding.get("accent_color", "#C5D86D"),
+                )
+                send_email_background(student.email, subject, html, from_name=branding["name"])
+        except Exception:
+            logger.exception("welcome email dispatch failed for user %s", student.id)
 
     return dict(
         user_id=student.id,
@@ -263,6 +324,7 @@ async def onboard_student(
         final_amount=final_amount,
         currency=plan.currency,
         installment_count=len(installments),
+        is_new_user=is_new_user,
     )
 
 
@@ -346,6 +408,12 @@ async def _create_enrollment_with_plan(
         status=FeePlanStatus.active.value,
         notes=notes,
     )
+    plan.frappe_item_code = getattr(payload_fee, "frappe_item_code", None)
+    plan.frappe_payment_terms_template = getattr(payload_fee, "frappe_payment_terms_template", None)
+    # 72h unconditional grace window from creation. The SI-based suspension
+    # cron skips any plan whose grace hasn't elapsed, regardless of SI status.
+    # Once NOW() > grace_period_ends_at, SI status drives access.
+    plan.grace_period_ends_at = datetime.now(timezone.utc) + timedelta(hours=72)
     session.add(plan)
     await session.flush()
 
@@ -585,6 +653,8 @@ async def add_enrollment(
     batch_id: uuid.UUID,
     fee_plan: FeePlanCreate,
     notes: Optional[str] = None,
+    payment_proof_object_key: Optional[str] = None,
+    initial_payment_amount: Optional[int] = None,
 ) -> FeePlan:
     """Enroll an existing student in another batch with a new fee plan."""
     student = await _ensure_officer_owns_student(session, officer=officer, student_id=student_id)
@@ -639,6 +709,22 @@ async def add_enrollment(
             "occurred_at": datetime.now(timezone.utc).isoformat(),
         },
     )
+
+    # -- Initial payment at onboarding (optional) --
+    if payment_proof_object_key or (initial_payment_amount or 0) > 0:
+        from app.models.fee import FeePayment as _FeePayment
+        _initial_payment = _FeePayment(
+            fee_plan_id=plan.id,
+            institute_id=officer.institute_id,
+            amount=initial_payment_amount or 0,
+            payment_date=datetime.now(timezone.utc),
+            payment_method="onboarding_upload",
+            status="received",
+            recorded_by_user_id=officer.id,
+            payment_proof_key=payment_proof_object_key,
+        )
+        session.add(_initial_payment)
+        await session.flush()
 
     await session.commit()
     await session.refresh(plan)

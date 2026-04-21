@@ -119,3 +119,85 @@ def delete_object(object_key: str) -> None:
     """Delete an S3 object. The object_key is already fully qualified."""
     client = _get_client()
     client.delete_object(Bucket=settings.S3_BUCKET_NAME, Key=object_key)
+
+
+def generate_payment_proof_upload_url(
+    file_name: str,
+    content_type: str,
+    institute_id: uuid.UUID,
+    fee_plan_id: uuid.UUID,
+    expires_in: int = 3600,
+) -> tuple[str, str]:
+    """Return (presigned_put_url, object_key) for a payment-proof attachment.
+
+    The caller is expected to PUT the file bytes directly to the URL within
+    ``expires_in`` seconds with a Content-Type header matching ``content_type``.
+    The returned object_key should be persisted on the FeePayment row so a
+    signed GET URL can be regenerated later without tracking the upload URL.
+    """
+    client = _get_client()
+    safe_name = file_name.replace("/", "_").replace("\\", "_")[:80]
+    object_key = _prefix(
+        institute_id,
+        f"admissions/payment-proof/{fee_plan_id}/{uuid.uuid4()}_{safe_name}",
+    )
+    url = client.generate_presigned_url(
+        "put_object",
+        Params={
+            "Bucket": settings.S3_BUCKET_NAME,
+            "Key": object_key,
+            "ContentType": content_type,
+        },
+        ExpiresIn=expires_in,
+    )
+    return url, object_key
+
+
+def generate_payment_proof_view_url(
+    object_key: str,
+    expires_in_seconds: int = 7 * 24 * 3600,
+) -> str:
+    """Return a presigned GET URL (default 7-day) for viewing a payment proof.
+
+    Used by the Frappe Sales Order sync to populate the
+    ``custom_zensbot_payment_proof_url`` custom field, and by the LMS frontend
+    to display the thumbnail to the admissions officer after upload.
+    """
+    client = _get_client()
+    return client.generate_presigned_url(
+        "get_object",
+        Params={
+            "Bucket": settings.S3_BUCKET_NAME,
+            "Key": object_key,
+        },
+        ExpiresIn=expires_in_seconds,
+    )
+
+
+def upload_payment_proof_bytes(
+    *,
+    data: bytes,
+    file_name: str,
+    content_type: str,
+    institute_id: uuid.UUID,
+    fee_plan_id: uuid.UUID,
+) -> str:
+    """Upload a payment-proof file to S3 server-side and return the object key.
+
+    Used by the direct-upload endpoint (POST /payment-proof/upload) that
+    tunnels the upload through the LMS backend to bypass S3 CORS.
+    Key shape mirrors ``generate_payment_proof_upload_url``.
+    """
+    client = _get_client()
+    safe_name = file_name.replace("/", "_").replace("\\", "_")[:80]
+    object_key = _prefix(
+        institute_id,
+        f"admissions/payment-proof/{fee_plan_id}/{uuid.uuid4()}_{safe_name}",
+    )
+    client.put_object(
+        Bucket=settings.S3_BUCKET_NAME,
+        Key=object_key,
+        Body=data,
+        ContentType=content_type,
+    )
+    return object_key

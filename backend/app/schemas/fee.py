@@ -34,6 +34,11 @@ class FeePlanCreate(BaseModel):
     installments: Optional[list[InstallmentDraft]] = None
     notes: Optional[str] = None
 
+    # Optional Frappe linkage -- when provided, the onboarding sync posts a
+    # Sales Order to the institute ERP with these as Item code and Payment Terms.
+    frappe_item_code: Optional[str] = Field(default=None, max_length=140)
+    frappe_payment_terms_template: Optional[str] = Field(default=None, max_length=140)
+
     @field_validator("plan_type")
     @classmethod
     def _validate_plan_type(cls, v: str) -> str:
@@ -96,6 +101,10 @@ class PaymentCreate(BaseModel):
     payment_method: str
     reference_number: Optional[str] = None
     notes: Optional[str] = None
+    # S3 object key from POST /admissions/payment-proof/upload — persisted on
+    # the FeePayment row so the Frappe sync can regenerate a signed view URL
+    # for the Sales Order's custom_zensbot_payment_proof_url field.
+    payment_proof_object_key: Optional[str] = Field(default=None, max_length=1024)
 
     @field_validator("payment_method")
     @classmethod
@@ -124,6 +133,12 @@ class OnboardStudentRequest(BaseModel):
     # Optional notes stored on the fee plan
     notes: Optional[str] = None
 
+    # Optional initial payment recorded at onboarding time (bank transfer
+    # screenshot, cash slip, etc.). The object_key must have been returned
+    # by POST /admissions/payment-proof/upload-url and the file uploaded.
+    payment_proof_object_key: Optional[str] = Field(default=None, max_length=1024)
+    initial_payment_amount: Optional[int] = Field(default=None, ge=0)
+
 
 class StudentUpdateRequest(BaseModel):
     name: Optional[str] = None
@@ -135,17 +150,23 @@ class AddEnrollmentRequest(BaseModel):
     batch_id: uuid.UUID
     fee_plan: FeePlanCreate
     notes: Optional[str] = None
+    payment_proof_object_key: Optional[str] = Field(default=None, max_length=1024)
+    initial_payment_amount: Optional[int] = Field(default=None, ge=0)
 
 
 class OnboardStudentResponse(BaseModel):
     user_id: uuid.UUID
     student_batch_id: uuid.UUID
     fee_plan_id: uuid.UUID
+    # Empty string when the onboarded email matched an existing student — no
+    # new credentials are generated, we simply enrolled them in the new batch.
     temporary_password: str
     email: str
     final_amount: int
     currency: str
     installment_count: int
+    # False when onboarding reused an existing student account.
+    is_new_user: bool = True
 
 
 class AdmissionsStudentListItem(BaseModel):
