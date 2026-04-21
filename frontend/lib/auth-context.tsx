@@ -14,6 +14,10 @@ interface AuthContextType {
   isImpersonating: boolean;
   login: (email: string, password: string) => Promise<AuthUser>;
   logout: () => Promise<void>;
+  /** Re-pulls /auth/me and refreshes local user (batchIds, batchNames, status).
+   *  Use when the cached user may be stale — e.g., after an admissions officer
+   *  enrolls the currently-logged-in student in a new batch mid-session. */
+  refreshUser: () => Promise<AuthUser | null>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -98,8 +102,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push('/login');
   }, [router]);
 
+  const refreshUser = useCallback(async (): Promise<AuthUser | null> => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+    if (!token) return null;
+    try {
+      const fresh = await getMe();
+      localStorage.setItem('user', JSON.stringify(fresh));
+      setUser(fresh);
+      return fresh;
+    } catch {
+      // Silently ignore — a failed refresh shouldn't log the user out.
+      return null;
+    }
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, isImpersonating, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, isImpersonating, login, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
@@ -122,6 +140,7 @@ export function useAuth() {
       isImpersonating: false,
       login: async () => ({} as AuthUser),
       logout: async () => {},
+      refreshUser: async () => null as AuthUser | null,
     };
   }
 
@@ -144,5 +163,6 @@ export function useAuth() {
     isImpersonating: ctx.isImpersonating,
     login: ctx.login,
     logout: ctx.logout,
+    refreshUser: ctx.refreshUser,
   };
 }
