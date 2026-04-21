@@ -92,6 +92,7 @@ async def record_payment(
         reference_number=payload.reference_number,
         recorded_by_user_id=actor.id,
         notes=payload.notes,
+        payment_proof_key=payload.payment_proof_object_key,
     )
     session.add(payment)
     await session.flush()  # so payment.id exists for receipt numbering

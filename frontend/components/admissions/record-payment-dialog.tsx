@@ -11,6 +11,7 @@ import {
   type PaymentMethod,
 } from '@/lib/api/admissions';
 import { formatMoney, formatDate } from '@/lib/utils/format';
+import PaymentProofUploader from '@/components/admissions/payment-proof-uploader';
 
 interface Props {
   open: boolean;
@@ -54,6 +55,12 @@ export default function RecordPaymentDialog({ open, onClose, studentId, plan, on
   const [paymentDate, setPaymentDate] = useState<string>(isoNow());
   const [reference, setReference] = useState('');
   const [notes, setNotes] = useState('');
+  const [proof, setProof] = useState<{
+    objectKey: string;
+    viewUrl: string;
+    fileName: string;
+    fileType: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -64,6 +71,7 @@ export default function RecordPaymentDialog({ open, onClose, studentId, plan, on
     setPaymentDate(isoNow());
     setReference('');
     setNotes('');
+    setProof(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, plan.id]);
 
@@ -99,6 +107,7 @@ export default function RecordPaymentDialog({ open, onClose, studentId, plan, on
           paymentMethod: method,
           referenceNumber: reference.trim() || null,
           notes: notes.trim() || null,
+          paymentProofObjectKey: proof?.objectKey ?? null,
         },
         plan.id,
       );
@@ -218,6 +227,22 @@ export default function RecordPaymentDialog({ open, onClose, studentId, plan, on
               className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm bg-gray-50"
               placeholder="Any context for the payment"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Payment receipt screenshot (optional)
+            </label>
+            <PaymentProofUploader
+              feePlanId={plan.id}
+              value={proof}
+              onChange={setProof}
+              disabled={loading}
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Attach the bank / app receipt the student sent you. The image is
+              stored privately and linked to the Sales Order in ERP.
+            </p>
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-4 border-t border-gray-100">
