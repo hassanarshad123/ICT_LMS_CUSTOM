@@ -61,7 +61,6 @@ interface FeeForm {
   totalAmount: string;
   discountType: 'none' | 'percent' | 'flat';
   discountValue: string;
-  monthlyInstallments: string;
   firstDueDate: string;
   installments: InstallmentDraft[];
   notes: string;
@@ -73,7 +72,6 @@ function defaultFeeForm(): FeeForm {
     totalAmount: '',
     discountType: 'none',
     discountValue: '',
-    monthlyInstallments: '3',
     firstDueDate: isoToday(),
     installments: [{ sequence: 1, amountDue: 0, dueDate: isoToday(), label: 'Installment 1' }],
     notes: '',
@@ -114,14 +112,13 @@ export default function OnboardWizard() {
   const [pttDetail, setPttDetail] = useState<PaymentTermsTemplateDetail | null>(null);
   const [pttDetailLoading, setPttDetailLoading] = useState(false);
 
-  // Payment proof + initial payment
+  // Payment proof attachment
   const [paymentProof, setPaymentProof] = useState<{
     objectKey: string;
     viewUrl: string;
     fileName: string;
     fileType: string;
   } | null>(null);
-  const [initialPaymentAmount, setInitialPaymentAmount] = useState<number>(0);
 
   // Client-side placeholder feePlanId used only for the S3 key namespace.
   // The real FeePlan UUID is assigned server-side on submit.
@@ -218,14 +215,6 @@ export default function OnboardWizard() {
       planType: 'installment',
       installments: generated,
     }));
-
-    // Auto-fill the "initial payment received" amount with the first
-    // installment's value — the AO typically collects that upfront and
-    // uploads the screenshot for it. First share is floor(total * pct / 100)
-    // which is unaffected by the last-row rounding remainder.
-    const firstInstallment =
-      Math.floor((finalAmount * (terms[0]?.invoicePortion ?? 0)) / 100);
-    setInitialPaymentAmount(firstInstallment);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pttDetail, finalAmount, fee.firstDueDate]);
 
@@ -256,7 +245,7 @@ export default function OnboardWizard() {
           discountType: fee.discountType === 'none' ? null : fee.discountType,
           discountValue: fee.discountType === 'none' ? null : discountNum,
           currency: 'PKR',
-          monthlyInstallments: fee.planType === 'monthly' ? Number(fee.monthlyInstallments) || 1 : null,
+          monthlyInstallments: null,
           firstDueDate: fee.firstDueDate || null,
           installments: fee.planType === 'installment' ? fee.installments : undefined,
           notes: fee.notes.trim() || null,
@@ -264,7 +253,6 @@ export default function OnboardWizard() {
           frappePaymentTermsTemplate: frappePaymentTermsTemplate || undefined,
         },
         paymentProofObjectKey: paymentProof?.objectKey || undefined,
-        initialPaymentAmount: initialPaymentAmount || undefined,
       };
       const res = await submit(payload);
       setResult(res);
@@ -383,8 +371,8 @@ export default function OnboardWizard() {
               </div>
             )}
 
-            <div className="grid grid-cols-3 gap-3">
-              {(['one_time', 'monthly', 'installment'] as PlanTypeLocal[]).map((pt) => (
+            <div className="grid grid-cols-2 gap-3">
+              {(['one_time', 'installment'] as PlanTypeLocal[]).map((pt) => (
                 <button
                   key={pt}
                   onClick={() => setFee({ ...fee, planType: pt })}
@@ -529,27 +517,6 @@ export default function OnboardWizard() {
               </div>
             </div>
 
-            {fee.planType === 'monthly' && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Field
-                  label="Number of months"
-                  value={fee.monthlyInstallments}
-                  onChange={(v) => setFee({ ...fee, monthlyInstallments: v.replace(/[^0-9]/g, '') })}
-                  placeholder="3"
-                  type="text"
-                  inputMode="numeric"
-                />
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">First due date</label>
-                  <DatePopover
-                    value={fee.firstDueDate}
-                    onChange={(v) => setFee({ ...fee, firstDueDate: v })}
-                    placeholder="Pick a date"
-                  />
-                </div>
-              </div>
-            )}
-
             {fee.planType === 'one_time' && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Payment due date</label>
@@ -618,12 +585,6 @@ export default function OnboardWizard() {
               />
             )}
             <Row label="Final amount" value={formatMoney(finalAmount)} emphasize />
-            {fee.planType === 'monthly' && (
-              <Row
-                label="Schedule"
-                value={`${fee.monthlyInstallments} months from ${formatDate(fee.firstDueDate)}`}
-              />
-            )}
             {fee.planType === 'installment' && (
               <Row label="Installments" value={`${fee.installments.length} scheduled`} />
             )}
@@ -640,35 +601,6 @@ export default function OnboardWizard() {
           </div>
 
           <div className="mt-6 space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Initial payment received (PKR)
-              </label>
-              <input
-                type="number"
-                min="0"
-                step="1"
-                value={initialPaymentAmount}
-                onChange={(e) =>
-                  setInitialPaymentAmount(Math.max(0, Number(e.target.value || 0)))
-                }
-                placeholder="0"
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                {scheduleFromPtt && pttDetail && pttDetail.terms.length > 0 ? (
-                  <>
-                    Pre-filled from the first installment of{' '}
-                    <span className="font-medium">{pttDetail.templateName}</span>
-                    {' '}({pttDetail.terms[0].invoicePortion}% of {formatMoney(finalAmount)}).
-                    Edit if the student paid a different amount.
-                  </>
-                ) : (
-                  'Leave 0 if no payment has been collected yet.'
-                )}
-              </p>
-            </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 Payment proof screenshot (optional)
@@ -700,13 +632,11 @@ export default function OnboardWizard() {
 
 function planTypeLabel(t: PlanTypeLocal): string {
   if (t === 'one_time') return 'One-time fee';
-  if (t === 'monthly') return 'Monthly recurring';
   return 'Custom installments';
 }
 
 function planTypeHint(t: PlanTypeLocal): string {
   if (t === 'one_time') return 'Lump sum upfront';
-  if (t === 'monthly') return 'Split into equal monthly payments';
   return 'Flexible schedule set by you';
 }
 

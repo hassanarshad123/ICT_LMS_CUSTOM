@@ -9,7 +9,6 @@ import { useApi, useMutation } from '@/hooks/use-api';
 import { useBasePath } from '@/hooks/use-base-path';
 import {
   deleteAdmissionsStudent,
-  downloadReceipt,
   getAdmissionsStudent,
   listStudentPayments,
   reactivateAdmissionsStudent,
@@ -19,6 +18,7 @@ import {
   updateAdmissionsStudent,
   type FeePlanDetail,
   type FeePaymentRow,
+  type InstallmentRow,
 } from '@/lib/api/admissions';
 import RecordPaymentDialog from '@/components/admissions/record-payment-dialog';
 import { PageLoading, PageError } from '@/components/shared/page-states';
@@ -41,7 +41,6 @@ import {
   Check,
   Plus,
   Receipt,
-  Download,
   Pencil,
   Trash2,
   Pause,
@@ -478,7 +477,7 @@ function PlanCard({
                   </span>
                 </td>
                 <td className="py-2">
-                  <InstallmentStatusBadge status={i.status} />
+                  <InstallmentStatusBadge status={effectiveInstallmentStatus(i, payments)} />
                 </td>
               </tr>
             ))}
@@ -498,7 +497,6 @@ function PlanCard({
                 <th className="text-left py-2">Reference</th>
                 <th className="text-right py-2">Amount</th>
                 <th className="text-left py-2 pl-4">ERP status</th>
-                <th className="text-right py-2 w-10"></th>
               </tr>
             </thead>
             <tbody>
@@ -521,22 +519,6 @@ function PlanCard({
                       <ErpStatusPill status={p.erpStatus} />
                       <RefreshErpButton paymentId={p.id} onRefreshed={onRefreshPayments} />
                     </div>
-                  </td>
-                  <td className="py-2 text-right">
-                    <button
-                      onClick={async () => {
-                        try {
-                          await downloadReceipt(p.id, `${p.receiptNumber || p.id}.pdf`);
-                        } catch (err: any) {
-                          toast.error(err?.message || 'Failed to download receipt');
-                        }
-                      }}
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100"
-                      title="Download receipt PDF"
-                    >
-                      <Download size={12} />
-                      PDF
-                    </button>
                   </td>
                 </tr>
               ))}
@@ -594,6 +576,23 @@ function Metric({
       <p className={`text-lg font-semibold mt-1 ${color}`}>{value}</p>
     </div>
   );
+}
+
+// An installment the LMS marks as paid/partial should still show "Pending"
+// until the Frappe Payment Entry for every payment on that row is submitted
+// (erpStatus='confirmed'). Until Finance confirms in ERP, the money isn't
+// really "in" — show it as pending so the AO doesn't chase the wrong target.
+function effectiveInstallmentStatus(
+  installment: InstallmentRow,
+  payments: FeePaymentRow[],
+): string {
+  if (installment.status !== 'paid' && installment.status !== 'partially_paid') {
+    return installment.status;
+  }
+  const linked = payments.filter((p) => p.feeInstallmentId === installment.id);
+  if (linked.length === 0) return installment.status;
+  const anyUnconfirmed = linked.some((p) => p.erpStatus !== 'confirmed');
+  return anyUnconfirmed ? 'pending' : installment.status;
 }
 
 function InstallmentStatusBadge({ status }: { status: string }) {
