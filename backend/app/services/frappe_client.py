@@ -66,6 +66,23 @@ class OverdueSalesOrder:
     overdue_installments: list["OverdueInstallment"]
 
 
+@dataclass(frozen=True)
+class UnpaidSalesInvoice:
+    """Sales Invoice whose status indicates no payment has cleared yet.
+
+    The SI-based suspension cron uses this shape; a row is emitted whenever
+    status is NOT in Partly Paid / Paid / Cancelled / Return / Credit Note
+    Issued. Any other value (Draft, Unpaid, Overdue, Submitted, ...) is
+    treated as "customer hasn't paid anything yet".
+    """
+    name: str                  # e.g. "ACC-SINV-2026-00054"
+    fee_plan_id: str           # custom_zensbot_fee_plan_id value
+    customer: str
+    grand_total: int
+    outstanding_amount: int
+    status: str                # Frappe's SI status label
+
+
 class FrappeClient:
     """Per-institute Frappe API client. Short-lived — build one per sync run."""
 
@@ -525,6 +542,50 @@ class FrappeClient:
                     grand_total=int(float(doc.get("grand_total") or 0)),
                     overdue_installments=overdue_rows,
                 ))
+        return out
+
+    async def list_unpaid_sales_invoices(self) -> list[UnpaidSalesInvoice]:
+        """Find zensbot-linked Sales Invoices whose status is not Paid or
+        Partly Paid.
+
+        Used by the SI-based suspension cron: the moment an SI flips to
+        Partly Paid (first installment cleared) or Paid (fully cleared),
+        this query stops returning it — the cron then lifts the suspension
+        on its next pass.
+        """
+        res = await self.list_resource(
+            "Sales Invoice",
+            fields=[
+                "name", FEE_PLAN_FIELD, "customer", "grand_total",
+                "outstanding_amount", "status",
+            ],
+            filters=[
+                [FEE_PLAN_FIELD, "is", "set"],
+                ["status", "not in", [
+                    "Partly Paid", "Paid", "Cancelled",
+                    "Return", "Credit Note Issued",
+                ]],
+            ],
+            limit=5000,
+        )
+        if not res.ok:
+            logger.warning(
+                "Failed to list unpaid Sales Invoices: %s", res.error,
+            )
+            return []
+        out: list[UnpaidSalesInvoice] = []
+        for row in (res.response or {}).get("data") or []:
+            fp_id = row.get(FEE_PLAN_FIELD)
+            if not fp_id:
+                continue
+            out.append(UnpaidSalesInvoice(
+                name=row["name"],
+                fee_plan_id=str(fp_id),
+                customer=row.get("customer") or "",
+                grand_total=int(float(row.get("grand_total") or 0)),
+                outstanding_amount=int(float(row.get("outstanding_amount") or 0)),
+                status=row.get("status") or "",
+            ))
         return out
 
     async def upsert_payment_entry(
