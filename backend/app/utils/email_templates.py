@@ -570,6 +570,88 @@ Contact your admissions officer to record a payment. Content access is restored 
     )
 
 
+def overdue_suspension_email(
+    student_name: str,
+    overdue_rows: list,
+    grand_total: int,
+    currency: str = "PKR",
+    login_url: str = "",
+    institute_name: str = "",
+    logo_url: Optional[str] = None,
+    accent_color: str = "#C5D86D",
+) -> tuple[str, str]:
+    """Sent when the daily Frappe-overdue job suspends a student."""
+    rows_html = "".join(
+        f'<tr>'
+        f'<td style="color:#7F1D1D;font-size:13px;padding:6px 0;">{_e(r.payment_term or "Installment")}</td>'
+        f'<td style="color:#7F1D1D;font-size:13px;padding:6px 0;">Due {_e(r.due_date)}</td>'
+        f'<td style="color:#7F1D1D;font-size:13px;padding:6px 0;text-align:right;"><strong>{currency} {r.outstanding:,}</strong></td>'
+        f'</tr>'
+        for r in overdue_rows
+    )
+    body = f"""
+<h2 style="margin:0 0 8px;color:#DC2626;font-size:22px;">Your portal access has been paused</h2>
+<p style="color:#52525b;font-size:15px;line-height:1.6;">
+Hi {_e(student_name)}, one or more fee installments are overdue. Access to
+{_e(institute_name) or "the institute"} has been paused and your login won&apos;t work until
+the overdue balance is cleared.
+</p>
+<table style="background-color:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:12px;width:100%;margin:16px 0;" cellpadding="6" cellspacing="0">
+  <thead>
+    <tr>
+      <th style="color:#B91C1C;font-size:12px;text-align:left;padding:6px 0;">Installment</th>
+      <th style="color:#B91C1C;font-size:12px;text-align:left;padding:6px 0;">Due</th>
+      <th style="color:#B91C1C;font-size:12px;text-align:right;padding:6px 0;">Outstanding</th>
+    </tr>
+  </thead>
+  <tbody>
+    {rows_html}
+    <tr>
+      <td colspan="2" style="color:#7F1D1D;font-size:13px;padding:10px 0 0;border-top:1px solid #FECACA;"><strong>Order total</strong></td>
+      <td style="color:#7F1D1D;font-size:14px;padding:10px 0 0;border-top:1px solid #FECACA;text-align:right;"><strong>{currency} {grand_total:,}</strong></td>
+    </tr>
+  </tbody>
+</table>
+<p style="color:#52525b;font-size:14px;">
+Please contact your admissions officer to record payment. Your access will be
+restored automatically within 24 hours of the balance clearing in our billing
+system.
+</p>
+"""
+    return (
+        f"Your {institute_name or 'course'} access has been paused — overdue fees",
+        _base_template(body, institute_name, logo_url, accent_color, login_url),
+    )
+
+
+def overdue_reactivation_email(
+    student_name: str,
+    login_url: str = "",
+    institute_name: str = "",
+    logo_url: Optional[str] = None,
+    accent_color: str = "#C5D86D",
+) -> tuple[str, str]:
+    """Sent when the overdue balance clears and the daily job lifts suspension."""
+    body = f"""
+<h2 style="margin:0 0 8px;color:#047857;font-size:22px;">Welcome back — your access is restored</h2>
+<p style="color:#52525b;font-size:15px;line-height:1.6;">
+Hi {_e(student_name)}, thank you for clearing your overdue balance. Your
+{_e(institute_name) or "course"} portal access has been restored and you can
+log in normally.
+</p>
+<p style="color:#52525b;font-size:14px;">
+If you have trouble logging in, please contact your admissions officer.
+</p>
+<p style="margin:20px 0;text-align:center;">
+{_button("Open My Portal", login_url, "#047857") if login_url else ""}
+</p>
+"""
+    return (
+        f"Welcome back — your {institute_name or 'course'} access is restored",
+        _base_template(body, institute_name, logo_url, accent_color, login_url),
+    )
+
+
 # ── Pricing v2 billing emails (see docs/pricing-model-v2.md) ─────
 #
 # Sent by the monthly billing cron and late-payment enforcement cron.
