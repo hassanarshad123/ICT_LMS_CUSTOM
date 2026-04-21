@@ -241,7 +241,7 @@ export default function RecordPaymentDialog({ open, onClose, studentId, plan, on
             />
             <p className="text-xs text-gray-500 mt-1">
               Attach the bank / app receipt the student sent you. The image is
-              stored privately and linked to the Sales Order in ERP.
+              stored privately and linked to the Sales Invoice in ERP.
             </p>
           </div>
 
