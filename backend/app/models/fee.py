@@ -22,6 +22,11 @@ class FeePlan(SQLModel, table=True):
         Index("ix_fee_plans_onboarded_by", "onboarded_by_user_id"),
         Index("ix_fee_plans_institute_id", "institute_id"),
         Index("ix_fee_plans_frappe_sales_order_name", "frappe_sales_order_name"),
+        Index(
+            "ix_fee_plans_frappe_sales_invoice_name",
+            "frappe_sales_invoice_name",
+            unique=False,
+        ),
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -75,6 +80,14 @@ class FeePlan(SQLModel, table=True):
         sa_column=Column(String(140), nullable=True),
     )
     frappe_sales_order_name: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String(140), nullable=True),
+    )
+    grace_period_ends_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(TIMESTAMP(timezone=True), nullable=True),
+    )
+    frappe_sales_invoice_name: Optional[str] = Field(
         default=None,
         sa_column=Column(String(140), nullable=True),
     )
