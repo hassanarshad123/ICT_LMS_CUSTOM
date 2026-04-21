@@ -6,7 +6,7 @@ import DashboardHeader from '@/components/layout/dashboard-header';
 import { useAuth } from '@/lib/auth-context';
 import {
   User, Lock, Monitor, Award, KeyRound, Mail, Video, Shield,
-  Save, Loader2, Plus, Minus, Eye, EyeOff, X, Edit3, Trash2, Star,
+  Save, Loader2, Plus, Minus, Eye, EyeOff, X, Edit3, Trash2, Star, FileText,
 } from 'lucide-react';
 import { useApi, useMutation } from '@/hooks/use-api';
 import { getSettings, updateSettings } from '@/lib/api/admin';
@@ -15,18 +15,20 @@ import { changePassword } from '@/lib/api/auth';
 import { listAccounts, createAccount, updateAccount, deleteAccount, setDefaultAccount, ZoomAccountOut } from '@/lib/api/zoom';
 import { toast } from 'sonner';
 import { useBranding } from '@/lib/branding-context';
+import EmailTemplatesPage from './email-templates';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
-type TabType = 'account' | 'security' | 'notifications' | 'zoom';
+type TabType = 'account' | 'security' | 'notifications' | 'templates' | 'zoom';
 
 const TABS: { key: TabType; label: string; icon: any }[] = [
   { key: 'account', label: 'Account', icon: User },
   { key: 'security', label: 'Security', icon: Lock },
   { key: 'notifications', label: 'Notifications', icon: Mail },
+  { key: 'templates', label: 'Email Templates', icon: FileText },
   { key: 'zoom', label: 'Zoom', icon: Video },
 ];
 
@@ -488,6 +490,13 @@ export default function AdminSettings() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* ── Email Templates Tab ──────────────────────────── */}
+        {activeTab === 'templates' && (
+          <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+            <EmailTemplatesPage />
           </div>
         )}
 
