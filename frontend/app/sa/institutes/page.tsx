@@ -24,7 +24,15 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function PlanBadge({ plan }: { plan: string }) {
+  // Every PlanTier value has an explicit color + label. Keep in sync
+  // with PLAN_TIER_LABELS in lib/api/super-admin.ts.
   const colors: Record<string, string> = {
+    // v2 tiers
+    professional: 'bg-teal-100 text-teal-700',
+    custom: 'bg-fuchsia-100 text-fuchsia-700',
+    // SA-comped
+    unlimited: 'bg-amber-100 text-amber-700',
+    // Legacy
     free: 'bg-gray-100 text-gray-700',
     starter: 'bg-emerald-100 text-emerald-700',
     basic: 'bg-blue-100 text-blue-700',
@@ -32,6 +40,9 @@ function PlanBadge({ plan }: { plan: string }) {
     enterprise: 'bg-indigo-100 text-indigo-700',
   };
   const labels: Record<string, string> = {
+    professional: 'Professional',
+    custom: 'Custom',
+    unlimited: 'Unlimited',
     free: 'Trial',
     starter: 'Starter',
     basic: 'Basic',

@@ -53,13 +53,7 @@ export interface PlatformDashboard {
   totalUsers: number;
   totalStorageGb: number;
   totalVideoGb: number;
-  institutesByPlan: {
-    free: number;
-    starter: number;
-    basic: number;
-    pro: number;
-    enterprise: number;
-  };
+  institutesByPlan: Partial<Record<PlanTier, number>>;
   recentInstitutes: Array<{
     id: string;
     name: string;
@@ -170,7 +164,13 @@ export async function getInstituteBatches(id: string, params?: { page?: number; 
 }
 
 export interface ImpersonateResponse {
-  token: string;
+  /**
+   * Single-use handover id (Phase 4). Redeem via
+   * POST /api/v1/auth/impersonation-handover/{handoverId}
+   * from the target subdomain's callback page. The JWT itself is
+   * never returned here so it cannot leak via URL/history/CDN logs.
+   */
+  handoverId: string;
   instituteSlug: string;
   targetUserId: string;
   targetUserName: string;
@@ -211,12 +211,9 @@ export interface GrowthTrends {
   newInstitutes: GrowthPoint[];
 }
 
-export interface PlanDistribution {
-  free: number;
-  basic: number;
-  pro: number;
-  enterprise: number;
-}
+// Keyed by every PlanTier value. Using Partial + Record so any future
+// tier added to the backend enum widens the type without a PR here.
+export type PlanDistribution = Partial<Record<PlanTier, number>>;
 
 export interface TopInstituteItem {
   instituteId: string;
@@ -326,7 +323,11 @@ export interface JobStatus {
   name: string;
   description: string;
   frequency: string;
+  /** success | failure | running | unknown */
   status: string;
+  lastRunAt?: string | null;
+  lastError?: string | null;
+  lastDurationMs?: number | null;
 }
 
 export interface VideoPipelineStatus {

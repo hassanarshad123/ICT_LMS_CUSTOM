@@ -36,3 +36,4 @@ from app.models.integration import (  # noqa: F401
     IntegrationSyncTask,
     BulkImportJob,
 )
+from app.models.system_job import SystemJob  # noqa: F401

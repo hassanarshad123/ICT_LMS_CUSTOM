@@ -97,6 +97,28 @@ async def bulk_institute_action(
     sa: SA,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
+    # Up-front validation: every submitted ID must resolve to a
+    # non-deleted institute. Previously a list of bogus IDs silently
+    # returned count=0 — no indication of why nothing happened.
+    if not body.institute_ids:
+        raise HTTPException(status_code=400, detail="institute_ids cannot be empty")
+
+    from app.models.institute import Institute
+    from sqlmodel import select as _sel
+    r = await session.execute(
+        _sel(Institute.id).where(
+            Institute.id.in_(body.institute_ids),
+            Institute.deleted_at.is_(None),
+        )
+    )
+    found = {row[0] for row in r.all()}
+    missing = [str(iid) for iid in body.institute_ids if iid not in found]
+    if missing:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Unknown or deleted institute IDs: {missing}",
+        )
+
     # action is already validated by BulkActionField (Literal["suspend", "activate"])
     count = await sa_operations_service.bulk_update_institute_status(
         session, body.institute_ids, body.action, sa.id,

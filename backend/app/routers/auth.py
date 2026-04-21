@@ -601,3 +601,36 @@ async def get_device_request_status(
             detail={"code": exc.code, "message": exc.message},
         )
     return payload
+
+
+@router.post("/impersonation-handover/{handover_id}")
+@limiter.limit("20/minute")
+async def redeem_impersonation_handover(
+    request: Request,
+    handover_id: str,
+):
+    """Redeem a single-use impersonation handover id for the JWT.
+
+    Part of the Phase 4 impersonation hardening: the SA impersonate
+    endpoint issues a handover id (stored in Redis) instead of the
+    raw token in a URL. The target subdomain's callback page POSTs
+    the handover id to this endpoint to exchange it for the JWT
+    before the 60-second TTL expires.
+
+    Security properties:
+      - Single-use: the Redis key is deleted on first read.
+      - Short-lived: 60 seconds.
+      - Possession of a valid id is the authorization — no auth
+        header required (that's the point: the SA's auth already
+        happened when the handover was issued).
+      - Rate-limited to 20/min so an attacker cannot brute-force
+        the 24-byte urlsafe id space.
+    """
+    from app.utils.impersonation_handover import redeem
+    token = await redeem(handover_id)
+    if token is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Handover id is invalid, expired, or already redeemed.",
+        )
+    return {"access_token": token, "token_type": "Bearer"}

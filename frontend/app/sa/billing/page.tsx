@@ -56,10 +56,11 @@ export default function SABillingPage() {
           <SAKpiCard
             label="Paid Plans"
             value={formatPKR(
-              (revenue.revenueByPlan.starter || 0) +
-              (revenue.revenueByPlan.basic || 0) +
-              (revenue.revenueByPlan.pro || 0) +
-              (revenue.revenueByPlan.enterprise || 0)
+              // Sum every non-trial tier present in the response so
+              // professional/custom/unlimited revenue isn't dropped.
+              Object.entries(revenue.revenueByPlan)
+                .filter(([tier]) => tier !== 'free')
+                .reduce((acc, [, amount]) => acc + (amount || 0), 0)
             )}
             icon={TrendingUp}
             color="bg-purple-500"

@@ -29,11 +29,19 @@ async def get_or_create_billing(
 async def get_billing_config(
     session: AsyncSession, institute_id: uuid.UUID
 ) -> dict:
-    billing = await get_or_create_billing(session, institute_id)
+    """Return billing config for an institute.
+
+    Raises ValueError if the institute does not exist — routers should
+    translate that to a 404 response. Previously returned the string
+    "Unknown" which was a silent failure.
+    """
     inst = await session.get(Institute, institute_id)
+    if inst is None or inst.deleted_at is not None:
+        raise ValueError(f"Institute {institute_id} not found")
+    billing = await get_or_create_billing(session, institute_id)
     return {
         "institute_id": str(institute_id),
-        "institute_name": inst.name if inst else "Unknown",
+        "institute_name": inst.name,
         "base_amount": billing.base_amount,
         "currency": billing.currency,
         "billing_cycle": billing.billing_cycle,
@@ -47,14 +55,32 @@ async def get_billing_config(
 async def update_billing_config(
     session: AsyncSession, institute_id: uuid.UUID, updates: dict
 ) -> dict:
+    """Apply billing config updates.
+
+    Flushes only — caller (router) is responsible for commit so the
+    audit log entry is atomic with the billing change.
+    """
+    inst = await session.get(Institute, institute_id)
+    if inst is None or inst.deleted_at is not None:
+        raise ValueError(f"Institute {institute_id} not found")
     billing = await get_or_create_billing(session, institute_id)
     for key, value in updates.items():
         if value is not None and hasattr(billing, key):
             setattr(billing, key, value)
     billing.updated_at = datetime.now(timezone.utc)
     session.add(billing)
-    await session.commit()
-    return await get_billing_config(session, institute_id)
+    await session.flush()
+    return {
+        "institute_id": str(institute_id),
+        "institute_name": inst.name,
+        "base_amount": billing.base_amount,
+        "currency": billing.currency,
+        "billing_cycle": billing.billing_cycle,
+        "extra_user_rate": billing.extra_user_rate,
+        "extra_storage_rate": billing.extra_storage_rate,
+        "extra_video_rate": billing.extra_video_rate,
+        "notes": billing.notes,
+    }
 
 
 async def _next_invoice_number(session: AsyncSession) -> str:
@@ -81,11 +107,16 @@ async def _next_invoice_number(session: AsyncSession) -> str:
 async def _auto_calculate_line_items(
     session: AsyncSession, institute_id: uuid.UUID
 ) -> tuple[list[dict], "Institute", "InstituteBilling"]:
-    """Calculate line items from billing config and current usage."""
-    billing = await get_or_create_billing(session, institute_id)
+    """Calculate line items from billing config and current usage.
+
+    Overage line items are only emitted when the corresponding cap is
+    non-null. Unlimited-tier institutes (max_* is None) produce no
+    overage lines — they still emit the base fee if one is configured.
+    """
     inst = await session.get(Institute, institute_id)
-    if not inst:
-        raise ValueError("Institute not found")
+    if inst is None or inst.deleted_at is not None:
+        raise ValueError(f"Institute {institute_id} not found")
+    billing = await get_or_create_billing(session, institute_id)
 
     r = await session.execute(text("""
         SELECT COALESCE(current_users, 0),
@@ -109,34 +140,41 @@ async def _auto_calculate_line_items(
             "amount": billing.base_amount,
         })
 
-    extra_users = max(0, current_users - inst.max_users)
-    if extra_users > 0 and billing.extra_user_rate > 0:
-        line_items.append({
-            "description": f"Extra users ({extra_users} beyond {inst.max_users} limit)",
-            "quantity": extra_users,
-            "unit_price": billing.extra_user_rate,
-            "amount": extra_users * billing.extra_user_rate,
-        })
+    # Overage lines are only meaningful when the tier has a cap. Null
+    # caps mean "unlimited" — no overage billing, ever. Guard each
+    # dimension independently so a partially-null config still bills
+    # the capped dimensions.
+    if inst.max_users is not None:
+        extra_users = max(0, current_users - inst.max_users)
+        if extra_users > 0 and billing.extra_user_rate > 0:
+            line_items.append({
+                "description": f"Extra users ({extra_users} beyond {inst.max_users} limit)",
+                "quantity": extra_users,
+                "unit_price": billing.extra_user_rate,
+                "amount": extra_users * billing.extra_user_rate,
+            })
 
-    extra_storage = max(0, round(current_storage_gb - inst.max_storage_gb, 2))
-    if extra_storage > 0 and billing.extra_storage_rate > 0:
-        amt = int(extra_storage * billing.extra_storage_rate)
-        line_items.append({
-            "description": f"Extra storage ({extra_storage:.2f} GB beyond {inst.max_storage_gb} GB)",
-            "quantity": round(extra_storage, 2),
-            "unit_price": billing.extra_storage_rate,
-            "amount": amt,
-        })
+    if inst.max_storage_gb is not None:
+        extra_storage = max(0, round(current_storage_gb - inst.max_storage_gb, 2))
+        if extra_storage > 0 and billing.extra_storage_rate > 0:
+            amt = int(extra_storage * billing.extra_storage_rate)
+            line_items.append({
+                "description": f"Extra storage ({extra_storage:.2f} GB beyond {inst.max_storage_gb} GB)",
+                "quantity": round(extra_storage, 2),
+                "unit_price": billing.extra_storage_rate,
+                "amount": amt,
+            })
 
-    extra_video = max(0, round(current_video_gb - inst.max_video_gb, 2))
-    if extra_video > 0 and billing.extra_video_rate > 0:
-        amt = int(extra_video * billing.extra_video_rate)
-        line_items.append({
-            "description": f"Extra video ({extra_video:.2f} GB beyond {inst.max_video_gb} GB)",
-            "quantity": round(extra_video, 2),
-            "unit_price": billing.extra_video_rate,
-            "amount": amt,
-        })
+    if inst.max_video_gb is not None:
+        extra_video = max(0, round(current_video_gb - inst.max_video_gb, 2))
+        if extra_video > 0 and billing.extra_video_rate > 0:
+            amt = int(extra_video * billing.extra_video_rate)
+            line_items.append({
+                "description": f"Extra video ({extra_video:.2f} GB beyond {inst.max_video_gb} GB)",
+                "quantity": round(extra_video, 2),
+                "unit_price": billing.extra_video_rate,
+                "amount": amt,
+            })
 
     return line_items, inst, billing
 
@@ -208,8 +246,10 @@ async def generate_invoice(
         generated_by=generated_by,
     )
     session.add(invoice)
-    await session.commit()
-    await session.refresh(invoice)
+    # Flush to populate PK and persist to the current transaction so
+    # the caller (router) can audit-log + commit atomically. Caller
+    # owns the commit.
+    await session.flush()
     return invoice
 
 
@@ -361,33 +401,74 @@ async def record_payment(
     notes: Optional[str] = None,
     invoice_id: Optional[uuid.UUID] = None,
 ) -> Payment:
-    payment = Payment(
-        institute_id=institute_id,
-        invoice_id=invoice_id,
-        amount=amount,
-        payment_date=payment_date,
-        payment_method=payment_method,
-        status="received",
-        reference_number=reference_number,
-        notes=notes,
-        recorded_by=recorded_by,
-    )
-    session.add(payment)
-
-    # If linked to invoice and amount covers it, mark as paid
-    # Use FOR UPDATE lock to prevent concurrent payment race conditions
+    # When linked to an invoice, lock + guard BEFORE writing the
+    # Payment. Concurrent payments could otherwise both flip status
+    # to paid and overpay the invoice. Overpayment beyond invoice
+    # total is rejected.
     if invoice_id:
         r = await session.execute(
             select(Invoice).where(Invoice.id == invoice_id).with_for_update()
         )
         inv = r.scalar_one_or_none()
-        if inv and amount >= inv.total_amount:
+        if inv is None:
+            raise ValueError(f"Invoice {invoice_id} not found")
+        if inv.institute_id != institute_id:
+            raise ValueError(
+                f"Invoice {invoice_id} belongs to a different institute"
+            )
+
+        # Sum prior Payments on this invoice (within the lock) so two
+        # concurrent record_payment calls cannot each see "unpaid" and
+        # both flip status.
+        prior_sum_r = await session.execute(
+            select(func.coalesce(func.sum(Payment.amount), 0)).where(
+                Payment.invoice_id == invoice_id,
+            )
+        )
+        prior_total = int(prior_sum_r.scalar_one() or 0)
+        if prior_total + amount > inv.total_amount:
+            raise ValueError(
+                f"Payment would overpay invoice: already "
+                f"Rs {prior_total} received on a Rs {inv.total_amount} "
+                f"invoice; cannot accept another Rs {amount}."
+            )
+
+        payment = Payment(
+            institute_id=institute_id,
+            invoice_id=invoice_id,
+            amount=amount,
+            payment_date=payment_date,
+            payment_method=payment_method,
+            status="received",
+            reference_number=reference_number,
+            notes=notes,
+            recorded_by=recorded_by,
+        )
+        session.add(payment)
+
+        if prior_total + amount >= inv.total_amount:
             inv.status = "paid"
             inv.updated_at = datetime.now(timezone.utc)
             session.add(inv)
+    else:
+        # Institute-level payment (not tied to an invoice). No lock
+        # needed — just record it.
+        payment = Payment(
+            institute_id=institute_id,
+            invoice_id=None,
+            amount=amount,
+            payment_date=payment_date,
+            payment_method=payment_method,
+            status="received",
+            reference_number=reference_number,
+            notes=notes,
+            recorded_by=recorded_by,
+        )
+        session.add(payment)
 
-    await session.commit()
-    await session.refresh(payment)
+    # Caller (router) owns the commit so audit log is atomic with the
+    # payment insert.
+    await session.flush()
     return payment
 
 
@@ -463,9 +544,13 @@ async def get_revenue_dashboard(session: AsyncSession) -> dict:
         WHERE p.status IN ('received', 'verified')
         GROUP BY i.plan_tier
     """))
-    revenue_by_plan = {"free": 0, "starter": 0, "basic": 0, "pro": 0, "enterprise": 0}
+    # Zero-seed over every canonical tier so v2 (professional/custom)
+    # and SA-comped (unlimited) revenue is reported as 0 instead of
+    # silently dropped. Adding a new PlanTier enum value does not
+    # require editing this code.
+    from app.utils.tier_registry import default_distribution_dict
+    revenue_by_plan = default_distribution_dict()
     for row in r.all():
-        # Defensive: handle any tier value we might add in the future
         if row[0] in revenue_by_plan:
             revenue_by_plan[row[0]] = row[1]
 

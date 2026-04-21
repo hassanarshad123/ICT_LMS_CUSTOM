@@ -31,10 +31,22 @@ class GrowthTrendResponse(BaseModel):
 
 
 class PlanDistributionResponse(BaseModel):
+    """Institute count keyed by plan_tier enum value.
+
+    Uses RootModel semantics via a dynamic dict so adding a new
+    PlanTier enum value does not require editing this schema. Backend
+    zero-seeds every known tier before returning.
+    """
     free: int = 0
+    starter: int = 0
     basic: int = 0
     pro: int = 0
     enterprise: int = 0
+    professional: int = 0
+    custom: int = 0
+    unlimited: int = 0
+
+    model_config = {"extra": "allow"}
 
 
 class TopInstituteItem(BaseModel):

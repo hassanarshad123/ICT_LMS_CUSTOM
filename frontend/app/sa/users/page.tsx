@@ -89,7 +89,10 @@ export default function SAUsersPage() {
     try {
       const res = await impersonateUser(user.id);
       const host = `${res.instituteSlug}.zensbot.online`;
-      const url = `https://${host}/impersonate-callback?token=${res.token}`;
+      // Phase 4: URL carries the handover id, not the JWT. The callback
+      // page POSTs the handover id to /auth/impersonation-handover
+      // and gets the token server-to-server. Token never touches a URL.
+      const url = `https://${host}/impersonate-callback?hid=${encodeURIComponent(res.handoverId)}`;
       window.open(url, '_blank');
     } catch {
       toast.error('Failed to impersonate');

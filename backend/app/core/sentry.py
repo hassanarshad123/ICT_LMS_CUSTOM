@@ -263,12 +263,31 @@ def sentry_job_wrapper(job_name: str, lock_ttl_seconds: int = _DEFAULT_JOB_LOCK_
                 logger.debug("Skipping %s — lock held by sibling worker", job_name)
                 return None
 
+            # Heartbeat — upsert a row in system_jobs on every actual run
+            # (slot-ownership + lock acquired). Best-effort, never raises.
+            import time as _time
+            from app.utils.job_heartbeat import _upsert as _hb_upsert
+            start = _time.monotonic()
+            await _hb_upsert(job_name, status="running", duration_ms=None, error=None)
+
+            def _duration_ms() -> int:
+                return int((_time.monotonic() - start) * 1000)
+
             try:
                 import sentry_sdk
             except ImportError:
                 # sentry_sdk not installed — run job without instrumentation
                 try:
-                    return await func(*args, **kwargs)
+                    result = await func(*args, **kwargs)
+                    await _hb_upsert(job_name, status="success", duration_ms=_duration_ms(), error=None)
+                    return result
+                except Exception as exc:
+                    await _hb_upsert(
+                        job_name, status="failure",
+                        duration_ms=_duration_ms(),
+                        error=f"{type(exc).__name__}: {exc}"[:500],
+                    )
+                    raise
                 finally:
                     await _release_job_lock(redis, lock_key)
 
@@ -279,8 +298,15 @@ def sentry_job_wrapper(job_name: str, lock_ttl_seconds: int = _DEFAULT_JOB_LOCK_
                     "trigger": "interval",
                 })
                 try:
-                    return await func(*args, **kwargs)
+                    result = await func(*args, **kwargs)
+                    await _hb_upsert(job_name, status="success", duration_ms=_duration_ms(), error=None)
+                    return result
                 except Exception as exc:
+                    await _hb_upsert(
+                        job_name, status="failure",
+                        duration_ms=_duration_ms(),
+                        error=f"{type(exc).__name__}: {exc}"[:500],
+                    )
                     # Capture inside scope so job tags are attached to the event
                     sentry_sdk.capture_exception(exc)
                     raise

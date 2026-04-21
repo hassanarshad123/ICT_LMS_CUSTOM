@@ -126,16 +126,24 @@ async def get_growth_trends(session: AsyncSession, period: int = 30) -> dict:
 
 
 async def get_plan_distribution(session: AsyncSession) -> dict:
-    """Count of institutes by plan tier."""
+    """Count of institutes by plan tier.
+
+    Zero-seeded over every value of PlanTier so the response shape is
+    stable across rollouts. Adding a new tier to the enum
+    automatically widens this response without code changes here.
+    """
+    from app.models.institute import PlanTier
+
     r = await session.execute(text("""
         SELECT plan_tier, COUNT(*) AS cnt
         FROM institutes
         WHERE deleted_at IS NULL
         GROUP BY plan_tier
     """))
-    result = {"free": 0, "basic": 0, "pro": 0, "enterprise": 0}
+    result: dict[str, int] = {tier.value: 0 for tier in PlanTier}
     for row in r.all():
-        result[row[0]] = row[1]
+        if row[0] in result:
+            result[row[0]] = row[1]
     return result
 
 

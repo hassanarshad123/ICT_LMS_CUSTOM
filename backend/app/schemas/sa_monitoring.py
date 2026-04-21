@@ -56,7 +56,12 @@ class JobStatusItem(BaseModel):
     name: str
     description: str
     frequency: str
+    # One of: success | failure | running | unknown (heartbeat not yet
+    # recorded for this job since migration 047).
     status: str
+    last_run_at: Optional[str] = None
+    last_error: Optional[str] = None
+    last_duration_ms: Optional[int] = None
 
 
 class VideoPipelineStatus(BaseModel):

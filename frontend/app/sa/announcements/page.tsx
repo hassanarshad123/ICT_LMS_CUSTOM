@@ -165,6 +165,9 @@ export default function SAAnnouncementsPage() {
                   <div className="text-xs text-zinc-400 mt-0.5">
                     {ann.targetInstituteIds.length === 0 ? 'All institutes' : `${ann.targetInstituteIds.length} institutes`}
                   </div>
+                  <div className="text-xs text-zinc-500 mt-0.5">
+                    Delivered to {ann.deliveryCount.toLocaleString()} admin{ann.deliveryCount === 1 ? '' : 's'}
+                  </div>
                 </div>
               </div>
             </div>

@@ -81,20 +81,76 @@ async def list_institutes(
     status: str = Query(None),
     plan_tier: str = Query(None),
 ):
-    query = select(Institute).where(Institute.deleted_at.is_(None))
+    # Single batched query: Institute LEFT JOIN InstituteUsage LEFT
+    # JOIN (per-institute student count subquery). Previously issued
+    # 1 + 2N queries per page (N+1 helper call).
+    from sqlalchemy.orm import aliased
+
+    base_filters = [Institute.deleted_at.is_(None)]
     if status:
-        query = query.where(Institute.status == InstituteStatus(status))
+        base_filters.append(Institute.status == InstituteStatus(status))
     if plan_tier:
-        query = query.where(Institute.plan_tier == PlanTier(plan_tier))
+        base_filters.append(Institute.plan_tier == PlanTier(plan_tier))
 
-    count_result = await session.execute(select(func.count()).select_from(query.subquery()))
-    total = count_result.scalar_one()
-
-    result = await session.execute(
-        query.order_by(Institute.created_at.desc()).offset((page - 1) * per_page).limit(per_page)
+    count_result = await session.execute(
+        select(func.count(Institute.id)).where(*base_filters)
     )
-    institutes = result.scalars().all()
-    items = [await _institute_to_out(session, i) for i in institutes]
+    total = count_result.scalar_one() or 0
+
+    # Subquery: count of role=student users per institute.
+    student_count_sq = (
+        select(
+            User.institute_id.label("iid"),
+            func.count(User.id).label("student_count"),
+        )
+        .where(
+            User.role == UserRole.student,
+            User.deleted_at.is_(None),
+        )
+        .group_by(User.institute_id)
+        .subquery()
+    )
+
+    usage_alias = aliased(InstituteUsage)
+
+    stmt = (
+        select(
+            Institute,
+            usage_alias.current_users,
+            usage_alias.current_storage_bytes,
+            usage_alias.current_video_bytes,
+            func.coalesce(student_count_sq.c.student_count, 0).label("student_count"),
+        )
+        .outerjoin(usage_alias, usage_alias.institute_id == Institute.id)
+        .outerjoin(student_count_sq, student_count_sq.c.iid == Institute.id)
+        .where(*base_filters)
+        .order_by(Institute.created_at.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+    )
+    rows = (await session.execute(stmt)).all()
+
+    items = [
+        InstituteOut(
+            id=inst.id,
+            name=inst.name,
+            slug=inst.slug,
+            status=inst.status.value,
+            plan_tier=inst.plan_tier.value,
+            max_users=inst.max_users,
+            max_students=inst.max_students,
+            max_storage_gb=inst.max_storage_gb,
+            max_video_gb=inst.max_video_gb,
+            contact_email=inst.contact_email,
+            expires_at=inst.expires_at,
+            created_at=inst.created_at,
+            current_users=cu or 0,
+            current_students=int(students or 0),
+            current_storage_gb=round((csb or 0) / (1024 ** 3), 3),
+            current_video_gb=round((cvb or 0) / (1024 ** 3), 3),
+        )
+        for inst, cu, csb, cvb, students in rows
+    ]
 
     return PaginatedResponse(
         data=items,
@@ -220,6 +276,16 @@ async def update_institute(
 
     await session.commit()
     await session.refresh(institute)
+
+    # Invalidate dashboard/insights cache so the next SA load reflects
+    # the new tier/caps instead of returning stale quota numbers.
+    # Best-effort — cache service fails open on Redis outage.
+    try:
+        from app.core.cache import cache
+        await cache.invalidate_dashboard(str(institute_id))
+    except Exception:
+        pass
+
     return await _institute_to_out(session, institute)
 
 
@@ -440,7 +506,23 @@ async def impersonate_user(
     sa: SA,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
-    """Create a short-lived impersonation token for SA to act as a target user."""
+    """Start SA impersonation of a target user.
+
+    Security gates (Phase 4):
+      - Self-impersonation is rejected (SA cannot impersonate itself).
+      - Target must be a non-SA, non-deleted user.
+      - Target's institute must exist, not be soft-deleted, and be
+        active (suspended institutes can't be impersonated into —
+        their regular users are already locked out).
+      - Token is stored in a Redis-backed single-use handover keyed
+        by a random id; the response returns the HANDOVER ID, not
+        the JWT. Token never appears in any URL.
+    """
+    # Self-impersonation is a footgun — SA could mint a user-level
+    # token for themselves and bypass SA audit scoping.
+    if user_id == sa.id:
+        raise HTTPException(403, "Cannot impersonate yourself")
+
     target = await session.get(User, user_id)
     if not target or target.deleted_at:
         raise HTTPException(404, "User not found")
@@ -448,18 +530,38 @@ async def impersonate_user(
         raise HTTPException(403, "Cannot impersonate another super admin")
 
     institute = await session.get(Institute, target.institute_id)
-    if not institute:
+    if not institute or institute.deleted_at is not None:
         raise HTTPException(404, "Institute not found")
+    if institute.status != InstituteStatus.active:
+        raise HTTPException(
+            403,
+            f"Cannot impersonate into institute with status "
+            f"'{institute.status.value}' — activate it first.",
+        )
 
     token = create_impersonation_token(target.id, sa.id, target.token_version)
 
-    # Audit log
+    # Redis handover: store token keyed by short-lived random id.
+    from app.utils.impersonation_handover import issue
+    handover_id = await issue(token)
+    if handover_id is None:
+        raise HTTPException(
+            503,
+            "Impersonation unavailable: handover store is offline. "
+            "Try again in a moment.",
+        )
+
+    # Audit log records the start. Token itself is never logged.
     log = ActivityLog(
         user_id=sa.id,
         action="sa_impersonation_start",
         entity_type="user",
         entity_id=target.id,
-        details={"target_email": target.email, "institute_name": institute.name},
+        details={
+            "target_email": target.email,
+            "institute_name": institute.name,
+            "handover_id_prefix": handover_id[:8],  # for cross-ref only
+        },
         ip_address=request.client.host if request.client else None,
         impersonated_by=sa.id,
     )
@@ -467,7 +569,7 @@ async def impersonate_user(
     await session.commit()
 
     return {
-        "token": token,
+        "handover_id": handover_id,
         "institute_slug": institute.slug,
         "target_user_id": str(target.id),
         "target_user_name": target.name,

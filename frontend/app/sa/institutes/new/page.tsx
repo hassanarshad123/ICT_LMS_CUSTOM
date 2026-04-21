@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Loader2 } from 'lucide-react';
-import { createInstitute, createAdminForInstitute } from '@/lib/api/super-admin';
+import { createInstitute, createAdminForInstitute, type PlanTier } from '@/lib/api/super-admin';
 import { toast } from 'sonner';
 import Link from 'next/link';
 
@@ -48,7 +48,7 @@ export default function NewInstitutePage() {
         name: form.name,
         slug: form.slug,
         contactEmail: form.contactEmail,
-        planTier: form.planTier as 'free' | 'starter' | 'basic' | 'pro' | 'enterprise',
+        planTier: form.planTier as PlanTier,
         maxUsers: form.maxUsers,
         maxStudents: form.maxStudents,
         maxStorageGb: form.maxStorageGb,
@@ -147,12 +147,21 @@ export default function NewInstitutePage() {
                 onChange={(e) => setForm((f) => ({ ...f, planTier: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-gray-400"
               >
-                <option value="free">Free (14-day trial)</option>
-                <option value="starter">Starter — Rs 2,500/mo</option>
-                <option value="basic">Basic — Rs 5,000/mo</option>
-                <option value="pro">Pro — Rs 15,000/mo</option>
-                <option value="enterprise">Enterprise — Custom</option>
+                <optgroup label="Pricing v2">
+                  <option value="professional">Professional — Free, Rs 80/mo per extra student</option>
+                  <option value="custom">Custom — Quoted per deal</option>
+                </optgroup>
+                <optgroup label="Legacy">
+                  <option value="free">Free (14-day trial)</option>
+                  <option value="starter">Starter — Rs 2,500/mo</option>
+                  <option value="basic">Basic — Rs 5,000/mo</option>
+                  <option value="pro">Pro — Rs 15,000/mo</option>
+                  <option value="enterprise">Enterprise — Custom</option>
+                </optgroup>
               </select>
+              <p className="text-xs text-gray-400 mt-1">
+                Unlimited is SA-only — assign from institute detail with a tier-change reason.
+              </p>
             </div>
           </div>
 
