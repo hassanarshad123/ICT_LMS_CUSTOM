@@ -108,8 +108,7 @@ async def _send_announcement_emails(
     from app.models.batch import Batch, StudentBatch
     from app.models.course import BatchCourse
     from app.models.enums import AnnouncementScope, UserStatus
-    from app.utils.email_sender import send_email_background, get_institute_branding, build_login_url, should_send_email, is_email_enabled
-    from app.utils.email_templates import announcement_email
+    from app.utils.email_sender import send_templated_email, get_institute_branding, build_login_url, is_email_enabled
 
     # Check admin-level toggle first
     if institute_id and not await is_email_enabled(session, institute_id, "email_announcement"):
@@ -152,16 +151,19 @@ async def _send_announcement_emails(
     for uid in user_ids:
         try:
             user = await session.get(UserModel, uid)
-            if user and user.email:
-                if not await should_send_email(session, institute_id, uid, "email_announcement"):
-                    continue
-                subj, html = announcement_email(
-                    student_name=user.name, title=ann.title, content=ann.content,
-                    posted_by=poster_name, scope_label=scope_label, login_url=login_url,
-                    institute_name=branding["name"], logo_url=branding.get("logo_url"),
-                    accent_color=branding.get("accent_color", "#C5D86D"),
+            if user and user.email and institute_id:
+                await send_templated_email(
+                    session=session, institute_id=institute_id, user_id=uid,
+                    email_type="email_announcement", template_key="announcement", to=user.email,
+                    variables={
+                        "student_name": user.name,
+                        "title": ann.title,
+                        "content": ann.content,
+                        "posted_by": poster_name,
+                        "scope_label": scope_label,
+                        "login_url": login_url,
+                    },
                 )
-                send_email_background(user.email, subj, html, from_name=branding["name"])
         except Exception:
             continue
 

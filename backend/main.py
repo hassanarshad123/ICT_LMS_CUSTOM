@@ -9,7 +9,7 @@ from slowapi.errors import RateLimitExceeded
 from app.utils.rate_limit import limiter
 
 from app.config import get_settings
-from app.routers import auth, users, batches, courses, curriculum, lectures, materials, jobs, announcements, zoom, admin, certificates, monitoring, branding, notifications, search, super_admin, api_keys, webhooks, public_api, quizzes, signup, sa_analytics, sa_monitoring, sa_operations, sa_billing, feedback, upgrade, admissions, integrations, billing, payment_proof
+from app.routers import auth, users, batches, courses, curriculum, lectures, materials, jobs, announcements, zoom, admin, certificates, monitoring, branding, notifications, search, super_admin, api_keys, webhooks, public_api, quizzes, signup, sa_analytics, sa_monitoring, sa_operations, sa_billing, feedback, upgrade, admissions, integrations, billing, payment_proof, email_templates
 from app.websockets.routes import router as ws_router
 from app.middleware.error_tracking import ErrorTrackingMiddleware
 from app.exceptions import NotFoundError, DuplicateError, ForbiddenError, ValidationError
@@ -235,6 +235,7 @@ app.include_router(certificates.router, prefix="/api/v1/certificates", tags=["Ce
 app.include_router(monitoring.router, prefix="/api/v1/monitoring", tags=["Monitoring"])
 app.include_router(branding.router, prefix="/api/v1/branding", tags=["Branding"])
 app.include_router(notifications.router, prefix="/api/v1/notifications", tags=["Notifications"])
+app.include_router(email_templates.router, prefix="/api/v1", tags=["Email Templates"])
 app.include_router(search.router, prefix="/api/v1/search", tags=["Search"])
 app.include_router(super_admin.router, prefix="/api/v1/super-admin", tags=["Super Admin"])
 app.include_router(sa_analytics.router, prefix="/api/v1/super-admin/analytics", tags=["SA Analytics"])

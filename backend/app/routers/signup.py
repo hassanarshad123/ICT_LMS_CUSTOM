@@ -196,8 +196,7 @@ async def register(
     # Send email verification (fire-and-forget)
     try:
         from app.utils.security import create_email_verification_token
-        from app.utils.email import send_email
-        from app.utils.email_templates import email_verification_email
+        from app.utils.email_sender import send_templated_email
 
         verify_token = create_email_verification_token(user.id, user.email, user.token_version)
         if settings.FRONTEND_BASE_DOMAIN:
@@ -205,12 +204,14 @@ async def register(
         else:
             base_url = settings.FRONTEND_URL or "https://zensbot.online"
         verify_url = f"{base_url}/verify-email?token={verify_token}"
-        subject, html = email_verification_email(
-            user_name=user.name,
-            verification_url=verify_url,
-            institute_name=institute.name,
+        await send_templated_email(
+            session=session, institute_id=institute.id, user_id=user.id,
+            email_type="email_verification", template_key="email_verification", to=user.email,
+            variables={
+                "user_name": user.name,
+                "verification_url": verify_url,
+            },
         )
-        send_email(to=user.email, subject=subject, html=html)
     except Exception as exc:
         logger.warning(
             "Verification email failed for user=%s email=%s: %s",
