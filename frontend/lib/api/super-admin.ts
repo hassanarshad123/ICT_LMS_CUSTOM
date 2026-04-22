@@ -518,6 +518,18 @@ export async function terminateInstituteSessions(instituteId: string): Promise<v
   await apiClient(`/super-admin/operations/sessions/institute/${instituteId}`, { method: 'DELETE' });
 }
 
+// ── SA PayFast ─────────────────────────────────────────────────
+
+export interface PayFastCheckoutResponse {
+  actionUrl: string;
+  fields: Record<string, string>;
+  basketId: string;
+}
+
+export async function initiatePayFastCheckout(invoiceId: string): Promise<PayFastCheckoutResponse> {
+  return apiClient<PayFastCheckoutResponse>(`/payfast/checkout/${invoiceId}`, { method: 'POST' });
+}
+
 // ── SA Finance ─────────────────────────────────────────────────
 
 export interface MRRTrend { month: string; mrr: number; }

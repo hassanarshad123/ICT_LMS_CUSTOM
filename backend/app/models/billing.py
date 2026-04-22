@@ -62,6 +62,7 @@ class InstituteBilling(SQLModel, table=True):
         default=None, sa_column=Column(JSONB, nullable=True)
     )
     notes: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
+    payfast_enabled: bool = Field(default=False)
     created_at: Optional[datetime] = Field(
         sa_column=Column(TIMESTAMP(timezone=True), nullable=False, server_default="now()")
     )
@@ -84,6 +85,8 @@ class Invoice(SQLModel, table=True):
     line_items: list = Field(default=[], sa_column=Column(JSONB, nullable=False, server_default="[]"))
     total_amount: int = Field(default=0)
     status: str = Field(default="draft")
+    basket_id: Optional[str] = Field(default=None, sa_column=Column(String(64), nullable=True, unique=True))
+    payfast_transaction_id: Optional[str] = Field(default=None)
     discount_type: Optional[str] = Field(default=None)
     discount_value: Optional[int] = Field(default=None)
     discount_amount: Optional[int] = Field(default=None)
