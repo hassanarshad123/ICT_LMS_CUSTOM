@@ -518,6 +518,29 @@ export async function terminateInstituteSessions(instituteId: string): Promise<v
   await apiClient(`/super-admin/operations/sessions/institute/${instituteId}`, { method: 'DELETE' });
 }
 
+// ── SA Global Search ───────────────────────────────────────────
+
+export interface SearchResultItem {
+  id: string;
+  label: string;
+  sublabel: string | null;
+  entityType: string;
+  url: string;
+}
+
+export interface SASearchResponse {
+  institutes: SearchResultItem[];
+  users: SearchResultItem[];
+  invoices: SearchResultItem[];
+  payments: SearchResultItem[];
+  courses: SearchResultItem[];
+  activity: SearchResultItem[];
+}
+
+export async function saGlobalSearch(q: string, limit: number = 3): Promise<SASearchResponse> {
+  return apiClient<SASearchResponse>('/super-admin/search', { params: { q, limit } });
+}
+
 // ── SA Alerts & Notifications ──────────────────────────────────
 
 export interface SAAlertItem {
