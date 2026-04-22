@@ -12,6 +12,7 @@ class InstituteStatus(str, enum.Enum):
     active = "active"
     suspended = "suspended"
     trial = "trial"
+    archived = "archived"
 
 
 class PlanTier(str, enum.Enum):

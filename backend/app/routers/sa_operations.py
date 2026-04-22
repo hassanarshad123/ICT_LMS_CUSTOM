@@ -287,3 +287,79 @@ async def force_recalculate(
     for (iid,) in r.all():
         await recalculate_usage(session, iid)
     return MessageResponse(detail="Usage recalculated for all institutes")
+
+
+# ── Archive & Purge ────────────────────────────────────────────
+
+@router.post("/institutes/{institute_id}/archive")
+async def archive_institute_endpoint(
+    institute_id: str,
+    sa: SA,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    request: Request,
+):
+    from app.services.institute_lifecycle import archive_institute
+    try:
+        inst = await archive_institute(
+            session, uuid.UUID(institute_id), sa.id, request.client.host if request.client else None,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return {"id": str(inst.id), "status": inst.status.value}
+
+
+@router.get("/institutes/archived")
+async def list_archived_institutes(
+    sa: SA,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    page: int = Query(default=1, ge=1),
+    per_page: int = Query(default=20, ge=1, le=100),
+):
+    from app.models.institute import Institute, InstituteStatus as IS
+    from sqlalchemy import func
+
+    query = select(Institute).where(Institute.status == IS.archived)
+    count_q = select(func.count(Institute.id)).where(Institute.status == IS.archived)
+
+    total = (await session.execute(count_q)).scalar() or 0
+    result = await session.execute(
+        query.order_by(Institute.updated_at.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+    )
+    institutes = result.scalars().all()
+
+    total_pages = (total + per_page - 1) // per_page
+    return {
+        "data": [
+            {
+                "id": str(i.id),
+                "name": i.name,
+                "slug": i.slug,
+                "contactEmail": i.contact_email,
+                "planTier": i.plan_tier.value if hasattr(i.plan_tier, 'value') else str(i.plan_tier),
+                "createdAt": i.created_at.isoformat() if i.created_at else None,
+                "updatedAt": i.updated_at.isoformat() if i.updated_at else None,
+            }
+            for i in institutes
+        ],
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "total_pages": total_pages,
+    }
+
+
+@router.delete("/institutes/{institute_id}/purge")
+async def purge_institute_endpoint(
+    institute_id: str,
+    sa: SA,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    from app.services.purge_service import purge_institute
+    try:
+        report = await purge_institute(session, uuid.UUID(institute_id), sa.id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    await session.commit()
+    return report.to_dict()
