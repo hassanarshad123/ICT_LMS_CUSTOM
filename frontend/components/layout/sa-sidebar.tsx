@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Building2, Users, Shield, Activity, AlertTriangle, HeartPulse,
-  Monitor, CreditCard, Megaphone, MessageSquarePlus, Settings, LogOut, X, Menu, type LucideIcon,
+  Monitor, Bell, CreditCard, Megaphone, MessageSquarePlus, Settings, LogOut, X, Menu, type LucideIcon,
 } from 'lucide-react';
 import { useSidebar } from './sidebar-context';
 import { logout as apiLogout } from '@/lib/api/auth';
@@ -35,6 +35,7 @@ const navSections: NavSection[] = [
       { label: 'Feedback', path: '/sa/feedback', icon: MessageSquarePlus },
       { label: 'System Health', path: '/sa/health', icon: HeartPulse },
       { label: 'Sessions', path: '/sa/sessions', icon: Monitor },
+      { label: 'Notifications', path: '/sa/notifications', icon: Bell },
     ],
   },
   {
@@ -136,13 +137,6 @@ export function SASidebar() {
         </div>
       )}
 
-      {/* Mobile toggle button */}
-      <button
-        onClick={() => setMobileOpen(true)}
-        className="lg:hidden fixed top-4 left-4 z-40 p-2 bg-[#1A1A1A] text-white rounded-xl shadow-lg"
-      >
-        <Menu size={20} />
-      </button>
     </>
   );
 }

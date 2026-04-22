@@ -518,6 +518,65 @@ export async function terminateInstituteSessions(instituteId: string): Promise<v
   await apiClient(`/super-admin/operations/sessions/institute/${instituteId}`, { method: 'DELETE' });
 }
 
+// ── SA Alerts & Notifications ──────────────────────────────────
+
+export interface SAAlertItem {
+  id: string;
+  alertType: string;
+  severity: string;
+  title: string;
+  message: string;
+  entityType: string | null;
+  entityId: string | null;
+  link: string | null;
+  read: boolean;
+  createdAt: string | null;
+}
+
+export interface SAAlertPreference {
+  alertType: string;
+  label: string;
+  category: string;
+  muted: boolean;
+}
+
+export async function listSAAlerts(params?: {
+  page?: number;
+  per_page?: number;
+  alert_type?: string;
+  unread_only?: boolean;
+}): Promise<{ data: SAAlertItem[]; total: number; page: number; perPage: number; totalPages: number }> {
+  const { unread_only, ...rest } = params || {};
+  const queryParams: Record<string, string | number | undefined> = { ...rest };
+  if (unread_only !== undefined) {
+    queryParams.unread_only = String(unread_only);
+  }
+  return apiClient('/super-admin/alerts', { params: queryParams });
+}
+
+export async function getSAAlertCount(): Promise<{ count: number }> {
+  return apiClient('/super-admin/alerts/count');
+}
+
+export async function markSAAlertRead(alertId: string): Promise<SAAlertItem> {
+  return apiClient<SAAlertItem>(`/super-admin/alerts/${alertId}/read`, { method: 'POST' });
+}
+
+export async function markAllSAAlertsRead(): Promise<{ count: number }> {
+  return apiClient('/super-admin/alerts/read-all', { method: 'POST' });
+}
+
+export async function getSAAlertPreferences(): Promise<SAAlertPreference[]> {
+  return apiClient<SAAlertPreference[]>('/super-admin/alerts/preferences');
+}
+
+export async function updateSAAlertPreference(alertType: string, muted: boolean): Promise<void> {
+  await apiClient(`/super-admin/alerts/preferences/${alertType}`, {
+    method: 'PUT',
+    body: JSON.stringify({ muted }),
+  });
+}
+
 // ── SA Billing & Communication (Phase 4) ────────────────────────
 
 export interface BillingConfig {
