@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Building2, Users, Shield, Activity, AlertTriangle, HeartPulse,
-  Monitor, Bell, CreditCard, Megaphone, MessageSquarePlus, Settings, LogOut, X, Menu, type LucideIcon,
+  Monitor, Bell, CreditCard, TrendingUp, Megaphone, MessageSquarePlus, Settings, LogOut, X, Menu, type LucideIcon,
 } from 'lucide-react';
 import { useSidebar } from './sidebar-context';
 import { logout as apiLogout } from '@/lib/api/auth';
@@ -41,6 +41,7 @@ const navSections: NavSection[] = [
   {
     items: [
       { label: 'Billing', path: '/sa/billing', icon: CreditCard },
+      { label: 'Finance', path: '/sa/finance', icon: TrendingUp },
       { label: 'Announcements', path: '/sa/announcements', icon: Megaphone },
       { label: 'Settings', path: '/sa/settings', icon: Settings },
     ],
