@@ -6,6 +6,7 @@ import { Loader2 } from 'lucide-react';
 import { SASidebar } from '@/components/layout/sa-sidebar';
 import { SidebarProvider } from '@/components/layout/sidebar-context';
 import { SAErrorBoundary } from '@/components/layout/sa-error-boundary';
+import { SAHeader } from '@/components/sa/sa-header';
 
 export default function SALayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -75,8 +76,11 @@ export default function SALayout({ children }: { children: React.ReactNode }) {
     <SidebarProvider>
       <div className="flex h-screen bg-zinc-50 overflow-hidden">
         <SASidebar />
-        <main className="flex-1 overflow-y-auto">
-          <SAErrorBoundary>{children}</SAErrorBoundary>
+        <main className="flex-1 flex flex-col overflow-hidden">
+          <SAHeader />
+          <div className="flex-1 overflow-y-auto">
+            <SAErrorBoundary>{children}</SAErrorBoundary>
+          </div>
         </main>
       </div>
     </SidebarProvider>

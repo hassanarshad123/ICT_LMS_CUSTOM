@@ -9,7 +9,7 @@ from slowapi.errors import RateLimitExceeded
 from app.utils.rate_limit import limiter
 
 from app.config import get_settings
-from app.routers import auth, users, batches, courses, curriculum, lectures, materials, jobs, announcements, zoom, admin, certificates, monitoring, branding, notifications, search, super_admin, api_keys, webhooks, public_api, quizzes, signup, sa_analytics, sa_monitoring, sa_operations, sa_billing, feedback, upgrade, admissions, integrations, billing, payment_proof, email_templates
+from app.routers import auth, users, batches, courses, curriculum, lectures, materials, jobs, announcements, zoom, admin, certificates, monitoring, branding, notifications, search, super_admin, api_keys, webhooks, public_api, quizzes, signup, sa_analytics, sa_monitoring, sa_operations, sa_billing, sa_alerts, feedback, upgrade, admissions, integrations, billing, payment_proof, email_templates
 from app.websockets.routes import router as ws_router
 from app.middleware.error_tracking import ErrorTrackingMiddleware
 from app.exceptions import NotFoundError, DuplicateError, ForbiddenError, ValidationError
@@ -108,6 +108,8 @@ async def lifespan(app: FastAPI):
             # deploys with BILLING_CRON_DRY_RUN=True so jobs log intent without
             # writing. Flip the env var to False after a calendar cycle is
             # manually verified. See docs/pricing-model-v2.md.
+            from app.scheduler.sa_alert_jobs import check_sa_alert_conditions
+            scheduler.add_job(check_sa_alert_conditions, "interval", minutes=5, id="sa_alert_conditions")
             scheduler.add_job(generate_monthly_invoices, "cron", day=1, hour=0, minute=5, id="v2_monthly_billing")
             scheduler.add_job(enforce_late_payments, "cron", hour=2, minute=0, id="v2_late_payment")
             scheduler.start()
@@ -242,6 +244,7 @@ app.include_router(sa_analytics.router, prefix="/api/v1/super-admin/analytics", 
 app.include_router(sa_monitoring.router, prefix="/api/v1/super-admin/monitoring", tags=["SA Monitoring"])
 app.include_router(sa_operations.router, prefix="/api/v1/super-admin/operations", tags=["SA Operations"])
 app.include_router(sa_billing.router, prefix="/api/v1/super-admin", tags=["SA Billing"])
+app.include_router(sa_alerts.router, prefix="/api/v1/super-admin", tags=["SA Alerts"])
 app.include_router(api_keys.router, prefix="/api/v1/admin/api-keys", tags=["API Keys"])
 app.include_router(webhooks.router, prefix="/api/v1/admin/webhooks", tags=["Webhooks"])
 app.include_router(public_api.router, prefix="/api/v1/public", tags=["Public API"])
