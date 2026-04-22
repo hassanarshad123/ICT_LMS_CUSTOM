@@ -486,6 +486,38 @@ export async function exportUsersCSV(): Promise<Blob> {
   return res.blob();
 }
 
+// ── SA Session Management ──────────────────────────────────────
+
+export interface ActiveSessionItem {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  userRole: string;
+  instituteId?: string;
+  instituteName?: string;
+  deviceInfo?: string;
+  ipAddress?: string;
+  createdAt?: string;
+  lastActiveAt?: string;
+}
+
+export async function listActiveSessions(params?: {
+  page?: number;
+  per_page?: number;
+  institute_id?: string;
+}): Promise<{ data: ActiveSessionItem[]; total: number; page: number; perPage: number; totalPages: number }> {
+  return apiClient('/super-admin/operations/sessions', { params });
+}
+
+export async function terminateSession(sessionId: string): Promise<void> {
+  await apiClient(`/super-admin/operations/sessions/${sessionId}`, { method: 'DELETE' });
+}
+
+export async function terminateInstituteSessions(instituteId: string): Promise<void> {
+  await apiClient(`/super-admin/operations/sessions/institute/${instituteId}`, { method: 'DELETE' });
+}
+
 // ── SA Billing & Communication (Phase 4) ────────────────────────
 
 export interface BillingConfig {

@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Search, MoreVertical, Key, UserX, UserCheck } from 'lucide-react';
+import { Search, MoreVertical, Key, UserX, UserCheck, Download } from 'lucide-react';
 import { useApi, useMutation } from '@/hooks/use-api';
 import {
   searchUsers, resetUserPassword, deactivateUser, activateUser, impersonateUser,
-  type SAUserItem,
+  exportUsersCSV, type SAUserItem,
 } from '@/lib/api/super-admin';
+import { downloadBlob } from '@/lib/utils/download';
 import { toast } from 'sonner';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -17,6 +18,7 @@ import {
 export default function SAUsersPage() {
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [exporting, setExporting] = useState(false);
   const [page, setPage] = useState(1);
   const [actionUserId, setActionUserId] = useState<string | null>(null);
   const [resetModalId, setResetModalId] = useState<string | null>(null);
@@ -101,9 +103,30 @@ export default function SAUsersPage() {
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-zinc-900">Global User Search</h1>
-        <p className="text-zinc-500 text-sm mt-0.5">Search users across all institutes</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-zinc-900">Global User Search</h1>
+          <p className="text-zinc-500 text-sm mt-0.5">Search users across all institutes</p>
+        </div>
+        <button
+          onClick={async () => {
+            setExporting(true);
+            try {
+              const blob = await exportUsersCSV();
+              downloadBlob(blob, `users-${new Date().toISOString().slice(0, 10)}.csv`);
+              toast.success('Export downloaded');
+            } catch (e: any) {
+              toast.error(e.message || 'Export failed');
+            } finally {
+              setExporting(false);
+            }
+          }}
+          disabled={exporting}
+          className="flex items-center gap-2 px-4 py-2 bg-white border border-zinc-200 text-zinc-700 rounded-xl text-sm font-medium hover:bg-zinc-50 transition-colors disabled:opacity-50"
+        >
+          <Download size={16} />
+          {exporting ? 'Exporting...' : 'Export CSV'}
+        </button>
       </div>
 
       {/* Search Bar */}
