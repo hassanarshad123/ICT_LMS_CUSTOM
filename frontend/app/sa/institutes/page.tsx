@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { Plus, Building2 } from 'lucide-react';
-import { listInstitutes, suspendInstitute, activateInstitute, InstituteOut } from '@/lib/api/super-admin';
+import { Plus, Building2, Download } from 'lucide-react';
+import { listInstitutes, suspendInstitute, activateInstitute, bulkUpdateInstitutes, exportInstitutesCSV, InstituteOut } from '@/lib/api/super-admin';
+import { downloadBlob } from '@/lib/utils/download';
 import { toast } from 'sonner';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -95,6 +96,9 @@ export default function InstitutesPage() {
   const [planFilter, setPlanFilter] = useState('');
   const [suspendTarget, setSuspendTarget] = useState<{ id: string; name: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkAction, setBulkAction] = useState<'suspend' | 'activate' | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   const fetchInstitutes = useCallback(async () => {
     setLoading(true);
@@ -137,6 +141,49 @@ export default function InstitutesPage() {
     }
   };
 
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const blob = await exportInstitutesCSV();
+      downloadBlob(blob, `institutes-${new Date().toISOString().slice(0, 10)}.csv`);
+      toast.success('Export downloaded');
+    } catch (e: any) {
+      toast.error(e.message || 'Export failed');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleBulkAction = async () => {
+    if (!bulkAction || selectedIds.size === 0) return;
+    try {
+      const res = await bulkUpdateInstitutes(Array.from(selectedIds), bulkAction);
+      toast.success(`${res.count} institute(s) ${bulkAction === 'suspend' ? 'suspended' : 'activated'}`);
+      setSelectedIds(new Set());
+      setBulkAction(null);
+      fetchInstitutes();
+    } catch (e: any) {
+      toast.error(e.message || 'Bulk action failed');
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredInstitutes.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredInstitutes.map((i) => i.id)));
+    }
+  };
+
   const filteredInstitutes = searchQuery
     ? institutes.filter((inst) =>
         inst.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -152,13 +199,23 @@ export default function InstitutesPage() {
           <h1 className="text-2xl font-bold text-gray-900">Institutes</h1>
           <p className="text-sm text-gray-500 mt-1">{total} institutes total</p>
         </div>
-        <Link
-          href="/sa/institutes/new"
-          className="flex items-center gap-2 px-4 py-2 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#2A2A2A] transition-colors"
-        >
-          <Plus size={16} />
-          New Institute
-        </Link>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExport}
+            disabled={exporting}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
+          >
+            <Download size={16} />
+            {exporting ? 'Exporting...' : 'Export CSV'}
+          </button>
+          <Link
+            href="/sa/institutes/new"
+            className="flex items-center gap-2 px-4 py-2 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#2A2A2A] transition-colors"
+          >
+            <Plus size={16} />
+            New Institute
+          </Link>
+        </div>
       </div>
 
       {/* Search + Filters */}
@@ -270,6 +327,14 @@ export default function InstitutesPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
+                  <th className="px-4 py-3 w-10">
+                    <input
+                      type="checkbox"
+                      checked={filteredInstitutes.length > 0 && selectedIds.size === filteredInstitutes.length}
+                      onChange={toggleSelectAll}
+                      className="rounded border-gray-300"
+                    />
+                  </th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Institute</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Plan</th>
@@ -280,7 +345,15 @@ export default function InstitutesPage() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {filteredInstitutes.map((inst) => (
-                  <tr key={inst.id} className="hover:bg-gray-50/50 transition-colors">
+                  <tr key={inst.id} className={`hover:bg-gray-50/50 transition-colors ${selectedIds.has(inst.id) ? 'bg-blue-50/50' : ''}`}>
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(inst.id)}
+                        onChange={() => toggleSelect(inst.id)}
+                        className="rounded border-gray-300"
+                      />
+                    </td>
                     <td className="px-4 py-3">
                       <Link href={`/sa/institutes/${inst.id}`} className="hover:underline">
                         <div className="font-medium text-gray-900">{inst.name}</div>
@@ -356,6 +429,57 @@ export default function InstitutesPage() {
           )}
         </div>
       )}
+
+      {/* Bulk Action Bar */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 bg-[#1A1A1A] text-white px-5 py-3 rounded-2xl shadow-xl">
+          <span className="text-sm font-medium">{selectedIds.size} selected</span>
+          <div className="w-px h-5 bg-white/20" />
+          <button
+            onClick={() => setBulkAction('suspend')}
+            className="text-xs px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 transition-colors"
+          >
+            Suspend Selected
+          </button>
+          <button
+            onClick={() => setBulkAction('activate')}
+            className="text-xs px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 transition-colors"
+          >
+            Activate Selected
+          </button>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            className="text-xs px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
+      {/* Bulk Action Confirmation Dialog */}
+      <AlertDialog open={!!bulkAction} onOpenChange={(open) => !open && setBulkAction(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {bulkAction === 'suspend' ? 'Suspend' : 'Activate'} {selectedIds.size} Institute(s)?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {bulkAction === 'suspend'
+                ? 'This will suspend all selected institutes. Active user sessions will be terminated and users will not be able to log in.'
+                : 'This will reactivate all selected institutes and restore user access.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkAction}
+              className={bulkAction === 'suspend' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}
+            >
+              {bulkAction === 'suspend' ? 'Suspend All' : 'Activate All'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Suspend Confirmation Dialog */}
       <AlertDialog open={!!suspendTarget} onOpenChange={(open) => !open && setSuspendTarget(null)}>
