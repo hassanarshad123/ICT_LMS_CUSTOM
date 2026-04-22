@@ -94,6 +94,24 @@ class Settings(BaseSettings):
     # Cloudflare Turnstile (CAPTCHA)
     CF_TURNSTILE_SECRET_KEY: str = ""  # empty = skip verification (dev/test)
 
+    # PayFast (SaaS invoice payments — admin -> Zensbot)
+    # Kill switch: default OFF until UAT roundtrip is verified. When False,
+    # the checkout router returns 503 and the frontend hides the Pay Now button.
+    PAYFAST_ENABLED: bool = False
+    PAYFAST_MERCHANT_ID: str = ""
+    PAYFAST_SECURED_KEY: str = ""
+    PAYFAST_MERCHANT_NAME: str = "Zensbot LLC"
+    # UAT:  https://ipguat.apps.net.pk
+    # Live: https://ipg1.apps.net.pk
+    PAYFAST_BASE_URL: str = "https://ipguat.apps.net.pk"
+    # Browser-redirect targets after PayFast hosted checkout completes. These
+    # are UX-only — the IPN at PAYFAST_CHECKOUT_URL is the source of truth.
+    PAYFAST_RETURN_URL: str = ""
+    PAYFAST_CANCEL_URL: str = ""
+    # Public IPN URL — must be reachable from PayFast's servers. Locally use
+    # ngrok: `ngrok http 8000` -> https://<id>.ngrok.io/api/v1/webhooks/payfast
+    PAYFAST_CHECKOUT_URL: str = ""
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 

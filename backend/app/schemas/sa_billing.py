@@ -26,6 +26,7 @@ class BillingConfigUpdate(BaseModel):
     extra_storage_rate: Optional[int] = Field(default=None, ge=0)
     extra_video_rate: Optional[int] = Field(default=None, ge=0)
     notes: Optional[str] = Field(default=None, max_length=2000)
+    payfast_enabled: Optional[bool] = None
 
 
 class InvoiceLineItem(BaseModel):
