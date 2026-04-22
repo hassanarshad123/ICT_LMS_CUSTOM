@@ -518,6 +518,33 @@ export async function terminateInstituteSessions(instituteId: string): Promise<v
   await apiClient(`/super-admin/operations/sessions/institute/${instituteId}`, { method: 'DELETE' });
 }
 
+// ── SA Maintenance Mode ────────────────────────────────────────
+
+export interface MaintenanceStatus {
+  globalEnabled: boolean;
+  institutes: Array<{ id: string; name: string; slug: string }>;
+}
+
+export async function getMaintenanceStatus(): Promise<MaintenanceStatus> {
+  return apiClient<MaintenanceStatus>('/super-admin/operations/maintenance/status');
+}
+
+export async function enableGlobalMaintenance(): Promise<{ globalEnabled: boolean }> {
+  return apiClient('/super-admin/operations/maintenance/global/enable', { method: 'POST' });
+}
+
+export async function disableGlobalMaintenance(): Promise<{ globalEnabled: boolean }> {
+  return apiClient('/super-admin/operations/maintenance/global/disable', { method: 'POST' });
+}
+
+export async function enableInstituteMaintenance(id: string): Promise<{ id: string; maintenanceMode: boolean }> {
+  return apiClient(`/super-admin/operations/maintenance/institute/${id}/enable`, { method: 'POST' });
+}
+
+export async function disableInstituteMaintenance(id: string): Promise<{ id: string; maintenanceMode: boolean }> {
+  return apiClient(`/super-admin/operations/maintenance/institute/${id}/disable`, { method: 'POST' });
+}
+
 // ── SA Archive & Purge ─────────────────────────────────────────
 
 export async function archiveInstitute(id: string): Promise<{ id: string; status: string }> {

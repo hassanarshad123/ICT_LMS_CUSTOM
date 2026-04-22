@@ -363,3 +363,138 @@ async def purge_institute_endpoint(
         raise HTTPException(status_code=400, detail=str(e))
     await session.commit()
     return report.to_dict()
+
+
+# ── Maintenance Mode ───────────────────────────────────────────
+
+MAINTENANCE_KEY = "maintenance_mode_global"
+
+
+@router.get("/maintenance/status")
+async def get_maintenance_status(
+    sa: SA,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    from app.models.settings import SystemSetting
+    from app.models.institute import Institute
+    from sqlalchemy import select as sel
+
+    result = await session.execute(
+        sel(SystemSetting).where(SystemSetting.key == MAINTENANCE_KEY)
+    )
+    setting = result.scalar_one_or_none()
+    global_enabled = setting.value == "true" if setting else False
+
+    inst_result = await session.execute(
+        sel(Institute).where(
+            Institute.deleted_at.is_(None),
+            Institute.maintenance_mode == True,
+        )
+    )
+    maintenance_institutes = [
+        {"id": str(i.id), "name": i.name, "slug": i.slug}
+        for i in inst_result.scalars().all()
+    ]
+
+    return {
+        "global_enabled": global_enabled,
+        "institutes": maintenance_institutes,
+    }
+
+
+@router.post("/maintenance/global/enable")
+async def enable_global_maintenance(
+    sa: SA,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    from app.models.settings import SystemSetting
+    from sqlalchemy import select as sel
+
+    result = await session.execute(
+        sel(SystemSetting).where(SystemSetting.key == MAINTENANCE_KEY)
+    )
+    setting = result.scalar_one_or_none()
+    if setting:
+        setting.value = "true"
+        session.add(setting)
+    else:
+        session.add(SystemSetting(key=MAINTENANCE_KEY, value="true"))
+
+    await log_sa_action(session, sa.id, "maintenance_mode_enabled", "system", None, {"scope": "global"})
+    await session.commit()
+
+    from app.core.cache import cache
+    await cache.set("maintenance:global", "true", ttl=10)
+
+    return {"global_enabled": True}
+
+
+@router.post("/maintenance/global/disable")
+async def disable_global_maintenance(
+    sa: SA,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    from app.models.settings import SystemSetting
+    from sqlalchemy import select as sel
+
+    result = await session.execute(
+        sel(SystemSetting).where(SystemSetting.key == MAINTENANCE_KEY)
+    )
+    setting = result.scalar_one_or_none()
+    if setting:
+        setting.value = "false"
+        session.add(setting)
+
+    await log_sa_action(session, sa.id, "maintenance_mode_disabled", "system", None, {"scope": "global"})
+    await session.commit()
+
+    from app.core.cache import cache
+    await cache.set("maintenance:global", "false", ttl=10)
+
+    return {"global_enabled": False}
+
+
+@router.post("/maintenance/institute/{institute_id}/enable")
+async def enable_institute_maintenance(
+    institute_id: str,
+    sa: SA,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    from app.models.institute import Institute
+
+    inst = await session.get(Institute, uuid.UUID(institute_id))
+    if not inst or inst.deleted_at:
+        raise HTTPException(status_code=404, detail="Institute not found")
+
+    inst.maintenance_mode = True
+    session.add(inst)
+    await log_sa_action(session, sa.id, "maintenance_mode_enabled", "institute", inst.id, {"institute_name": inst.name})
+    await session.commit()
+
+    from app.core.cache import cache
+    await cache.set(f"maintenance:inst:{institute_id}", "true", ttl=10)
+
+    return {"id": str(inst.id), "maintenance_mode": True}
+
+
+@router.post("/maintenance/institute/{institute_id}/disable")
+async def disable_institute_maintenance(
+    institute_id: str,
+    sa: SA,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    from app.models.institute import Institute
+
+    inst = await session.get(Institute, uuid.UUID(institute_id))
+    if not inst or inst.deleted_at:
+        raise HTTPException(status_code=404, detail="Institute not found")
+
+    inst.maintenance_mode = False
+    session.add(inst)
+    await log_sa_action(session, sa.id, "maintenance_mode_disabled", "institute", inst.id, {"institute_name": inst.name})
+    await session.commit()
+
+    from app.core.cache import cache
+    await cache.set(f"maintenance:inst:{institute_id}", "false", ttl=10)
+
+    return {"id": str(inst.id), "maintenance_mode": False}
