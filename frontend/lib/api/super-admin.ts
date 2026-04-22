@@ -518,6 +518,43 @@ export async function terminateInstituteSessions(instituteId: string): Promise<v
   await apiClient(`/super-admin/operations/sessions/institute/${instituteId}`, { method: 'DELETE' });
 }
 
+// ── SA Finance ─────────────────────────────────────────────────
+
+export interface MRRTrend { month: string; mrr: number; }
+export interface MRRData { totalMrr: number; byTier: Record<string, number>; trend: MRRTrend[]; }
+
+export interface ChurnedInstitute { id: string; name: string; slug: string; previousTier: string | null; eventType: string; eventDate: string | null; }
+export interface ChurnData { churnRatePct: number; churnedCount: number; totalActive: number; churnedInstitutes: ChurnedInstitute[]; }
+
+export interface AtRiskItem { id: string; name: string; slug: string; planTier: string; riskScore: number; reasons: string[]; }
+export interface AtRiskData { accounts: AtRiskItem[]; }
+
+export interface LTVItem { tier: string; avgMonthlyRevenue: number; avgTenureMonths: number; ltv: number; }
+export interface LTVData { byTier: LTVItem[]; }
+
+export interface ForecastPoint { month: string; projected: number; }
+export interface ForecastData { forecast: ForecastPoint[]; }
+
+export async function getFinanceMRR(): Promise<MRRData> {
+  return apiClient<MRRData>('/super-admin/finance/mrr');
+}
+
+export async function getFinanceChurn(period: number = 30): Promise<ChurnData> {
+  return apiClient<ChurnData>('/super-admin/finance/churn', { params: { period } });
+}
+
+export async function getFinanceAtRisk(): Promise<AtRiskData> {
+  return apiClient<AtRiskData>('/super-admin/finance/at-risk');
+}
+
+export async function getFinanceLTV(): Promise<LTVData> {
+  return apiClient<LTVData>('/super-admin/finance/ltv');
+}
+
+export async function getFinanceForecast(months: number = 3): Promise<ForecastData> {
+  return apiClient<ForecastData>('/super-admin/finance/forecast', { params: { months } });
+}
+
 // ── SA Global Search ───────────────────────────────────────────
 
 export interface SearchResultItem {
