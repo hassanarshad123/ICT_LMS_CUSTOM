@@ -147,3 +147,74 @@ async def activate_institute(
     logger.info("Institute %s activated", institute_id)
     await session.refresh(institute)
     return institute
+
+
+async def archive_institute(
+    session: AsyncSession,
+    institute_id: uuid.UUID,
+    actor_id: uuid.UUID,
+    ip_address: Optional[str] = None,
+) -> Institute:
+    """Archive an institute — hidden from default lists, data preserved.
+
+    Side effects mirror suspend: sessions terminated, tokens invalidated,
+    cache cleared. Status set to 'archived' (distinct from 'suspended').
+    """
+    institute = await session.get(Institute, institute_id)
+    if not institute or institute.deleted_at:
+        raise ValueError("Institute not found")
+
+    previous_status = institute.status.value if hasattr(institute.status, 'value') else str(institute.status)
+    institute.status = InstituteStatus.archived
+    institute.updated_at = datetime.now(timezone.utc)
+    session.add(institute)
+
+    result = await session.execute(
+        select(UserSession).where(
+            UserSession.institute_id == institute_id,
+            UserSession.is_active == True,
+        )
+    )
+    sessions_terminated = 0
+    for s in result.scalars().all():
+        s.is_active = False
+        session.add(s)
+        sessions_terminated += 1
+
+    user_result = await session.execute(
+        select(User).where(
+            User.institute_id == institute_id,
+            User.deleted_at.is_(None),
+            User.role != UserRole.super_admin,
+        )
+    )
+    user_ids = []
+    for user in user_result.scalars().all():
+        user.token_version += 1
+        session.add(user)
+        user_ids.append(str(user.id))
+
+    log = ActivityLog(
+        user_id=actor_id,
+        action="institute_archived",
+        entity_type="institute",
+        entity_id=institute_id,
+        details={
+            "institute_name": institute.name,
+            "previous_status": previous_status,
+            "sessions_terminated": sessions_terminated,
+        },
+        ip_address=ip_address,
+        institute_id=institute_id,
+    )
+    session.add(log)
+
+    await session.commit()
+
+    for uid in user_ids:
+        await cache.delete(cache.user_key(uid))
+    await cache.invalidate_dashboard(str(institute_id))
+
+    logger.info("Institute %s archived", institute_id)
+    await session.refresh(institute)
+    return institute

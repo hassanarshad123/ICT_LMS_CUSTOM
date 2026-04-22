@@ -518,6 +518,23 @@ export async function terminateInstituteSessions(instituteId: string): Promise<v
   await apiClient(`/super-admin/operations/sessions/institute/${instituteId}`, { method: 'DELETE' });
 }
 
+// ── SA Archive & Purge ─────────────────────────────────────────
+
+export async function archiveInstitute(id: string): Promise<{ id: string; status: string }> {
+  return apiClient(`/super-admin/operations/institutes/${id}/archive`, { method: 'POST' });
+}
+
+export async function listArchivedInstitutes(params?: {
+  page?: number;
+  per_page?: number;
+}): Promise<{ data: Array<{ id: string; name: string; slug: string; contactEmail: string; planTier: string; createdAt: string | null; updatedAt: string | null }>; total: number; page: number; perPage: number; totalPages: number }> {
+  return apiClient('/super-admin/operations/institutes/archived', { params });
+}
+
+export async function purgeInstitute(id: string): Promise<Record<string, any>> {
+  return apiClient(`/super-admin/operations/institutes/${id}/purge`, { method: 'DELETE' });
+}
+
 // ── SA PayFast ─────────────────────────────────────────────────
 
 export interface PayFastCheckoutResponse {

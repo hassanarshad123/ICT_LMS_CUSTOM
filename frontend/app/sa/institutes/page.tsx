@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { Plus, Building2, Download } from 'lucide-react';
-import { listInstitutes, suspendInstitute, activateInstitute, bulkUpdateInstitutes, exportInstitutesCSV, InstituteOut } from '@/lib/api/super-admin';
+import { Plus, Building2, Download, Archive } from 'lucide-react';
+import { listInstitutes, suspendInstitute, activateInstitute, bulkUpdateInstitutes, exportInstitutesCSV, archiveInstitute, InstituteOut } from '@/lib/api/super-admin';
 import { downloadBlob } from '@/lib/utils/download';
 import { toast } from 'sonner';
 import {
@@ -141,6 +141,16 @@ export default function InstitutesPage() {
     }
   };
 
+  const handleArchive = async (id: string, name: string) => {
+    try {
+      await archiveInstitute(id);
+      toast.success(`${name} archived`);
+      fetchInstitutes();
+    } catch (e: any) {
+      toast.error(e.message || 'Archive failed');
+    }
+  };
+
   const handleExport = async () => {
     setExporting(true);
     try {
@@ -208,6 +218,13 @@ export default function InstitutesPage() {
             <Download size={16} />
             {exporting ? 'Exporting...' : 'Export CSV'}
           </button>
+          <Link
+            href="/sa/institutes/archived"
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors"
+          >
+            <Archive size={16} />
+            Archived
+          </Link>
           <Link
             href="/sa/institutes/new"
             className="flex items-center gap-2 px-4 py-2 bg-[#1A1A1A] text-white rounded-xl text-sm font-medium hover:bg-[#2A2A2A] transition-colors"
