@@ -12,6 +12,7 @@ from app.config import get_settings
 from app.routers import auth, users, batches, courses, curriculum, lectures, materials, jobs, announcements, zoom, admin, certificates, monitoring, branding, notifications, search, super_admin, api_keys, webhooks, public_api, quizzes, signup, sa_analytics, sa_monitoring, sa_operations, sa_billing, sa_alerts, sa_search, sa_finance, feedback, upgrade, admissions, integrations, billing, payment_proof, email_templates, payfast, payfast_webhooks
 from app.websockets.routes import router as ws_router
 from app.middleware.error_tracking import ErrorTrackingMiddleware
+from app.middleware.maintenance import MaintenanceMiddleware
 from app.exceptions import NotFoundError, DuplicateError, ForbiddenError, ValidationError
 
 settings = get_settings()
@@ -197,6 +198,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 app.add_middleware(SecurityHeadersMiddleware)
+
+# Maintenance mode — blocks writes during maintenance (except SA + webhooks)
+app.add_middleware(MaintenanceMiddleware)
 
 # Error tracking + request logging (replaces old RequestLoggingMiddleware)
 app.add_middleware(ErrorTrackingMiddleware)

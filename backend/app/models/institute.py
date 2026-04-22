@@ -74,6 +74,7 @@ class Institute(SQLModel, table=True):
         default=None,
         sa_column=Column(String(16), nullable=True),
     )
+    maintenance_mode: bool = Field(default=False)
     expires_at: Optional[datetime] = Field(
         default=None, sa_column=Column(TIMESTAMP(timezone=True), nullable=True)
     )
