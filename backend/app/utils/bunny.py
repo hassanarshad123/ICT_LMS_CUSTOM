@@ -89,6 +89,27 @@ async def get_video_status(video_id: str) -> tuple[str, int]:
         return _BUNNY_STATUS_MAP.get(bunny_status, "processing"), duration
 
 
+async def get_video_details(video_id: str) -> dict:
+    """Fetch full video metadata including storage size.
+
+    Returns {"status": str, "duration": int, "storage_size": int}.
+    """
+    library_id = settings.BUNNY_LIBRARY_ID
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.get(
+            f"https://video.bunnycdn.com/library/{library_id}/videos/{video_id}",
+            headers={"AccessKey": settings.BUNNY_API_KEY},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        bunny_status = data.get("status", 0)
+        return {
+            "status": _BUNNY_STATUS_MAP.get(bunny_status, "processing"),
+            "duration": int(data.get("length", 0)),
+            "storage_size": int(data.get("storageSize", 0)),
+        }
+
+
 async def create_video_from_url(title: str, source_url: str) -> dict:
     """Create a Bunny Stream video and tell Bunny to fetch from a remote URL.
     Returns {"video_id": str, "library_id": str}."""

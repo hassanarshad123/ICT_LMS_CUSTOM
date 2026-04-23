@@ -241,20 +241,24 @@ async def bunny_webhook(request: Request):
 
     from app.database import async_session
 
-    # Compute thumbnail URL and fetch duration when video is ready
+    # Compute thumbnail URL, duration, and actual file size when video is ready
     thumbnail_url = None
     duration = None
+    file_size = None
     if new_status == "ready":
-        from app.utils.bunny import get_thumbnail_url, get_video_status as _get_bunny_status
+        from app.utils.bunny import get_thumbnail_url, get_video_details
         thumbnail_url = get_thumbnail_url(video_guid)
         try:
-            _, duration = await _get_bunny_status(video_guid)
+            details = await get_video_details(video_guid)
+            duration = details["duration"]
+            file_size = details["storage_size"]
         except Exception:
-            pass  # Duration fetch is best-effort; status update still proceeds
+            pass  # Best-effort; status update still proceeds
 
     async with async_session() as session:
         await lecture_service.update_lecture_status(
-            session, video_guid, new_status, thumbnail_url=thumbnail_url, duration=duration,
+            session, video_guid, new_status,
+            thumbnail_url=thumbnail_url, duration=duration, file_size=file_size,
         )
 
     logger.info("Bunny webhook: video %s → %s", video_guid[:12], new_status)
