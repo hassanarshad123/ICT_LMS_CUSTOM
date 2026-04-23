@@ -64,8 +64,8 @@ async def get_platform_overview(session: AsyncSession, period: int = 30) -> dict
         FROM institute_usage
     """))
     agg = r.one()
-    total_storage_gb = round((agg[0] or 0) / (1024 ** 3), 2)
-    total_video_gb = round((agg[1] or 0) / (1024 ** 3), 2)
+    total_storage_gb = round((agg[0] or 0) / (1024 ** 3), 3)
+    total_video_gb = round((agg[1] or 0) / (1024 ** 3), 3)
 
     r = await session.execute(text("""
         SELECT

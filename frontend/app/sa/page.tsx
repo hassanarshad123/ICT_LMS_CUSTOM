@@ -126,8 +126,8 @@ export default function SADashboard() {
       {/* Secondary KPI Row */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <SAKpiCard label="Batches" value={overview.totalBatches} currentValue={overview.totalBatches} previousValue={overview.totalBatchesPrev} icon={Layers} color="bg-indigo-500" />
-        <SAKpiCard label="Storage Used" value={`${overview.totalStorageGb} GB`} icon={HardDrive} color="bg-cyan-600" />
-        <SAKpiCard label="Video Storage" value={`${overview.totalVideoGb} GB`} icon={Video} color="bg-pink-500" />
+        <SAKpiCard label="Storage Used" value={overview.totalStorageGb < 1 ? `${Math.round(overview.totalStorageGb * 1024)} MB` : `${overview.totalStorageGb} GB`} icon={HardDrive} color="bg-cyan-600" />
+        <SAKpiCard label="Video Storage" value={overview.totalVideoGb < 1 ? `${Math.round(overview.totalVideoGb * 1024)} MB` : `${overview.totalVideoGb} GB`} icon={Video} color="bg-pink-500" />
       </div>
 
       {/* Cost & Alerts Row */}
