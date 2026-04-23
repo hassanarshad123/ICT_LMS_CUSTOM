@@ -95,6 +95,7 @@ export default function InstitutesPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [planFilter, setPlanFilter] = useState('');
   const [suspendTarget, setSuspendTarget] = useState<{ id: string; name: string } | null>(null);
+  const [archiveTarget, setArchiveTarget] = useState<{ id: string; name: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkAction, setBulkAction] = useState<'suspend' | 'activate' | null>(null);
@@ -145,6 +146,7 @@ export default function InstitutesPage() {
     try {
       await archiveInstitute(id);
       toast.success(`${name} archived`);
+      setArchiveTarget(null);
       fetchInstitutes();
     } catch (e: any) {
       toast.error(e.message || 'Archive failed');
@@ -334,6 +336,12 @@ export default function InstitutesPage() {
                       Activate
                     </button>
                   )}
+                  <button
+                    onClick={() => setArchiveTarget({ id: inst.id, name: inst.name })}
+                    className="text-xs px-2.5 py-1.5 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 transition-colors"
+                  >
+                    Archive
+                  </button>
                 </div>
               </div>
             ))}
@@ -414,6 +422,12 @@ export default function InstitutesPage() {
                             Activate
                           </button>
                         )}
+                        <button
+                          onClick={() => setArchiveTarget({ id: inst.id, name: inst.name })}
+                          className="text-xs px-2.5 py-1.5 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 transition-colors"
+                        >
+                          Archive
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -514,6 +528,27 @@ export default function InstitutesPage() {
               className="bg-red-600 hover:bg-red-700"
             >
               Suspend
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Archive Confirmation Dialog */}
+      <AlertDialog open={!!archiveTarget} onOpenChange={(open) => !open && setArchiveTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Archive Institute?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will archive &quot;{archiveTarget?.name}&quot;. All users will be logged out and lose access. The institute and its data are preserved and can be permanently deleted later from the Archived page.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => archiveTarget && handleArchive(archiveTarget.id, archiveTarget.name)}
+              className="bg-amber-600 hover:bg-amber-700"
+            >
+              Archive
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Loader2, Edit2, Check, X, LogIn } from 'lucide-react';
 import {
-  getInstitute, updateInstitute, suspendInstitute, activateInstitute,
+  getInstitute, updateInstitute, suspendInstitute, activateInstitute, archiveInstitute,
   getInstituteUsers, getInstituteCourses, getInstituteBatches,
   impersonateUser, getUsageTrends, getInstituteCertificates,
   InstituteOut, PlanTier, PLAN_TIER_LABELS,
@@ -148,7 +148,9 @@ export default function InstituteDetailPage() {
     await commitSave();
   };
 
+  const router = useRouter();
   const [showSuspendDialog, setShowSuspendDialog] = useState(false);
+  const [showArchiveDialog, setShowArchiveDialog] = useState(false);
 
   const handleSuspend = async () => {
     if (!institute) return;
@@ -159,6 +161,18 @@ export default function InstituteDetailPage() {
       fetchInstitute();
     } catch (e: any) {
       toast.error(e.message);
+    }
+  };
+
+  const handleArchive = async () => {
+    if (!institute) return;
+    try {
+      await archiveInstitute(instituteId);
+      toast.success(`${institute.name} archived`);
+      setShowArchiveDialog(false);
+      router.push('/sa/institutes');
+    } catch (e: any) {
+      toast.error(e.message || 'Archive failed');
     }
   };
 
@@ -204,6 +218,7 @@ export default function InstituteDetailPage() {
           {institute.status !== 'suspended' && (
             <button onClick={() => setShowSuspendDialog(true)} className="px-3 py-1.5 text-sm bg-red-50 text-red-600 rounded-xl hover:bg-red-100">Suspend</button>
           )}
+          <button onClick={() => setShowArchiveDialog(true)} className="px-3 py-1.5 text-sm bg-amber-50 text-amber-600 rounded-xl hover:bg-amber-100">Archive</button>
           <AlertDialog open={showSuspendDialog} onOpenChange={setShowSuspendDialog}>
             <AlertDialogContent>
               <AlertDialogHeader>
@@ -215,6 +230,21 @@ export default function InstituteDetailPage() {
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction onClick={handleSuspend} className="bg-red-600 hover:bg-red-700">Suspend</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          <AlertDialog open={showArchiveDialog} onOpenChange={setShowArchiveDialog}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Archive Institute?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will archive &quot;{institute.name}&quot;. All users will be logged out and lose access. Data is preserved and can be permanently deleted from the Archived page.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleArchive} className="bg-amber-600 hover:bg-amber-700">Archive</AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
