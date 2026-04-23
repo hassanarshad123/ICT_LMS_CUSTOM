@@ -687,6 +687,130 @@ async def capture_daily_snapshots():
     logger.info("Captured daily snapshots for %d/%d institutes", captured, len(institute_ids))
 
 
+@sentry_job_wrapper("check_quota_alerts")
+async def check_quota_alerts():
+    """Check all institutes for quota threshold crossings and send alerts.
+
+    Thresholds: 80% (warning), 90% (critical), 100% (exceeded).
+    Deduplicates via quota_alert_logs — same threshold is only alerted once
+    until the usage drops below the threshold and the log row is cleared.
+    """
+    import uuid as _uuid
+    from sqlmodel import select
+    from sqlalchemy import func
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+    from app.models.institute import Institute, InstituteUsage
+    from app.models.platform_cost import QuotaAlertLog
+    from app.models.user import User
+    from app.models.enums import UserRole
+    from app.config import get_settings
+    from app.utils.email_sender import send_email_background
+
+    settings = get_settings()
+    thresholds = [100, 90, 80]
+    sent_count = 0
+
+    async with async_session() as session:
+        result = await session.execute(
+            select(Institute, InstituteUsage).outerjoin(
+                InstituteUsage, InstituteUsage.institute_id == Institute.id,
+            ).where(Institute.deleted_at.is_(None))
+        )
+        rows = result.all()
+
+    for inst, usage in rows:
+        if not usage:
+            continue
+
+        checks = []
+        if inst.max_students and inst.max_students > 0:
+            async with async_session() as session:
+                sr = await session.execute(
+                    select(func.count(User.id)).where(
+                        User.institute_id == inst.id,
+                        User.role == UserRole.student,
+                        User.deleted_at.is_(None),
+                    )
+                )
+                student_count = sr.scalar_one() or 0
+            checks.append(("students", student_count, inst.max_students))
+
+        if inst.max_users and inst.max_users > 0:
+            checks.append(("users", usage.current_users, inst.max_users))
+
+        if inst.max_storage_gb and inst.max_storage_gb > 0:
+            current_gb = round(usage.current_storage_bytes / (1024 ** 3), 3)
+            checks.append(("storage", current_gb, inst.max_storage_gb))
+
+        if inst.max_video_gb and inst.max_video_gb > 0:
+            current_gb = round(usage.current_video_bytes / (1024 ** 3), 3)
+            checks.append(("video", current_gb, inst.max_video_gb))
+
+        for resource, current, limit in checks:
+            pct = (current / limit * 100) if limit > 0 else 0
+            for threshold in thresholds:
+                if pct < threshold:
+                    continue
+
+                # Check if alert already sent for this threshold
+                async with async_session() as session:
+                    existing = await session.execute(
+                        select(QuotaAlertLog.id).where(
+                            QuotaAlertLog.institute_id == inst.id,
+                            QuotaAlertLog.resource == resource,
+                            QuotaAlertLog.threshold_pct == threshold,
+                        )
+                    )
+                    if existing.scalar_one_or_none():
+                        break  # Already alerted at this or higher threshold
+
+                    severity = "exceeded" if threshold >= 100 else ("critical" if threshold >= 90 else "warning")
+
+                    # Record the alert
+                    alert_log = QuotaAlertLog(
+                        id=_uuid.uuid4(),
+                        institute_id=inst.id,
+                        resource=resource,
+                        threshold_pct=threshold,
+                        notified_sa=True,
+                        notified_admin=True,
+                    )
+                    session.add(alert_log)
+                    await session.commit()
+
+                    # Send email to SA
+                    if settings.SUPER_ADMIN_EMAIL:
+                        send_email_background(
+                            to=settings.SUPER_ADMIN_EMAIL,
+                            subject=f"[{severity.upper()}] {inst.name} — {resource} at {round(pct)}%",
+                            html=f"<p>Institute <b>{inst.name}</b> ({inst.slug}) has reached "
+                                 f"<b>{round(pct)}%</b> of its {resource} quota.</p>"
+                                 f"<p>Current: {current} / Limit: {limit}</p>"
+                                 f"<p>Severity: <b>{severity}</b></p>",
+                        )
+
+                    # Send email to institute admin
+                    if inst.contact_email:
+                        send_email_background(
+                            to=inst.contact_email,
+                            subject=f"Your {resource} usage is at {round(pct)}%",
+                            html=f"<p>Your institute <b>{inst.name}</b> has reached "
+                                 f"<b>{round(pct)}%</b> of its {resource} quota.</p>"
+                                 f"<p>Current: {current} / Limit: {limit}</p>"
+                                 f"<p>Please contact support if you need to upgrade.</p>",
+                        )
+
+                    sent_count += 1
+                    logger.info(
+                        "Quota alert: %s %s at %d%% (threshold=%d%%)",
+                        inst.name, resource, round(pct), threshold,
+                    )
+                break  # Only alert at the highest crossed threshold
+
+    if sent_count:
+        logger.info("Sent %d quota alerts", sent_count)
+
+
 @sentry_job_wrapper("send_batch_expiry_notifications")
 async def send_batch_expiry_notifications():
     """Send notifications for students whose batch access is about to expire (daily).

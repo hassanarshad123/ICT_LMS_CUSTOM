@@ -71,7 +71,7 @@ async def lifespan(app: FastAPI):
     if settings.SCHEDULER_ENABLED:
         try:
             from apscheduler.schedulers.asyncio import AsyncIOScheduler
-            from app.scheduler.jobs import cleanup_expired_sessions, send_zoom_reminders, retry_failed_recordings, cleanup_stale_uploads, auto_suspend_expired_institutes, process_webhook_deliveries, recalculate_all_usage, capture_daily_snapshots, send_batch_expiry_notifications, sync_stuck_video_statuses, send_trial_expiry_warnings, deactivate_unverified_users, purge_stale_records, backfill_video_durations, send_fee_reminders, process_frappe_sync_tasks, send_integration_weekly_digest, enforce_overdue_access_revocation, refresh_payment_erp_statuses
+            from app.scheduler.jobs import cleanup_expired_sessions, send_zoom_reminders, retry_failed_recordings, cleanup_stale_uploads, auto_suspend_expired_institutes, process_webhook_deliveries, recalculate_all_usage, capture_daily_snapshots, check_quota_alerts, send_batch_expiry_notifications, sync_stuck_video_statuses, send_trial_expiry_warnings, deactivate_unverified_users, purge_stale_records, backfill_video_durations, send_fee_reminders, process_frappe_sync_tasks, send_integration_weekly_digest, enforce_overdue_access_revocation, refresh_payment_erp_statuses
             from app.scheduler.billing_jobs import generate_monthly_invoices, enforce_late_payments
 
             scheduler = AsyncIOScheduler()
@@ -84,6 +84,7 @@ async def lifespan(app: FastAPI):
             scheduler.add_job(process_frappe_sync_tasks, "interval", seconds=30, id="frappe_sync_tasks")
             scheduler.add_job(recalculate_all_usage, "interval", hours=24, id="recalculate_usage")
             scheduler.add_job(capture_daily_snapshots, "cron", hour=1, minute=0, id="daily_snapshots")
+            scheduler.add_job(check_quota_alerts, "cron", hour=1, minute=30, id="quota_alerts")
             scheduler.add_job(send_batch_expiry_notifications, "interval", hours=24, id="batch_expiry_notifications")
             scheduler.add_job(send_fee_reminders, "interval", hours=24, id="fee_reminders")
             # Daily overdue-invoice enforcement for Frappe-enabled institutes.
