@@ -83,7 +83,7 @@ function isTokenExpired(token: string): boolean {
 
 let refreshPromise: Promise<string | null> | null = null;
 
-async function refreshAccessToken(): Promise<string | null> {
+export async function refreshAccessToken(): Promise<string | null> {
   // Deduplicate concurrent refresh calls
   if (refreshPromise) return refreshPromise;
 

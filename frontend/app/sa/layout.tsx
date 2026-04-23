@@ -7,6 +7,7 @@ import { SASidebar } from '@/components/layout/sa-sidebar';
 import { SidebarProvider } from '@/components/layout/sidebar-context';
 import { SAErrorBoundary } from '@/components/layout/sa-error-boundary';
 import { SAHeader } from '@/components/sa/sa-header';
+import { refreshAccessToken } from '@/lib/api/client';
 
 export default function SALayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -40,22 +41,46 @@ export default function SALayout({ children }: { children: React.ReactNode }) {
     let cancelled = false;
     (async () => {
       try {
-        const resp = await fetch('/api/v1/auth/me', {
-          headers: { Authorization: `Bearer ${token}` },
+        let currentToken = token;
+        let resp = await fetch('/api/v1/auth/me', {
+          headers: { Authorization: `Bearer ${currentToken}` },
         });
+
+        if (resp.status === 401) {
+          const newToken = await refreshAccessToken();
+          if (newToken) {
+            currentToken = newToken;
+            resp = await fetch('/api/v1/auth/me', {
+              headers: { Authorization: `Bearer ${currentToken}` },
+            });
+          }
+        }
+
         if (cancelled) return;
+
         if (!resp.ok) {
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          localStorage.removeItem('user');
           router.push('/login');
           return;
         }
         const me = await resp.json();
         if (me?.role !== 'super_admin') {
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          localStorage.removeItem('user');
           router.push('/login');
           return;
         }
         setAuthorized(true);
       } catch {
-        if (!cancelled) router.push('/login');
+        if (!cancelled) {
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          localStorage.removeItem('user');
+          router.push('/login');
+        }
       }
     })();
 
