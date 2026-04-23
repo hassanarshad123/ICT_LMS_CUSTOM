@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     AWS_SECRET_ACCESS_KEY: str = ""
     AWS_REGION: str = "ap-south-1"
     S3_BUCKET_NAME: str = "ict-lms-files"
+    AWS_COST_EXPLORER_ENABLED: bool = False
+
+    # USD → PKR conversion rate for cost tracking (update periodically)
+    USD_TO_PKR_RATE: float = 280.0
 
     # Bunny.net (BUNNY_API_KEY = library API key from Stream library settings, NOT the account API key)
     BUNNY_API_KEY: str = ""
