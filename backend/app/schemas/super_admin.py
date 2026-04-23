@@ -54,10 +54,10 @@ class InstituteOut(BaseModel):
     slug: str
     status: str
     plan_tier: str
-    max_users: int
-    max_students: int
-    max_storage_gb: float
-    max_video_gb: float
+    max_users: Optional[int] = None
+    max_students: Optional[int] = None
+    max_storage_gb: Optional[float] = None
+    max_video_gb: Optional[float] = None
     contact_email: str
     expires_at: Optional[datetime]
     created_at: Optional[datetime]
