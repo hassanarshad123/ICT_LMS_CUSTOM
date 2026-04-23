@@ -214,7 +214,8 @@ export default function OnboardWizard() {
     /.+@.+\..+/.test(student.email) &&
     student.phone.trim().length >= 7;
   const canAdvanceStep2 = batchId.length > 0;
-  const canAdvanceStep3 = totalNum > 0 && finalAmount > 0;
+  const courseSelected = !!(frappeItemCode && frappeItemCode.trim().length > 0);
+  const canAdvanceStep3 = totalNum > 0 && finalAmount > 0 && courseSelected;
   const canAdvanceStep4 =
     fee.planType !== 'installment' ||
     (fee.installments.length > 0 && installmentSum === finalAmount);
@@ -292,7 +293,7 @@ export default function OnboardWizard() {
             {itemsData?.enabled && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Course / Service Item (Frappe)
+                  Course / Service Item (Frappe) <span className="text-red-500">*</span>
                 </label>
                 <Popover open={itemPickerOpen} onOpenChange={setItemPickerOpen}>
                   <PopoverTrigger asChild>
@@ -346,13 +347,13 @@ export default function OnboardWizard() {
             {itemsData && !itemsData.enabled && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Course Code (optional)
+                  Course Code <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={frappeItemCode ?? ''}
                   onChange={(e) => setFrappeItemCode(e.target.value || null)}
-                  placeholder="Leave blank if Frappe is not connected"
+                  placeholder="Enter course code"
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-primary bg-gray-50"
                 />
               </div>
@@ -563,6 +564,16 @@ export default function OnboardWizard() {
             <Row label="Student" value={`${student.name} · ${student.email}`} />
             <Row label="Phone" value={student.phone} />
             <Row label="Batch" value={batches.find((b) => b.id === batchId)?.name || '—'} />
+            {frappeItemCode && (
+              <Row
+                label="Course"
+                value={
+                  itemsData?.enabled
+                    ? (itemsData.items.find((i) => i.itemCode === frappeItemCode)?.itemName ?? frappeItemCode)
+                    : frappeItemCode
+                }
+              />
+            )}
             <Row label="Plan" value={planTypeLabel(fee.planType)} />
             <Row label="Total fee" value={formatMoney(totalNum)} />
             {fee.discountType !== 'none' && (
