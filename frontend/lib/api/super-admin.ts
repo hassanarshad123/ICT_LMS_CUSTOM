@@ -942,3 +942,119 @@ export async function downloadInvoicePDF(invoiceId: string): Promise<void> {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+// ── Resource Management ─────────────────────────────────────────
+
+export interface ServiceCost {
+  service: string;
+  amountUsd: number;
+  amountPkr: number;
+  source?: string;
+  usageRatio?: number;
+}
+
+export interface PlatformCostSummary {
+  month: string;
+  totalUsd: number;
+  totalPkr: number;
+  byService: ServiceCost[];
+  totalRevenuePkr: number;
+  profitMarginPkr: number;
+  profitMarginPct: number;
+}
+
+export interface InstituteCostBreakdown {
+  instituteId: string;
+  instituteName: string;
+  planTier: string;
+  revenuePkr: number;
+  costUsd: number;
+  costPkr: number;
+  marginPkr: number;
+  marginPct: number;
+  byService: ServiceCost[];
+}
+
+export interface UsageTrendPoint {
+  date: string;
+  users: number;
+  students: number;
+  storageGb: number;
+  videoGb: number;
+  courses: number;
+  lectures: number;
+}
+
+export interface UsageTrend {
+  instituteId: string | null;
+  dataPoints: UsageTrendPoint[];
+}
+
+export interface QuotaAlert {
+  instituteId: string;
+  instituteName: string;
+  resource: string;
+  current: number;
+  limit: number;
+  usagePct: number;
+  severity: 'warning' | 'critical' | 'exceeded';
+}
+
+export async function getCostSummary(month?: string): Promise<PlatformCostSummary> {
+  const params = month ? `?month=${month}` : '';
+  return apiClient<PlatformCostSummary>(`/super-admin/resources/costs/summary${params}`);
+}
+
+export async function getCostByInstitute(month?: string): Promise<InstituteCostBreakdown[]> {
+  const params = month ? `?month=${month}` : '';
+  return apiClient<InstituteCostBreakdown[]>(`/super-admin/resources/costs/by-institute${params}`);
+}
+
+export async function getUsageTrends(instituteId: string, days = 30): Promise<UsageTrend> {
+  return apiClient<UsageTrend>(`/super-admin/resources/usage-trends/${instituteId}?days=${days}`);
+}
+
+export async function getPlatformUsageTrends(days = 30): Promise<UsageTrend> {
+  return apiClient<UsageTrend>(`/super-admin/resources/usage-trends/platform?days=${days}`);
+}
+
+export async function getQuotaAlerts(): Promise<QuotaAlert[]> {
+  return apiClient<QuotaAlert[]>('/super-admin/resources/alerts');
+}
+
+export async function submitManualCost(data: {
+  service: string;
+  month: string;
+  amountUsd: number;
+  amountPkr: number;
+}): Promise<{ status: string; id: string }> {
+  return apiClient<{ status: string; id: string }>('/super-admin/resources/costs/manual', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getManualCosts(month?: string): Promise<Array<{
+  id: string;
+  month: string;
+  service: string;
+  amountUsd: number;
+  amountPkr: number;
+  source: string;
+}>> {
+  const params = month ? `?month=${month}` : '';
+  return apiClient(`/super-admin/resources/costs/manual${params}`);
+}
+
+export async function fetchExternalCosts(month?: string): Promise<{
+  aws: boolean;
+  bunny: boolean;
+  attributionsCalculated: number;
+}> {
+  const params = month ? `?month=${month}` : '';
+  return apiClient(`/super-admin/resources/costs/fetch${params}`, { method: 'POST' });
+}
+
+export async function triggerRecalculation(): Promise<{ status: string; message: string }> {
+  return apiClient('/super-admin/resources/recalculate', { method: 'POST' });
+}
