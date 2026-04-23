@@ -261,14 +261,12 @@ async def recalculate_usage(session: AsyncSession, institute_id: uuid.UUID) -> I
     )
     user_count = user_count_result.scalar_one() or 0
 
-    # Count storage bytes from materials
-    storage_result = await session.execute(
-        select(func.coalesce(func.sum(BatchMaterial.file_size), 0)).where(
-            BatchMaterial.institute_id == institute_id,
-            BatchMaterial.deleted_at.is_(None),
-        )
-    )
-    storage_bytes = storage_result.scalar_one() or 0
+    # Count storage bytes from actual S3 objects (all files under institute prefix)
+    from app.utils.s3 import get_storage_for_prefix
+    try:
+        storage_bytes = get_storage_for_prefix(str(institute_id))
+    except Exception:
+        storage_bytes = 0
 
     # Count video bytes from lectures
     video_result = await session.execute(

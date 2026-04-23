@@ -219,3 +219,14 @@ def upload_payment_proof_bytes(
         ContentType=content_type,
     )
     return object_key
+
+
+def get_storage_for_prefix(prefix: str) -> int:
+    """List all S3 objects under a prefix and return total bytes."""
+    client = _get_client()
+    paginator = client.get_paginator("list_objects_v2")
+    total = 0
+    for page in paginator.paginate(Bucket=settings.S3_BUCKET_NAME, Prefix=f"{prefix}/"):
+        for obj in page.get("Contents", []):
+            total += obj["Size"]
+    return total
