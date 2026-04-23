@@ -1,10 +1,10 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 import enum
 
 from sqlmodel import SQLModel, Field, Column
-from sqlalchemy import BigInteger, UniqueConstraint, Index, Enum as SAEnum, ForeignKey, String
+from sqlalchemy import BigInteger, Date, UniqueConstraint, Index, Enum as SAEnum, ForeignKey, String
 from sqlalchemy.dialects.postgresql import TIMESTAMP, UUID as PG_UUID
 
 
@@ -109,4 +109,60 @@ class InstituteUsage(SQLModel, table=True):
     )
     last_calculated_at: Optional[datetime] = Field(
         default=None, sa_column=Column(TIMESTAMP(timezone=True), nullable=True)
+    )
+
+
+class UsageSnapshot(SQLModel, table=True):
+    __tablename__ = "usage_snapshots"
+    __table_args__ = (
+        UniqueConstraint("institute_id", "snapshot_date", name="uq_usage_snapshot_inst_date"),
+        Index("ix_usage_snapshots_date", "snapshot_date"),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    institute_id: uuid.UUID = Field(
+        sa_column=Column(PG_UUID(as_uuid=True), ForeignKey("institutes.id"), nullable=False)
+    )
+    snapshot_date: date = Field(sa_column=Column(Date, nullable=False))
+    users_count: int = Field(default=0, nullable=False)
+    students_count: int = Field(default=0, nullable=False)
+    storage_bytes: int = Field(
+        default=0, sa_column=Column(BigInteger, nullable=False, server_default="0")
+    )
+    video_bytes: int = Field(
+        default=0, sa_column=Column(BigInteger, nullable=False, server_default="0")
+    )
+    courses_count: int = Field(default=0, nullable=False)
+    lectures_count: int = Field(default=0, nullable=False)
+    zoom_meetings_count: int = Field(default=0, nullable=False)
+    zoom_total_minutes: int = Field(default=0, nullable=False)
+    created_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
+    )
+
+
+class PlatformSnapshot(SQLModel, table=True):
+    __tablename__ = "platform_snapshots"
+    __table_args__ = (
+        UniqueConstraint("snapshot_date", name="uq_platform_snapshot_date"),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    snapshot_date: date = Field(sa_column=Column(Date, nullable=False))
+    total_institutes: int = Field(default=0, nullable=False)
+    active_institutes: int = Field(default=0, nullable=False)
+    total_users: int = Field(default=0, nullable=False)
+    total_students: int = Field(default=0, nullable=False)
+    total_storage_bytes: int = Field(
+        default=0, sa_column=Column(BigInteger, nullable=False, server_default="0")
+    )
+    total_video_bytes: int = Field(
+        default=0, sa_column=Column(BigInteger, nullable=False, server_default="0")
+    )
+    total_courses: int = Field(default=0, nullable=False)
+    total_lectures: int = Field(default=0, nullable=False)
+    created_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
     )

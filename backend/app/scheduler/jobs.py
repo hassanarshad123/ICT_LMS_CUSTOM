@@ -517,6 +517,176 @@ async def recalculate_all_usage():
         logger.info("Recalculated usage for %d/%d institutes", recalculated, len(institute_ids))
 
 
+@sentry_job_wrapper("capture_daily_snapshots")
+async def capture_daily_snapshots():
+    """Capture daily usage snapshots for all institutes + platform aggregate.
+
+    Runs after recalculate_all_usage so the numbers are fresh.
+    Stores one row per institute per day in usage_snapshots, and one
+    platform-level row per day in platform_snapshots.
+    """
+    import uuid as _uuid
+    from sqlmodel import select
+    from sqlalchemy import func
+    from app.models.institute import (
+        Institute, InstituteUsage, InstituteStatus,
+        UsageSnapshot, PlatformSnapshot,
+    )
+    from app.models.user import User
+    from app.models.enums import UserRole
+    from app.models.course import Course, Lecture
+    from app.models.zoom import ZoomClass
+
+    today = datetime.now(timezone.utc).date()
+
+    async with async_session() as session:
+        result = await session.execute(
+            select(Institute.id).where(Institute.deleted_at.is_(None))
+        )
+        institute_ids = [row[0] for row in result.all()]
+
+    totals = {
+        "institutes": len(institute_ids), "active": 0,
+        "users": 0, "students": 0, "storage": 0, "video": 0,
+        "courses": 0, "lectures": 0,
+    }
+    captured = 0
+
+    for iid in institute_ids:
+        try:
+            async with async_session() as session:
+                inst = await session.get(Institute, iid)
+                if not inst:
+                    continue
+
+                usage_r = await session.execute(
+                    select(InstituteUsage).where(InstituteUsage.institute_id == iid)
+                )
+                usage = usage_r.scalar_one_or_none()
+
+                users_r = await session.execute(
+                    select(func.count(User.id)).where(
+                        User.institute_id == iid, User.deleted_at.is_(None),
+                        User.role != UserRole.super_admin,
+                    )
+                )
+                users_count = users_r.scalar_one() or 0
+
+                students_r = await session.execute(
+                    select(func.count(User.id)).where(
+                        User.institute_id == iid, User.deleted_at.is_(None),
+                        User.role == UserRole.student,
+                    )
+                )
+                students_count = students_r.scalar_one() or 0
+
+                courses_r = await session.execute(
+                    select(func.count(Course.id)).where(
+                        Course.institute_id == iid, Course.deleted_at.is_(None),
+                    )
+                )
+                courses_count = courses_r.scalar_one() or 0
+
+                lectures_r = await session.execute(
+                    select(func.count(Lecture.id)).where(
+                        Lecture.institute_id == iid, Lecture.deleted_at.is_(None),
+                    )
+                )
+                lectures_count = lectures_r.scalar_one() or 0
+
+                zoom_r = await session.execute(
+                    select(
+                        func.count(ZoomClass.id),
+                        func.coalesce(func.sum(ZoomClass.duration), 0),
+                    ).where(
+                        ZoomClass.institute_id == iid,
+                        ZoomClass.deleted_at.is_(None),
+                    )
+                )
+                zoom_row = zoom_r.one()
+                zoom_count = zoom_row[0] or 0
+                zoom_minutes = zoom_row[1] or 0
+
+                storage_bytes = usage.current_storage_bytes if usage else 0
+                video_bytes = usage.current_video_bytes if usage else 0
+
+                from sqlalchemy.dialects.postgresql import insert as pg_insert
+                stmt = pg_insert(UsageSnapshot).values(
+                    id=_uuid.uuid4(),
+                    institute_id=iid,
+                    snapshot_date=today,
+                    users_count=users_count,
+                    students_count=students_count,
+                    storage_bytes=storage_bytes,
+                    video_bytes=video_bytes,
+                    courses_count=courses_count,
+                    lectures_count=lectures_count,
+                    zoom_meetings_count=zoom_count,
+                    zoom_total_minutes=zoom_minutes,
+                ).on_conflict_do_update(
+                    constraint="uq_usage_snapshot_inst_date",
+                    set_={
+                        "users_count": users_count,
+                        "students_count": students_count,
+                        "storage_bytes": storage_bytes,
+                        "video_bytes": video_bytes,
+                        "courses_count": courses_count,
+                        "lectures_count": lectures_count,
+                        "zoom_meetings_count": zoom_count,
+                        "zoom_total_minutes": zoom_minutes,
+                    },
+                )
+                await session.execute(stmt)
+                await session.commit()
+
+                if inst.status == InstituteStatus.active:
+                    totals["active"] += 1
+                totals["users"] += users_count
+                totals["students"] += students_count
+                totals["storage"] += storage_bytes
+                totals["video"] += video_bytes
+                totals["courses"] += courses_count
+                totals["lectures"] += lectures_count
+                captured += 1
+        except Exception as e:
+            logger.error("Snapshot failed for institute %s: %s", iid, e)
+
+    # Platform-level aggregate
+    try:
+        async with async_session() as session:
+            from sqlalchemy.dialects.postgresql import insert as pg_insert
+            stmt = pg_insert(PlatformSnapshot).values(
+                id=_uuid.uuid4(),
+                snapshot_date=today,
+                total_institutes=totals["institutes"],
+                active_institutes=totals["active"],
+                total_users=totals["users"],
+                total_students=totals["students"],
+                total_storage_bytes=totals["storage"],
+                total_video_bytes=totals["video"],
+                total_courses=totals["courses"],
+                total_lectures=totals["lectures"],
+            ).on_conflict_do_update(
+                constraint="uq_platform_snapshot_date",
+                set_={
+                    "total_institutes": totals["institutes"],
+                    "active_institutes": totals["active"],
+                    "total_users": totals["users"],
+                    "total_students": totals["students"],
+                    "total_storage_bytes": totals["storage"],
+                    "total_video_bytes": totals["video"],
+                    "total_courses": totals["courses"],
+                    "total_lectures": totals["lectures"],
+                },
+            )
+            await session.execute(stmt)
+            await session.commit()
+    except Exception as e:
+        logger.error("Platform snapshot failed: %s", e)
+
+    logger.info("Captured daily snapshots for %d/%d institutes", captured, len(institute_ids))
+
+
 @sentry_job_wrapper("send_batch_expiry_notifications")
 async def send_batch_expiry_notifications():
     """Send notifications for students whose batch access is about to expire (daily).
