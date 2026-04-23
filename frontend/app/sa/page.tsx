@@ -1,13 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { Building2, Users, HardDrive, Video, GraduationCap, BookOpen, Layers, Award } from 'lucide-react';
+import { Building2, Users, HardDrive, Video, GraduationCap, BookOpen, Layers, Award, DollarSign, AlertTriangle, Server } from 'lucide-react';
 import { useApi } from '@/hooks/use-api';
 import {
   getAnalyticsOverview, getGrowthTrends, getPlanDistribution,
   getTopInstitutes, getQuotaUtilization,
+  getCostSummary, getQuotaAlerts,
   type SAOverview, type GrowthTrends, type PlanDistribution,
   type TopInstituteItem, type QuotaUtilizationItem,
+  type PlatformCostSummary, type QuotaAlert,
 } from '@/lib/api/super-admin';
 import { SAKpiCard } from '@/components/sa/charts/sa-kpi-card';
 import { SAPeriodSelector } from '@/components/sa/charts/sa-period-selector';
@@ -38,6 +40,12 @@ export default function SADashboard() {
   );
   const { data: quotaData } = useApi<QuotaUtilizationItem[]>(
     () => getQuotaUtilization(), []
+  );
+  const { data: costData } = useApi<PlatformCostSummary>(
+    () => getCostSummary(), []
+  );
+  const { data: alertData } = useApi<QuotaAlert[]>(
+    () => getQuotaAlerts(), []
   );
 
   if (loadingOverview) {
@@ -120,6 +128,28 @@ export default function SADashboard() {
         <SAKpiCard label="Batches" value={overview.totalBatches} currentValue={overview.totalBatches} previousValue={overview.totalBatchesPrev} icon={Layers} color="bg-indigo-500" />
         <SAKpiCard label="Storage Used" value={`${overview.totalStorageGb} GB`} icon={HardDrive} color="bg-cyan-600" />
         <SAKpiCard label="Video Storage" value={`${overview.totalVideoGb} GB`} icon={Video} color="bg-pink-500" />
+      </div>
+
+      {/* Cost & Alerts Row */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <SAKpiCard
+          label="Monthly Cost"
+          value={costData ? `Rs ${costData.totalPkr.toLocaleString()}` : 'Rs 0'}
+          icon={Server}
+          color="bg-orange-500"
+        />
+        <SAKpiCard
+          label="Profit Margin"
+          value={costData ? `${costData.profitMarginPct}%` : '—'}
+          icon={DollarSign}
+          color={costData && costData.profitMarginPkr >= 0 ? 'bg-emerald-500' : 'bg-red-500'}
+        />
+        <SAKpiCard
+          label="Quota Alerts"
+          value={alertData?.length ?? 0}
+          icon={AlertTriangle}
+          color={(alertData ?? []).some(a => a.severity !== 'warning') ? 'bg-red-500' : 'bg-zinc-400'}
+        />
       </div>
 
       {/* Charts Row: Growth + Plan Distribution */}

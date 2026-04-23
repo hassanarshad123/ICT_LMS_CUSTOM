@@ -7,8 +7,11 @@ import { ArrowLeft, Loader2, Edit2, Check, X, LogIn } from 'lucide-react';
 import {
   getInstitute, updateInstitute, suspendInstitute, activateInstitute,
   getInstituteUsers, getInstituteCourses, getInstituteBatches,
-  impersonateUser, InstituteOut, PlanTier, PLAN_TIER_LABELS,
+  impersonateUser, getUsageTrends,
+  InstituteOut, PlanTier, PLAN_TIER_LABELS,
+  type UsageTrend,
 } from '@/lib/api/super-admin';
+import { useApi } from '@/hooks/use-api';
 import { toast } from 'sonner';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -54,7 +57,7 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`text-xs px-2 py-1 rounded-full font-medium ${colors[status] ?? 'bg-gray-100 text-gray-700'}`}>{status}</span>;
 }
 
-type TabType = 'overview' | 'users' | 'courses' | 'batches';
+type TabType = 'overview' | 'users' | 'courses' | 'batches' | 'resources';
 
 export default function InstituteDetailPage() {
   const { instituteId } = useParams<{ instituteId: string }>();
@@ -90,7 +93,7 @@ export default function InstituteDetailPage() {
   useEffect(() => { fetchInstitute(); }, [fetchInstitute]);
 
   const fetchTabData = useCallback(async () => {
-    if (tab === 'overview') return;
+    if (tab === 'overview' || tab === 'resources') return;
     setTabLoading(true);
     try {
       let res;
@@ -253,7 +256,7 @@ export default function InstituteDetailPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
-        {(['overview', 'users', 'courses', 'batches'] as TabType[]).map((t) => (
+        {(['overview', 'users', 'courses', 'batches', 'resources'] as TabType[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -348,7 +351,11 @@ export default function InstituteDetailPage() {
         </div>
       )}
 
-      {tab !== 'overview' && (
+      {tab === 'resources' && (
+        <InstituteResourcesTab instituteId={instituteId} />
+      )}
+
+      {tab !== 'overview' && tab !== 'resources' && (
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           {tabLoading ? (
             <div className="flex justify-center py-8"><Loader2 className="animate-spin h-6 w-6" /></div>
@@ -441,6 +448,76 @@ export default function InstituteDetailPage() {
               </table>
             </div>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InstituteResourcesTab({ instituteId }: { instituteId: string }) {
+  const [days, setDays] = useState(30);
+  const { data: trends, loading: trendsLoading } = useApi<UsageTrend>(
+    () => getUsageTrends(instituteId, days), [instituteId, days],
+  );
+
+  if (trendsLoading) {
+    return (
+      <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+        <div className="flex justify-center py-8"><Loader2 className="animate-spin h-6 w-6" /></div>
+      </div>
+    );
+  }
+
+  const points = trends?.dataPoints ?? [];
+
+  return (
+    <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="font-semibold text-gray-900">Usage Trends</h2>
+        <select
+          value={days}
+          onChange={e => setDays(Number(e.target.value))}
+          className="border border-gray-200 rounded-lg px-2 py-1 text-xs"
+        >
+          <option value={7}>7 days</option>
+          <option value={30}>30 days</option>
+          <option value={60}>60 days</option>
+          <option value={90}>90 days</option>
+        </select>
+      </div>
+
+      {points.length === 0 ? (
+        <div className="text-center py-8 text-gray-500 text-sm">
+          Snapshots will appear after the daily job runs
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="border-b border-gray-100">
+              <tr>
+                <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500">Date</th>
+                <th className="text-right py-2 px-3 text-xs font-semibold text-gray-500">Users</th>
+                <th className="text-right py-2 px-3 text-xs font-semibold text-gray-500">Students</th>
+                <th className="text-right py-2 px-3 text-xs font-semibold text-gray-500">Storage (GB)</th>
+                <th className="text-right py-2 px-3 text-xs font-semibold text-gray-500">Video (GB)</th>
+                <th className="text-right py-2 px-3 text-xs font-semibold text-gray-500">Courses</th>
+                <th className="text-right py-2 px-3 text-xs font-semibold text-gray-500">Lectures</th>
+              </tr>
+            </thead>
+            <tbody>
+              {points.map((p, i) => (
+                <tr key={i} className="border-t border-gray-50">
+                  <td className="py-2 px-3 text-gray-700">{p.date}</td>
+                  <td className="py-2 px-3 text-right">{p.users}</td>
+                  <td className="py-2 px-3 text-right">{p.students}</td>
+                  <td className="py-2 px-3 text-right">{p.storageGb}</td>
+                  <td className="py-2 px-3 text-right">{p.videoGb}</td>
+                  <td className="py-2 px-3 text-right">{p.courses}</td>
+                  <td className="py-2 px-3 text-right">{p.lectures}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
