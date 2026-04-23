@@ -94,32 +94,45 @@ async def global_user_search(
     query_str: str,
     page: int = 1,
     per_page: int = 20,
+    role: str | None = None,
+    status: str | None = None,
+    institute_id: str | None = None,
 ) -> tuple[list[dict], int]:
-    """Search users across all institutes by email or name."""
-    pattern = f"%{query_str}%"
+    """Search users across all institutes by email or name with optional filters."""
+    params: dict = {"lim": per_page, "off": (page - 1) * per_page}
+    where_clauses = ["u.deleted_at IS NULL", "u.role != 'super_admin'"]
 
-    r = await session.execute(text("""
-        SELECT COUNT(*)
-        FROM users u
-        WHERE u.deleted_at IS NULL
-          AND u.role != 'super_admin'
-          AND (u.email ILIKE :pat OR u.name ILIKE :pat)
-    """), {"pat": pattern})
+    if query_str:
+        pattern = f"%{query_str}%"
+        params["pat"] = pattern
+        where_clauses.append("(u.email ILIKE :pat OR u.name ILIKE :pat)")
+    if role:
+        params["role"] = role
+        where_clauses.append("u.role = :role")
+    if status:
+        params["status"] = status
+        where_clauses.append("u.status = :status")
+    if institute_id:
+        params["inst_id"] = institute_id
+        where_clauses.append("u.institute_id = :inst_id::uuid")
+
+    where = " AND ".join(where_clauses)
+
+    r = await session.execute(text(f"""
+        SELECT COUNT(*) FROM users u WHERE {where}
+    """), params)
     total = r.scalar() or 0
 
-    offset = (page - 1) * per_page
-    r = await session.execute(text("""
+    r = await session.execute(text(f"""
         SELECT u.id, u.email, u.name, u.role, u.status,
                u.institute_id, i.name AS inst_name, i.slug AS inst_slug,
-               u.created_at
+               u.created_at, u.phone
         FROM users u
         LEFT JOIN institutes i ON i.id = u.institute_id
-        WHERE u.deleted_at IS NULL
-          AND u.role != 'super_admin'
-          AND (u.email ILIKE :pat OR u.name ILIKE :pat)
+        WHERE {where}
         ORDER BY u.created_at DESC
         LIMIT :lim OFFSET :off
-    """), {"pat": pattern, "lim": per_page, "off": offset})
+    """), params)
 
     items = []
     for row in r.all():
@@ -133,9 +146,42 @@ async def global_user_search(
             "institute_name": row[6],
             "institute_slug": row[7],
             "created_at": row[8].isoformat() if row[8] else None,
+            "phone": row[9],
         })
 
     return items, total
+
+
+async def get_user_detail(
+    session: AsyncSession,
+    user_id: str,
+) -> dict | None:
+    """Get full user detail for SA view."""
+    r = await session.execute(text("""
+        SELECT u.id, u.email, u.name, u.role, u.status, u.phone,
+               u.institute_id, i.name AS inst_name, i.slug AS inst_slug,
+               u.created_at
+        FROM users u
+        LEFT JOIN institutes i ON i.id = u.institute_id
+        WHERE u.id = :uid::uuid
+          AND u.deleted_at IS NULL
+          AND u.role != 'super_admin'
+    """), {"uid": user_id})
+    row = r.one_or_none()
+    if not row:
+        return None
+    return {
+        "id": str(row[0]),
+        "email": row[1],
+        "name": row[2],
+        "role": row[3],
+        "status": row[4],
+        "phone": row[5],
+        "institute_id": str(row[6]) if row[6] else None,
+        "institute_name": row[7],
+        "institute_slug": row[8],
+        "created_at": row[9].isoformat() if row[9] else None,
+    }
 
 
 async def bulk_update_institute_status(

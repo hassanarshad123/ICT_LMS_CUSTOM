@@ -7,7 +7,7 @@ import { ArrowLeft, Loader2, Edit2, Check, X, LogIn } from 'lucide-react';
 import {
   getInstitute, updateInstitute, suspendInstitute, activateInstitute,
   getInstituteUsers, getInstituteCourses, getInstituteBatches,
-  impersonateUser, getUsageTrends,
+  impersonateUser, getUsageTrends, getInstituteCertificates,
   InstituteOut, PlanTier, PLAN_TIER_LABELS,
   type UsageTrend,
 } from '@/lib/api/super-admin';
@@ -57,7 +57,7 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`text-xs px-2 py-1 rounded-full font-medium ${colors[status] ?? 'bg-gray-100 text-gray-700'}`}>{status}</span>;
 }
 
-type TabType = 'overview' | 'users' | 'courses' | 'batches' | 'resources';
+type TabType = 'overview' | 'users' | 'courses' | 'batches' | 'certificates' | 'resources';
 
 export default function InstituteDetailPage() {
   const { instituteId } = useParams<{ instituteId: string }>();
@@ -82,6 +82,8 @@ export default function InstituteDetailPage() {
         maxStudents: data.maxStudents,
         maxStorageGb: data.maxStorageGb,
         maxVideoGb: data.maxVideoGb,
+        expiresAt: data.expiresAt ? data.expiresAt.split('T')[0] : '',
+        billingRestriction: data.billingRestriction || '',
       });
     } catch (e: any) {
       toast.error(e.message || 'Failed to load institute');
@@ -99,6 +101,7 @@ export default function InstituteDetailPage() {
       let res;
       if (tab === 'users') res = await getInstituteUsers(instituteId);
       else if (tab === 'courses') res = await getInstituteCourses(instituteId);
+      else if (tab === 'certificates') res = await getInstituteCertificates(instituteId);
       else res = await getInstituteBatches(instituteId);
       setTabData(res.data || []);
     } catch (e: any) {
@@ -256,7 +259,7 @@ export default function InstituteDetailPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
-        {(['overview', 'users', 'courses', 'batches', 'resources'] as TabType[]).map((t) => (
+        {(['overview', 'users', 'courses', 'batches', 'certificates', 'resources'] as TabType[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -305,6 +308,8 @@ export default function InstituteDetailPage() {
                 { label: 'Max Users (staff+students)', key: 'maxUsers', type: 'number' },
                 { label: 'Max Storage (GB)', key: 'maxStorageGb', type: 'number' },
                 { label: 'Max Video (GB)', key: 'maxVideoGb', type: 'number' },
+                { label: 'Expires', key: 'expiresAt', type: 'date' },
+                { label: 'Billing Restriction', key: 'billingRestriction', type: 'select', options: ['', 'add_blocked', 'read_only'] },
               ].map(({ label, key, type, options }) => (
                 <div key={key} className="flex items-center justify-between">
                   <span className="text-gray-500">{label}</span>
@@ -312,17 +317,26 @@ export default function InstituteDetailPage() {
                     type === 'select' ? (
                       <select
                         value={(editForm as any)[key] ?? ''}
-                        onChange={(e) => setEditForm((f) => ({ ...f, [key]: e.target.value }))}
-                        className="px-2 py-1 border border-gray-200 rounded-lg text-sm w-32"
+                        onChange={(e) => setEditForm((f) => ({ ...f, [key]: e.target.value || null }))}
+                        className="px-2 py-1 border border-gray-200 rounded-lg text-sm w-36"
                       >
-                        {options!.map((o) => <option key={o} value={o}>{PLAN_TIER_LABELS[o as PlanTier] ?? o}</option>)}
+                        {options!.map((o) => (
+                          <option key={o} value={o}>
+                            {key === 'billingRestriction' ? (o || 'None') : (PLAN_TIER_LABELS[o as PlanTier] ?? o)}
+                          </option>
+                        ))}
                       </select>
                     ) : (
                       <input
                         type={type}
                         value={(editForm as any)[key] ?? ''}
-                        onChange={(e) => setEditForm((f) => ({ ...f, [key]: type === 'number' ? parseFloat(e.target.value) : e.target.value }))}
-                        className="px-2 py-1 border border-gray-200 rounded-lg text-sm w-32 text-right"
+                        onChange={(e) => setEditForm((f) => ({
+                          ...f,
+                          [key]: type === 'number' ? parseFloat(e.target.value)
+                            : type === 'date' ? (e.target.value || null)
+                            : e.target.value,
+                        }))}
+                        className="px-2 py-1 border border-gray-200 rounded-lg text-sm w-36 text-right"
                       />
                     )
                   ) : (
@@ -331,6 +345,18 @@ export default function InstituteDetailPage() {
                     ) : key === 'planTier' ? (
                       <span className="font-medium text-gray-900">
                         {PLAN_TIER_LABELS[institute.planTier] ?? institute.planTier}
+                      </span>
+                    ) : key === 'expiresAt' ? (
+                      <span className="font-medium text-gray-900">
+                        {institute.expiresAt ? new Date(institute.expiresAt).toLocaleDateString() : <span className="text-gray-400">No expiry</span>}
+                      </span>
+                    ) : key === 'billingRestriction' ? (
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                        institute.billingRestriction === 'read_only' ? 'bg-red-100 text-red-700'
+                          : institute.billingRestriction === 'add_blocked' ? 'bg-amber-100 text-amber-700'
+                          : 'bg-green-100 text-green-700'
+                      }`}>
+                        {institute.billingRestriction || 'None'}
                       </span>
                     ) : (
                       <span className="font-medium text-gray-900">
@@ -389,6 +415,13 @@ export default function InstituteDetailPage() {
                         <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500">End Date</th>
                       </>
                     )}
+                    {tab === 'certificates' && (
+                      <>
+                        <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500">Recipient</th>
+                        <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500">Course</th>
+                        <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500">Issued</th>
+                      </>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -440,6 +473,13 @@ export default function InstituteDetailPage() {
                           <td className="py-2 px-3 font-medium text-gray-900">{item.name}</td>
                           <td className="py-2 px-3 text-gray-500">{item.startDate}</td>
                           <td className="py-2 px-3 text-gray-500">{item.endDate}</td>
+                        </>
+                      )}
+                      {tab === 'certificates' && (
+                        <>
+                          <td className="py-2 px-3 font-medium text-gray-900">{item.recipientName || item.studentName || '-'}</td>
+                          <td className="py-2 px-3 text-gray-500">{item.courseName || item.courseTitle || '-'}</td>
+                          <td className="py-2 px-3 text-gray-500">{item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '-'}</td>
                         </>
                       )}
                     </tr>

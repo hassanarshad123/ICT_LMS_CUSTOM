@@ -498,6 +498,55 @@ async def get_institute_batches(
     )
 
 
+@router.get("/institutes/{institute_id}/certificates")
+async def get_institute_certificates(
+    institute_id: uuid.UUID,
+    sa: SA,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+):
+    institute = await session.get(Institute, institute_id)
+    if not institute or institute.deleted_at:
+        raise HTTPException(404, "Institute not found")
+
+    offset = (page - 1) * per_page
+    count_r = await session.execute(text("""
+        SELECT COUNT(*) FROM certificates
+        WHERE institute_id = :iid AND deleted_at IS NULL
+    """), {"iid": institute_id})
+    total = count_r.scalar_one() or 0
+
+    r = await session.execute(text("""
+        SELECT c.id, c.certificate_name, c.status, c.created_at,
+               u.name AS student_name, co.title AS course_name
+        FROM certificates c
+        LEFT JOIN users u ON u.id = c.student_id
+        LEFT JOIN courses co ON co.id = c.course_id
+        WHERE c.institute_id = :iid AND c.deleted_at IS NULL
+        ORDER BY c.created_at DESC
+        LIMIT :lim OFFSET :off
+    """), {"iid": institute_id, "lim": per_page, "off": offset})
+    items = [
+        {
+            "id": str(row[0]),
+            "certificate_name": row[1],
+            "status": row[2],
+            "created_at": row[3].isoformat() if row[3] else None,
+            "student_name": row[4] or "Unknown",
+            "course_name": row[5] or "Unknown",
+        }
+        for row in r.all()
+    ]
+    return PaginatedResponse(
+        data=items,
+        total=total,
+        page=page,
+        per_page=per_page,
+        total_pages=(total + per_page - 1) // per_page,
+    )
+
+
 @router.post("/impersonate/{user_id}")
 @limiter.limit("10/minute")
 async def impersonate_user(

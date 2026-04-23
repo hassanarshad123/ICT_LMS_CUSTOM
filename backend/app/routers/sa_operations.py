@@ -75,18 +75,34 @@ async def get_impersonation_history(
 async def search_users(
     sa: SA,
     session: Annotated[AsyncSession, Depends(get_session)],
-    q: str = Query(min_length=2),
+    q: str = Query(default="", min_length=0),
     page: int = Query(default=1, ge=1),
     per_page: int = Query(default=20, ge=1, le=100),
+    role: Optional[str] = None,
+    status: Optional[str] = None,
+    institute_id: Optional[str] = None,
 ):
     items, total = await sa_operations_service.global_user_search(
-        session, q, page, per_page,
+        session, q if len(q) >= 2 else "", page, per_page,
+        role=role, status=status, institute_id=institute_id,
     )
     total_pages = (total + per_page - 1) // per_page
     return PaginatedResponse(
         data=[GlobalUserSearchResult(**i) for i in items],
         total=total, page=page, per_page=per_page, total_pages=total_pages,
     )
+
+
+@router.get("/users/{user_id}")
+async def get_user_detail(
+    user_id: str,
+    sa: SA,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    detail = await sa_operations_service.get_user_detail(session, user_id)
+    if not detail:
+        raise HTTPException(status_code=404, detail="User not found")
+    return detail
 
 
 @router.post("/institutes/bulk-action", response_model=CountResponse)

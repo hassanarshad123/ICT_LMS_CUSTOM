@@ -40,6 +40,7 @@ class InstituteUpdate(BaseModel):
     max_storage_gb: Optional[float] = None
     max_video_gb: Optional[float] = None
     expires_at: Optional[datetime] = None
+    billing_restriction: Optional[str] = Field(default=None, max_length=16)
     # Required when changing plan_tier to or from "unlimited" — captured
     # in the ActivityLog so every comp assignment (and revocation) has a
     # recorded rationale. Ignored for other tier changes.
@@ -59,8 +60,9 @@ class InstituteOut(BaseModel):
     max_storage_gb: Optional[float] = None
     max_video_gb: Optional[float] = None
     contact_email: str
-    expires_at: Optional[datetime]
-    created_at: Optional[datetime]
+    billing_restriction: Optional[str] = None
+    expires_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
     current_users: int = 0
     current_students: int = 0
     current_storage_gb: float = 0.0

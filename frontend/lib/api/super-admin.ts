@@ -37,6 +37,7 @@ export interface InstituteOut {
   maxStorageGb: number | null;
   maxVideoGb: number | null;
   contactEmail: string;
+  billingRestriction: string | null;
   expiresAt: string | null;
   createdAt: string | null;
   currentUsers: number;
@@ -118,6 +119,7 @@ export interface InstituteUpdateInput {
   maxStorageGb?: number | null;
   maxVideoGb?: number | null;
   expiresAt?: string | null;
+  billingRestriction?: string | null;
   status?: string;
   /** Required when the PATCH changes plan_tier to or from 'unlimited'. */
   tierChangeReason?: string;
@@ -161,6 +163,10 @@ export async function getInstituteCourses(id: string, params?: { page?: number; 
 
 export async function getInstituteBatches(id: string, params?: { page?: number; per_page?: number }): Promise<any> {
   return apiClient(`/super-admin/institutes/${id}/batches`, { params });
+}
+
+export async function getInstituteCertificates(id: string, params?: { page?: number; per_page?: number }): Promise<any> {
+  return apiClient(`/super-admin/institutes/${id}/certificates`, { params });
 }
 
 export interface ImpersonateResponse {
@@ -392,6 +398,7 @@ export async function getSAActivityLog(params?: {
   institute_id?: string;
   action?: string;
   entity_type?: string;
+  user_id?: string;
   date_from?: string;
   date_to?: string;
 }): Promise<{ data: ActivityLogItem[]; total: number; page: number; perPage: number; totalPages: number }> {
@@ -411,17 +418,26 @@ export interface SAUserItem {
   name: string;
   role: string;
   status: string;
+  phone?: string;
   instituteId?: string;
   instituteName?: string;
   instituteSlug?: string;
   createdAt?: string;
+  lastLoginAt?: string;
 }
 
 export async function searchUsers(q: string, params?: {
   page?: number;
   per_page?: number;
+  role?: string;
+  status?: string;
+  institute_id?: string;
 }): Promise<{ data: SAUserItem[]; total: number; page: number; perPage: number; totalPages: number }> {
   return apiClient('/super-admin/operations/users/search', { params: { q, ...params } });
+}
+
+export async function getUserDetail(userId: string): Promise<SAUserItem> {
+  return apiClient<SAUserItem>(`/super-admin/operations/users/${userId}`);
 }
 
 export async function resetUserPassword(userId: string, newPassword: string): Promise<void> {

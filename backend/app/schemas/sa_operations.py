@@ -35,6 +35,7 @@ class GlobalUserSearchResult(BaseModel):
     name: str
     role: str
     status: str
+    phone: Optional[str] = None
     institute_id: Optional[uuid.UUID] = None
     institute_name: Optional[str] = None
     institute_slug: Optional[str] = None

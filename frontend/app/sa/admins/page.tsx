@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { Shield, MoreVertical, Key, UserX, UserCheck } from 'lucide-react';
+import { Shield, MoreVertical, Key, UserX, UserCheck, Eye } from 'lucide-react';
 import { useApi, useMutation } from '@/hooks/use-api';
 import {
   listAdmins, resetUserPassword, deactivateUser, activateUser, impersonateUser,
-  type AdminListItem,
+  listInstitutes, type AdminListItem, type InstituteOut,
 } from '@/lib/api/super-admin';
 import { toast } from 'sonner';
+import Link from 'next/link';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -16,6 +17,8 @@ import {
 
 export default function SAAdminsPage() {
   const [page, setPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [instituteFilter, setInstituteFilter] = useState('');
   const [actionUserId, setActionUserId] = useState<string | null>(null);
   const [resetModalId, setResetModalId] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState('');
@@ -23,6 +26,10 @@ export default function SAAdminsPage() {
   const { data, refetch } = useApi(
     () => listAdmins({ page, per_page: 20 }),
     [page],
+  );
+
+  const { data: institutesData } = useApi<{ data: InstituteOut[] }>(
+    () => listInstitutes({ per_page: 100 }), []
   );
 
   const { execute: doReset, loading: resetting } = useMutation(
@@ -82,8 +89,15 @@ export default function SAAdminsPage() {
     }
   };
 
-  const admins = data?.data || [];
+  let admins = data?.data || [];
+  if (statusFilter) {
+    admins = admins.filter((a) => a.status === statusFilter);
+  }
+  if (instituteFilter) {
+    admins = admins.filter((a) => a.instituteId === instituteFilter);
+  }
   const totalPages = data?.totalPages || 0;
+  const hasFilters = statusFilter || instituteFilter;
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
@@ -92,6 +106,37 @@ export default function SAAdminsPage() {
         <p className="text-zinc-500 text-sm mt-0.5">
           {data?.total ?? 0} admins across all institutes
         </p>
+      </div>
+
+      {/* Filters */}
+      <div className="flex gap-2 flex-wrap">
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="px-3 py-2.5 text-sm border border-zinc-200 rounded-xl bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-[#C5D86D]/50"
+        >
+          <option value="">All Statuses</option>
+          <option value="active">Active</option>
+          <option value="deactivated">Deactivated</option>
+        </select>
+        <select
+          value={instituteFilter}
+          onChange={(e) => setInstituteFilter(e.target.value)}
+          className="px-3 py-2.5 text-sm border border-zinc-200 rounded-xl bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-[#C5D86D]/50"
+        >
+          <option value="">All Institutes</option>
+          {(institutesData?.data ?? []).map((inst) => (
+            <option key={inst.id} value={inst.id}>{inst.name}</option>
+          ))}
+        </select>
+        {hasFilters && (
+          <button
+            onClick={() => { setStatusFilter(''); setInstituteFilter(''); }}
+            className="px-3 py-2.5 text-xs font-medium text-zinc-500 hover:text-zinc-900 border border-zinc-200 rounded-xl"
+          >
+            Clear filters
+          </button>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl border border-zinc-200 overflow-hidden">
@@ -121,11 +166,19 @@ export default function SAAdminsPage() {
                   {admins.map((admin) => (
                     <tr key={admin.id} className="border-b border-zinc-50 hover:bg-zinc-50/50">
                       <td className="px-5 py-3">
-                        <div className="text-zinc-900 font-medium">{admin.name}</div>
-                        <div className="text-xs text-zinc-500">{admin.email}</div>
+                        <Link href={`/sa/users/${admin.id}`} className="hover:underline">
+                          <div className="text-zinc-900 font-medium">{admin.name}</div>
+                          <div className="text-xs text-zinc-500">{admin.email}</div>
+                        </Link>
                       </td>
-                      <td className="px-5 py-3 text-zinc-600">
-                        {admin.instituteName || '-'}
+                      <td className="px-5 py-3">
+                        {admin.instituteId ? (
+                          <Link href={`/sa/institutes/${admin.instituteId}`} className="text-zinc-600 hover:underline text-sm">
+                            {admin.instituteName}
+                          </Link>
+                        ) : (
+                          <span className="text-zinc-400">-</span>
+                        )}
                       </td>
                       <td className="px-5 py-3">
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
@@ -146,6 +199,12 @@ export default function SAAdminsPage() {
                         </button>
                         {actionUserId === admin.id && (
                           <div className="absolute right-5 top-10 z-10 bg-white border border-zinc-200 rounded-xl shadow-lg py-1 w-44">
+                            <Link
+                              href={`/sa/users/${admin.id}`}
+                              className="flex items-center gap-2 w-full px-3 py-2 text-xs text-zinc-700 hover:bg-zinc-50"
+                            >
+                              <Eye size={14} /> View Details
+                            </Link>
                             <button
                               onClick={() => { setResetModalId(admin.id); setActionUserId(null); }}
                               className="flex items-center gap-2 w-full px-3 py-2 text-xs text-zinc-700 hover:bg-zinc-50"

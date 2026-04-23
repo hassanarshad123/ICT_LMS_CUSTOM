@@ -1,23 +1,41 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Search, MoreVertical, Key, UserX, UserCheck, Download } from 'lucide-react';
+import { Search, MoreVertical, Key, UserX, UserCheck, Download, Filter, Eye } from 'lucide-react';
 import { useApi, useMutation } from '@/hooks/use-api';
 import {
   searchUsers, resetUserPassword, deactivateUser, activateUser, impersonateUser,
-  exportUsersCSV, type SAUserItem,
+  exportUsersCSV, listInstitutes, type SAUserItem, type InstituteOut,
 } from '@/lib/api/super-admin';
 import { downloadBlob } from '@/lib/utils/download';
 import { toast } from 'sonner';
+import Link from 'next/link';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 
+const ROLES = [
+  { value: '', label: 'All Roles' },
+  { value: 'admin', label: 'Admin' },
+  { value: 'course_creator', label: 'Course Creator' },
+  { value: 'teacher', label: 'Teacher' },
+  { value: 'student', label: 'Student' },
+];
+
+const STATUSES = [
+  { value: '', label: 'All Statuses' },
+  { value: 'active', label: 'Active' },
+  { value: 'deactivated', label: 'Deactivated' },
+];
+
 export default function SAUsersPage() {
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [roleFilter, setRoleFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [instituteFilter, setInstituteFilter] = useState('');
   const [exporting, setExporting] = useState(false);
   const [page, setPage] = useState(1);
   const [actionUserId, setActionUserId] = useState<string | null>(null);
@@ -34,11 +52,23 @@ export default function SAUsersPage() {
     return () => clearTimeout(timerRef.current);
   }, [query]);
 
+  const hasFilters = roleFilter || statusFilter || instituteFilter;
+  const shouldFetch = debouncedQuery.length >= 2 || hasFilters;
+
   const { data, refetch } = useApi(
-    () => debouncedQuery.length >= 2
-      ? searchUsers(debouncedQuery, { page, per_page: 20 })
+    () => shouldFetch
+      ? searchUsers(debouncedQuery, {
+          page, per_page: 20,
+          role: roleFilter || undefined,
+          status: statusFilter || undefined,
+          institute_id: instituteFilter || undefined,
+        })
       : Promise.resolve({ data: [], total: 0, page: 1, perPage: 20, totalPages: 0 }),
-    [debouncedQuery, page],
+    [debouncedQuery, page, roleFilter, statusFilter, instituteFilter],
+  );
+
+  const { data: institutesData } = useApi<{ data: InstituteOut[] }>(
+    () => listInstitutes({ per_page: 100 }), []
   );
 
   const { execute: doReset, loading: resetting } = useMutation(
@@ -91,9 +121,6 @@ export default function SAUsersPage() {
     try {
       const res = await impersonateUser(user.id);
       const host = `${res.instituteSlug}.zensbot.online`;
-      // Phase 4: URL carries the handover id, not the JWT. The callback
-      // page POSTs the handover id to /auth/impersonation-handover
-      // and gets the token server-to-server. Token never touches a URL.
       const url = `https://${host}/impersonate-callback?hid=${encodeURIComponent(res.handoverId)}`;
       window.open(url, '_blank');
     } catch {
@@ -106,7 +133,7 @@ export default function SAUsersPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-zinc-900">Global User Search</h1>
-          <p className="text-zinc-500 text-sm mt-0.5">Search users across all institutes</p>
+          <p className="text-zinc-500 text-sm mt-0.5">Search and filter users across all institutes</p>
         </div>
         <button
           onClick={async () => {
@@ -129,20 +156,60 @@ export default function SAUsersPage() {
         </button>
       </div>
 
-      {/* Search Bar */}
-      <div className="relative max-w-md">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by email or name..."
-          className="w-full pl-9 pr-4 py-2.5 text-sm border border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#C5D86D]/50 focus:border-[#C5D86D]"
-        />
+      {/* Search + Filters */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1 max-w-md">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by email or name..."
+            className="w-full pl-9 pr-4 py-2.5 text-sm border border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#C5D86D]/50 focus:border-[#C5D86D]"
+          />
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <select
+            value={roleFilter}
+            onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }}
+            className="px-3 py-2.5 text-sm border border-zinc-200 rounded-xl bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-[#C5D86D]/50"
+          >
+            {ROLES.map((r) => (
+              <option key={r.value} value={r.value}>{r.label}</option>
+            ))}
+          </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+            className="px-3 py-2.5 text-sm border border-zinc-200 rounded-xl bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-[#C5D86D]/50"
+          >
+            {STATUSES.map((s) => (
+              <option key={s.value} value={s.value}>{s.label}</option>
+            ))}
+          </select>
+          <select
+            value={instituteFilter}
+            onChange={(e) => { setInstituteFilter(e.target.value); setPage(1); }}
+            className="px-3 py-2.5 text-sm border border-zinc-200 rounded-xl bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-[#C5D86D]/50"
+          >
+            <option value="">All Institutes</option>
+            {(institutesData?.data ?? []).map((inst) => (
+              <option key={inst.id} value={inst.id}>{inst.name}</option>
+            ))}
+          </select>
+          {hasFilters && (
+            <button
+              onClick={() => { setRoleFilter(''); setStatusFilter(''); setInstituteFilter(''); setPage(1); }}
+              className="px-3 py-2.5 text-xs font-medium text-zinc-500 hover:text-zinc-900 border border-zinc-200 rounded-xl"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Results */}
-      {debouncedQuery.length >= 2 && (
+      {shouldFetch && (
         <div className="bg-white rounded-2xl border border-zinc-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -160,15 +227,25 @@ export default function SAUsersPage() {
                 {(data?.data || []).map((user) => (
                   <tr key={user.id} className="border-b border-zinc-50 hover:bg-zinc-50/50">
                     <td className="px-5 py-3">
-                      <div className="text-zinc-900 font-medium">{user.name}</div>
-                      <div className="text-xs text-zinc-500">{user.email}</div>
+                      <Link href={`/sa/users/${user.id}`} className="hover:underline">
+                        <div className="text-zinc-900 font-medium">{user.name}</div>
+                        <div className="text-xs text-zinc-500">{user.email}</div>
+                      </Link>
                     </td>
                     <td className="px-5 py-3">
                       <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-700 capitalize">
                         {user.role?.replace('_', ' ')}
                       </span>
                     </td>
-                    <td className="px-5 py-3 text-zinc-600">{user.instituteName || '-'}</td>
+                    <td className="px-5 py-3">
+                      {user.instituteId ? (
+                        <Link href={`/sa/institutes/${user.instituteId}`} className="text-zinc-600 hover:underline text-sm">
+                          {user.instituteName}
+                        </Link>
+                      ) : (
+                        <span className="text-zinc-400">-</span>
+                      )}
+                    </td>
                     <td className="px-5 py-3">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                         user.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
@@ -188,6 +265,12 @@ export default function SAUsersPage() {
                       </button>
                       {actionUserId === user.id && (
                         <div className="absolute right-5 top-10 z-10 bg-white border border-zinc-200 rounded-xl shadow-lg py-1 w-44">
+                          <Link
+                            href={`/sa/users/${user.id}`}
+                            className="flex items-center gap-2 w-full px-3 py-2 text-xs text-zinc-700 hover:bg-zinc-50"
+                          >
+                            <Eye size={14} /> View Details
+                          </Link>
                           <button
                             onClick={() => { setResetModalId(user.id); setActionUserId(null); }}
                             className="flex items-center gap-2 w-full px-3 py-2 text-xs text-zinc-700 hover:bg-zinc-50"
@@ -241,7 +324,9 @@ export default function SAUsersPage() {
                 {data && data.data.length === 0 && (
                   <tr>
                     <td colSpan={6} className="px-5 py-8 text-center text-zinc-400">
-                      No users found for &quot;{debouncedQuery}&quot;
+                      {debouncedQuery.length >= 2
+                        ? `No users found for "${debouncedQuery}"`
+                        : 'No users match the selected filters'}
                     </td>
                   </tr>
                 )}
@@ -261,8 +346,15 @@ export default function SAUsersPage() {
         </div>
       )}
 
-      {debouncedQuery.length > 0 && debouncedQuery.length < 2 && (
-        <p className="text-sm text-zinc-400">Type at least 2 characters to search</p>
+      {!shouldFetch && debouncedQuery.length > 0 && debouncedQuery.length < 2 && (
+        <p className="text-sm text-zinc-400">Type at least 2 characters to search, or use filters to browse</p>
+      )}
+
+      {!shouldFetch && debouncedQuery.length === 0 && (
+        <div className="bg-white rounded-2xl border border-zinc-200 p-12 text-center">
+          <Filter size={40} className="mx-auto text-zinc-300 mb-3" />
+          <p className="text-zinc-500 text-sm">Search by name or email, or use the filters above to browse users</p>
+        </div>
       )}
 
       {/* Password Reset Modal */}
