@@ -56,3 +56,4 @@ class ClientErrorReport(BaseModel):
 
 class ResolveRequest(BaseModel):
     resolved: bool = True
+    notes: Optional[str] = None

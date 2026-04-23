@@ -21,6 +21,7 @@ class SAErrorLogOut(BaseModel):
     resolved: bool
     resolved_at: Optional[datetime] = None
     resolved_by: Optional[uuid.UUID] = None
+    resolution_notes: Optional[str] = None
     extra: Optional[dict] = None
     institute_id: Optional[uuid.UUID] = None
     institute_name: Optional[str] = None

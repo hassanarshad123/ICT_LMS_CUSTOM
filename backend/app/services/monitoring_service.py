@@ -170,6 +170,7 @@ async def resolve_error(
     institute_id: Optional[uuid.UUID],
     is_super_admin: bool,
     resolved: bool,
+    notes: Optional[str] = None,
 ) -> Optional[ErrorLog]:
     """Mark an error as resolved or unresolved. Returns None if not found."""
     query = select(ErrorLog).where(ErrorLog.id == error_id)
@@ -187,6 +188,8 @@ async def resolve_error(
     else:
         error.resolved_at = None
         error.resolved_by = None
+    if notes is not None:
+        error.resolution_notes = notes
 
     session.add(error)
     await session.commit()

@@ -289,10 +289,19 @@ export interface SAErrorItem {
   level: string;
   message: string;
   traceback?: string;
+  requestId?: string;
+  requestMethod?: string;
   requestPath?: string;
   statusCode?: number;
+  userId?: string;
+  userEmail?: string;
+  ipAddress?: string;
+  userAgent?: string;
   source: string;
   resolved: boolean;
+  resolvedAt?: string;
+  resolutionNotes?: string;
+  extra?: Record<string, any>;
   instituteId?: string;
   instituteName?: string;
   createdAt?: string;
@@ -318,11 +327,35 @@ export async function getSAErrors(params?: {
   return apiClient('/super-admin/monitoring/errors', { params: queryParams });
 }
 
-export async function resolveSAError(id: string, resolved: boolean): Promise<SAErrorItem> {
+export async function resolveSAError(id: string, resolved: boolean, notes?: string): Promise<SAErrorItem> {
   return apiClient<SAErrorItem>(`/super-admin/monitoring/errors/${id}`, {
     method: 'PATCH',
-    body: JSON.stringify({ resolved }),
+    body: JSON.stringify({ resolved, notes }),
   });
+}
+
+export async function getSAErrorDetail(id: string): Promise<SAErrorItem> {
+  return apiClient<SAErrorItem>(`/super-admin/monitoring/errors/${id}`);
+}
+
+export async function exportErrorsCSV(params?: {
+  institute_id?: string;
+  level?: string;
+  source?: string;
+  resolved?: boolean;
+}): Promise<Blob> {
+  const token = localStorage.getItem('access_token');
+  const searchParams = new URLSearchParams();
+  if (params?.institute_id) searchParams.set('institute_id', params.institute_id);
+  if (params?.level) searchParams.set('level', params.level);
+  if (params?.source) searchParams.set('source', params.source);
+  if (params?.resolved !== undefined) searchParams.set('resolved', String(params.resolved));
+  const qs = searchParams.toString();
+  const res = await fetch(`/api/v1/super-admin/monitoring/errors/export/csv${qs ? '?' + qs : ''}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error('Export failed');
+  return res.blob();
 }
 
 export interface JobStatus {

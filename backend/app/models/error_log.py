@@ -46,6 +46,9 @@ class ErrorLog(SQLModel, table=True):
     )
     resolved_by: Optional[uuid.UUID] = Field(default=None)
 
+    # Resolution notes (root cause, fix applied, etc.)
+    resolution_notes: Optional[str] = Field(default=None, sa_column=Column(Text))
+
     # Extra context (JSONB)
     extra: Optional[dict] = Field(default=None, sa_column=Column(JSONB))
 

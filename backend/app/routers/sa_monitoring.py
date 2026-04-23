@@ -82,10 +82,72 @@ async def resolve_sa_error(
         institute_id=None,
         is_super_admin=True,
         resolved=body.resolved,
+        notes=body.notes,
     )
     if not error:
         raise HTTPException(status_code=404, detail="Error not found")
     return SAErrorLogOut.model_validate(error)
+
+
+@router.get("/errors/{error_id}", response_model=SAErrorLogOut)
+async def get_error_detail(
+    error_id: uuid.UUID,
+    sa: SA,
+    session: Annotated[AsyncSession, Depends(get_session)],
+):
+    from fastapi import HTTPException
+    from app.models.error_log import ErrorLog
+    from sqlalchemy import select
+
+    result = await session.execute(select(ErrorLog).where(ErrorLog.id == error_id))
+    error = result.scalar_one_or_none()
+    if not error:
+        raise HTTPException(status_code=404, detail="Error not found")
+    return SAErrorLogOut.model_validate(error)
+
+
+@router.get("/errors/export/csv")
+async def export_errors_csv(
+    sa: SA,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    institute_id: Optional[str] = None,
+    level: Optional[str] = None,
+    source: Optional[str] = None,
+    resolved: Optional[bool] = None,
+):
+    import csv
+    import io
+    from fastapi.responses import StreamingResponse
+
+    filters: dict = {}
+    if institute_id:
+        filters["institute_id"] = institute_id
+    if level:
+        filters["level"] = level
+    if source:
+        filters["source"] = source
+    if resolved is not None:
+        filters["resolved"] = resolved
+
+    errors, _ = await sa_monitoring_service.get_sa_errors(session, filters, 1, 5000)
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["ID", "Level", "Message", "Source", "Path", "Institute", "Resolved", "Notes", "Created"])
+    for e in errors:
+        writer.writerow([
+            str(e.id), e.level, e.message[:200], e.source,
+            e.request_path or "", getattr(e, "institute_name", "") or "",
+            "Yes" if e.resolved else "No",
+            e.resolution_notes or "",
+            str(e.created_at) if e.created_at else "",
+        ])
+    buf.seek(0)
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=errors-export.csv"},
+    )
 
 
 @router.get("/health", response_model=SystemHealthResponse)
