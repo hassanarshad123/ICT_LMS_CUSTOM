@@ -223,6 +223,7 @@ class FrappeClient:
         commission_rate: Optional[str],
         payment_terms_template: Optional[str],
         payment_proof_view_url: Optional[str],
+        batch_name: Optional[str] = None,
     ) -> FrappeResult:
         """Create AND submit (docstatus 0 -> 1) a Sales Order in one request.
 
@@ -278,6 +279,8 @@ class FrappeClient:
             "rate": rate,
             "delivery_date": delivery_date,
         }
+        if batch_name:
+            item_row["custom_batch"] = batch_name
         if self.cfg.default_cost_center:
             item_row["cost_center"] = self.cfg.default_cost_center
 
