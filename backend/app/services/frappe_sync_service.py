@@ -308,8 +308,8 @@ async def _sync_sales_order(
         sales_person=sales_person,
         commission_rate=commission_rate,
         payment_terms_template=plan.frappe_payment_terms_template,
-        # Payment proof now lives on the Sales Invoice, not the Sales Order.
         payment_proof_view_url=None,
+        batch_name=batch.name,
     )
 
     # Persist the Frappe SO name on the plan for idempotent re-syncs.
