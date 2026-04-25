@@ -34,6 +34,12 @@ class User(SQLModel, table=True):
             unique=False,
             postgresql_where=sa.text("suspension_reason IS NOT NULL"),
         ),
+        Index(
+            "ix_users_custom_role_id",
+            "custom_role_id",
+            unique=False,
+            postgresql_where=sa.text("custom_role_id IS NOT NULL"),
+        ),
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -86,6 +92,14 @@ class User(SQLModel, table=True):
     suspension_reason: Optional[str] = Field(
         default=None,
         sa_column=Column(sa.String(64), nullable=True),
+    )
+    custom_role_id: Optional[uuid.UUID] = Field(
+        default=None,
+        sa_column=Column(
+            PG_UUID(as_uuid=True),
+            ForeignKey("custom_roles.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
     )
 
     institute: Optional["Institute"] = Relationship(

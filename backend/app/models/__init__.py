@@ -38,3 +38,4 @@ from app.models.integration import (  # noqa: F401
 )
 from app.models.system_job import SystemJob  # noqa: F401
 from app.models.sa_alert import SAAlert, SAAlertPreference  # noqa: F401
+from app.rbac.models import Permission, CustomRole, CustomRolePermission  # noqa: F401

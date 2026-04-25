@@ -8,6 +8,13 @@ class UserRole(str, enum.Enum):
     teacher = "teacher"
     student = "student"
     admissions_officer = "admissions_officer"
+    custom = "custom"
+
+
+class ViewType(str, enum.Enum):
+    student_view = "student_view"
+    staff_view = "staff_view"
+    admin_view = "admin_view"
 
 
 class UserStatus(str, enum.Enum):
