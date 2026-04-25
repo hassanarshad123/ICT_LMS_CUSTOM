@@ -7,7 +7,7 @@ Create Date: 2026-04-26
 """
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP
+from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP, ENUM as PG_ENUM
 
 revision = "059"
 down_revision = "058"
@@ -16,7 +16,7 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # ── view_type enum (idempotent) ────────────────────────────
+    # ── view_type enum (idempotent — DDL auto-commits in PG) ──
     op.execute("""
         DO $$ BEGIN
             IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'view_type') THEN
@@ -24,7 +24,7 @@ def upgrade() -> None:
             END IF;
         END$$;
     """)
-    view_type_enum = sa.Enum("student_view", "staff_view", "admin_view", name="view_type", create_type=False)
+    view_type_col = PG_ENUM("student_view", "staff_view", "admin_view", name="view_type", create_type=False)
 
     # ── permissions table ──────────────────────────────────────
     op.create_table(
@@ -46,7 +46,7 @@ def upgrade() -> None:
         sa.Column("name", sa.String(100), nullable=False),
         sa.Column("slug", sa.String(100), nullable=False),
         sa.Column("description", sa.String(500), nullable=True),
-        sa.Column("view_type", view_type_enum, nullable=False),
+        sa.Column("view_type", view_type_col, nullable=False),
         sa.Column("is_active", sa.Boolean, server_default="true", nullable=False),
         sa.Column("created_at", TIMESTAMP(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", TIMESTAMP(timezone=True), server_default=sa.text("now()"), nullable=False),
