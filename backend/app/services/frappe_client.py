@@ -279,6 +279,8 @@ class FrappeClient:
             "rate": rate,
             "delivery_date": delivery_date,
         }
+        if batch_name:
+            item_row["custom_batch"] = batch_name
         if self.cfg.default_warehouse:
             item_row["warehouse"] = self.cfg.default_warehouse
         if self.cfg.default_cost_center:
