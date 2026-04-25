@@ -49,6 +49,7 @@ class InstituteIntegration(SQLModel, table=True):
     default_mode_of_payment: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
     default_cost_center: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
     default_company: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
+    default_warehouse: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
 
     # Inbound webhook auth (Frappe → LMS). Separate secret from the API key so
     # rotating one doesn't revoke the other.

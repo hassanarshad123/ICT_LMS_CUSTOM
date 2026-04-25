@@ -89,6 +89,8 @@ async def update_frappe_config(
         row.default_cost_center = payload.default_cost_center or None
     if payload.default_company is not None:
         row.default_company = payload.default_company or None
+    if payload.default_warehouse is not None:
+        row.default_warehouse = payload.default_warehouse or None
 
     # Secrets — only overwrite when provided
     if payload.api_key:
@@ -503,6 +505,7 @@ def _serialize(row: InstituteIntegration) -> FrappeConfigOut:
         default_mode_of_payment=row.default_mode_of_payment,
         default_cost_center=row.default_cost_center,
         default_company=row.default_company,
+        default_warehouse=row.default_warehouse,
         last_test_at=row.last_test_at,
         last_test_status=row.last_test_status,
         last_test_error=row.last_test_error,
