@@ -6,3 +6,4 @@ export * from './zoom';
 export * from './device';
 export * from './nav';
 export * from './api';
+export * from './rbac';
