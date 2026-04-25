@@ -25,6 +25,7 @@ class FrappeConfigIn(BaseModel):
     default_mode_of_payment: Optional[str] = None
     default_cost_center: Optional[str] = None
     default_company: Optional[str] = None
+    default_warehouse: Optional[str] = None
 
     auto_create_customers: Optional[bool] = None
 
@@ -65,6 +66,7 @@ class FrappeConfigOut(BaseModel):
     default_mode_of_payment: Optional[str] = None
     default_cost_center: Optional[str] = None
     default_company: Optional[str] = None
+    default_warehouse: Optional[str] = None
 
     auto_create_customers: bool = True
 
