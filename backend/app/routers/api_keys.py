@@ -5,15 +5,17 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
-from app.middleware.auth import require_roles
 from app.models.user import User
+from app.rbac.dependencies import require_permissions
 from app.schemas.api_key import ApiKeyCreate, ApiKeyOut, ApiKeyCreatedOut
 from app.services import api_key_service
 from app.utils.rate_limit import limiter
 
 router = APIRouter()
 
-Admin = Annotated[User, Depends(require_roles("admin"))]
+CanCreateApiKey = Annotated[User, Depends(require_permissions("api_keys.create"))]
+CanViewApiKeys = Annotated[User, Depends(require_permissions("api_keys.view"))]
+CanDeleteApiKey = Annotated[User, Depends(require_permissions("api_keys.delete"))]
 
 
 @router.post("", response_model=ApiKeyCreatedOut, status_code=status.HTTP_201_CREATED)
@@ -21,7 +23,7 @@ Admin = Annotated[User, Depends(require_roles("admin"))]
 async def create_api_key(
     request: Request,
     body: ApiKeyCreate,
-    current_user: Admin,
+    current_user: CanCreateApiKey,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Create a new API key. The full key is returned once only."""
@@ -49,7 +51,7 @@ async def create_api_key(
 
 @router.get("", response_model=list[ApiKeyOut])
 async def list_api_keys(
-    current_user: Admin,
+    current_user: CanViewApiKeys,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """List all API keys for the current institute."""
@@ -60,7 +62,7 @@ async def list_api_keys(
 @router.delete("/{key_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def revoke_api_key(
     key_id: uuid.UUID,
-    current_user: Admin,
+    current_user: CanDeleteApiKey,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Revoke an API key."""

@@ -10,7 +10,8 @@ from app.database import get_session
 from app.schemas.announcement import AnnouncementCreate, AnnouncementUpdate, AnnouncementOut
 from app.schemas.common import PaginatedResponse
 from app.services import announcement_service, notification_service
-from app.middleware.auth import get_current_user, require_roles
+from app.middleware.auth import get_current_user
+from app.rbac.dependencies import require_permissions
 from app.models.user import User
 from app.utils.rate_limit import limiter
 
@@ -18,7 +19,10 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 AllRoles = Annotated[User, Depends(get_current_user)]
-AdminCCTeacher = Annotated[User, Depends(require_roles("admin", "course_creator", "teacher"))]
+CanViewAnnouncements = Annotated[User, Depends(require_permissions("announcements.view"))]
+CanCreateAnnouncements = Annotated[User, Depends(require_permissions("announcements.create"))]
+CanEditAnnouncements = Annotated[User, Depends(require_permissions("announcements.edit"))]
+CanDeleteAnnouncements = Annotated[User, Depends(require_permissions("announcements.delete"))]
 
 
 async def _send_announcement_notifications(
@@ -195,7 +199,7 @@ async def list_announcements(
 async def create_announcement(
     request: Request,
     body: AnnouncementCreate,
-    current_user: AdminCCTeacher,
+    current_user: CanCreateAnnouncements,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     # Free-tier daily announcement cap
@@ -250,7 +254,7 @@ async def create_announcement(
 async def update_announcement(
     announcement_id: uuid.UUID,
     body: AnnouncementUpdate,
-    current_user: AdminCCTeacher,
+    current_user: CanEditAnnouncements,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -278,7 +282,7 @@ async def update_announcement(
 @router.delete("/{announcement_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_announcement(
     announcement_id: uuid.UUID,
-    current_user: AdminCCTeacher,
+    current_user: CanDeleteAnnouncements,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:

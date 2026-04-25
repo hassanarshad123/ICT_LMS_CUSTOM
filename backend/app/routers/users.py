@@ -27,7 +27,8 @@ from app.services.user_service import (
     soft_delete_user,
     force_logout_user,
 )
-from app.middleware.auth import require_roles, get_current_user
+from app.middleware.auth import get_current_user
+from app.rbac.dependencies import require_permissions
 from app.middleware.access_control import check_billing_restriction
 from app.models.user import User
 from app.models.batch import StudentBatch, Batch
@@ -61,8 +62,13 @@ async def _get_default_student_password(session: AsyncSession, institute_id: uui
     setting = result.scalar_one_or_none()
     return setting.value if setting else "changeme123"
 
-AdminUser = Annotated[User, Depends(require_roles("admin"))]
-AdminOrCC = Annotated[User, Depends(require_roles("admin", "course_creator"))]
+CanViewUsers = Annotated[User, Depends(require_permissions("users.view"))]
+CanCreateUsers = Annotated[User, Depends(require_permissions("users.create"))]
+CanEditUsers = Annotated[User, Depends(require_permissions("users.edit"))]
+CanDeleteUsers = Annotated[User, Depends(require_permissions("users.delete"))]
+CanResetPassword = Annotated[User, Depends(require_permissions("users.reset_password"))]
+CanForceLogout = Annotated[User, Depends(require_permissions("users.force_logout"))]
+CanBulkImport = Annotated[User, Depends(require_permissions("users.bulk_import"))]
 AllRoles = Annotated[User, Depends(get_current_user)]
 
 
@@ -136,7 +142,7 @@ async def update_me(
 
 @router.get("", response_model=UserListResponse)
 async def list_users_endpoint(
-    current_user: AdminOrCC,
+    current_user: CanViewUsers,
     session: Annotated[AsyncSession, Depends(get_session)],
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
@@ -216,7 +222,7 @@ async def list_users_endpoint(
 @router.post("", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def create_user_endpoint(
     body: UserCreate,
-    current_user: AdminOrCC,
+    current_user: CanCreateUsers,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     # CC cannot create admin users
@@ -346,7 +352,7 @@ async def get_user_endpoint(
 async def update_user_endpoint(
     user_id: uuid.UUID,
     body: UserUpdate,
-    current_user: AdminOrCC,
+    current_user: CanEditUsers,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     # Verify user belongs to same institute
@@ -382,7 +388,7 @@ async def update_user_endpoint(
 async def change_user_status(
     user_id: uuid.UUID,
     body: StatusUpdate,
-    current_user: AdminOrCC,
+    current_user: CanEditUsers,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     # Verify user belongs to same institute
@@ -423,7 +429,7 @@ async def reset_password(
     request: Request,
     user_id: uuid.UUID,
     body: PasswordResetBody,
-    current_user: AdminUser,
+    current_user: CanResetPassword,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     user = await get_user(session, user_id)
@@ -448,7 +454,7 @@ async def reset_password(
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user_endpoint(
     user_id: uuid.UUID,
-    current_user: AdminUser,
+    current_user: CanDeleteUsers,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     if user_id == current_user.id:
@@ -479,7 +485,7 @@ async def delete_user_endpoint(
 @router.post("/{user_id}/force-logout", status_code=status.HTTP_204_NO_CONTENT)
 async def force_logout_endpoint(
     user_id: uuid.UUID,
-    current_user: AdminUser,
+    current_user: CanForceLogout,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     # Verify user belongs to same institute
@@ -565,7 +571,7 @@ def _parse_and_validate_csv(
 async def bulk_import_preview(
     file: UploadFile = File(...),
     batch_ids: str = Form(default=""),
-    current_user: User = Depends(require_roles("admin", "course_creator")),
+    current_user: User = Depends(require_permissions("users.bulk_import")),
     session: AsyncSession = Depends(get_session),
 ):
     if not file.filename or not file.filename.endswith(".csv"):
@@ -665,7 +671,7 @@ async def bulk_import(
     file: UploadFile = File(...),
     batch_ids: str = Form(default=""),
     enroll_user_ids: str = Form(default=""),
-    current_user: User = Depends(require_roles("admin", "course_creator")),
+    current_user: User = Depends(require_permissions("users.bulk_import")),
     session: AsyncSession = Depends(get_session),
 ):
     if not file.filename or not file.filename.endswith(".csv"):

@@ -9,21 +9,25 @@ from app.database import get_session
 from app.schemas.job import JobCreate, JobUpdate, JobOut, JobApply, ApplicationOut, ApplicationStatusUpdate
 from app.schemas.common import PaginatedResponse
 from app.services import job_service
-from app.middleware.auth import require_roles, get_current_user
+from app.middleware.auth import get_current_user
+from app.rbac.dependencies import require_permissions
 from app.models.user import User
 from app.utils.rate_limit import limiter
 
 router = APIRouter()
 
-CC = Annotated[User, Depends(require_roles("admin", "course_creator"))]
-Student = Annotated[User, Depends(require_roles("student"))]
-CCOrStudent = Annotated[User, Depends(require_roles("admin", "course_creator", "student"))]
+CanViewJobs = Annotated[User, Depends(require_permissions("jobs.view"))]
+CanCreateJobs = Annotated[User, Depends(require_permissions("jobs.create"))]
+CanEditJobs = Annotated[User, Depends(require_permissions("jobs.edit"))]
+CanDeleteJobs = Annotated[User, Depends(require_permissions("jobs.delete"))]
+CanManageApplications = Annotated[User, Depends(require_permissions("jobs.manage_applications"))]
+CanApplyJobs = Annotated[User, Depends(require_permissions("jobs.apply"))]
 
 
 # /my-applications MUST be before /{job_id} to avoid route collision
 @router.get("/my-applications")
 async def get_my_applications(
-    current_user: Student,
+    current_user: CanApplyJobs,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     return await job_service.get_my_applications(
@@ -33,7 +37,7 @@ async def get_my_applications(
 
 @router.get("", response_model=PaginatedResponse[JobOut])
 async def list_jobs(
-    current_user: CCOrStudent,
+    current_user: CanViewJobs,
     session: Annotated[AsyncSession, Depends(get_session)],
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
@@ -54,7 +58,7 @@ async def list_jobs(
 @router.post("", response_model=JobOut, status_code=status.HTTP_201_CREATED)
 async def create_job(
     body: JobCreate,
-    current_user: CC,
+    current_user: CanCreateJobs,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     from app.utils.transformers import to_api
@@ -73,7 +77,7 @@ async def create_job(
 @router.get("/{job_id}", response_model=JobOut)
 async def get_job(
     job_id: uuid.UUID,
-    current_user: CCOrStudent,
+    current_user: CanViewJobs,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     data = await job_service.get_job(session, job_id, institute_id=current_user.institute_id)
@@ -86,7 +90,7 @@ async def get_job(
 async def update_job(
     job_id: uuid.UUID,
     body: JobUpdate,
-    current_user: CC,
+    current_user: CanEditJobs,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -103,7 +107,7 @@ async def update_job(
 @router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_job(
     job_id: uuid.UUID,
-    current_user: CC,
+    current_user: CanDeleteJobs,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -118,7 +122,7 @@ async def apply_to_job(
     request: Request,
     job_id: uuid.UUID,
     body: JobApply,
-    current_user: Student,
+    current_user: CanApplyJobs,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     # Check job deadline before allowing application
@@ -145,7 +149,7 @@ async def apply_to_job(
 @router.get("/{job_id}/applications", response_model=PaginatedResponse[ApplicationOut])
 async def list_applications(
     job_id: uuid.UUID,
-    current_user: CC,
+    current_user: CanManageApplications,
     session: Annotated[AsyncSession, Depends(get_session)],
     search: Optional[str] = None,
     status: Optional[str] = None,
@@ -168,7 +172,7 @@ async def update_application_status(
     job_id: uuid.UUID,
     app_id: uuid.UUID,
     body: ApplicationStatusUpdate,
-    current_user: CC,
+    current_user: CanManageApplications,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:

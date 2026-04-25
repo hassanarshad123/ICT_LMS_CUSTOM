@@ -20,7 +20,8 @@ from app.schemas.lecture import (
 )
 from app.schemas.common import PaginatedResponse
 from app.services import lecture_service
-from app.middleware.auth import require_roles, get_current_user
+from app.middleware.auth import get_current_user
+from app.rbac.dependencies import require_permissions
 from app.middleware.access_control import check_billing_restriction, verify_batch_access
 from app.models.institute import Institute
 from app.models.user import User
@@ -35,8 +36,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 settings = get_settings()
 
-CC = Annotated[User, Depends(require_roles("admin", "course_creator"))]
-Student = Annotated[User, Depends(require_roles("student"))]
+CanViewLectures = Annotated[User, Depends(require_permissions("lectures.view"))]
+CanCreateLectures = Annotated[User, Depends(require_permissions("lectures.create"))]
+CanEditLectures = Annotated[User, Depends(require_permissions("lectures.edit"))]
+CanDeleteLectures = Annotated[User, Depends(require_permissions("lectures.delete"))]
+CanTrackProgress = Annotated[User, Depends(require_permissions("lectures.track_progress"))]
 AllRoles = Annotated[User, Depends(get_current_user)]
 
 
@@ -55,7 +59,7 @@ def _lecture_out(lecture) -> LectureOut:
 
 @router.get("/in-progress", response_model=list[InProgressLectureOut])
 async def list_in_progress_lectures(
-    current_user: Student,
+    current_user: CanTrackProgress,
     session: Annotated[AsyncSession, Depends(get_session)],
     limit: int = Query(10, ge=1, le=50),
 ):
@@ -100,7 +104,7 @@ async def list_lectures(
 async def create_lecture(
     request: Request,
     body: LectureCreate,
-    current_user: CC,
+    current_user: CanCreateLectures,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     lecture = await lecture_service.create_lecture(
@@ -118,7 +122,7 @@ async def create_lecture(
 async def upload_init(
     request: Request,
     body: UploadInitRequest,
-    current_user: CC,
+    current_user: CanCreateLectures,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Create a Bunny video entry + lecture record, return TUS upload credentials."""
@@ -268,7 +272,7 @@ async def bunny_webhook(request: Request):
 @router.post("/bulk-reorder")
 async def bulk_reorder_lectures(
     body: BulkReorderRequest,
-    current_user: CC,
+    current_user: CanEditLectures,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Reorder multiple lectures in a single transaction."""
@@ -286,7 +290,7 @@ async def bulk_reorder_lectures(
 @router.post("/{lecture_id}/reencode")
 async def reencode_lecture(
     lecture_id: uuid.UUID,
-    current_user: CC,
+    current_user: CanEditLectures,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Re-encode a failed video without re-uploading."""
@@ -376,7 +380,7 @@ async def get_lecture_status(
 async def update_lecture(
     lecture_id: uuid.UUID,
     body: LectureUpdate,
-    current_user: CC,
+    current_user: CanEditLectures,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     # Verify institute ownership before update
@@ -395,7 +399,7 @@ async def update_lecture(
 @router.delete("/{lecture_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_lecture(
     lecture_id: uuid.UUID,
-    current_user: CC,
+    current_user: CanDeleteLectures,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     # Verify institute ownership before delete
@@ -419,7 +423,7 @@ async def delete_lecture(
 async def reorder_lecture(
     lecture_id: uuid.UUID,
     body: LectureReorderRequest,
-    current_user: CC,
+    current_user: CanEditLectures,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     # Verify institute ownership before reorder
@@ -527,7 +531,7 @@ async def get_signed_url(
 async def update_progress(
     lecture_id: uuid.UUID,
     body: ProgressUpdate,
-    current_user: Student,
+    current_user: CanTrackProgress,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     # Check batch expiry before allowing progress updates
@@ -571,7 +575,7 @@ async def update_progress(
 @router.get("/{lecture_id}/progress", response_model=ProgressOut)
 async def get_progress(
     lecture_id: uuid.UUID,
-    current_user: Student,
+    current_user: CanTrackProgress,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     # Verify student is enrolled in the batch that contains this lecture

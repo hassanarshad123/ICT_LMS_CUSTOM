@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
-from app.middleware.auth import require_roles
+from app.rbac.dependencies import require_permissions
 from app.models.user import User
 from app.schemas.common import PaginatedResponse
 from app.schemas.webhook import (
@@ -18,7 +18,11 @@ from app.utils.rate_limit import limiter
 
 router = APIRouter()
 
-Admin = Annotated[User, Depends(require_roles("admin"))]
+CanViewWebhooks = Annotated[User, Depends(require_permissions("webhooks.view"))]
+CanCreateWebhook = Annotated[User, Depends(require_permissions("webhooks.create"))]
+CanEditWebhook = Annotated[User, Depends(require_permissions("webhooks.edit"))]
+CanDeleteWebhook = Annotated[User, Depends(require_permissions("webhooks.delete"))]
+CanTestWebhook = Annotated[User, Depends(require_permissions("webhooks.test"))]
 
 
 @router.post("", response_model=WebhookOut, status_code=status.HTTP_201_CREATED)
@@ -26,7 +30,7 @@ Admin = Annotated[User, Depends(require_roles("admin"))]
 async def create_webhook(
     request: Request,
     body: WebhookCreate,
-    current_user: Admin,
+    current_user: CanCreateWebhook,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Create a new webhook endpoint."""
@@ -53,7 +57,7 @@ async def create_webhook(
 
 @router.get("", response_model=list[WebhookOut])
 async def list_webhooks(
-    current_user: Admin,
+    current_user: CanViewWebhooks,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """List all webhooks for the current institute."""
@@ -64,7 +68,7 @@ async def list_webhooks(
 @router.get("/{webhook_id}", response_model=WebhookOut)
 async def get_webhook(
     webhook_id: uuid.UUID,
-    current_user: Admin,
+    current_user: CanViewWebhooks,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Get a single webhook."""
@@ -78,7 +82,7 @@ async def get_webhook(
 async def update_webhook(
     webhook_id: uuid.UUID,
     body: WebhookUpdate,
-    current_user: Admin,
+    current_user: CanEditWebhook,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Update a webhook endpoint."""
@@ -96,7 +100,7 @@ async def update_webhook(
 @router.delete("/{webhook_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_webhook(
     webhook_id: uuid.UUID,
-    current_user: Admin,
+    current_user: CanDeleteWebhook,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Soft delete a webhook endpoint."""
@@ -111,7 +115,7 @@ async def delete_webhook(
 async def test_webhook(
     request: Request,
     webhook_id: uuid.UUID,
-    current_user: Admin,
+    current_user: CanTestWebhook,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Send a test event to a webhook endpoint."""
@@ -126,7 +130,7 @@ async def test_webhook(
 @router.get("/{webhook_id}/deliveries", response_model=PaginatedResponse[WebhookDeliveryOut])
 async def list_deliveries(
     webhook_id: uuid.UUID,
-    current_user: Admin,
+    current_user: CanViewWebhooks,
     session: Annotated[AsyncSession, Depends(get_session)],
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),

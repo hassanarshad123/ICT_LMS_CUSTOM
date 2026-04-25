@@ -19,7 +19,8 @@ from app.schemas.certificate import (
 )
 from app.schemas.common import PaginatedResponse
 from app.services import certificate_service, webhook_event_service
-from app.middleware.auth import require_roles, get_current_user, get_institute_slug_from_header
+from app.middleware.auth import get_current_user, get_institute_slug_from_header
+from app.rbac.dependencies import require_permissions
 from app.utils.rate_limit import limiter
 from app.models.user import User
 from app.models.institute import Institute
@@ -28,9 +29,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-CC = Annotated[User, Depends(require_roles("admin", "course_creator"))]
-AdminOrCC = Annotated[User, Depends(require_roles("admin", "course_creator"))]
-Student = Annotated[User, Depends(require_roles("student"))]
+CanViewCerts = Annotated[User, Depends(require_permissions("certificates.view"))]
+CanManageCerts = Annotated[User, Depends(require_permissions("certificates.manage"))]
+CanRequestCert = Annotated[User, Depends(require_permissions("certificates.request"))]
+CanDownloadCert = Annotated[User, Depends(require_permissions("certificates.download"))]
 AllRoles = Annotated[User, Depends(get_current_user)]
 
 
@@ -38,7 +40,7 @@ AllRoles = Annotated[User, Depends(get_current_user)]
 async def list_eligible_students(
     batch_id: uuid.UUID,
     course_id: uuid.UUID,
-    current_user: CC,
+    current_user: CanManageCerts,
     session: AsyncSession = Depends(get_session),
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
@@ -59,7 +61,7 @@ async def list_eligible_students(
 
 @router.get("/my-dashboard", response_model=list[StudentDashboardCourseOut])
 async def student_dashboard(
-    current_user: Student,
+    current_user: CanRequestCert,
     session: AsyncSession = Depends(get_session),
 ):
     """Get all enrolled courses with progress and certificate status for the current student."""
@@ -70,7 +72,7 @@ async def student_dashboard(
 @router.post("/request", response_model=CertificateOut)
 async def request_certificate(
     body: CertificateRequestBody,
-    current_user: Student,
+    current_user: CanRequestCert,
     session: AsyncSession = Depends(get_session),
 ):
     """Student requests a certificate with their preferred name."""
@@ -104,7 +106,7 @@ async def request_certificate(
 
 @router.get("/requests", response_model=PaginatedResponse[EligibleStudentOut])
 async def list_certificate_requests(
-    current_user: CC,
+    current_user: CanManageCerts,
     session: AsyncSession = Depends(get_session),
     batch_id: Optional[uuid.UUID] = None,
     course_id: Optional[uuid.UUID] = None,
@@ -128,7 +130,7 @@ async def list_certificate_requests(
 @router.post("/approve/{student_id}", response_model=CertificateOut)
 async def approve_certificate(
     student_id: uuid.UUID,
-    current_user: CC,
+    current_user: CanManageCerts,
     batch_id: uuid.UUID = Query(...),
     course_id: uuid.UUID = Query(...),
     session: AsyncSession = Depends(get_session),
@@ -179,7 +181,7 @@ async def approve_certificate(
 async def approve_batch_certificates(
     request: Request,
     body: CertificateBatchApproveRequest,
-    current_user: CC,
+    current_user: CanManageCerts,
     batch_id: uuid.UUID = Query(...),
     course_id: uuid.UUID = Query(...),
     session: AsyncSession = Depends(get_session),
@@ -222,7 +224,7 @@ async def approve_batch_certificates(
 @router.post("/approve-request/{cert_uuid}", response_model=CertificateOut)
 async def approve_certificate_request(
     cert_uuid: uuid.UUID,
-    current_user: CC,
+    current_user: CanManageCerts,
     session: AsyncSession = Depends(get_session),
 ):
     """Approve a pending certificate request from a student."""
@@ -327,7 +329,7 @@ async def download_certificate(
 async def revoke_certificate(
     cert_uuid: uuid.UUID,
     body: CertificateRevokeRequest,
-    current_user: AdminOrCC,
+    current_user: CanManageCerts,
     session: AsyncSession = Depends(get_session),
 ):
     """Revoke an issued certificate."""

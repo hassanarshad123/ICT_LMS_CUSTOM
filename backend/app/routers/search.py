@@ -32,8 +32,19 @@ async def global_search(
     term = f"%{q}%"
     results: dict = {}
 
+    # Resolve effective role for custom role users
+    _effective_role = current_user.role
+    if current_user.role == UserRole.custom:
+        _vt = getattr(current_user, "_view_type", None)
+        if _vt == "admin_view":
+            _effective_role = UserRole.admin
+        elif _vt == "staff_view":
+            _effective_role = UserRole.course_creator
+        else:
+            _effective_role = UserRole.student
+
     # ── Users (admin only) ──────────────────────────────────────
-    if current_user.role == UserRole.admin:
+    if _effective_role == UserRole.admin:
         stmt = (
             select(User)
             .where(
@@ -64,11 +75,11 @@ async def global_search(
         Batch.name.ilike(term),
     )
 
-    if current_user.role == UserRole.course_creator:
+    if _effective_role == UserRole.course_creator:
         batch_stmt = batch_stmt.where(Batch.created_by == current_user.id)
-    elif current_user.role == UserRole.teacher:
+    elif _effective_role == UserRole.teacher:
         batch_stmt = batch_stmt.where(Batch.teacher_id == current_user.id)
-    elif current_user.role == UserRole.student:
+    elif _effective_role == UserRole.student:
         my_batch_ids = select(StudentBatch.batch_id).where(
             StudentBatch.student_id == current_user.id,
             StudentBatch.removed_at.is_(None),
@@ -91,9 +102,9 @@ async def global_search(
         Course.title.ilike(term),
     )
 
-    if current_user.role == UserRole.admin:
+    if _effective_role == UserRole.admin:
         pass  # see all
-    elif current_user.role == UserRole.course_creator:
+    elif _effective_role == UserRole.course_creator:
         cc_batch_ids = select(Batch.id).where(
             Batch.created_by == current_user.id,
             Batch.deleted_at.is_(None),
@@ -108,7 +119,7 @@ async def global_search(
                 Course.id.in_(cc_course_ids),
             )
         )
-    elif current_user.role == UserRole.teacher:
+    elif _effective_role == UserRole.teacher:
         teacher_batch_ids = select(Batch.id).where(
             Batch.teacher_id == current_user.id,
             Batch.deleted_at.is_(None),
@@ -118,7 +129,7 @@ async def global_search(
             BatchCourse.deleted_at.is_(None),
         )
         course_stmt = course_stmt.where(Course.id.in_(teacher_course_ids))
-    elif current_user.role == UserRole.student:
+    elif _effective_role == UserRole.student:
         student_batch_ids = select(StudentBatch.batch_id).where(
             StudentBatch.student_id == current_user.id,
             StudentBatch.removed_at.is_(None),
@@ -144,7 +155,7 @@ async def global_search(
         Announcement.title.ilike(term),
     )
 
-    if current_user.role == UserRole.student:
+    if _effective_role == UserRole.student:
         s_batch_ids = select(StudentBatch.batch_id).where(
             StudentBatch.student_id == current_user.id,
             StudentBatch.removed_at.is_(None),
@@ -161,7 +172,7 @@ async def global_search(
                 Announcement.course_id.in_(s_course_ids),
             )
         )
-    elif current_user.role == UserRole.teacher:
+    elif _effective_role == UserRole.teacher:
         t_batch_ids = select(Batch.id).where(
             Batch.teacher_id == current_user.id,
             Batch.deleted_at.is_(None),

@@ -10,7 +10,8 @@ from app.database import get_session
 from app.schemas.course import CourseCreate, CourseUpdate, CourseOut
 from app.schemas.common import PaginatedResponse
 from app.services import course_service
-from app.middleware.auth import require_roles, get_current_user
+from app.middleware.auth import get_current_user
+from app.rbac.dependencies import require_permissions
 from app.models.user import User
 from app.models.course import Course
 from app.utils.s3 import upload_object, delete_object, generate_view_url, _prefix
@@ -18,8 +19,11 @@ from app.utils.rate_limit import limiter
 
 router = APIRouter()
 
-CC = Annotated[User, Depends(require_roles("admin", "course_creator"))]
-AdminOrCC = Annotated[User, Depends(require_roles("admin", "course_creator"))]
+CanViewCourses = Annotated[User, Depends(require_permissions("courses.view"))]
+CanCreateCourses = Annotated[User, Depends(require_permissions("courses.create"))]
+CanEditCourses = Annotated[User, Depends(require_permissions("courses.edit"))]
+CanDeleteCourses = Annotated[User, Depends(require_permissions("courses.delete"))]
+CanCloneCourses = Annotated[User, Depends(require_permissions("courses.clone"))]
 AllRoles = Annotated[User, Depends(get_current_user)]
 
 
@@ -50,7 +54,7 @@ async def list_courses(
 async def create_course(
     request: Request,
     body: CourseCreate,
-    current_user: CC,
+    current_user: CanCreateCourses,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     from app.utils.plan_limits import check_creation_limit
@@ -83,7 +87,7 @@ async def get_course(
 async def update_course(
     course_id: uuid.UUID,
     body: CourseUpdate,
-    current_user: AdminOrCC,
+    current_user: CanEditCourses,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -97,7 +101,7 @@ async def update_course(
 @router.delete("/{course_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_course(
     course_id: uuid.UUID,
-    current_user: AdminOrCC,
+    current_user: CanDeleteCourses,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -111,7 +115,7 @@ async def delete_course(
 async def clone_course(
     request: Request,
     course_id: uuid.UUID,
-    current_user: CC,
+    current_user: CanCloneCourses,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     from app.utils.plan_limits import check_creation_limit
@@ -140,7 +144,7 @@ async def upload_course_cover(
     request: Request,
     course_id: uuid.UUID,
     file: UploadFile = File(...),
-    current_user: AdminOrCC = None,
+    current_user: CanEditCourses = None,
     session: AsyncSession = Depends(get_session),
 ):
     # Validate content type
@@ -192,7 +196,7 @@ async def upload_course_cover(
 @router.delete("/{course_id}/cover", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_course_cover(
     course_id: uuid.UUID,
-    current_user: AdminOrCC = None,
+    current_user: CanEditCourses = None,
     session: AsyncSession = Depends(get_session),
 ):
     result = await session.execute(

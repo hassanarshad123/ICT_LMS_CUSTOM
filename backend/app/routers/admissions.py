@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
 from app.utils.rate_limit import limiter
-from app.middleware.auth import require_roles
+from app.rbac.dependencies import require_permissions
 from app.models.user import User
 from app.models.enums import FeeInstallmentStatus
 from app.schemas.common import PaginatedResponse
@@ -47,13 +47,22 @@ from sqlmodel import select
 
 router = APIRouter()
 
-AdminOrAO = Annotated[User, Depends(require_roles("admin", "admissions_officer"))]
+CanViewAdmStudents = Annotated[User, Depends(require_permissions("admissions.view_students"))]
+CanOnboard = Annotated[User, Depends(require_permissions("admissions.onboard"))]
+CanEditAdmStudents = Annotated[User, Depends(require_permissions("admissions.edit_students"))]
+CanManageEnrollment = Annotated[User, Depends(require_permissions("admissions.manage_enrollment"))]
+CanSuspendReactivate = Annotated[User, Depends(require_permissions("admissions.suspend_reactivate"))]
+CanDeleteAdmStudents = Annotated[User, Depends(require_permissions("admissions.delete_students"))]
+CanRecordPayment = Annotated[User, Depends(require_permissions("admissions.record_payment"))]
+CanViewPayments = Annotated[User, Depends(require_permissions("admissions.view_payments"))]
+CanViewStats = Annotated[User, Depends(require_permissions("admissions.view_stats"))]
+CanViewQuota = Annotated[User, Depends(require_permissions("admissions.view_quota"))]
 
 
 @router.post("/students", response_model=OnboardStudentResponse, status_code=status.HTTP_201_CREATED)
 async def onboard_student_endpoint(
     body: OnboardStudentRequest,
-    current_user: AdminOrAO,
+    current_user: CanOnboard,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Create account + enrollment + fee plan + installments in one transaction."""
@@ -69,7 +78,7 @@ async def onboard_student_endpoint(
 
 @router.get("/students", response_model=PaginatedResponse[AdmissionsStudentListItem])
 async def list_students_endpoint(
-    current_user: AdminOrAO,
+    current_user: CanViewAdmStudents,
     session: Annotated[AsyncSession, Depends(get_session)],
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
@@ -96,7 +105,7 @@ async def list_students_endpoint(
 @router.get("/students/{user_id}")
 async def get_student_detail_endpoint(
     user_id: uuid.UUID,
-    current_user: AdminOrAO,
+    current_user: CanViewAdmStudents,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -171,7 +180,7 @@ async def get_student_detail_endpoint(
 async def record_payment_endpoint(
     user_id: uuid.UUID,
     body: PaymentCreate,
-    current_user: AdminOrAO,
+    current_user: CanRecordPayment,
     session: Annotated[AsyncSession, Depends(get_session)],
     fee_plan_id: Optional[uuid.UUID] = Query(
         default=None,
@@ -199,7 +208,7 @@ async def record_payment_endpoint(
 @router.get("/students/{user_id}/payments", response_model=list[PaymentOut])
 async def list_student_payments_endpoint(
     user_id: uuid.UUID,
-    current_user: AdminOrAO,
+    current_user: CanViewPayments,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -224,7 +233,7 @@ async def list_student_payments_endpoint(
 async def refresh_payment_erp_status_endpoint(
     request: Request,
     payment_id: uuid.UUID,
-    current_user: AdminOrAO,
+    current_user: CanViewPayments,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Manually refresh one payment's erp_status from Frappe.
@@ -284,7 +293,7 @@ def _pick_plan(plans, fee_plan_id):
 
 @router.get("/admin/stats")
 async def admissions_admin_stats_endpoint(
-    current_user: Annotated[User, Depends(require_roles("admin"))],
+    current_user: CanViewStats,
     session: Annotated[AsyncSession, Depends(get_session)],
     date_from: Optional[str] = Query(default=None, description="YYYY-MM-DD inclusive"),
     date_to: Optional[str] = Query(default=None, description="YYYY-MM-DD inclusive"),
@@ -447,7 +456,7 @@ async def admissions_admin_stats_endpoint(
 async def update_student_endpoint(
     user_id: uuid.UUID,
     body: StudentUpdateRequest,
-    current_user: AdminOrAO,
+    current_user: CanEditAdmStudents,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -474,7 +483,7 @@ async def update_student_endpoint(
 @router.post("/students/{user_id}/suspend")
 async def suspend_student_endpoint(
     user_id: uuid.UUID,
-    current_user: AdminOrAO,
+    current_user: CanSuspendReactivate,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -489,7 +498,7 @@ async def suspend_student_endpoint(
 @router.post("/students/{user_id}/reactivate")
 async def reactivate_student_endpoint(
     user_id: uuid.UUID,
-    current_user: AdminOrAO,
+    current_user: CanSuspendReactivate,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -504,7 +513,7 @@ async def reactivate_student_endpoint(
 @router.delete("/students/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_student_endpoint(
     user_id: uuid.UUID,
-    current_user: AdminOrAO,
+    current_user: CanDeleteAdmStudents,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -520,7 +529,7 @@ async def delete_student_endpoint(
 async def add_enrollment_endpoint(
     user_id: uuid.UUID,
     body: AddEnrollmentRequest,
-    current_user: AdminOrAO,
+    current_user: CanManageEnrollment,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -550,7 +559,7 @@ async def add_enrollment_endpoint(
 async def remove_enrollment_endpoint(
     user_id: uuid.UUID,
     student_batch_id: uuid.UUID,
-    current_user: AdminOrAO,
+    current_user: CanManageEnrollment,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -567,7 +576,7 @@ async def remove_enrollment_endpoint(
 
 @router.get("/me/quota")
 async def admissions_quota_endpoint(
-    current_user: AdminOrAO,
+    current_user: CanViewQuota,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Institute student-quota for the wizard's step-1 banner.

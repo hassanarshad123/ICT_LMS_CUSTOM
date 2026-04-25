@@ -7,12 +7,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_session
 from app.schemas.curriculum import CurriculumModuleCreate, CurriculumModuleUpdate, CurriculumModuleOut, ReorderRequest
 from app.services import curriculum_service
-from app.middleware.auth import require_roles, get_current_user
+from app.middleware.auth import get_current_user
+from app.rbac.dependencies import require_permissions
 from app.models.user import User
 
 router = APIRouter()
 
-CC = Annotated[User, Depends(require_roles("admin", "course_creator"))]
+CanViewCurriculum = Annotated[User, Depends(require_permissions("curriculum.view"))]
+CanManageCurriculum = Annotated[User, Depends(require_permissions("curriculum.manage"))]
 AllRoles = Annotated[User, Depends(get_current_user)]
 
 
@@ -29,7 +31,7 @@ async def list_modules(
 @router.post("", response_model=CurriculumModuleOut, status_code=status.HTTP_201_CREATED)
 async def create_module(
     body: CurriculumModuleCreate,
-    current_user: CC,
+    current_user: CanManageCurriculum,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     module = await curriculum_service.create_module(
@@ -44,7 +46,7 @@ async def create_module(
 async def update_module(
     module_id: uuid.UUID,
     body: CurriculumModuleUpdate,
-    current_user: CC,
+    current_user: CanManageCurriculum,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -59,7 +61,7 @@ async def update_module(
 @router.delete("/{module_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_module(
     module_id: uuid.UUID,
-    current_user: CC,
+    current_user: CanManageCurriculum,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -72,7 +74,7 @@ async def delete_module(
 async def reorder_module(
     module_id: uuid.UUID,
     body: ReorderRequest,
-    current_user: CC,
+    current_user: CanManageCurriculum,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:

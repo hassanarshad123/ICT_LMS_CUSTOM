@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
-from app.middleware.auth import require_roles
+from app.rbac.dependencies import require_permissions
 from app.models.user import User
 from app.utils.rate_limit import limiter
 from app.utils.s3 import (
@@ -32,7 +32,8 @@ from app.utils.s3 import (
 
 router = APIRouter()
 
-AdminOrAO = Annotated[User, Depends(require_roles("admin", "admissions_officer"))]
+CanUploadProof = Annotated[User, Depends(require_permissions("payment_proof.upload"))]
+CanViewProof = Annotated[User, Depends(require_permissions("payment_proof.view"))]
 
 # Hard cap — UI should also validate. Rejects at request-parsing time.
 _MAX_FILENAME_LEN = 200
@@ -80,7 +81,7 @@ def _validate_content_type(ct: str) -> None:
 async def get_payment_proof_upload_url(
     request: Request,
     body: UploadUrlRequest,
-    current_user: AdminOrAO,
+    current_user: CanUploadProof,
 ):
     """Issue a presigned S3 PUT URL for a payment-proof screenshot.
 
@@ -118,7 +119,7 @@ async def get_payment_proof_upload_url(
 @limiter.limit("30/minute")
 async def upload_payment_proof(
     request: Request,
-    current_user: AdminOrAO,
+    current_user: CanUploadProof,
     file: UploadFile = File(...),
     fee_plan_id: str = Form(...),
 ):

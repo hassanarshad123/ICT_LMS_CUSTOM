@@ -22,7 +22,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
-from app.middleware.auth import require_roles
+from app.rbac.dependencies import require_permissions
 from app.models.integration import (
     InstituteIntegration,
     IntegrationSyncLog,
@@ -51,15 +51,16 @@ logger = logging.getLogger("ict_lms.integrations.router")
 
 router = APIRouter()
 
-Admin = Annotated[User, Depends(require_roles("admin"))]
-AdminOrAO = Annotated[User, Depends(require_roles("admin", "admissions_officer"))]
+CanViewIntegrations = Annotated[User, Depends(require_permissions("integrations.view"))]
+CanManageIntegrations = Annotated[User, Depends(require_permissions("integrations.manage"))]
+CanSyncIntegrations = Annotated[User, Depends(require_permissions("integrations.sync"))]
 
 
 # ── Frappe config ──────────────────────────────────────────────────
 
 @router.get("/frappe", response_model=FrappeConfigOut)
 async def get_frappe(
-    current_user: Admin,
+    current_user: CanViewIntegrations,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     return await integration_service.get_frappe_config(session, current_user.institute_id)
@@ -70,7 +71,7 @@ async def get_frappe(
 async def update_frappe(
     request: Request,
     body: FrappeConfigIn,
-    current_user: Admin,
+    current_user: CanManageIntegrations,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -85,7 +86,7 @@ async def update_frappe(
 @limiter.limit("10/minute")
 async def test_frappe(
     request: Request,
-    current_user: Admin,
+    current_user: CanManageIntegrations,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     return await integration_service.test_frappe_connection(session, current_user.institute_id)
@@ -95,7 +96,7 @@ async def test_frappe(
 @limiter.limit("5/hour")
 async def rotate_inbound_secret(
     request: Request,
-    current_user: Admin,
+    current_user: CanManageIntegrations,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Generate a new inbound webhook secret. Plaintext is returned exactly
@@ -111,7 +112,7 @@ async def rotate_inbound_secret(
 
 @router.get("/sync-log", response_model=PaginatedResponse[SyncLogItem])
 async def list_sync_log(
-    current_user: Admin,
+    current_user: CanViewIntegrations,
     session: Annotated[AsyncSession, Depends(get_session)],
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=1, le=200),
@@ -164,7 +165,7 @@ async def list_sync_log(
 
 @router.get("/sync-log/kpis", response_model=SyncLogKPIs)
 async def sync_log_kpis(
-    current_user: Admin,
+    current_user: CanViewIntegrations,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     now = datetime.now(timezone.utc)
@@ -210,7 +211,7 @@ async def sync_log_kpis(
 async def retry_sync_log(
     request: Request,
     log_id: uuid.UUID,
-    current_user: Admin,
+    current_user: CanSyncIntegrations,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Re-enqueue a failed outbound event. No-op for inbound rows (Frappe is
@@ -322,7 +323,7 @@ async def inbound_frappe_webhook(
 async def introspect_frappe(
     request: Request,
     resource: str,
-    current_user: Admin,
+    current_user: CanViewIntegrations,
     session: Annotated[AsyncSession, Depends(get_session)],
     company: Optional[str] = None,
     account_type: Optional[str] = Query(None, alias="accountType"),
@@ -348,7 +349,7 @@ async def introspect_frappe(
 @limiter.limit("10/hour")
 async def setup_custom_fields(
     request: Request,
-    current_user: Admin,
+    current_user: CanManageIntegrations,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Install the 3 LMS custom fields in Frappe via REST API. Idempotent."""
@@ -364,7 +365,7 @@ async def setup_custom_fields(
 @limiter.limit("10/hour")
 async def setup_webhook(
     request: Request,
-    current_user: Admin,
+    current_user: CanManageIntegrations,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Register the Payment Entry webhook in Frappe with the inbound secret
@@ -381,7 +382,7 @@ async def setup_webhook(
 @limiter.limit("5/hour")
 async def setup_dry_run(
     request: Request,
-    current_user: Admin,
+    current_user: CanManageIntegrations,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Create + immediately cancel a test Sales Invoice in Frappe to verify
@@ -398,7 +399,7 @@ async def setup_dry_run(
 
 @router.get("/frappe/setup/status")
 async def setup_status(
-    current_user: Admin,
+    current_user: CanViewIntegrations,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Per-step pass/fail snapshot — wizard uses this to resume."""
@@ -412,7 +413,7 @@ async def setup_status(
 async def update_auto_create_customers(
     request: Request,
     body: dict,
-    current_user: Admin,
+    current_user: CanManageIntegrations,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Toggle whether the outbound sync should auto-create Customers in
@@ -428,7 +429,7 @@ async def update_auto_create_customers(
 @limiter.limit("20/minute")
 async def list_frappe_sales_persons(
     request: Request,
-    current_user: Admin,
+    current_user: CanViewIntegrations,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """List active Frappe Sales Persons for the AO onboarding dropdown."""
@@ -443,7 +444,7 @@ async def list_frappe_sales_persons(
 @limiter.limit("20/minute")
 async def list_frappe_items(
     request: Request,
-    current_user: AdminOrAO,
+    current_user: CanViewIntegrations,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """List active ERP Items (Services by default) for the onboarding wizard."""
@@ -456,7 +457,7 @@ async def list_frappe_items(
 @limiter.limit("20/minute")
 async def list_frappe_payment_terms_templates(
     request: Request,
-    current_user: AdminOrAO,
+    current_user: CanViewIntegrations,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """List Payment Terms Templates for the AO wizard's installment picker."""
@@ -473,7 +474,7 @@ async def list_frappe_payment_terms_templates(
 async def get_frappe_payment_terms_template(
     request: Request,
     template_name: str,
-    current_user: AdminOrAO,
+    current_user: CanViewIntegrations,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Full PTT including the terms[] schedule for UI preview."""

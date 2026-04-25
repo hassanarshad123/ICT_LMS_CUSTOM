@@ -30,7 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, func
 
 from app.database import get_session
-from app.middleware.auth import require_roles
+from app.rbac.dependencies import require_permissions
 from app.models.billing import Invoice, Payment, InstituteBilling
 from app.models.institute import Institute
 from app.models.institute_addon import InstituteAddon
@@ -53,7 +53,8 @@ from app.utils.rate_limit import limiter
 
 router = APIRouter()
 
-Admin = Annotated[User, Depends(require_roles("admin"))]
+CanViewBilling = Annotated[User, Depends(require_permissions("billing.view"))]
+CanManageAddons = Annotated[User, Depends(require_permissions("billing.manage_addons"))]
 
 
 async def _require_v2_tier(
@@ -153,7 +154,7 @@ def _addon_catalogue() -> list[AddonPackOut]:
 
 @router.get("/overview", response_model=BillingOverviewOut)
 async def get_billing_overview(
-    admin: Admin,
+    admin: CanViewBilling,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """One-shot dashboard payload: plan + usage + preview + addons."""
@@ -205,7 +206,7 @@ async def get_billing_overview(
 
 @router.get("/invoices", response_model=PaginatedResponse[AdminInvoiceOut])
 async def list_invoices(
-    admin: Admin,
+    admin: CanViewBilling,
     session: Annotated[AsyncSession, Depends(get_session)],
     page: int = Query(default=1, ge=1),
     per_page: int = Query(default=20, ge=1, le=100),
@@ -244,7 +245,7 @@ async def list_invoices(
 @router.get("/invoices/{invoice_id}", response_model=AdminInvoiceOut)
 async def get_invoice(
     invoice_id: uuid.UUID,
-    admin: Admin,
+    admin: CanViewBilling,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Single invoice — 404 if the invoice belongs to a different institute."""
@@ -259,7 +260,7 @@ async def get_invoice(
 @router.get("/invoices/{invoice_id}/download")
 async def download_invoice(
     invoice_id: uuid.UUID,
-    admin: Admin,
+    admin: CanViewBilling,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Stream the invoice PDF.
@@ -292,7 +293,7 @@ async def download_invoice(
 
 @router.get("/payments", response_model=PaginatedResponse[AdminPaymentOut])
 async def list_payments(
-    admin: Admin,
+    admin: CanViewBilling,
     session: Annotated[AsyncSession, Depends(get_session)],
     page: int = Query(default=1, ge=1),
     per_page: int = Query(default=20, ge=1, le=100),
@@ -330,7 +331,7 @@ async def list_payments(
 
 @router.get("/addons", response_model=list[AddonOut])
 async def list_addons(
-    admin: Admin,
+    admin: CanViewBilling,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """All addon rows (active + historical) for this institute."""
@@ -348,7 +349,7 @@ async def list_addons(
 async def activate_addon(
     request: Request,
     body: AddonActivateRequest,
-    admin: Admin,
+    admin: CanManageAddons,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Activate a new storage pack subscription.
@@ -387,7 +388,7 @@ async def activate_addon(
 @router.delete("/addons/{addon_id}", response_model=AddonOut)
 async def cancel_addon(
     addon_id: uuid.UUID,
-    admin: Admin,
+    admin: CanManageAddons,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Cancel an active addon.

@@ -6,13 +6,14 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
-from app.middleware.auth import require_roles
 from app.models.user import User
+from app.rbac.dependencies import require_permissions
 from app.services import email_template_service
 
 router = APIRouter(prefix="/email-templates", tags=["Email Templates"])
 
-Admin = Annotated[User, Depends(require_roles("admin"))]
+CanViewTemplates = Annotated[User, Depends(require_permissions("email_templates.view"))]
+CanEditTemplates = Annotated[User, Depends(require_permissions("email_templates.edit"))]
 
 
 class TemplateUpdateIn(BaseModel):
@@ -28,7 +29,7 @@ class PreviewIn(BaseModel):
 
 @router.get("")
 async def list_templates(
-    user: Admin,
+    user: CanViewTemplates,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     return await email_template_service.list_templates(session, user.institute_id)
@@ -37,7 +38,7 @@ async def list_templates(
 @router.get("/{template_key}")
 async def get_template(
     template_key: str,
-    user: Admin,
+    user: CanViewTemplates,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -50,7 +51,7 @@ async def get_template(
 async def update_template(
     template_key: str,
     body: TemplateUpdateIn,
-    user: Admin,
+    user: CanEditTemplates,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -64,7 +65,7 @@ async def update_template(
 @router.delete("/{template_key}")
 async def reset_template(
     template_key: str,
-    user: Admin,
+    user: CanEditTemplates,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -76,7 +77,7 @@ async def reset_template(
 @router.post("/preview")
 async def preview_template(
     body: PreviewIn,
-    user: Admin,
+    user: CanEditTemplates,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Render a template with sample data for live preview."""

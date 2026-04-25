@@ -15,14 +15,21 @@ from app.schemas.batch import (
 )
 from app.schemas.common import PaginatedResponse
 from app.services import batch_service, webhook_event_service
-from app.middleware.auth import require_roles, get_current_user
+from app.middleware.auth import get_current_user
+from app.rbac.dependencies import require_permissions
 from app.middleware.access_control import verify_batch_access
 from app.models.user import User
 
 router = APIRouter()
 
-AdminOrCC = Annotated[User, Depends(require_roles("admin", "course_creator"))]
-CC = Annotated[User, Depends(require_roles("admin", "course_creator"))]
+CanViewBatches = Annotated[User, Depends(require_permissions("batches.view"))]
+CanCreateBatches = Annotated[User, Depends(require_permissions("batches.create"))]
+CanEditBatches = Annotated[User, Depends(require_permissions("batches.edit"))]
+CanDeleteBatches = Annotated[User, Depends(require_permissions("batches.delete"))]
+CanManageStudents = Annotated[User, Depends(require_permissions("batches.manage_students"))]
+CanManageCourses = Annotated[User, Depends(require_permissions("batches.manage_courses"))]
+CanManageAccess = Annotated[User, Depends(require_permissions("batches.manage_access"))]
+CanViewExpiry = Annotated[User, Depends(require_permissions("batches.view_expiry"))]
 AllRoles = Annotated[User, Depends(get_current_user)]
 
 
@@ -53,7 +60,7 @@ async def list_batches(
 async def create_batch(
     request: Request,
     body: BatchCreate,
-    current_user: AdminOrCC,
+    current_user: CanCreateBatches,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     from app.utils.plan_limits import check_creation_limit
@@ -116,7 +123,7 @@ async def get_batch(
 async def update_batch(
     batch_id: uuid.UUID,
     body: BatchUpdate,
-    current_user: AdminOrCC,
+    current_user: CanEditBatches,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -130,7 +137,7 @@ async def update_batch(
 @router.delete("/{batch_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_batch(
     batch_id: uuid.UUID,
-    current_user: AdminOrCC,
+    current_user: CanDeleteBatches,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -147,7 +154,7 @@ async def delete_batch(
 @router.get("/{batch_id}/students")
 async def list_batch_students(
     batch_id: uuid.UUID,
-    current_user: AdminOrCC,
+    current_user: CanManageStudents,
     session: Annotated[AsyncSession, Depends(get_session)],
     search: Optional[str] = None,
     page: int = Query(1, ge=1),
@@ -171,7 +178,7 @@ async def enroll_student(
     request: Request,
     batch_id: uuid.UUID,
     body: BatchStudentEnroll,
-    current_user: AdminOrCC,
+    current_user: CanManageStudents,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -199,7 +206,7 @@ async def enroll_student(
 async def remove_student(
     batch_id: uuid.UUID,
     student_id: uuid.UUID,
-    current_user: AdminOrCC,
+    current_user: CanManageStudents,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -223,7 +230,7 @@ async def toggle_enrollment_status(
     batch_id: uuid.UUID,
     student_id: uuid.UUID,
     body: EnrollmentToggle,
-    current_user: AdminOrCC,
+    current_user: CanManageStudents,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -259,7 +266,7 @@ async def list_batch_courses(
 async def link_course(
     batch_id: uuid.UUID,
     body: BatchCourseLink,
-    current_user: CC,
+    current_user: CanManageCourses,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -276,7 +283,7 @@ async def link_course(
 async def unlink_course(
     batch_id: uuid.UUID,
     course_id: uuid.UUID,
-    current_user: CC,
+    current_user: CanManageCourses,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -293,7 +300,7 @@ async def extend_student_access(
     batch_id: uuid.UUID,
     student_id: uuid.UUID,
     body: ExtendAccessRequest,
-    current_user: AdminOrCC,
+    current_user: CanManageAccess,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Extend a student's access to this batch beyond the batch end_date."""
@@ -331,7 +338,7 @@ async def set_student_access_endpoint(
     batch_id: uuid.UUID,
     student_id: uuid.UUID,
     body: AccessAdjustRequest,
-    current_user: AdminOrCC,
+    current_user: CanManageAccess,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Adjust a single student's access end for this batch (extend or shorten)."""
@@ -369,7 +376,7 @@ async def set_student_access_endpoint(
 async def get_extension_history(
     batch_id: uuid.UUID,
     student_id: uuid.UUID,
-    current_user: AdminOrCC,
+    current_user: CanManageAccess,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Get extension history for a student in this batch."""
@@ -384,7 +391,7 @@ async def get_extension_history(
 async def bulk_set_access(
     batch_id: uuid.UUID,
     body: BulkAccessAdjustRequest,
-    current_user: AdminOrCC,
+    current_user: CanManageAccess,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Adjust access end for multiple students at once (extend or shorten)."""
@@ -410,7 +417,7 @@ async def bulk_set_access(
 async def bulk_enroll(
     batch_id: uuid.UUID,
     body: BulkEnrollRequest,
-    current_user: AdminOrCC,
+    current_user: CanManageStudents,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Enroll multiple students in this batch with a shared access window."""
@@ -430,7 +437,7 @@ async def bulk_enroll(
 @router.get("/{batch_id}/expiry-summary", response_model=ExpirySummary)
 async def get_expiry_summary(
     batch_id: uuid.UUID,
-    current_user: AdminOrCC,
+    current_user: CanViewExpiry,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Get expiry summary for all students in this batch."""

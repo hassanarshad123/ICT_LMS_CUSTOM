@@ -12,7 +12,8 @@ from sqlmodel import select
 from app.utils.rate_limit import limiter
 
 from app.database import get_session
-from app.middleware.auth import require_roles, get_institute_slug_from_header
+from app.middleware.auth import get_institute_slug_from_header
+from app.rbac.dependencies import require_permissions
 from app.models.settings import SystemSetting
 from app.models.user import User
 from app.models.institute import Institute
@@ -23,7 +24,8 @@ from app.schemas.branding import (
 
 router = APIRouter()
 
-Admin = Annotated[User, Depends(require_roles("admin"))]
+CanEditBranding = Annotated[User, Depends(require_permissions("branding.edit"))]
+CanEditCertDesign = Annotated[User, Depends(require_permissions("branding.edit_certificate"))]
 
 PRESET_THEMES = {
     "default":      {"primary": "#1A1A1A", "accent": "#C5D86D", "background": "#F0F0F0"},
@@ -138,7 +140,7 @@ async def get_branding(
 async def update_branding(
     request: Request,
     body: BrandingUpdate,
-    current_user: Admin,
+    current_user: CanEditBranding,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Admin only — upsert branding keys into SystemSetting."""
@@ -174,7 +176,7 @@ async def update_branding(
 @limiter.limit("10/hour")
 async def upload_logo(
     request: Request,
-    current_user: Admin,
+    current_user: CanEditBranding,
     session: Annotated[AsyncSession, Depends(get_session)],
     file: UploadFile = File(...),
 ):
@@ -295,7 +297,7 @@ async def get_certificate_design(
 async def update_certificate_design(
     request: Request,
     body: CertificateDesignUpdate,
-    current_user: Admin,
+    current_user: CanEditCertDesign,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Admin only — upsert cert design keys into SystemSetting."""
@@ -327,7 +329,7 @@ async def update_certificate_design(
 @limiter.limit("10/hour")
 async def upload_signature(
     request: Request,
-    current_user: Admin,
+    current_user: CanEditCertDesign,
     session: Annotated[AsyncSession, Depends(get_session)],
     file: UploadFile = File(...),
     position: int = Query(..., ge=1, le=2),

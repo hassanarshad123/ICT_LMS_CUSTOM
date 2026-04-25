@@ -13,7 +13,8 @@ from app.schemas.material import (
 )
 from app.schemas.common import PaginatedResponse
 from app.services import material_service
-from app.middleware.auth import require_roles, get_current_user
+from app.middleware.auth import get_current_user
+from app.rbac.dependencies import require_permissions
 from app.middleware.access_control import check_billing_restriction, verify_batch_access
 from app.models.institute import Institute
 from app.models.user import User
@@ -22,7 +23,10 @@ from app.utils.tenant import check_institute_ownership
 
 router = APIRouter()
 
-CCOrTeacher = Annotated[User, Depends(require_roles("admin", "course_creator", "teacher"))]
+CanViewMaterials = Annotated[User, Depends(require_permissions("materials.view"))]
+CanCreateMaterials = Annotated[User, Depends(require_permissions("materials.create"))]
+CanEditMaterials = Annotated[User, Depends(require_permissions("materials.edit"))]
+CanDeleteMaterials = Annotated[User, Depends(require_permissions("materials.delete"))]
 AllRoles = Annotated[User, Depends(get_current_user)]
 
 
@@ -52,7 +56,7 @@ async def list_materials(
 async def get_upload_url(
     request: Request,
     body: MaterialUploadUrlRequest,
-    current_user: CCOrTeacher,
+    current_user: CanCreateMaterials,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     import logging as _logging
@@ -88,7 +92,7 @@ async def get_upload_url(
 @router.post("", response_model=MaterialOut, status_code=status.HTTP_201_CREATED)
 async def create_material(
     body: MaterialCreate,
-    current_user: CCOrTeacher,
+    current_user: CanCreateMaterials,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     material = await material_service.create_material(
@@ -145,7 +149,7 @@ async def get_download_url(
 @router.delete("/{material_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_material(
     material_id: uuid.UUID,
-    current_user: CCOrTeacher,
+    current_user: CanDeleteMaterials,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     material = await material_service.get_material(session, material_id, institute_id=current_user.institute_id)

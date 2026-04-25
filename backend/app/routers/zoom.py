@@ -20,7 +20,8 @@ from app.schemas.zoom import (
 )
 from app.schemas.common import PaginatedResponse
 from app.services import zoom_service, webhook_event_service
-from app.middleware.auth import require_roles, get_current_user
+from app.middleware.auth import get_current_user
+from app.rbac.dependencies import require_permissions
 from app.middleware.access_control import verify_zoom_class_access
 from app.models.user import User
 from app.models.enums import ZoomClassStatus
@@ -31,9 +32,15 @@ router = APIRouter()
 settings = get_settings()
 logger = logging.getLogger("ict_lms.zoom")
 
-Admin = Annotated[User, Depends(require_roles("admin"))]
-AdminOrCourseCreator = Annotated[User, Depends(require_roles("admin", "course_creator"))]
-CourseCreator = Annotated[User, Depends(require_roles("admin", "course_creator"))]
+CanViewZoomAccounts = Annotated[User, Depends(require_permissions("zoom.view_accounts"))]
+CanManageZoomAccounts = Annotated[User, Depends(require_permissions("zoom.manage_accounts"))]
+CanViewClasses = Annotated[User, Depends(require_permissions("zoom.view_classes"))]
+CanCreateClasses = Annotated[User, Depends(require_permissions("zoom.create_classes"))]
+CanEditClasses = Annotated[User, Depends(require_permissions("zoom.edit_classes"))]
+CanDeleteClasses = Annotated[User, Depends(require_permissions("zoom.delete_classes"))]
+CanViewRecordings = Annotated[User, Depends(require_permissions("zoom.view_recordings"))]
+CanManageRecordings = Annotated[User, Depends(require_permissions("zoom.manage_recordings"))]
+CanViewAttendance = Annotated[User, Depends(require_permissions("zoom.view_attendance"))]
 AllRoles = Annotated[User, Depends(get_current_user)]
 
 
@@ -41,7 +48,7 @@ AllRoles = Annotated[User, Depends(get_current_user)]
 
 @router.get("/accounts")
 async def list_accounts(
-    current_user: AdminOrCourseCreator,
+    current_user: CanViewZoomAccounts,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     accounts = await zoom_service.list_accounts(session, institute_id=current_user.institute_id)
@@ -67,7 +74,7 @@ async def list_accounts(
 @router.post("/accounts", response_model=ZoomAccountOut, status_code=status.HTTP_201_CREATED)
 async def create_account(
     body: ZoomAccountCreate,
-    current_user: Admin,
+    current_user: CanManageZoomAccounts,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     from app.utils.plan_limits import check_creation_limit
@@ -94,7 +101,7 @@ async def create_account(
 async def update_account(
     account_id: uuid.UUID,
     body: ZoomAccountUpdate,
-    current_user: Admin,
+    current_user: CanManageZoomAccounts,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     # Verify institute ownership
@@ -121,7 +128,7 @@ async def update_account(
 @router.delete("/accounts/{account_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_account(
     account_id: uuid.UUID,
-    current_user: Admin,
+    current_user: CanManageZoomAccounts,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     # Verify institute ownership
@@ -137,7 +144,7 @@ async def delete_account(
 @router.patch("/accounts/{account_id}/set-default", response_model=ZoomAccountOut)
 async def set_default_account(
     account_id: uuid.UUID,
-    current_user: Admin,
+    current_user: CanManageZoomAccounts,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     # Verify institute ownership
@@ -183,7 +190,7 @@ async def list_classes(
 @router.post("/classes", response_model=ZoomClassOut, status_code=status.HTTP_201_CREATED)
 async def create_class(
     body: ZoomClassCreate,
-    current_user: CourseCreator,
+    current_user: CanCreateClasses,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     from app.utils.plan_limits import check_creation_limit
@@ -291,7 +298,7 @@ async def create_class(
 async def update_class(
     class_id: uuid.UUID,
     body: ZoomClassUpdate,
-    current_user: AdminOrCourseCreator,
+    current_user: CanEditClasses,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     # Course creators can only update classes in their own batches
@@ -384,7 +391,7 @@ async def update_class(
 @router.delete("/classes/{class_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_class(
     class_id: uuid.UUID,
-    current_user: AdminOrCourseCreator,
+    current_user: CanDeleteClasses,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     # Course creators can only delete classes in their own batches
@@ -472,7 +479,7 @@ async def get_recordings(
 @router.post("/classes/{class_id}/sync-attendance")
 async def sync_attendance(
     class_id: uuid.UUID,
-    current_user: AdminOrCourseCreator,
+    current_user: CanViewAttendance,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     count = await zoom_service.sync_attendance(session, class_id, institute_id=current_user.institute_id)
@@ -609,7 +616,7 @@ async def get_recording_signed_url(
 async def update_recording(
     recording_id: uuid.UUID,
     body: RecordingUpdate,
-    current_user: AdminOrCourseCreator,
+    current_user: CanManageRecordings,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -633,7 +640,7 @@ async def update_recording(
 @router.delete("/recordings/{recording_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_recording(
     recording_id: uuid.UUID,
-    current_user: AdminOrCourseCreator,
+    current_user: CanManageRecordings,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -647,7 +654,7 @@ async def delete_recording(
 @router.delete("/recordings/{recording_id}/permanent", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_recording_permanent(
     recording_id: uuid.UUID,
-    current_user: AdminOrCourseCreator,
+    current_user: CanManageRecordings,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -661,7 +668,7 @@ async def delete_recording_permanent(
 @router.post("/recordings/{recording_id}/restore", response_model=RecordingListOut)
 async def restore_recording(
     recording_id: uuid.UUID,
-    current_user: AdminOrCourseCreator,
+    current_user: CanManageRecordings,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -686,7 +693,7 @@ async def restore_recording(
 @limiter.limit("30/minute")
 async def zoom_analytics(
     request: Request,
-    current_user: AdminOrCourseCreator,
+    current_user: CanViewClasses,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     return await zoom_service.get_zoom_analytics(session, institute_id=current_user.institute_id)

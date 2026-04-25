@@ -14,16 +14,20 @@ from app.schemas.quiz import (
 )
 from app.schemas.common import PaginatedResponse
 from app.services import quiz_service
-from app.middleware.auth import require_roles, get_current_user
+from app.middleware.auth import get_current_user
+from app.rbac.dependencies import require_permissions
 from app.models.user import User
 from app.models.enums import UserRole
 from app.utils.rate_limit import limiter
 
 router = APIRouter()
 
-CC = Annotated[User, Depends(require_roles("admin", "course_creator"))]
-CCTeacher = Annotated[User, Depends(require_roles("admin", "course_creator", "teacher"))]
-Student = Annotated[User, Depends(require_roles("student"))]
+CanViewQuizzes = Annotated[User, Depends(require_permissions("quizzes.view"))]
+CanCreateQuizzes = Annotated[User, Depends(require_permissions("quizzes.create"))]
+CanEditQuizzes = Annotated[User, Depends(require_permissions("quizzes.edit"))]
+CanDeleteQuizzes = Annotated[User, Depends(require_permissions("quizzes.delete"))]
+CanGradeQuizzes = Annotated[User, Depends(require_permissions("quizzes.grade"))]
+CanAttemptQuizzes = Annotated[User, Depends(require_permissions("quizzes.attempt"))]
 AllRoles = Annotated[User, Depends(get_current_user)]
 
 
@@ -51,7 +55,7 @@ async def list_quizzes(
 async def create_quiz(
     request: Request,
     body: QuizCreate,
-    current_user: CC,
+    current_user: CanCreateQuizzes,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     from app.utils.plan_limits import check_creation_limit
@@ -77,7 +81,7 @@ async def create_quiz(
 
 @router.get("/my-attempts", response_model=list[AttemptOut])
 async def my_attempts(
-    current_user: Student,
+    current_user: CanAttemptQuizzes,
     session: Annotated[AsyncSession, Depends(get_session)],
     course_id: Optional[uuid.UUID] = None,
 ):
@@ -90,7 +94,7 @@ async def my_attempts(
 
 @router.get("/pending-grading", response_model=PaginatedResponse[AttemptOut])
 async def pending_grading(
-    current_user: CCTeacher,
+    current_user: CanGradeQuizzes,
     session: Annotated[AsyncSession, Depends(get_session)],
     page: int = Query(1, ge=1),
     per_page: int = Query(15, ge=1, le=100),
@@ -110,7 +114,7 @@ async def pending_grading(
 async def update_question(
     question_id: uuid.UUID,
     body: QuestionUpdate,
-    current_user: CC,
+    current_user: CanEditQuizzes,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -126,7 +130,7 @@ async def update_question(
 @router.delete("/questions/{question_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_question(
     question_id: uuid.UUID,
-    current_user: CC,
+    current_user: CanDeleteQuizzes,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -141,7 +145,7 @@ async def delete_question(
 async def submit_attempt(
     attempt_id: uuid.UUID,
     body: AttemptSubmit,
-    current_user: Student,
+    current_user: CanAttemptQuizzes,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     # Check batch expiry before allowing quiz submission
@@ -190,7 +194,7 @@ async def get_attempt(
 async def grade_answer(
     answer_id: uuid.UUID,
     body: GradeAnswer,
-    current_user: CCTeacher,
+    current_user: CanGradeQuizzes,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -229,7 +233,7 @@ async def get_quiz(
 async def update_quiz(
     quiz_id: uuid.UUID,
     body: QuizUpdate,
-    current_user: CC,
+    current_user: CanEditQuizzes,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -248,7 +252,7 @@ async def update_quiz(
 @router.delete("/{quiz_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_quiz(
     quiz_id: uuid.UUID,
-    current_user: CC,
+    current_user: CanDeleteQuizzes,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     try:
@@ -279,7 +283,7 @@ async def list_questions(
 async def create_question(
     quiz_id: uuid.UUID,
     body: QuestionCreate,
-    current_user: CC,
+    current_user: CanCreateQuizzes,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     # Override quiz_id from path parameter
@@ -301,7 +305,7 @@ async def create_question(
 async def start_attempt(
     request: Request,
     quiz_id: uuid.UUID,
-    current_user: Student,
+    current_user: CanAttemptQuizzes,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     # Check batch expiry + fee overdue before allowing quiz start
@@ -325,7 +329,7 @@ async def start_attempt(
 @router.get("/{quiz_id}/attempts", response_model=PaginatedResponse[AttemptOut])
 async def list_attempts(
     quiz_id: uuid.UUID,
-    current_user: CCTeacher,
+    current_user: CanGradeQuizzes,
     session: Annotated[AsyncSession, Depends(get_session)],
     search: Optional[str] = None,
     page: int = Query(1, ge=1),

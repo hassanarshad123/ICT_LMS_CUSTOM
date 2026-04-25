@@ -7,7 +7,8 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
-from app.middleware.auth import require_roles, get_current_user
+from app.middleware.auth import get_current_user
+from app.rbac.dependencies import require_permissions
 from app.utils.rate_limit import limiter
 from app.models.user import User
 from app.models.enums import UserRole
@@ -22,8 +23,9 @@ from app.services import monitoring_service
 
 router = APIRouter()
 
-Admin = Annotated[User, Depends(require_roles("admin"))]
-AdminOrSA = Annotated[User, Depends(require_roles("admin", "super_admin"))]
+CanViewErrors = Annotated[User, Depends(require_permissions("monitoring.view_errors"))]
+CanResolveErrors = Annotated[User, Depends(require_permissions("monitoring.resolve_errors"))]
+CanReportErrors = Annotated[User, Depends(require_permissions("monitoring.report_errors"))]
 
 
 def _redact_error_for_admin(error: "ErrorLog") -> ErrorLogOut:
@@ -67,7 +69,7 @@ def _redact_error_for_admin(error: "ErrorLog") -> ErrorLogOut:
 
 @router.get("/errors", response_model=PaginatedResponse[ErrorLogOut])
 async def list_errors(
-    current_user: AdminOrSA,
+    current_user: CanViewErrors,
     session: Annotated[AsyncSession, Depends(get_session)],
     source: Optional[str] = None,
     level: Optional[str] = None,
@@ -110,7 +112,7 @@ async def list_errors(
 
 @router.get("/errors/stats", response_model=ErrorStatsResponse)
 async def error_stats(
-    current_user: AdminOrSA,
+    current_user: CanViewErrors,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Get error statistics for the monitoring dashboard."""
@@ -134,7 +136,7 @@ async def error_stats(
 @router.get("/errors/{error_id}", response_model=ErrorLogOut)
 async def get_error(
     error_id: uuid.UUID,
-    current_user: AdminOrSA,
+    current_user: CanViewErrors,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Get full error details including traceback."""
@@ -156,7 +158,7 @@ async def get_error(
 async def resolve_error(
     error_id: uuid.UUID,
     body: ResolveRequest,
-    current_user: AdminOrSA,
+    current_user: CanResolveErrors,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Mark an error as resolved or unresolved."""
@@ -176,7 +178,7 @@ async def resolve_error(
 
 @router.post("/errors/resolve-all", status_code=status.HTTP_200_OK, response_model=CountResponse)
 async def resolve_all_errors(
-    current_user: AdminOrSA,
+    current_user: CanResolveErrors,
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Resolve all unresolved errors."""
@@ -192,7 +194,7 @@ async def resolve_all_errors(
 
 @router.delete("/errors/clear-resolved", status_code=status.HTTP_200_OK, response_model=CountResponse)
 async def clear_resolved_errors(
-    current_user: AdminOrSA,
+    current_user: CanResolveErrors,
     session: Annotated[AsyncSession, Depends(get_session)],
     older_than_days: int = Query(7, ge=1, le=365),
 ):
@@ -267,7 +269,7 @@ async def report_client_error(
 
 
 @router.post("/test-alert", status_code=status.HTTP_200_OK)
-async def test_sentry_alert(current_user: Admin):
+async def test_sentry_alert(current_user: CanReportErrors):
     """Send a test alert to verify Sentry is capturing events."""
     from app.config import get_settings
 
@@ -291,7 +293,7 @@ async def test_sentry_alert(current_user: Admin):
 
 
 @router.get("/sentry-test")
-async def sentry_test(current_user: Admin):
+async def sentry_test(current_user: CanReportErrors):
     """Trigger a test error to verify Sentry is capturing exceptions."""
     raise RuntimeError("Sentry integration test — this error is intentional")
 
@@ -308,7 +310,7 @@ async def enhanced_health_check(
 
 
 @router.get("/cache-stats", response_model=CacheStatsResponse)
-async def get_cache_stats(current_user: AdminOrSA):
+async def get_cache_stats(current_user: CanViewErrors):
     """Admin-only — returns Redis cache health metrics."""
     from app.core.redis import get_redis
 
