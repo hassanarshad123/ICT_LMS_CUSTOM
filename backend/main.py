@@ -9,7 +9,7 @@ from slowapi.errors import RateLimitExceeded
 from app.utils.rate_limit import limiter
 
 from app.config import get_settings
-from app.routers import auth, users, batches, courses, curriculum, lectures, materials, jobs, announcements, zoom, admin, certificates, monitoring, branding, notifications, search, super_admin, api_keys, webhooks, public_api, quizzes, signup, sa_analytics, sa_monitoring, sa_operations, sa_billing, sa_alerts, sa_search, sa_finance, sa_resources, feedback, upgrade, admissions, integrations, billing, payment_proof, email_templates, payfast, payfast_webhooks
+from app.routers import auth, users, batches, courses, curriculum, lectures, materials, jobs, announcements, zoom, admin, certificates, monitoring, branding, notifications, search, super_admin, api_keys, webhooks, public_api, quizzes, signup, sa_analytics, sa_monitoring, sa_operations, sa_billing, sa_alerts, sa_search, sa_finance, sa_resources, feedback, upgrade, admissions, integrations, billing, payment_proof, email_templates, payfast, payfast_webhooks, roles
 from app.websockets.routes import router as ws_router
 from app.middleware.error_tracking import ErrorTrackingMiddleware
 from app.middleware.maintenance import MaintenanceMiddleware
@@ -271,6 +271,7 @@ app.include_router(integrations.router, prefix="/api/v1/integrations", tags=["In
 # Admin-facing billing (pricing v2). Tier-gated internally — grandfathered
 # institutes (like ICT) get 403 from every endpoint.
 app.include_router(billing.router, prefix="/api/v1/billing", tags=["Billing"])
+app.include_router(roles.router, prefix="/api/v1", tags=["Roles & Permissions"])
 
 # WebSocket routes
 app.include_router(ws_router)

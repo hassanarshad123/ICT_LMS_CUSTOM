@@ -89,6 +89,7 @@ async def get_current_user(
     if cached is not None:
         # Cache hit — reconstruct a minimal User object for downstream compatibility
         try:
+            cri = cached.get("custom_role_id")
             user = User(
                 id=uuid.UUID(cached["id"]),
                 email=cached["email"],
@@ -97,8 +98,10 @@ async def get_current_user(
                 status=UserStatus(cached["status"]),
                 institute_id=uuid.UUID(cached["institute_id"]) if cached.get("institute_id") else None,
                 token_version=cached["token_version"],
+                custom_role_id=uuid.UUID(cri) if cri else None,
             )
             user._impersonator_id = uuid.UUID(imp_id) if imp_id else None
+            user._view_type = cached.get("view_type")
 
             # Propagate to request.state for downstream middleware (error_tracking)
             request.state.user_id = cached["id"]
@@ -166,6 +169,20 @@ async def get_current_user(
                     await session.commit()
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Institute subscription has expired")
 
+    # ── Resolve custom role view_type (if applicable) ──────────
+    view_type = None
+    if user.role == UserRole.custom and user.custom_role_id:
+        from app.rbac.models import CustomRole
+        cr_result = await session.execute(
+            select(CustomRole.view_type).where(
+                CustomRole.id == user.custom_role_id,
+                CustomRole.deleted_at.is_(None),
+            )
+        )
+        cr_row = cr_result.first()
+        view_type = cr_row[0].value if cr_row and cr_row[0] else None
+    user._view_type = view_type
+
     # ── Populate cache ──────────────────────────────────────────
     inst = user.institute
     cache_data = {
@@ -178,6 +195,8 @@ async def get_current_user(
         "token_version": user.token_version,
         "institute_status": inst.status.value if inst else None,
         "institute_expires_at": inst.expires_at.isoformat() if inst and inst.expires_at else None,
+        "custom_role_id": str(user.custom_role_id) if user.custom_role_id else None,
+        "view_type": view_type,
     }
     await cache.set(cache.user_key(user_id), cache_data, ttl=_USER_CACHE_TTL)
 
@@ -204,17 +223,30 @@ async def get_current_user(
 
 
 def require_roles(*roles: str):
-    """FastAPI dependency factory: restrict endpoint to specific roles."""
+    """FastAPI dependency factory: restrict endpoint to specific roles.
+
+    Also handles custom role users via view_type → base role mapping so
+    they can access unmigrated endpoints during the RBAC transition.
+    """
+    from app.rbac.constants import VIEW_TYPE_TO_ROLES
 
     async def role_checker(
         current_user: Annotated[User, Depends(get_current_user)],
     ) -> User:
-        if current_user.role.value not in roles:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You do not have permission to perform this action",
-            )
-        return current_user
+        if current_user.role.value in roles:
+            return current_user
+
+        if current_user.role == UserRole.custom and current_user.custom_role_id:
+            view_type = getattr(current_user, "_view_type", None)
+            if view_type:
+                mapped_roles = VIEW_TYPE_TO_ROLES.get(view_type, set())
+                if mapped_roles & set(roles):
+                    return current_user
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to perform this action",
+        )
 
     return role_checker
 
