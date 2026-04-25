@@ -1,15 +1,15 @@
 """Seed permission registry with all LMS permissions.
 
-Revision ID: 059
-Revises: 058
+Revision ID: 060
+Revises: 059
 Create Date: 2026-04-26
 """
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID
 
-revision = "059"
-down_revision = "058"
+revision = "060"
+down_revision = "059"
 branch_labels = None
 depends_on = None
 

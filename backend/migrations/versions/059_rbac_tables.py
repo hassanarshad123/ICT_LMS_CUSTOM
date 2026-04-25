@@ -1,16 +1,16 @@
 """Create RBAC tables (permissions, custom_roles, custom_role_permissions)
 and add custom_role_id FK to users.
 
-Revision ID: 058
-Revises: 057
+Revision ID: 059
+Revises: 058
 Create Date: 2026-04-26
 """
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP
 
-revision = "058"
-down_revision = "057"
+revision = "059"
+down_revision = "058"
 branch_labels = None
 depends_on = None
 
