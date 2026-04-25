@@ -16,9 +16,15 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # ── view_type enum ─────────────────────────────────────────
-    view_type_enum = sa.Enum("student_view", "staff_view", "admin_view", name="view_type")
-    view_type_enum.create(op.get_bind(), checkfirst=True)
+    # ── view_type enum (idempotent) ────────────────────────────
+    op.execute("""
+        DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'view_type') THEN
+                CREATE TYPE view_type AS ENUM ('student_view', 'staff_view', 'admin_view');
+            END IF;
+        END$$;
+    """)
+    view_type_enum = sa.Enum("student_view", "staff_view", "admin_view", name="view_type", create_type=False)
 
     # ── permissions table ──────────────────────────────────────
     op.create_table(
