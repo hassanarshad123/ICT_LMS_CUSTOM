@@ -2,6 +2,7 @@
 
 import { useAuth } from '@/lib/auth-context';
 import RoleGuard from '@/components/shared/role-guard';
+import { P } from '@/lib/permissions';
 import AdminCourses from '@/components/pages/admin/courses';
 import CCCourses from '@/components/pages/cc/courses';
 import TeacherCourses from '@/components/pages/teacher/courses';
@@ -20,7 +21,7 @@ function CoursesForRole({ role }: { role: string }) {
 export default function CoursesPage() {
   const { role } = useAuth();
   return (
-    <RoleGuard allowed={['admin', 'course-creator', 'teacher', 'student']}>
+    <RoleGuard required={P.COURSES_VIEW}>
       <CoursesForRole role={role} />
     </RoleGuard>
   );

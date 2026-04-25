@@ -2,6 +2,7 @@
 
 import { useAuth } from '@/lib/auth-context';
 import RoleGuard from '@/components/shared/role-guard';
+import { P } from '@/lib/permissions';
 import AdminBatches from '@/components/pages/admin/batches';
 import CCBatches from '@/components/pages/cc/batches';
 import TeacherBatches from '@/components/pages/teacher/batches';
@@ -18,7 +19,7 @@ function BatchesForRole({ role }: { role: string }) {
 export default function BatchesPage() {
   const { role } = useAuth();
   return (
-    <RoleGuard allowed={['admin', 'course-creator', 'teacher']}>
+    <RoleGuard required={P.BATCHES_VIEW}>
       <BatchesForRole role={role} />
     </RoleGuard>
   );

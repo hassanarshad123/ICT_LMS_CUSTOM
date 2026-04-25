@@ -9,6 +9,7 @@ import { useBranding } from '@/lib/branding-context';
 import { useSidebar } from './sidebar-context';
 import { useApi } from '@/hooks/use-api';
 import { getMyHasFees } from '@/lib/api/admissions';
+import { P } from '@/lib/permissions';
 import {
   Home,
   Layers,
@@ -43,82 +44,42 @@ import { ZensbotSidebarBadge } from '@/components/shared/zensbot-badge';
 import UploadIndicator from '@/components/shared/upload-indicator';
 import { useTour } from '@/components/shared/tour-provider';
 
-interface NavItem {
+interface PermNavItem {
   label: string;
   path: string;
   icon: string;
-  navId?: string;
+  navId: string;
+  permission: string;
 }
 
-const navConfig: Record<UserRole, NavItem[]> = {
-  admin: [
-    { label: 'Dashboard', path: '', icon: 'home', navId: 'nav-dashboard' },
-    { label: 'Users', path: '/users', icon: 'user-cog', navId: 'nav-users' },
-    { label: 'Courses', path: '/courses', icon: 'book-open', navId: 'nav-courses' },
-    { label: 'Batches', path: '/batches', icon: 'layers', navId: 'nav-batches' },
-    { label: 'Upload Videos', path: '/upload', icon: 'upload', navId: 'nav-upload' },
-    { label: 'Schedule Class', path: '/schedule', icon: 'calendar', navId: 'nav-schedule' },
-    { label: 'Students', path: '/students', icon: 'users', navId: 'nav-students' },
-    { label: 'Teachers', path: '/teachers', icon: 'graduation-cap', navId: 'nav-teachers' },
-    { label: 'Course Creators', path: '/course-creators', icon: 'pen-tool', navId: 'nav-course-creators' },
-    { label: 'Admissions Officers', path: '/admissions-officers', icon: 'user-plus', navId: 'nav-admissions-officers' },
-    { label: 'Admissions Team', path: '/admissions-team', icon: 'bar-chart-3', navId: 'nav-admissions-team' },
-    { label: 'Devices', path: '/devices', icon: 'smartphone', navId: 'nav-devices' },
-    { label: 'Insights', path: '/insights', icon: 'bar-chart-3', navId: 'nav-insights' },
-    { label: 'Recordings', path: '/recordings', icon: 'play-circle', navId: 'nav-recordings' },
-    { label: 'Certificates', path: '/certificates', icon: 'award', navId: 'nav-certificates' },
-    { label: 'Announcements', path: '/announcements', icon: 'megaphone', navId: 'nav-announcements' },
-    { label: 'Jobs', path: '/jobs', icon: 'briefcase', navId: 'nav-jobs' },
-    { label: 'Monitoring', path: '/monitoring', icon: 'activity', navId: 'nav-monitoring' },
-    { label: 'Branding', path: '/branding', icon: 'palette', navId: 'nav-branding' },
-    { label: 'Integrations', path: '/integrations', icon: 'plug', navId: 'nav-integrations' },
-    { label: 'Billing', path: '/billing', icon: 'credit-card', navId: 'nav-billing' },
-    { label: 'Feedback', path: '/feedback', icon: 'message-square', navId: 'nav-feedback' },
-    { label: 'Settings', path: '/settings', icon: 'settings', navId: 'nav-settings' },
-  ],
-  'course-creator': [
-    { label: 'Dashboard', path: '', icon: 'home', navId: 'nav-dashboard' },
-    { label: 'Users', path: '/users', icon: 'user-cog', navId: 'nav-users' },
-    { label: 'Courses', path: '/courses', icon: 'book-open', navId: 'nav-courses' },
-    { label: 'Batches', path: '/batches', icon: 'layers', navId: 'nav-batches' },
-    { label: 'Upload Videos', path: '/upload', icon: 'upload', navId: 'nav-upload' },
-    { label: 'Devices', path: '/devices', icon: 'smartphone', navId: 'nav-devices' },
-    { label: 'Schedule Class', path: '/schedule', icon: 'calendar', navId: 'nav-schedule' },
-    { label: 'Recordings', path: '/recordings', icon: 'play-circle', navId: 'nav-recordings' },
-    { label: 'Certificates', path: '/certificates', icon: 'award', navId: 'nav-certificates' },
-    { label: 'Announcements', path: '/announcements', icon: 'megaphone', navId: 'nav-announcements' },
-    { label: 'Jobs', path: '/jobs', icon: 'briefcase', navId: 'nav-jobs' },
-    { label: 'Feedback', path: '/feedback', icon: 'message-square', navId: 'nav-feedback' },
-    { label: 'Settings', path: '/settings', icon: 'settings', navId: 'nav-settings' },
-  ],
-  teacher: [
-    { label: 'Dashboard', path: '', icon: 'home', navId: 'nav-dashboard' },
-    { label: 'My Courses', path: '/courses', icon: 'book-open', navId: 'nav-courses' },
-    { label: 'My Batches', path: '/batches', icon: 'layers', navId: 'nav-batches' },
-    { label: 'Zoom Classes', path: '/classes', icon: 'video', navId: 'nav-classes' },
-    { label: 'Recordings', path: '/recordings', icon: 'play-circle', navId: 'nav-recordings' },
-    { label: 'Announcements', path: '/announcements', icon: 'megaphone', navId: 'nav-announcements' },
-    { label: 'Feedback', path: '/feedback', icon: 'message-square', navId: 'nav-feedback' },
-    { label: 'Settings', path: '/settings', icon: 'settings', navId: 'nav-settings' },
-  ],
-  student: [
-    { label: 'Dashboard', path: '', icon: 'home', navId: 'nav-dashboard' },
-    { label: 'Courses', path: '/courses', icon: 'book-open', navId: 'nav-courses' },
-    { label: 'Zoom Classes', path: '/classes', icon: 'video', navId: 'nav-classes' },
-    { label: 'Recordings', path: '/recordings', icon: 'play-circle', navId: 'nav-recordings' },
-    { label: 'Announcements', path: '/announcements', icon: 'megaphone', navId: 'nav-announcements' },
-    { label: 'Certificates', path: '/certificates', icon: 'award', navId: 'nav-certificates' },
-    { label: 'My Fees', path: '/fees', icon: 'wallet', navId: 'nav-fees' },
-    { label: 'Job Opportunities', path: '/jobs', icon: 'briefcase', navId: 'nav-jobs' },
-    { label: 'Feedback', path: '/feedback', icon: 'message-square', navId: 'nav-feedback' },
-    { label: 'Settings', path: '/settings', icon: 'settings', navId: 'nav-settings' },
-  ],
-  'admissions-officer': [
-    { label: 'Dashboard', path: '', icon: 'home', navId: 'nav-dashboard' },
-    { label: 'Onboard Student', path: '/admissions/onboard', icon: 'user-plus', navId: 'nav-onboard' },
-    { label: 'Settings', path: '/settings', icon: 'settings', navId: 'nav-settings' },
-  ],
-};
+const allNavItems: PermNavItem[] = [
+  { label: 'Dashboard', path: '', icon: 'home', navId: 'nav-dashboard', permission: P.DASHBOARD_VIEW },
+  { label: 'Users', path: '/users', icon: 'user-cog', navId: 'nav-users', permission: P.USERS_VIEW },
+  { label: 'Courses', path: '/courses', icon: 'book-open', navId: 'nav-courses', permission: P.COURSES_VIEW },
+  { label: 'Batches', path: '/batches', icon: 'layers', navId: 'nav-batches', permission: P.BATCHES_VIEW },
+  { label: 'Upload Videos', path: '/upload', icon: 'upload', navId: 'nav-upload', permission: P.LECTURES_CREATE },
+  { label: 'Schedule Class', path: '/schedule', icon: 'calendar', navId: 'nav-schedule', permission: P.ZOOM_CREATE_CLASSES },
+  { label: 'Students', path: '/students', icon: 'users', navId: 'nav-students', permission: P.USERS_VIEW },
+  { label: 'Teachers', path: '/teachers', icon: 'graduation-cap', navId: 'nav-teachers', permission: P.USERS_VIEW },
+  { label: 'Course Creators', path: '/course-creators', icon: 'pen-tool', navId: 'nav-course-creators', permission: P.USERS_VIEW },
+  { label: 'Admissions Officers', path: '/admissions-officers', icon: 'user-plus', navId: 'nav-admissions-officers', permission: P.USERS_VIEW },
+  { label: 'Admissions Team', path: '/admissions-team', icon: 'bar-chart-3', navId: 'nav-admissions-team', permission: P.ADMISSIONS_VIEW_STATS },
+  { label: 'Onboard Student', path: '/admissions/onboard', icon: 'user-plus', navId: 'nav-onboard', permission: P.ADMISSIONS_ONBOARD },
+  { label: 'Devices', path: '/devices', icon: 'smartphone', navId: 'nav-devices', permission: P.DEVICES_VIEW },
+  { label: 'Insights', path: '/insights', icon: 'bar-chart-3', navId: 'nav-insights', permission: P.DASHBOARD_VIEW_INSIGHTS },
+  { label: 'Zoom Classes', path: '/classes', icon: 'video', navId: 'nav-classes', permission: P.ZOOM_VIEW_CLASSES },
+  { label: 'Recordings', path: '/recordings', icon: 'play-circle', navId: 'nav-recordings', permission: P.ZOOM_VIEW_RECORDINGS },
+  { label: 'Certificates', path: '/certificates', icon: 'award', navId: 'nav-certificates', permission: P.CERTIFICATES_VIEW },
+  { label: 'Announcements', path: '/announcements', icon: 'megaphone', navId: 'nav-announcements', permission: P.ANNOUNCEMENTS_VIEW },
+  { label: 'Jobs', path: '/jobs', icon: 'briefcase', navId: 'nav-jobs', permission: P.JOBS_VIEW },
+  { label: 'My Fees', path: '/fees', icon: 'wallet', navId: 'nav-fees', permission: P.FEES_VIEW_OWN },
+  { label: 'Monitoring', path: '/monitoring', icon: 'activity', navId: 'nav-monitoring', permission: P.MONITORING_VIEW_ERRORS },
+  { label: 'Branding', path: '/branding', icon: 'palette', navId: 'nav-branding', permission: P.BRANDING_EDIT },
+  { label: 'Integrations', path: '/integrations', icon: 'plug', navId: 'nav-integrations', permission: P.INTEGRATIONS_VIEW },
+  { label: 'Billing', path: '/billing', icon: 'credit-card', navId: 'nav-billing', permission: P.BILLING_VIEW },
+  { label: 'Feedback', path: '/feedback', icon: 'message-square', navId: 'nav-feedback', permission: P.FEEDBACK_SUBMIT },
+  { label: 'Settings', path: '/settings', icon: 'settings', navId: 'nav-settings', permission: P.SETTINGS_VIEW },
+];
 
 const iconMap: Record<string, React.ReactNode> = {
   home: <Home size={20} />,
@@ -147,6 +108,15 @@ const iconMap: Record<string, React.ReactNode> = {
   'credit-card': <CreditCard size={20} />,
 };
 
+const roleLabels: Record<string, string> = {
+  admin: 'Admin',
+  'course-creator': 'Course Creator',
+  teacher: 'Teacher',
+  student: 'Student',
+  'admissions-officer': 'Admissions Officer',
+  custom: 'Custom Role',
+};
+
 export function MobileTrigger() {
   const { setMobileOpen } = useSidebar();
   return (
@@ -168,44 +138,39 @@ interface SidebarProps {
 
 export default function Sidebar({ role, userName, onLogout }: SidebarProps) {
   const pathname = usePathname();
-  const { id } = useAuth();
+  const { id, hasPermission, permissions, viewType } = useAuth();
   const { instituteName, logoUrl } = useBranding();
   const basePath = `/${id}`;
 
-  // Only students need a "My Fees" visibility check; skip the API call for
-  // other roles so they don't pay the round-trip.
+  const hasFeesCheck = hasPermission(P.FEES_VIEW_OWN);
   const { data: hasFeesData } = useApi(
-    () => (role === 'student' ? getMyHasFees() : Promise.resolve({ hasFees: true })),
-    [role],
+    () => (hasFeesCheck ? getMyHasFees() : Promise.resolve({ hasFees: false })),
+    [hasFeesCheck],
   );
-  const hasFees = role !== 'student' ? true : !!hasFeesData?.hasFees;
+  const hasFees = hasFeesCheck ? !!hasFeesData?.hasFees : false;
 
   const items = useMemo(() => {
-    const base = navConfig[role] || navConfig.student;
-    if (role === 'student' && !hasFees) {
-      return base.filter((i) => i.navId !== 'nav-fees');
+    if (permissions.length === 0) {
+      return [];
     }
-    return base;
-  }, [role, hasFees]);
+    return allNavItems.filter((item) => {
+      if (!hasPermission(item.permission)) return false;
+      if (item.navId === 'nav-fees' && !hasFees) return false;
+      return true;
+    });
+  }, [permissions, hasPermission, hasFees]);
+
   const { mobileOpen, setMobileOpen } = useSidebar();
   const { startTour } = useTour();
 
-  // Close mobile sidebar on route change
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname, setMobileOpen]);
 
-  const roleLabels: Record<UserRole, string> = {
-    admin: 'Admin',
-    'course-creator': 'Course Creator',
-    teacher: 'Teacher',
-    student: 'Student',
-    'admissions-officer': 'Admissions Officer',
-  };
+  const displayRole = roleLabels[role] || role;
 
   return (
     <>
-      {/* Dark backdrop for mobile */}
       {mobileOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-40 md:hidden"
@@ -218,7 +183,6 @@ export default function Sidebar({ role, userName, onLogout }: SidebarProps) {
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         } md:translate-x-0`}
       >
-        {/* Close button for mobile */}
         <button
           onClick={() => setMobileOpen(false)}
           className="absolute top-4 right-4 md:hidden w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors"
@@ -238,7 +202,7 @@ export default function Sidebar({ role, userName, onLogout }: SidebarProps) {
             )}
             <div>
               <h2 className="font-semibold text-primary text-sm">{instituteName}</h2>
-              <p className="text-xs text-gray-500">{roleLabels[role]}</p>
+              <p className="text-xs text-gray-500">{displayRole}</p>
             </div>
           </div>
         </div>
@@ -268,7 +232,7 @@ export default function Sidebar({ role, userName, onLogout }: SidebarProps) {
         </nav>
 
         <div className="p-4 border-t border-gray-100 space-y-2">
-          {role === 'course-creator' && <UploadIndicator />}
+          {hasPermission(P.LECTURES_CREATE) && <UploadIndicator />}
           <div className="flex items-center gap-3 px-4 py-3 mb-2">
             <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-sm font-semibold text-primary">
               {userName.charAt(0)}

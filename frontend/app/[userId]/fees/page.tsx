@@ -1,6 +1,7 @@
 'use client';
 
 import RoleGuard from '@/components/shared/role-guard';
+import { P } from '@/lib/permissions';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import DashboardHeader from '@/components/layout/dashboard-header';
 import { useApi } from '@/hooks/use-api';
@@ -21,7 +22,7 @@ export default function MyFeesPage() {
   const { data, loading, error, refetch } = useApi(() => getMyFees(), []);
 
   return (
-    <RoleGuard allowed={['admin', 'student', 'teacher', 'course-creator', 'admissions-officer']}>
+    <RoleGuard required={P.FEES_VIEW_OWN}>
       <DashboardLayout>
         <DashboardHeader
           greeting="My Fees"

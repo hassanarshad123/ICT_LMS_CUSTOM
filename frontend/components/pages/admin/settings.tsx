@@ -15,21 +15,25 @@ import { changePassword } from '@/lib/api/auth';
 import { listAccounts, createAccount, updateAccount, deleteAccount, setDefaultAccount, ZoomAccountOut } from '@/lib/api/zoom';
 import { toast } from 'sonner';
 import { useBranding } from '@/lib/branding-context';
+import { usePermission } from '@/hooks/use-permission';
+import { P } from '@/lib/permissions';
 import EmailTemplatesPage from './email-templates';
+import RolesManager from './roles';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
-type TabType = 'account' | 'security' | 'notifications' | 'templates' | 'zoom';
+type TabType = 'account' | 'security' | 'notifications' | 'templates' | 'zoom' | 'roles';
 
-const TABS: { key: TabType; label: string; icon: any }[] = [
+const TABS: { key: TabType; label: string; icon: any; permission?: string }[] = [
   { key: 'account', label: 'Account', icon: User },
   { key: 'security', label: 'Security', icon: Lock },
   { key: 'notifications', label: 'Notifications', icon: Mail },
   { key: 'templates', label: 'Email Templates', icon: FileText },
   { key: 'zoom', label: 'Zoom', icon: Video },
+  { key: 'roles', label: 'Roles & Permissions', icon: Shield, permission: P.ROLES_VIEW },
 ];
 
 const EMAIL_GROUPS = [
@@ -112,6 +116,7 @@ function NumberStepper({ value, onChange, min, max, step = 1, suffix }: {
 
 export default function AdminSettings() {
   const auth = useAuth();
+  const canViewRoles = usePermission(P.ROLES_VIEW);
   const [activeTab, setActiveTab] = useState<TabType>('account');
 
   // Data fetching
@@ -242,8 +247,11 @@ export default function AdminSettings() {
 
       <div className="w-full">
         {/* Tab Bar */}
-        <div className="flex gap-1 mb-6 bg-gray-100 rounded-xl p-1 w-fit">
-          {TABS.map((tab) => {
+        <div className="flex gap-1 mb-6 bg-gray-100 rounded-xl p-1 w-fit flex-wrap">
+          {TABS.filter((tab) => {
+            if (tab.permission === P.ROLES_VIEW) return canViewRoles;
+            return true;
+          }).map((tab) => {
             const Icon = tab.icon;
             return (
               <button
@@ -589,6 +597,11 @@ export default function AdminSettings() {
               )}
             </div>
           </div>
+        )}
+
+        {/* ── Roles & Permissions Tab ─────────────────────── */}
+        {activeTab === 'roles' && canViewRoles && (
+          <RolesManager />
         )}
       </div>
 

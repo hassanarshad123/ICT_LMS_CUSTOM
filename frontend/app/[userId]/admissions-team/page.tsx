@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import RoleGuard from '@/components/shared/role-guard';
+import { P } from '@/lib/permissions';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import DashboardHeader from '@/components/layout/dashboard-header';
 import { useApi } from '@/hooks/use-api';
@@ -46,7 +47,7 @@ export default function AdmissionsTeamPage() {
   const topOfficer = useMemo(() => data?.officers.find((o) => o.revenueCollected > 0), [data]);
 
   return (
-    <RoleGuard allowed={['admin']}>
+    <RoleGuard required={P.ADMISSIONS_VIEW_STATS}>
       <DashboardLayout>
         <DashboardHeader
           greeting="Admissions Team"

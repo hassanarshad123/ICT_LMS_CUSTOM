@@ -1,13 +1,14 @@
 'use client';
 
 import RoleGuard from '@/components/shared/role-guard';
+import { P } from '@/lib/permissions';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import DashboardHeader from '@/components/layout/dashboard-header';
 import OnboardWizard from '@/components/admissions/onboard-wizard';
 
 export default function AdmissionsOnboardPage() {
   return (
-    <RoleGuard allowed={['admin', 'admissions-officer']}>
+    <RoleGuard required={P.ADMISSIONS_ONBOARD}>
       <DashboardLayout>
         <DashboardHeader
           greeting="Onboard a student"

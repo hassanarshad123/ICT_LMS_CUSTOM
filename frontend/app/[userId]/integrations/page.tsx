@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import RoleGuard from '@/components/shared/role-guard';
+import { P } from '@/lib/permissions';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import { PageLoading } from '@/components/shared/page-states';
 import { PageError, EmptyState } from '@/components/shared/page-states';
@@ -827,7 +828,7 @@ function IntegrationsContent() {
 
 export default function IntegrationsPage() {
   return (
-    <RoleGuard allowed={['admin']}>
+    <RoleGuard required={P.INTEGRATIONS_VIEW}>
       <IntegrationsContent />
     </RoleGuard>
   );

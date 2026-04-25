@@ -26,8 +26,8 @@ function formatDuration(minutes?: number): string {
 }
 
 export default function RecordingsPage() {
-  const { role } = useAuth();
-  const isAdmin = role === 'admin' || role === 'course-creator';
+  const { hasPermission } = useAuth();
+  const isAdmin = hasPermission('zoom.manage_recordings');
 
   const [showDeleted, setShowDeleted] = useState(false);
 
@@ -185,7 +185,7 @@ export default function RecordingsPage() {
       {!loading && !error && (
         <>
           {/* Show deleted toggle — admin/course-creator only */}
-          {(role === 'admin' || role === 'course-creator') && (
+          {isAdmin && (
             <label className="flex items-center gap-2 text-sm text-gray-600 mb-4 cursor-pointer">
               <input
                 type="checkbox"

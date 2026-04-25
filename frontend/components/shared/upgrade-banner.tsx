@@ -19,13 +19,12 @@ const DISMISS_DURATION_MS = 1000 * 60 * 60 * 4; // Re-show every 4 hours
  *   - Also shown to paid-tier admins if they want to upgrade further (reduced prominence)
  */
 export function UpgradeBanner() {
-  const { role, user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const [institute, setInstitute] = useState<MyInstituteResponse | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
 
-  // Don't even try to fetch for SAs or students
-  const shouldShow = role === 'admin' || role === 'course-creator';
+  const shouldShow = hasPermission('billing.view');
 
   useEffect(() => {
     if (!shouldShow || !user) return;

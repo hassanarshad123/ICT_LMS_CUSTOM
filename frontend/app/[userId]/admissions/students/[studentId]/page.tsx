@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import RoleGuard from '@/components/shared/role-guard';
+import { P } from '@/lib/permissions';
 import DashboardLayout from '@/components/layout/dashboard-layout';
 import DashboardHeader from '@/components/layout/dashboard-header';
 import { useApi, useMutation } from '@/hooks/use-api';
@@ -121,7 +122,7 @@ export default function AdmissionsStudentDetailPage() {
   const isSuspended = student?.status !== 'active';
 
   return (
-    <RoleGuard allowed={['admin', 'admissions-officer']}>
+    <RoleGuard required={P.ADMISSIONS_VIEW_STUDENTS}>
       <DashboardLayout>
         <DashboardHeader
           greeting={student?.name || 'Student'}

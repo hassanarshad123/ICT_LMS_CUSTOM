@@ -2,6 +2,7 @@
 
 import { useAuth } from '@/lib/auth-context';
 import RoleGuard from '@/components/shared/role-guard';
+import { P } from '@/lib/permissions';
 import AdminSettings from '@/components/pages/admin/settings';
 import CCSettings from '@/components/pages/cc/settings';
 import TeacherSettings from '@/components/pages/teacher/settings';
@@ -19,7 +20,7 @@ function SettingsForRole({ role }: { role: string }) {
 export default function SettingsPage() {
   const { role } = useAuth();
   return (
-    <RoleGuard allowed={['admin', 'course-creator', 'teacher', 'student']}>
+    <RoleGuard required={P.SETTINGS_VIEW}>
       <SettingsForRole role={role} />
     </RoleGuard>
   );
