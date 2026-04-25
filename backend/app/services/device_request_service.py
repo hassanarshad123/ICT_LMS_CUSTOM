@@ -377,7 +377,17 @@ async def list_pending_for_reviewer(
         )
     )
 
-    if reviewer.role == UserRole.course_creator:
+    _reviewer_effective_role = reviewer.role
+    if reviewer.role == UserRole.custom:
+        _vt = getattr(reviewer, "_view_type", None)
+        if _vt == "admin_view":
+            _reviewer_effective_role = UserRole.admin
+        elif _vt == "staff_view":
+            _reviewer_effective_role = UserRole.course_creator
+        else:
+            _reviewer_effective_role = UserRole.student
+
+    if _reviewer_effective_role == UserRole.course_creator:
         base = base.where(User.role.in_(_CC_REVIEWABLE_ROLES))
         count_base = count_base.where(User.role.in_(_CC_REVIEWABLE_ROLES))
 
@@ -480,9 +490,20 @@ async def approve_request(
     if not requesting_user:
         raise DeviceRequestError("not_found", "Request not found.", 404)
 
+    # Resolve effective role for custom reviewer
+    _reviewer_eff = reviewer.role
+    if reviewer.role == UserRole.custom:
+        _vt = getattr(reviewer, "_view_type", None)
+        if _vt == "admin_view":
+            _reviewer_eff = UserRole.admin
+        elif _vt == "staff_view":
+            _reviewer_eff = UserRole.course_creator
+        else:
+            _reviewer_eff = UserRole.student
+
     # CC can only review student/teacher requests
     if (
-        reviewer.role == UserRole.course_creator
+        _reviewer_eff == UserRole.course_creator
         and requesting_user.role not in _CC_REVIEWABLE_ROLES
     ):
         raise DeviceRequestError("not_found", "Request not found.", 404)
@@ -578,8 +599,19 @@ async def reject_request(
     if not requesting_user:
         raise DeviceRequestError("not_found", "Request not found.", 404)
 
+    # Resolve effective role for custom reviewer
+    _reviewer_eff = reviewer.role
+    if reviewer.role == UserRole.custom:
+        _vt = getattr(reviewer, "_view_type", None)
+        if _vt == "admin_view":
+            _reviewer_eff = UserRole.admin
+        elif _vt == "staff_view":
+            _reviewer_eff = UserRole.course_creator
+        else:
+            _reviewer_eff = UserRole.student
+
     if (
-        reviewer.role == UserRole.course_creator
+        _reviewer_eff == UserRole.course_creator
         and requesting_user.role not in _CC_REVIEWABLE_ROLES
     ):
         raise DeviceRequestError("not_found", "Request not found.", 404)

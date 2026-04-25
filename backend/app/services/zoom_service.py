@@ -141,10 +141,21 @@ async def list_classes(
     if institute_id is not None:
         base_filters.append(ZoomClass.institute_id == institute_id)
 
+    # Resolve effective role for custom role users
+    _effective_role = current_user.role
+    if current_user.role == UserRole.custom:
+        _vt = getattr(current_user, "_view_type", None)
+        if _vt == "admin_view":
+            _effective_role = UserRole.admin
+        elif _vt == "staff_view":
+            _effective_role = UserRole.teacher
+        else:
+            _effective_role = UserRole.student
+
     # Role scoping
-    if current_user.role == UserRole.teacher:
+    if _effective_role == UserRole.teacher:
         base_filters.append(ZoomClass.teacher_id == current_user.id)
-    elif current_user.role == UserRole.student:
+    elif _effective_role == UserRole.student:
         my_batches = (
             select(StudentBatch.batch_id)
             .join(Batch, StudentBatch.batch_id == Batch.id)
@@ -156,7 +167,7 @@ async def list_classes(
             )
         )
         base_filters.append(ZoomClass.batch_id.in_(my_batches))
-    elif current_user.role == UserRole.course_creator:
+    elif _effective_role == UserRole.course_creator:
         my_batches = select(Batch.id).where(
             Batch.created_by == current_user.id, Batch.deleted_at.is_(None)
         )
@@ -190,7 +201,7 @@ async def list_classes(
 
     # Only teachers (for their own classes) and admin/CC should see zoom_start_url
     # Students should never get the host URL — it grants host privileges
-    can_see_start_url = current_user.role in (
+    can_see_start_url = _effective_role in (
         UserRole.admin, UserRole.course_creator, UserRole.teacher
     )
 
@@ -442,10 +453,21 @@ async def list_all_recordings(
     if batch_id is not None:
         base_filters.append(ZoomClass.batch_id == batch_id)
 
+    # Resolve effective role for custom role users
+    _effective_role = current_user.role
+    if current_user.role == UserRole.custom:
+        _vt = getattr(current_user, "_view_type", None)
+        if _vt == "admin_view":
+            _effective_role = UserRole.admin
+        elif _vt == "staff_view":
+            _effective_role = UserRole.teacher
+        else:
+            _effective_role = UserRole.student
+
     # Role scoping (same as list_classes)
-    if current_user.role == UserRole.teacher:
+    if _effective_role == UserRole.teacher:
         base_filters.append(ZoomClass.teacher_id == current_user.id)
-    elif current_user.role == UserRole.student:
+    elif _effective_role == UserRole.student:
         my_batches = (
             select(StudentBatch.batch_id)
             .join(Batch, StudentBatch.batch_id == Batch.id)
@@ -457,18 +479,18 @@ async def list_all_recordings(
             )
         )
         base_filters.append(ZoomClass.batch_id.in_(my_batches))
-    elif current_user.role == UserRole.course_creator:
+    elif _effective_role == UserRole.course_creator:
         my_batches = select(Batch.id).where(
             Batch.created_by == current_user.id, Batch.deleted_at.is_(None)
         )
         base_filters.append(ZoomClass.batch_id.in_(my_batches))
 
     # Only show ready recordings (or processing for admin/CC)
-    if current_user.role in (UserRole.student, UserRole.teacher):
+    if _effective_role in (UserRole.student, UserRole.teacher):
         base_filters.append(ClassRecording.status == RecordingStatus.ready)
 
     # Soft-delete filtering
-    if current_user.role in (UserRole.student, UserRole.teacher):
+    if _effective_role in (UserRole.student, UserRole.teacher):
         base_filters.append(ClassRecording.deleted_at.is_(None))
     elif not include_deleted:
         base_filters.append(ClassRecording.deleted_at.is_(None))

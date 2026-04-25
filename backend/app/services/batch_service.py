@@ -44,10 +44,20 @@ async def list_batches(
         count_query = count_query.where(Batch.institute_id == institute_id)
 
     # Role scoping
-    if current_user.role == UserRole.teacher:
+    _effective_role = current_user.role
+    if current_user.role == UserRole.custom:
+        _vt = getattr(current_user, "_view_type", None)
+        if _vt == "admin_view":
+            _effective_role = UserRole.admin
+        elif _vt == "staff_view":
+            _effective_role = UserRole.teacher
+        else:
+            _effective_role = UserRole.student
+
+    if _effective_role == UserRole.teacher:
         query = query.where(Batch.teacher_id == current_user.id)
         count_query = count_query.where(Batch.teacher_id == current_user.id)
-    elif current_user.role == UserRole.student:
+    elif _effective_role == UserRole.student:
         today = date.today()
         sub = (
             select(StudentBatch.batch_id)
@@ -81,7 +91,7 @@ async def list_batches(
         # For students the subquery above already filters by effective end
         # (coalesce of extended_end_date, batch.end_date). Adding a raw
         # Batch.end_date >= today here would re-exclude extended batches.
-        if current_user.role != UserRole.student:
+        if _effective_role != UserRole.student:
             query = query.where(Batch.end_date >= today)
             count_query = count_query.where(Batch.end_date >= today)
     elif status_filter == "completed":
@@ -130,7 +140,7 @@ async def list_batches(
 
     # For students, look up effective end dates (extension-aware)
     effective_end_dates = {}
-    if current_user.role == UserRole.student:
+    if _effective_role == UserRole.student:
         eff_result = await session.execute(
             select(StudentBatch.batch_id, StudentBatch.extended_end_date)
             .where(

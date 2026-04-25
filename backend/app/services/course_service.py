@@ -31,7 +31,17 @@ async def list_courses(
         count_query = count_query.where(Course.institute_id == institute_id)
 
     # Role scoping
-    if current_user.role == UserRole.teacher:
+    _effective_role = current_user.role
+    if current_user.role == UserRole.custom:
+        _vt = getattr(current_user, "_view_type", None)
+        if _vt == "admin_view":
+            _effective_role = UserRole.admin
+        elif _vt == "staff_view":
+            _effective_role = UserRole.teacher
+        else:
+            _effective_role = UserRole.student
+
+    if _effective_role == UserRole.teacher:
         batch_ids_q = select(Batch.id).where(
             Batch.teacher_id == current_user.id, Batch.deleted_at.is_(None)
         )
@@ -40,7 +50,7 @@ async def list_courses(
         )
         query = query.where(Course.id.in_(course_ids_q))
         count_query = count_query.where(Course.id.in_(course_ids_q))
-    elif current_user.role == UserRole.student:
+    elif _effective_role == UserRole.student:
         # Students see one row per (course, active-batch) pair — so a student
         # enrolled in two batches of the same course gets two cards with
         # different batch badges. Short-circuit the generic list path.

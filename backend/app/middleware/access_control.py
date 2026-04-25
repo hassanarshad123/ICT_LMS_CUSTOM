@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.models.batch import Batch, StudentBatch
+from app.models.enums import UserRole
 from app.models.institute import Institute
 from app.models.user import User
 from app.models.zoom import ZoomClass
@@ -202,6 +203,51 @@ async def verify_batch_access(
             await _raise_if_fee_overdue(session, current_user.id, batch_id)
         return batch
 
+    # Custom role users — resolve via view_type
+    if current_user.role == UserRole.custom:
+        view_type = getattr(current_user, "_view_type", None)
+        if view_type == "admin_view":
+            # Same as admin/CC — full institute access
+            return batch
+        elif view_type == "staff_view":
+            # Same as teacher — assigned batches only
+            if batch.teacher_id != current_user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Not assigned to this batch",
+                )
+            return batch
+        else:
+            # student_view — enrolled only
+            enrolled = await session.execute(
+                select(StudentBatch).where(
+                    StudentBatch.student_id == current_user.id,
+                    StudentBatch.batch_id == batch_id,
+                    StudentBatch.removed_at.is_(None),
+                )
+            )
+            student_batch = enrolled.scalar_one_or_none()
+            if not student_batch:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Not enrolled in this batch",
+                )
+            if not student_batch.is_active:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Your enrollment in this batch is currently inactive",
+                )
+            if check_expiry:
+                effective_end = get_effective_end_date(batch, student_batch)
+                if date_type.today() > effective_end:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Your access to this batch has expired",
+                    )
+            if check_fee_overdue:
+                await _raise_if_fee_overdue(session, current_user.id, batch_id)
+            return batch
+
     # Unknown role — deny by default
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
@@ -289,10 +335,14 @@ async def verify_zoom_class_access(
     # Teachers assigned to the class itself get access even if they
     # are not the batch-level teacher (ZoomClass.teacher_id may differ
     # from Batch.teacher_id).
-    if (
+    is_teacher_like = (
         current_user.role.value == "teacher"
-        and zoom_class.teacher_id == current_user.id
-    ):
+        or (
+            current_user.role == UserRole.custom
+            and getattr(current_user, "_view_type", None) == "staff_view"
+        )
+    )
+    if is_teacher_like and zoom_class.teacher_id == current_user.id:
         return zoom_class
 
     # Delegate batch-level access check for all other cases

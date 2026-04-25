@@ -42,8 +42,19 @@ async def list_announcements(
         query = query.where(Announcement.course_id == course_id)
         count_query = count_query.where(Announcement.course_id == course_id)
 
+    # Resolve effective role for custom role users
+    _effective_role = current_user.role
+    if current_user.role == UserRole.custom:
+        _vt = getattr(current_user, "_view_type", None)
+        if _vt == "admin_view":
+            _effective_role = UserRole.admin
+        elif _vt == "staff_view":
+            _effective_role = UserRole.teacher
+        else:
+            _effective_role = UserRole.student
+
     # Role scoping for students/teachers
-    if current_user.role == UserRole.student:
+    if _effective_role == UserRole.student:
         my_batch_ids = (
             select(StudentBatch.batch_id)
             .join(Batch, StudentBatch.batch_id == Batch.id)
@@ -65,7 +76,7 @@ async def list_announcements(
         )
         query = query.where(scope_filter)
         count_query = count_query.where(scope_filter)
-    elif current_user.role == UserRole.teacher:
+    elif _effective_role == UserRole.teacher:
         my_batch_ids = select(Batch.id).where(
             Batch.teacher_id == current_user.id, Batch.deleted_at.is_(None)
         )

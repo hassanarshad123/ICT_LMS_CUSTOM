@@ -37,6 +37,7 @@ async def list_devices(
     search: Optional[str] = None,
     page: int = 1,
     per_page: int = 20,
+    caller_view_type: Optional[str] = None,
 ) -> DevicesListResponse:
     """List users with their active device sessions, paginated.
 
@@ -53,7 +54,17 @@ async def list_devices(
         User.institute_id == institute_id,
     )
 
-    is_course_creator = caller_role == UserRole.course_creator.value
+    # Resolve effective role for custom users
+    _effective_role = caller_role
+    if caller_role == UserRole.custom.value and caller_view_type:
+        if caller_view_type == "admin_view":
+            _effective_role = UserRole.admin.value
+        elif caller_view_type == "staff_view":
+            _effective_role = UserRole.course_creator.value
+        else:
+            _effective_role = UserRole.student.value
+
+    is_course_creator = _effective_role == UserRole.course_creator.value
 
     if is_course_creator:
         # Hard boundary: CCs only see students + teachers.
@@ -163,6 +174,7 @@ async def terminate_session(
     session_id: uuid.UUID,
     institute_id: uuid.UUID,
     caller_role: str,
+    caller_view_type: Optional[str] = None,
 ) -> bool:
     """Deactivate a single user session. Returns True if found, False otherwise.
 
@@ -180,7 +192,17 @@ async def terminate_session(
     if not user_session:
         return False
 
-    if caller_role == UserRole.course_creator.value:
+    # Resolve effective role for custom users
+    _effective_role = caller_role
+    if caller_role == UserRole.custom.value and caller_view_type:
+        if caller_view_type == "admin_view":
+            _effective_role = UserRole.admin.value
+        elif caller_view_type == "staff_view":
+            _effective_role = UserRole.course_creator.value
+        else:
+            _effective_role = UserRole.student.value
+
+    if _effective_role == UserRole.course_creator.value:
         target_user = await session.get(User, user_session.user_id)
         if target_user is None or target_user.role not in _CC_MANAGEABLE_ROLES:
             return False
@@ -196,6 +218,7 @@ async def terminate_all_user_sessions(
     user_id: uuid.UUID,
     institute_id: uuid.UUID,
     caller_role: str,
+    caller_view_type: Optional[str] = None,
 ) -> bool:
     """Deactivate all active sessions for a given user.
 
@@ -213,7 +236,17 @@ async def terminate_all_user_sessions(
     if target is None:
         return False
 
-    if caller_role == UserRole.course_creator.value and target.role not in _CC_MANAGEABLE_ROLES:
+    # Resolve effective role for custom users
+    _effective_role = caller_role
+    if caller_role == UserRole.custom.value and caller_view_type:
+        if caller_view_type == "admin_view":
+            _effective_role = UserRole.admin.value
+        elif caller_view_type == "staff_view":
+            _effective_role = UserRole.course_creator.value
+        else:
+            _effective_role = UserRole.student.value
+
+    if _effective_role == UserRole.course_creator.value and target.role not in _CC_MANAGEABLE_ROLES:
         return False
 
     result = await session.execute(
