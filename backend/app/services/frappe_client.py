@@ -742,6 +742,8 @@ class FrappeClient:
         mode_of_payment: Optional[str],
         reference_no: Optional[str],
         payment_term: Optional[str] = None,
+        cnic_no: Optional[str] = None,
+        father_name: Optional[str] = None,
     ) -> FrappeResult:
         existing = await self._find_by_zensbot_id("Payment Entry", payment_id, custom_field=PAYMENT_FIELD)
         if not existing.ok and existing.status_code not in (None, 200, 404):
@@ -778,6 +780,10 @@ class FrappeClient:
             body["company"] = self.cfg.default_company
         if self.cfg.default_cost_center:
             body["cost_center"] = self.cfg.default_cost_center
+        if cnic_no:
+            body["custom_cnic_no"] = cnic_no
+        if father_name:
+            body["custom_father_name"] = father_name
         if invoice_name:
             ref: dict[str, Any] = {
                 "reference_doctype": "Sales Invoice",

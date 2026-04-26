@@ -454,6 +454,8 @@ async def _sync_payment_entry(
         mode_of_payment=payment.payment_method,
         reference_no=payment.reference_number or payment.receipt_number,
         payment_term=payment_term,
+        cnic_no=student.cnic_no,
+        father_name=student.father_name,
     )
 
     # Stamp the Frappe PE name on the LMS row so the refresh cron + the
