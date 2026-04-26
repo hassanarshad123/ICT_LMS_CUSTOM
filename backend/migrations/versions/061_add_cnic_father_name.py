@@ -3,14 +3,14 @@
 Collected during student onboarding and passed to Frappe Sales Order
 as custom_cnic_no and custom_father_name.
 
-Revision ID: 058
-Revises: 057
+Revision ID: 061
+Revises: 060
 """
 from alembic import op
 import sqlalchemy as sa
 
-revision = "058"
-down_revision = "057"
+revision = "061"
+down_revision = "060"
 branch_labels = None
 depends_on = None
 
