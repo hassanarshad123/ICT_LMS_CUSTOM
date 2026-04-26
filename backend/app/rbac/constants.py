@@ -259,6 +259,7 @@ ADMISSIONS_OFFICER_PERMISSIONS: frozenset[str] = frozenset({
     "admissions.manage_enrollment", "admissions.suspend_reactivate", "admissions.delete_students",
     "admissions.record_payment", "admissions.view_payments", "admissions.view_quota",
     "payment_proof.upload", "payment_proof.view",
+    "integrations.view",
     "notifications.view", "notifications.manage",
     "search.global",
     "feedback.submit", "feedback.view_own",

@@ -217,9 +217,9 @@ export default function OnboardWizard() {
     student.phone.trim().length >= 7 &&
     student.cnicNo.trim().length >= 13 &&
     student.fatherName.trim().length > 1;
-  const canAdvanceStep2 = batchId.length > 0;
   const courseSelected = !!(frappeItemCode && frappeItemCode.trim().length > 0);
-  const canAdvanceStep3 = totalNum > 0 && finalAmount > 0 && courseSelected;
+  const canAdvanceStep2 = batchId.length > 0 && courseSelected;
+  const canAdvanceStep3 = totalNum > 0 && finalAmount > 0;
   const canAdvanceStep4 =
     fee.planType !== 'installment' ||
     (fee.installments.length > 0 && installmentSum === finalAmount);
@@ -282,26 +282,12 @@ export default function OnboardWizard() {
       )}
 
       {step === 2 && (
-        <StepCard title="Pick a batch" subtitle="Select the batch to enroll this student in">
-          <BatchPicker
-            batches={batches}
-            selectedId={batchId}
-            onSelect={setBatchId}
-            recentBatchIds={recentBatchIds}
-            loading={batchesLoading}
-          />
-          <WizardNav onBack={() => setStep(1)} onNext={() => setStep(3)} nextDisabled={!canAdvanceStep2} />
-        </StepCard>
-      )}
-
-      {step === 3 && (
-        <StepCard title="Fee plan" subtitle="Set the total amount and how the student will pay">
+        <StepCard title="Course & batch" subtitle="Select the course and batch to enroll this student in">
           <div className="space-y-4">
-            {/* Frappe Item picker (or free-text fallback) */}
             {itemsData?.enabled && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Course / Service Item (Frappe) <span className="text-red-500">*</span>
+                  Course / Service Item <span className="text-red-500">*</span>
                 </label>
                 <Popover open={itemPickerOpen} onOpenChange={setItemPickerOpen}>
                   <PopoverTrigger asChild>
@@ -366,7 +352,22 @@ export default function OnboardWizard() {
                 />
               </div>
             )}
+          </div>
 
+          <BatchPicker
+            batches={batches}
+            selectedId={batchId}
+            onSelect={setBatchId}
+            recentBatchIds={recentBatchIds}
+            loading={batchesLoading}
+          />
+          <WizardNav onBack={() => setStep(1)} onNext={() => setStep(3)} nextDisabled={!canAdvanceStep2} />
+        </StepCard>
+      )}
+
+      {step === 3 && (
+        <StepCard title="Fee plan" subtitle="Set the total amount and how the student will pay">
+          <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               {(['one_time', 'installment'] as PlanTypeLocal[]).map((pt) => (
                 <button
