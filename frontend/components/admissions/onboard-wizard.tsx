@@ -53,6 +53,8 @@ interface StudentForm {
   name: string;
   email: string;
   phone: string;
+  cnicNo: string;
+  fatherName: string;
 }
 
 interface FeeForm {
@@ -98,7 +100,7 @@ export default function OnboardWizard() {
   const basePath = useBasePath();
 
   const [step, setStep] = useState<Step>(1);
-  const [student, setStudent] = useState<StudentForm>({ name: '', email: '', phone: '' });
+  const [student, setStudent] = useState<StudentForm>({ name: '', email: '', phone: '', cnicNo: '', fatherName: '' });
   const [batchId, setBatchId] = useState<string>('');
   const [fee, setFee] = useState<FeeForm>(defaultFeeForm());
   const [result, setResult] = useState<OnboardStudentResult | null>(null);
@@ -212,7 +214,9 @@ export default function OnboardWizard() {
   const canAdvanceStep1 =
     student.name.trim().length > 1 &&
     /.+@.+\..+/.test(student.email) &&
-    student.phone.trim().length >= 7;
+    student.phone.trim().length >= 7 &&
+    student.cnicNo.trim().length >= 13 &&
+    student.fatherName.trim().length > 1;
   const canAdvanceStep2 = batchId.length > 0;
   const courseSelected = !!(frappeItemCode && frappeItemCode.trim().length > 0);
   const canAdvanceStep3 = totalNum > 0 && finalAmount > 0 && courseSelected;
@@ -226,6 +230,8 @@ export default function OnboardWizard() {
         name: student.name.trim(),
         email: student.email.trim().toLowerCase(),
         phone: student.phone.trim(),
+        cnicNo: student.cnicNo.trim(),
+        fatherName: student.fatherName.trim(),
         batchId,
         notes: fee.notes.trim() || undefined,
         feePlan: {
@@ -262,6 +268,8 @@ export default function OnboardWizard() {
               <Field label="Full name" value={student.name} onChange={(v) => setStudent({ ...student, name: v })} placeholder="e.g. Ali Khan" />
               <Field label="Email" value={student.email} onChange={(v) => setStudent({ ...student, email: v })} placeholder="student@email.com" type="email" />
               <Field label="Phone" value={student.phone} onChange={(v) => setStudent({ ...student, phone: v })} placeholder="0300-1234567" />
+              <Field label="CNIC No" value={student.cnicNo} onChange={(v) => setStudent({ ...student, cnicNo: v })} placeholder="12345-1234567-1" />
+              <Field label="Father Name" value={student.fatherName} onChange={(v) => setStudent({ ...student, fatherName: v })} placeholder="e.g. Muhammad Khan" />
             </div>
             <WizardNav
               onBack={() => router.push(basePath)}

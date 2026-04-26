@@ -224,6 +224,8 @@ class FrappeClient:
         payment_terms_template: Optional[str],
         payment_proof_view_url: Optional[str],
         batch_name: Optional[str] = None,
+        cnic_no: Optional[str] = None,
+        father_name: Optional[str] = None,
     ) -> FrappeResult:
         """Create AND submit (docstatus 0 -> 1) a Sales Order in one request.
 
@@ -300,6 +302,10 @@ class FrappeClient:
             body["company"] = self.cfg.default_company
         if batch_name:
             body["custom_batch"] = batch_name
+        if cnic_no:
+            body["custom_cnic_no"] = cnic_no
+        if father_name:
+            body["custom_father_name"] = father_name
         if contact_email:
             body["contact_email"] = contact_email
         if payment_terms_template:

@@ -125,6 +125,8 @@ class OnboardStudentRequest(BaseModel):
     name: str
     email: str
     phone: Optional[str] = None
+    cnic_no: str
+    father_name: str
 
     # Enrollment target
     batch_id: uuid.UUID
