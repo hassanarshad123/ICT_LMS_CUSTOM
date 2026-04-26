@@ -310,6 +310,8 @@ async def _sync_sales_order(
         payment_terms_template=plan.frappe_payment_terms_template,
         payment_proof_view_url=None,
         batch_name=batch.name,
+        cnic_no=student.cnic_no,
+        father_name=student.father_name,
     )
 
     # Persist the Frappe SO name on the plan for idempotent re-syncs.

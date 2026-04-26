@@ -199,6 +199,10 @@ async def onboard_student(
                 f"{existing.name} is already enrolled in {batch.name}"
             )
         student = existing
+        if payload.cnic_no and not student.cnic_no:
+            student.cnic_no = payload.cnic_no
+        if payload.father_name and not student.father_name:
+            student.father_name = payload.father_name
     else:
         # ── Quota (only when creating a NEW student) ──
         try:
@@ -218,6 +222,8 @@ async def onboard_student(
                 password=temp_password,
                 role=UserRole.student.value,
                 phone=payload.phone,
+                cnic_no=payload.cnic_no,
+                father_name=payload.father_name,
                 specialization=None,
                 institute_id=officer.institute_id,
             )

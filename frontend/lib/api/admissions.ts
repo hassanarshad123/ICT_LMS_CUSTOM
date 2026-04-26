@@ -35,6 +35,8 @@ export interface OnboardStudentPayload {
   name: string;
   email: string;
   phone?: string;
+  cnicNo: string;
+  fatherName: string;
   batchId: string;
   feePlan: FeePlanCreatePayload;
   notes?: string;

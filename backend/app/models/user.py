@@ -40,6 +40,8 @@ class User(SQLModel, table=True):
     email: str = Field(nullable=False)  # uniqueness enforced by composite index above
     name: str = Field(nullable=False)
     phone: Optional[str] = Field(default=None)
+    cnic_no: Optional[str] = Field(default=None)
+    father_name: Optional[str] = Field(default=None)
     hashed_password: str = Field(nullable=False)
     role: UserRole = Field(
         sa_column=Column(SAEnum(UserRole, name="user_role", create_type=False), nullable=False)
