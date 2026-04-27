@@ -221,6 +221,57 @@ def upload_payment_proof_bytes(
     return object_key
 
 
+def upload_cnic_image_bytes(
+    *,
+    data: bytes,
+    file_name: str,
+    content_type: str,
+    institute_id: uuid.UUID,
+) -> str:
+    """Upload a CNIC image to S3 and return the object key."""
+    client = _get_client()
+    safe_name = file_name.replace("/", "_").replace("\\", "_")[:80]
+    object_key = _prefix(
+        institute_id,
+        f"admissions/cnic/{uuid.uuid4()}_{safe_name}",
+    )
+    client.put_object(
+        Bucket=settings.S3_BUCKET_NAME,
+        Key=object_key,
+        Body=data,
+        ContentType=content_type,
+    )
+    return object_key
+
+
+def download_cnic_image_bytes(object_key: str) -> tuple[bytes, str, str]:
+    """Fetch a CNIC image from S3. Returns (body, content_type, file_name)."""
+    import os
+    client = _get_client()
+    obj = client.get_object(Bucket=settings.S3_BUCKET_NAME, Key=object_key)
+    body = obj["Body"].read()
+    content_type = obj.get("ContentType") or "application/octet-stream"
+    tail = os.path.basename(object_key)
+    file_name = tail.split("_", 1)[1] if "_" in tail else tail
+    return body, content_type, file_name
+
+
+def generate_cnic_image_view_url(
+    object_key: str,
+    expires_in_seconds: int = 7 * 24 * 3600,
+) -> str:
+    """Return a presigned GET URL for viewing a CNIC image."""
+    client = _get_client()
+    return client.generate_presigned_url(
+        "get_object",
+        Params={
+            "Bucket": settings.S3_BUCKET_NAME,
+            "Key": object_key,
+        },
+        ExpiresIn=expires_in_seconds,
+    )
+
+
 def get_storage_for_prefix(prefix: str) -> int:
     """List all S3 objects under a prefix and return total bytes."""
     client = _get_client()

@@ -127,6 +127,9 @@ class OnboardStudentRequest(BaseModel):
     phone: Optional[str] = None
     cnic_no: str
     father_name: str
+    address: Optional[str] = None
+    cnic_front_key: Optional[str] = Field(default=None, max_length=1024)
+    cnic_back_key: Optional[str] = Field(default=None, max_length=1024)
 
     # Enrollment target
     batch_id: uuid.UUID

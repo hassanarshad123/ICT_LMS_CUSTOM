@@ -48,6 +48,9 @@ class User(SQLModel, table=True):
     phone: Optional[str] = Field(default=None)
     cnic_no: Optional[str] = Field(default=None)
     father_name: Optional[str] = Field(default=None)
+    address: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
+    cnic_front_key: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
+    cnic_back_key: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
     hashed_password: str = Field(nullable=False)
     role: UserRole = Field(
         sa_column=Column(SAEnum(UserRole, name="user_role", create_type=False), nullable=False)

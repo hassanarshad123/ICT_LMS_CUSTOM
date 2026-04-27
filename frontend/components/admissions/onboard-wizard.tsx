@@ -13,6 +13,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useApi, useMutation } from '@/hooks/use-api';
+import CnicImageUploader from './cnic-image-uploader';
 import { useBasePath } from '@/hooks/use-base-path';
 import { listBatches } from '@/lib/api/batches';
 import {
@@ -104,6 +105,11 @@ export default function OnboardWizard() {
   const [batchId, setBatchId] = useState<string>('');
   const [fee, setFee] = useState<FeeForm>(defaultFeeForm());
   const [result, setResult] = useState<OnboardStudentResult | null>(null);
+
+  // Address + CNIC image uploads (Frappe-only, optional)
+  const [address, setAddress] = useState('');
+  const [cnicFront, setCnicFront] = useState<import('./cnic-image-uploader').CnicImageValue | null>(null);
+  const [cnicBack, setCnicBack] = useState<import('./cnic-image-uploader').CnicImageValue | null>(null);
 
   // Frappe Item + Payment Terms Template pickers
   const [frappeItemCode, setFrappeItemCode] = useState<string | null>(null);
@@ -232,6 +238,9 @@ export default function OnboardWizard() {
         phone: student.phone.trim(),
         cnicNo: student.cnicNo.trim(),
         fatherName: student.fatherName.trim(),
+        address: address.trim() || undefined,
+        cnicFrontKey: cnicFront?.objectKey ?? undefined,
+        cnicBackKey: cnicBack?.objectKey ?? undefined,
         batchId,
         notes: fee.notes.trim() || undefined,
         feePlan: {
@@ -271,6 +280,20 @@ export default function OnboardWizard() {
               <Field label="CNIC No" value={student.cnicNo} onChange={(v) => setStudent({ ...student, cnicNo: v })} placeholder="12345-1234567-1" />
               <Field label="Father Name" value={student.fatherName} onChange={(v) => setStudent({ ...student, fatherName: v })} placeholder="e.g. Muhammad Khan" />
             </div>
+
+            {itemsData?.enabled && (
+              <div className="space-y-4 mt-4">
+                <Field label="Address" value={address} onChange={setAddress} placeholder="e.g. House 12, Street 5, Islamabad" />
+                <div>
+                  <p className="text-sm font-medium text-gray-700 mb-2">CNIC Photos <span className="text-xs text-gray-400 font-normal">(optional)</span></p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <CnicImageUploader label="CNIC Front" value={cnicFront} onChange={setCnicFront} />
+                    <CnicImageUploader label="CNIC Back" value={cnicBack} onChange={setCnicBack} />
+                  </div>
+                </div>
+              </div>
+            )}
+
             <WizardNav
               onBack={() => router.push(basePath)}
               backLabel="Cancel"

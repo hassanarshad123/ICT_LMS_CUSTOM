@@ -203,6 +203,12 @@ async def onboard_student(
             student.cnic_no = payload.cnic_no
         if payload.father_name and not student.father_name:
             student.father_name = payload.father_name
+        if payload.address:
+            student.address = payload.address
+        if payload.cnic_front_key:
+            student.cnic_front_key = payload.cnic_front_key
+        if payload.cnic_back_key:
+            student.cnic_back_key = payload.cnic_back_key
     else:
         # ── Quota (only when creating a NEW student) ──
         try:
@@ -224,11 +230,16 @@ async def onboard_student(
                 phone=payload.phone,
                 cnic_no=payload.cnic_no,
                 father_name=payload.father_name,
+                address=payload.address,
                 specialization=None,
                 institute_id=officer.institute_id,
             )
         except ValueError as e:
             raise AdmissionsError(str(e))
+        if payload.cnic_front_key:
+            student.cnic_front_key = payload.cnic_front_key
+        if payload.cnic_back_key:
+            student.cnic_back_key = payload.cnic_back_key
 
     # ── Enroll + fee plan (shared with add-batch flow) ──
     plan = await _create_enrollment_with_plan(

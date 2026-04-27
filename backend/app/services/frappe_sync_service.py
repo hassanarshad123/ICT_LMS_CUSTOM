@@ -237,7 +237,10 @@ async def _sync_sales_order(
 
     # Auto-create Customer if needed (same pattern as _sync_sales_invoice).
     if getattr(client.cfg, "auto_create_customers", True):
-        await client.create_customer(customer_name=student.name, email=student.email, phone=student.phone)
+        await client.create_customer(
+            customer_name=student.name, email=student.email,
+            phone=student.phone, address=student.address,
+        )
 
     # Resolve the Frappe Sales Person from the officer employee_id.
     sales_person: Optional[str] = None
@@ -346,9 +349,45 @@ async def _sync_sales_order(
                 result.doc_name, plan.id, si_result.error,
             )
 
+    # Attach CNIC images to SO and SI (non-fatal).
+    if result.ok and result.doc_name:
+        await _attach_cnic_images(client, student, "Sales Order", result.doc_name)
+    if result.ok and result.doc_name and plan.frappe_sales_invoice_name:
+        await _attach_cnic_images(client, student, "Sales Invoice", plan.frappe_sales_invoice_name)
+
     return _finalize_outbound(
         task, result, entity_type="sales_order", lms_entity_id=plan.id,
     )
+
+
+async def _attach_cnic_images(
+    client: FrappeClient, student, doctype: str, docname: str,
+) -> None:
+    """Download CNIC images from S3 and attach to a Frappe document. Non-fatal."""
+    from app.utils.s3 import download_cnic_image_bytes
+    import os
+
+    for key_attr, label in [("cnic_front_key", "CNIC_Front"), ("cnic_back_key", "CNIC_Back")]:
+        obj_key = getattr(student, key_attr, None)
+        if not obj_key:
+            continue
+        try:
+            file_bytes, content_type, orig_name = download_cnic_image_bytes(obj_key)
+            ext = os.path.splitext(orig_name)[1] or ".jpg"
+            safe_name = student.name.replace(" ", "_")[:40]
+            await client.attach_file_to_doc(
+                doctype=doctype,
+                docname=docname,
+                file_bytes=file_bytes,
+                file_name=f"{label}_{safe_name}{ext}",
+                content_type=content_type,
+                is_private=True,
+            )
+        except Exception:
+            logger.warning(
+                "Failed to attach %s to %s %s for student %s",
+                label, doctype, docname, student.id,
+            )
 
 
 async def _sync_sales_invoice(
@@ -373,7 +412,10 @@ async def _sync_sales_invoice(
     # the v1 "Customer not found" gap without pre-seeding Frappe's Customer
     # list. Idempotent — the client returns ok if the Customer already exists.
     if getattr(client.cfg, "auto_create_customers", True):
-        await client.create_customer(customer_name=student.name, email=student.email, phone=student.phone)
+        await client.create_customer(
+            customer_name=student.name, email=student.email,
+            phone=student.phone, address=student.address,
+        )
 
     result = await client.upsert_sales_invoice(
         fee_plan_id=str(plan.id),
