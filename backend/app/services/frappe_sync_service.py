@@ -359,6 +359,8 @@ async def _sync_sales_order(
             payment_proof_view_url=payment_proof_view_url,
             sales_person=sales_person,
             commission_rate=commission_rate,
+            payment_terms_template=plan.frappe_payment_terms_template,
+            payment_schedule=payment_schedule,
         )
         if si_result.ok and si_result.doc_name:
             plan.frappe_sales_invoice_name = si_result.doc_name
