@@ -297,6 +297,27 @@ async def _sync_sales_order(
     # the student on the same day the Sales Order is booked.
     delivery_date = posting_date
 
+    # Build explicit payment_schedule from LMS installments so the AO's
+    # customized percentages and dates flow to Frappe exactly as entered.
+    from app.models.fee import FeeInstallment
+    from sqlalchemy import select as _select
+    _inst_rows = (await session.execute(
+        _select(FeeInstallment)
+        .where(FeeInstallment.fee_plan_id == plan.id)
+        .order_by(FeeInstallment.sequence)
+    )).scalars().all()
+    payment_schedule = None
+    if _inst_rows and len(_inst_rows) > 1:
+        total = sum(i.amount_due for i in _inst_rows)
+        payment_schedule = []
+        for inst in _inst_rows:
+            portion = round((inst.amount_due / total) * 100, 2) if total > 0 else 0
+            payment_schedule.append({
+                "due_date": inst.due_date.isoformat() if inst.due_date else None,
+                "invoice_portion": portion,
+                "payment_amount": inst.amount_due,
+            })
+
     result = await client.submit_sales_order(
         fee_plan_id=str(plan.id),
         payment_id=payment_id,
@@ -315,6 +336,7 @@ async def _sync_sales_order(
         batch_name=batch.name,
         cnic_no=student.cnic_no,
         father_name=student.father_name,
+        payment_schedule=payment_schedule,
     )
 
     # Persist the Frappe SO name on the plan for idempotent re-syncs.
