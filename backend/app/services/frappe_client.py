@@ -227,6 +227,7 @@ class FrappeClient:
         cnic_no: Optional[str] = None,
         father_name: Optional[str] = None,
         payment_schedule: Optional[list[dict]] = None,
+        discount_amount: Optional[int] = None,
     ) -> FrappeResult:
         """Create AND submit (docstatus 0 -> 1) a Sales Order in one request.
 
@@ -313,6 +314,9 @@ class FrappeClient:
             body["payment_terms_template"] = payment_terms_template
         if payment_schedule:
             body["payment_schedule"] = payment_schedule
+        if discount_amount and discount_amount > 0:
+            body["apply_discount_on"] = "Grand Total"
+            body["discount_amount"] = discount_amount
         if sales_person:
             # Header-level commission mirrors the sales_team row so Frappe's
             # total_commission / amount_eligible_for_commission rollups are
@@ -416,6 +420,7 @@ class FrappeClient:
         commission_rate: Optional[str] = None,
         payment_terms_template: Optional[str] = None,
         payment_schedule: Optional[list[dict]] = None,
+        discount_amount: Optional[int] = None,
     ) -> FrappeResult:
         """Generate + submit a Sales Invoice from an existing Sales Order.
 
@@ -451,7 +456,7 @@ class FrappeClient:
             # Draft found -- stamp missing fields and submit.
             return await self._stamp_and_submit_sales_invoice(
                 existing_doc, fee_plan_id, payment_id, payment_proof_view_url,
-                sales_person, commission_rate, payment_terms_template, payment_schedule,
+                sales_person, commission_rate, payment_terms_template, payment_schedule, discount_amount,
             )
 
         # 2. Ask Frappe to build a draft SI from the SO.
@@ -501,6 +506,7 @@ class FrappeClient:
         commission_rate: Optional[str] = None,
         payment_terms_template: Optional[str] = None,
         payment_schedule: Optional[list[dict]] = None,
+        discount_amount: Optional[int] = None,
     ) -> FrappeResult:
         """Stamp zensbot custom fields + commission onto a draft SI dict,
         insert (if no name yet), then submit. Shared by the create path and
@@ -534,6 +540,9 @@ class FrappeClient:
             draft["payment_terms_template"] = payment_terms_template
         if payment_schedule:
             draft["payment_schedule"] = payment_schedule
+        if discount_amount and discount_amount > 0:
+            draft["apply_discount_on"] = "Grand Total"
+            draft["discount_amount"] = discount_amount
 
         has_name = bool(draft.get("name"))
 
