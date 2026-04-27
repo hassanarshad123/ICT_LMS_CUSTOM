@@ -1072,6 +1072,12 @@ class FrappeClient:
         """Create a Customer + Contact in Frappe. Idempotent — returns ok if already exists."""
         existing = await self.find_customer(customer_name)
         if existing.ok and existing.doc_name:
+            await self._create_contact(
+                customer_name=existing.doc_name,
+                full_name=customer_name,
+                email=email,
+                phone=phone,
+            )
             return FrappeResult(ok=True, status_code=200, doc_name=existing.doc_name)
         body: dict[str, Any] = {
             "customer_name": customer_name,
@@ -1097,7 +1103,18 @@ class FrappeClient:
         email: Optional[str] = None,
         phone: Optional[str] = None,
     ) -> FrappeResult:
-        """Create a Contact linked to a Customer with email and phone."""
+        """Create a Contact linked to a Customer with email and phone.
+        Idempotent — skips if a Contact with the same email already exists."""
+        if email:
+            existing = await self.list_resource(
+                "Contact",
+                fields=["name"],
+                filters=[["Contact Email", "email_id", "=", email]],
+                limit=1,
+            )
+            if existing.ok and (existing.response or {}).get("data"):
+                return FrappeResult(ok=True, status_code=200, doc_name=existing.response["data"][0]["name"])
+
         parts = full_name.split(" ", 1)
         body: dict[str, Any] = {
             "doctype": "Contact",
