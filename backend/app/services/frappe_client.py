@@ -414,6 +414,8 @@ class FrappeClient:
         payment_proof_view_url: Optional[str] = None,
         sales_person: Optional[str] = None,
         commission_rate: Optional[str] = None,
+        payment_terms_template: Optional[str] = None,
+        payment_schedule: Optional[list[dict]] = None,
     ) -> FrappeResult:
         """Generate + submit a Sales Invoice from an existing Sales Order.
 
@@ -449,7 +451,7 @@ class FrappeClient:
             # Draft found -- stamp missing fields and submit.
             return await self._stamp_and_submit_sales_invoice(
                 existing_doc, fee_plan_id, payment_id, payment_proof_view_url,
-                sales_person, commission_rate,
+                sales_person, commission_rate, payment_terms_template, payment_schedule,
             )
 
         # 2. Ask Frappe to build a draft SI from the SO.
@@ -486,7 +488,7 @@ class FrappeClient:
         # 3. Stamp + submit.
         return await self._stamp_and_submit_sales_invoice(
             draft, fee_plan_id, payment_id, payment_proof_view_url,
-            sales_person, commission_rate,
+            sales_person, commission_rate, payment_terms_template, payment_schedule,
         )
 
     async def _stamp_and_submit_sales_invoice(
@@ -497,6 +499,8 @@ class FrappeClient:
         payment_proof_view_url: Optional[str],
         sales_person: Optional[str] = None,
         commission_rate: Optional[str] = None,
+        payment_terms_template: Optional[str] = None,
+        payment_schedule: Optional[list[dict]] = None,
     ) -> FrappeResult:
         """Stamp zensbot custom fields + commission onto a draft SI dict,
         insert (if no name yet), then submit. Shared by the create path and
@@ -525,6 +529,11 @@ class FrappeClient:
                 "commission_rate": _rate_num,
             }]
             draft["commission_rate"] = _rate_num
+
+        if payment_terms_template:
+            draft["payment_terms_template"] = payment_terms_template
+        if payment_schedule:
+            draft["payment_schedule"] = payment_schedule
 
         has_name = bool(draft.get("name"))
 
