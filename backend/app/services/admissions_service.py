@@ -426,7 +426,8 @@ async def _try_sync_to_erp(
         cnic_no=student.cnic_no,
         father_name=student.father_name,
         payment_schedule=payment_schedule,
-        discount_amount=plan.total_amount - plan.final_amount if plan.total_amount > plan.final_amount else None,
+        discount_amount=plan.discount_value if plan.discount_type == "flat" and plan.discount_value else None,
+        discount_percentage=float(plan.discount_value) if plan.discount_type == "percent" and plan.discount_value else None,
     )
 
     if not result.ok:
@@ -445,7 +446,8 @@ async def _try_sync_to_erp(
             commission_rate=commission_rate,
             payment_terms_template=plan.frappe_payment_terms_template,
             payment_schedule=payment_schedule,
-            discount_amount=plan.total_amount - plan.final_amount if plan.total_amount > plan.final_amount else None,
+            discount_amount=plan.discount_value if plan.discount_type == "flat" and plan.discount_value else None,
+        discount_percentage=float(plan.discount_value) if plan.discount_type == "percent" and plan.discount_value else None,
         )
         if si_result.ok and si_result.doc_name:
             plan.frappe_sales_invoice_name = si_result.doc_name
