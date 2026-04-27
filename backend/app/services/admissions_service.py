@@ -300,6 +300,13 @@ async def onboard_student(
         session.add(_initial_payment)
         await session.flush()
 
+    # ── Synchronous ERP push (pre-commit) ──
+    # If Frappe is enabled, attempt SO + SI creation NOW — before committing.
+    # On failure the transaction rolls back: no student, no enrollment, no plan.
+    erp_error = await _try_sync_to_erp(session, officer, student, plan, batch)
+    if erp_error:
+        raise AdmissionsError(f"ERP sync failed: {erp_error}")
+
     await session.commit()
     await session.refresh(plan)
 
@@ -335,6 +342,126 @@ async def onboard_student(
         installment_count=len(installments),
         is_new_user=is_new_user,
     )
+
+
+async def _try_sync_to_erp(
+    session: AsyncSession,
+    officer: User,
+    student: User,
+    plan: FeePlan,
+    batch: Batch,
+) -> Optional[str]:
+    """Attempt synchronous SO + SI creation in Frappe. Returns error string on
+    failure, None on success or if Frappe is not enabled."""
+    from app.services.integration_service import load_active_frappe_config
+    from app.services.frappe_client import FrappeClient
+
+    cfg = await load_active_frappe_config(session, officer.institute_id)
+    if cfg is None:
+        return None
+
+    client = FrappeClient(cfg)
+
+    # Auto-create Customer + Contact + Address
+    if getattr(cfg, "auto_create_customers", True):
+        await client.create_customer(
+            customer_name=student.name, email=student.email,
+            phone=student.phone, address=student.address,
+        )
+
+    # Resolve Sales Person
+    sales_person: Optional[str] = None
+    commission_rate: Optional[str] = None
+    if officer.employee_id:
+        sp_lookup = await client.list_resource(
+            "Sales Person",
+            fields=["name", "commission_rate"],
+            filters=[["employee", "=", officer.employee_id], ["enabled", "=", 1]],
+            limit=1,
+        )
+        if sp_lookup.ok:
+            rows = (sp_lookup.response or {}).get("data") or []
+            if rows:
+                sales_person = rows[0].get("name")
+                cr = rows[0].get("commission_rate")
+                commission_rate = str(cr) if cr is not None else None
+
+    # Build payment_schedule from installments
+    inst_rows = (await session.execute(
+        select(FeeInstallment)
+        .where(FeeInstallment.fee_plan_id == plan.id)
+        .order_by(FeeInstallment.sequence)
+    )).scalars().all()
+    payment_schedule = None
+    if inst_rows and len(inst_rows) > 1:
+        total = sum(i.amount_due for i in inst_rows)
+        payment_schedule = []
+        for inst in inst_rows:
+            portion = round((inst.amount_due / total) * 100, 2) if total > 0 else 0
+            payment_schedule.append({
+                "due_date": inst.due_date.isoformat() if inst.due_date else None,
+                "invoice_portion": portion,
+                "payment_amount": inst.amount_due,
+            })
+
+    item_code = plan.frappe_item_code or batch.name
+    posting_date = datetime.now(timezone.utc).date().isoformat()
+
+    result = await client.submit_sales_order(
+        fee_plan_id=str(plan.id),
+        payment_id=None,
+        customer_name=student.name,
+        contact_email=student.email,
+        posting_date=posting_date,
+        delivery_date=posting_date,
+        currency=plan.currency,
+        item_code=item_code,
+        item_description=f"{batch.name} -- {plan.plan_type}",
+        rate=plan.final_amount,
+        sales_person=sales_person,
+        commission_rate=commission_rate,
+        payment_terms_template=plan.frappe_payment_terms_template,
+        payment_proof_view_url=None,
+        batch_name=batch.name,
+        cnic_no=student.cnic_no,
+        father_name=student.father_name,
+        payment_schedule=payment_schedule,
+    )
+
+    if not result.ok:
+        return result.error or "Sales Order creation failed"
+
+    # Persist SO name
+    plan.frappe_sales_order_name = result.doc_name
+    session.add(plan)
+
+    # Create SI from SO
+    if result.doc_name:
+        si_result = await client.create_and_submit_sales_invoice_from_so(
+            so_name=result.doc_name,
+            fee_plan_id=str(plan.id),
+            sales_person=sales_person,
+            commission_rate=commission_rate,
+            payment_terms_template=plan.frappe_payment_terms_template,
+            payment_schedule=payment_schedule,
+        )
+        if si_result.ok and si_result.doc_name:
+            plan.frappe_sales_invoice_name = si_result.doc_name
+            session.add(plan)
+        else:
+            logger.warning("SO created but SI failed: %s", si_result.error)
+
+    # Attach CNIC images (non-fatal)
+    if result.doc_name:
+        try:
+            from app.services.frappe_sync_service import _attach_cnic_images
+            await _attach_cnic_images(client, student, "Sales Order", result.doc_name)
+            if plan.frappe_sales_invoice_name:
+                await _attach_cnic_images(client, student, "Sales Invoice", plan.frappe_sales_invoice_name)
+        except Exception:
+            logger.warning("CNIC image attachment failed for plan %s", plan.id)
+
+    return None
 
 
 # ─── Shared helpers ─────────────────────────────────────────────────────
