@@ -237,7 +237,7 @@ async def _sync_sales_order(
 
     # Auto-create Customer if needed (same pattern as _sync_sales_invoice).
     if getattr(client.cfg, "auto_create_customers", True):
-        await client.create_customer(customer_name=student.name, email=student.email)
+        await client.create_customer(customer_name=student.name, email=student.email, phone=student.phone)
 
     # Resolve the Frappe Sales Person from the officer employee_id.
     sales_person: Optional[str] = None
@@ -373,7 +373,7 @@ async def _sync_sales_invoice(
     # the v1 "Customer not found" gap without pre-seeding Frappe's Customer
     # list. Idempotent — the client returns ok if the Customer already exists.
     if getattr(client.cfg, "auto_create_customers", True):
-        await client.create_customer(customer_name=student.name, email=student.email)
+        await client.create_customer(customer_name=student.name, email=student.email, phone=student.phone)
 
     result = await client.upsert_sales_invoice(
         fee_plan_id=str(plan.id),
