@@ -14,6 +14,7 @@ export interface InstallmentDraft {
   amountDue: number;
   dueDate: string; // ISO date string yyyy-mm-dd
   label?: string;
+  percent?: number; // frontend-only, not sent to backend
 }
 
 export interface FeePlanCreatePayload {

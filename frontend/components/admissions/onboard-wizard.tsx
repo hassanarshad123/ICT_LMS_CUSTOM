@@ -175,6 +175,7 @@ export default function OnboardWizard() {
     [totalNum, fee.discountType, discountNum],
   );
   const installmentSum = fee.installments.reduce((s, i) => s + (Number(i.amountDue) || 0), 0);
+  const pctTotal = fee.installments.reduce((s, i) => s + (i.percent || 0), 0);
 
   // Auto-sync the installment schedule when a PTT is selected.
   // The template drives everything: plan_type becomes "installment" and each
@@ -203,6 +204,7 @@ export default function OnboardWizard() {
         amountDue: shares[i],
         dueDate: d.toISOString().slice(0, 10),
         label: t.paymentTerm || `Installment ${i + 1}`,
+        percent: t.invoicePortion,
       };
     });
 
@@ -227,8 +229,9 @@ export default function OnboardWizard() {
   const canAdvanceStep2 = batchId.length > 0 && courseSelected;
   const canAdvanceStep3 = totalNum > 0 && finalAmount > 0;
   const canAdvanceStep4 =
-    fee.planType !== 'installment' ||
-    (fee.installments.length > 0 && installmentSum === finalAmount);
+    (fee.planType !== 'installment' ||
+      (fee.installments.length > 0 && installmentSum === finalAmount)) &&
+    new Set(fee.installments.map((i) => i.dueDate)).size === fee.installments.length;
 
   const handleSubmit = async () => {
     try {
@@ -556,14 +559,14 @@ export default function OnboardWizard() {
 
           <WizardNav
             onBack={() => setStep(2)}
-            onNext={() => setStep(fee.planType === 'installment' && !scheduleFromPtt ? 4 : 5)}
+            onNext={() => setStep(fee.planType === 'installment' ? 4 : 5)}
             nextDisabled={!canAdvanceStep3}
-            nextLabel={fee.planType === 'installment' && !scheduleFromPtt ? 'Next' : 'Review'}
+            nextLabel={fee.planType === 'installment' ? 'Next' : 'Review'}
           />
         </StepCard>
       )}
 
-      {step === 4 && !scheduleFromPtt && (
+      {step === 4 && (
         <StepCard title="Installment schedule" subtitle={`Split ${formatMoney(finalAmount)} across installments`}>
           <InstallmentEditor
             installments={fee.installments}
@@ -572,14 +575,19 @@ export default function OnboardWizard() {
           />
           <div className="flex items-center justify-between mt-4 p-3 rounded-xl bg-gray-50">
             <span className="text-sm text-gray-600">Schedule total</span>
-            <span
-              className={`font-semibold ${
-                installmentSum === finalAmount ? 'text-emerald-700' : 'text-red-600'
-              }`}
-            >
-              {formatMoney(installmentSum)}
-              {installmentSum !== finalAmount && ` (needs ${formatMoney(finalAmount - installmentSum)})`}
-            </span>
+            <div className="flex items-center gap-4">
+              <span className={`text-sm ${pctTotal === 100 ? 'text-emerald-700' : 'text-red-600'}`}>
+                {pctTotal}%
+              </span>
+              <span
+                className={`font-semibold ${
+                  installmentSum === finalAmount ? 'text-emerald-700' : 'text-red-600'
+                }`}
+              >
+                {formatMoney(installmentSum)}
+                {installmentSum !== finalAmount && ` (needs ${formatMoney(finalAmount - installmentSum)})`}
+              </span>
+            </div>
           </div>
           <WizardNav
             onBack={() => setStep(3)}
@@ -631,7 +639,7 @@ export default function OnboardWizard() {
           </div>
 
           <WizardNav
-            onBack={() => setStep((fee.planType === 'installment' && !scheduleFromPtt ? 4 : 3) as Step)}
+            onBack={() => setStep((fee.planType === 'installment' ? 4 : 3) as Step)}
             onNext={handleSubmit}
             nextDisabled={submitting}
             nextLabel={submitting ? 'Creating account…' : 'Onboard Student'}
@@ -800,7 +808,7 @@ function InstallmentEditor({
     const nextDate = last ? addMonthsIso(last.dueDate, 1) : isoToday();
     onChange([
       ...installments,
-      { sequence: nextSeq, amountDue: 0, dueDate: nextDate, label: `Installment ${nextSeq}` },
+      { sequence: nextSeq, amountDue: 0, dueDate: nextDate, label: `Installment ${nextSeq}`, percent: 0 },
     ]);
   };
 
@@ -816,12 +824,46 @@ function InstallmentEditor({
     onChange(installments.map((row, i) => (i === idx ? { ...row, ...patch } : row)));
   };
 
+  const updatePercent = (idx: number, newPercent: number) => {
+    const clamped = Math.max(0, Math.min(100, newPercent));
+    const updated = [...installments];
+    const oldPercent = updated[idx].percent || 0;
+    const delta = clamped - oldPercent;
+    updated[idx] = { ...updated[idx], percent: clamped };
+
+    // Auto-adjust: last row absorbs the delta (or second-to-last if editing last)
+    const adjustIdx = idx === updated.length - 1 ? Math.max(0, updated.length - 2) : updated.length - 1;
+    if (adjustIdx !== idx) {
+      const adjPercent = Math.max(0, (updated[adjustIdx].percent || 0) - delta);
+      updated[adjustIdx] = { ...updated[adjustIdx], percent: adjPercent };
+    }
+
+    // Recalculate all amounts from percentages
+    let remaining = finalAmount;
+    for (let i = 0; i < updated.length; i++) {
+      if (i === updated.length - 1) {
+        updated[i] = { ...updated[i], amountDue: remaining };
+      } else {
+        const amt = Math.floor(finalAmount * (updated[i].percent || 0) / 100);
+        updated[i] = { ...updated[i], amountDue: amt };
+        remaining -= amt;
+      }
+    }
+    onChange(updated);
+  };
+
   const splitEvenly = () => {
     const n = installments.length || 1;
+    const pct = Math.floor(100 / n);
+    const pctRemainder = 100 - pct * n;
     const base = Math.floor(finalAmount / n);
     const remainder = finalAmount - base * n;
     onChange(
-      installments.map((row, i) => ({ ...row, amountDue: base + (i === 0 ? remainder : 0) })),
+      installments.map((row, i) => ({
+        ...row,
+        percent: pct + (i === 0 ? pctRemainder : 0),
+        amountDue: base + (i === 0 ? remainder : 0),
+      })),
     );
   };
 
@@ -850,15 +892,30 @@ function InstallmentEditor({
         {installments.map((row, idx) => (
           <div key={idx} className="grid grid-cols-12 gap-2 items-center">
             <div className="col-span-1 text-sm font-medium text-gray-500">#{row.sequence}</div>
+            <div className="col-span-2 relative">
+              <input
+                type="text"
+                inputMode="numeric"
+                value={String(row.percent ?? '')}
+                onChange={(e) => updatePercent(idx, Number(e.target.value.replace(/[^0-9]/g, '')) || 0)}
+                placeholder="%"
+                className="w-full px-3 py-2 pr-6 rounded-lg border border-gray-200 text-sm bg-gray-50"
+              />
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">%</span>
+            </div>
             <input
               type="text"
               inputMode="numeric"
               value={String(row.amountDue)}
-              onChange={(e) => update(idx, { amountDue: Number(e.target.value.replace(/[^0-9]/g, '')) || 0 })}
+              onChange={(e) => {
+                const amt = Number(e.target.value.replace(/[^0-9]/g, '')) || 0;
+                const pct = finalAmount > 0 ? Math.round((amt / finalAmount) * 100) : 0;
+                update(idx, { amountDue: amt, percent: pct });
+              }}
               placeholder="Amount"
-              className="col-span-4 px-3 py-2 rounded-lg border border-gray-200 text-sm bg-gray-50"
+              className="col-span-3 px-3 py-2 rounded-lg border border-gray-200 text-sm bg-gray-50"
             />
-            <div className="col-span-4">
+            <div className="col-span-3">
               <DatePopover
                 value={row.dueDate}
                 onChange={(v) => update(idx, { dueDate: v })}

@@ -226,6 +226,7 @@ class FrappeClient:
         batch_name: Optional[str] = None,
         cnic_no: Optional[str] = None,
         father_name: Optional[str] = None,
+        payment_schedule: Optional[list[dict]] = None,
     ) -> FrappeResult:
         """Create AND submit (docstatus 0 -> 1) a Sales Order in one request.
 
@@ -310,6 +311,8 @@ class FrappeClient:
             body["contact_email"] = contact_email
         if payment_terms_template:
             body["payment_terms_template"] = payment_terms_template
+        if payment_schedule:
+            body["payment_schedule"] = payment_schedule
         if sales_person:
             # Header-level commission mirrors the sales_team row so Frappe's
             # total_commission / amount_eligible_for_commission rollups are
