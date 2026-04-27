@@ -1065,10 +1065,11 @@ class FrappeClient:
         *,
         customer_name: str,
         email: Optional[str] = None,
+        phone: Optional[str] = None,
         customer_group: str = "Individual",
         territory: str = "All Territories",
     ) -> FrappeResult:
-        """Create a Customer in Frappe. Idempotent — returns ok if already exists."""
+        """Create a Customer + Contact in Frappe. Idempotent — returns ok if already exists."""
         existing = await self.find_customer(customer_name)
         if existing.ok and existing.doc_name:
             return FrappeResult(ok=True, status_code=200, doc_name=existing.doc_name)
@@ -1078,9 +1079,37 @@ class FrappeClient:
             "customer_group": customer_group,
             "territory": territory,
         }
+        result = await self._post_resource("Customer", body)
+        if result.ok and result.doc_name:
+            await self._create_contact(
+                customer_name=result.doc_name,
+                full_name=customer_name,
+                email=email,
+                phone=phone,
+            )
+        return result
+
+    async def _create_contact(
+        self,
+        *,
+        customer_name: str,
+        full_name: str,
+        email: Optional[str] = None,
+        phone: Optional[str] = None,
+    ) -> FrappeResult:
+        """Create a Contact linked to a Customer with email and phone."""
+        parts = full_name.split(" ", 1)
+        body: dict[str, Any] = {
+            "doctype": "Contact",
+            "first_name": parts[0],
+            "last_name": parts[1] if len(parts) > 1 else "",
+            "links": [{"link_doctype": "Customer", "link_name": customer_name}],
+        }
         if email:
-            body["email_id"] = email
-        return await self._post_resource("Customer", body)
+            body["email_ids"] = [{"email_id": email, "is_primary": 1}]
+        if phone:
+            body["phone_nos"] = [{"phone": phone, "is_primary_mobile_no": 1}]
+        return await self._post_resource("Contact", body)
 
     # ── internals ──────────────────────────────────────────────────
 
