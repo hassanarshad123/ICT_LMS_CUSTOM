@@ -28,6 +28,8 @@ from app.utils.s3 import (
     generate_payment_proof_upload_url,
     generate_payment_proof_view_url,
     upload_payment_proof_bytes,
+    upload_cnic_image_bytes,
+    generate_cnic_image_view_url,
 )
 
 router = APIRouter()
@@ -166,4 +168,49 @@ async def upload_payment_proof(
     )
     view_url = generate_payment_proof_view_url(object_key)
 
+    return DirectUploadResponse(object_key=object_key, view_url=view_url)
+
+
+_CNIC_ALLOWED_CT_PREFIXES = ("image/",)
+_CNIC_MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+
+
+@router.post(
+    "/cnic-image/upload",
+    response_model=DirectUploadResponse,
+    status_code=status.HTTP_200_OK,
+)
+@limiter.limit("30/minute")
+async def upload_cnic_image(
+    request: Request,
+    current_user: CanUploadProof,
+    file: UploadFile = File(...),
+):
+    """Upload a CNIC front or back image to S3. Images only, max 10 MB."""
+    if current_user.institute_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admissions users must belong to an institute",
+        )
+    ct = (file.content_type or "application/octet-stream").lower().strip()
+    if not any(ct.startswith(p) for p in _CNIC_ALLOWED_CT_PREFIXES):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only image files are supported for CNIC upload",
+        )
+    data = await file.read()
+    if len(data) == 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty file")
+    if len(data) > _CNIC_MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File exceeds {_CNIC_MAX_UPLOAD_BYTES // (1024 * 1024)} MB limit",
+        )
+    object_key = upload_cnic_image_bytes(
+        data=data,
+        file_name=file.filename or "cnic_image",
+        content_type=ct,
+        institute_id=current_user.institute_id,
+    )
+    view_url = generate_cnic_image_view_url(object_key)
     return DirectUploadResponse(object_key=object_key, view_url=view_url)

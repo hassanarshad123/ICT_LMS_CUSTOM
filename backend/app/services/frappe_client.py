@@ -1066,10 +1066,11 @@ class FrappeClient:
         customer_name: str,
         email: Optional[str] = None,
         phone: Optional[str] = None,
+        address: Optional[str] = None,
         customer_group: str = "Individual",
         territory: str = "All Territories",
     ) -> FrappeResult:
-        """Create a Customer + Contact in Frappe. Idempotent — returns ok if already exists."""
+        """Create a Customer + Contact + Address in Frappe. Idempotent."""
         existing = await self.find_customer(customer_name)
         if existing.ok and existing.doc_name:
             await self._create_contact(
@@ -1078,6 +1079,10 @@ class FrappeClient:
                 email=email,
                 phone=phone,
             )
+            if address:
+                await self._create_address(
+                    customer_name=existing.doc_name, address_line=address,
+                )
             return FrappeResult(ok=True, status_code=200, doc_name=existing.doc_name)
         body: dict[str, Any] = {
             "customer_name": customer_name,
@@ -1093,6 +1098,10 @@ class FrappeClient:
                 email=email,
                 phone=phone,
             )
+            if address:
+                await self._create_address(
+                    customer_name=result.doc_name, address_line=address,
+                )
         return result
 
     async def _create_contact(
@@ -1127,6 +1136,40 @@ class FrappeClient:
         if phone:
             body["phone_nos"] = [{"phone": phone, "is_primary_mobile_no": 1}]
         return await self._post_resource("Contact", body)
+
+    async def _create_address(
+        self,
+        *,
+        customer_name: str,
+        address_line: str,
+        address_type: str = "Billing",
+        city: str = "",
+        country: str = "Pakistan",
+    ) -> FrappeResult:
+        """Create an Address linked to a Customer. Idempotent by customer + type."""
+        existing = await self.list_resource(
+            "Address",
+            fields=["name"],
+            filters=[
+                ["Dynamic Link", "link_doctype", "=", "Customer"],
+                ["Dynamic Link", "link_name", "=", customer_name],
+                ["address_type", "=", address_type],
+            ],
+            limit=1,
+        )
+        if existing.ok and (existing.response or {}).get("data"):
+            return FrappeResult(ok=True, status_code=200, doc_name=existing.response["data"][0]["name"])
+
+        body: dict[str, Any] = {
+            "doctype": "Address",
+            "address_title": customer_name,
+            "address_type": address_type,
+            "address_line1": address_line,
+            "city": city or "-",
+            "country": country,
+            "links": [{"link_doctype": "Customer", "link_name": customer_name}],
+        }
+        return await self._post_resource("Address", body)
 
     # ── internals ──────────────────────────────────────────────────
 

@@ -37,6 +37,9 @@ export interface OnboardStudentPayload {
   phone?: string;
   cnicNo: string;
   fatherName: string;
+  address?: string;
+  cnicFrontKey?: string | null;
+  cnicBackKey?: string | null;
   batchId: string;
   feePlan: FeePlanCreatePayload;
   notes?: string;
@@ -438,6 +441,35 @@ export async function uploadPaymentProofDirect(
     objectKey: j.object_key,
     viewUrl: j.view_url,
   };
+}
+
+// ── CNIC image upload ─────────────────────────────────────────────────────
+
+export async function uploadCnicImage(
+  req: { file: File },
+): Promise<{ objectKey: string; viewUrl: string }> {
+  const fd = new FormData();
+  fd.append('file', req.file);
+
+  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+  const base = (process.env.NEXT_PUBLIC_API_URL ?? '').replace(/\/$/, '');
+  const url = `${base}/api/v1/admissions/cnic-image/upload`;
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: fd,
+  });
+  if (!res.ok) {
+    let message = `Upload failed (${res.status})`;
+    try {
+      const j = await res.json();
+      if (j?.detail) message = typeof j.detail === 'string' ? j.detail : JSON.stringify(j.detail);
+    } catch { /* non-JSON body */ }
+    throw new Error(message);
+  }
+  const j = await res.json();
+  return { objectKey: j.object_key, viewUrl: j.view_url };
 }
 
 /** Fetch the PDF with the bearer token and trigger a download client-side. */
