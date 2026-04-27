@@ -547,6 +547,7 @@ export default function OnboardWizard() {
                   value={fee.firstDueDate}
                   onChange={(v) => setFee({ ...fee, firstDueDate: v })}
                   placeholder="Pick a date"
+                  minDate={new Date()}
                 />
               </div>
             )}
@@ -921,6 +922,23 @@ function InstallmentEditor({
                 onChange={(v) => update(idx, { dueDate: v })}
                 placeholder="Due date"
                 className="py-2 px-3 rounded-lg"
+                minDate={(() => {
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  if (idx === 0) return today;
+                  const prev = installments[idx - 1]?.dueDate;
+                  if (!prev) return today;
+                  const prevDate = new Date(prev + 'T00:00:00');
+                  return prevDate > today ? prevDate : today;
+                })()}
+                maxDate={(() => {
+                  if (idx === 0) return undefined;
+                  const prev = installments[idx - 1]?.dueDate;
+                  if (!prev) return undefined;
+                  const max = new Date(prev + 'T00:00:00');
+                  max.setDate(max.getDate() + 40);
+                  return max;
+                })()}
               />
             </div>
             <input
