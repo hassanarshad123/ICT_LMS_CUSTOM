@@ -4,7 +4,7 @@ from typing import Optional, TYPE_CHECKING
 
 from sqlmodel import SQLModel, Field, Column, Relationship
 import sqlalchemy as sa
-from sqlalchemy import Boolean, Enum as SAEnum, UniqueConstraint, Index, ForeignKey
+from sqlalchemy import Boolean, Enum as SAEnum, UniqueConstraint, Index, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import TIMESTAMP, UUID as PG_UUID
 
 from app.models.enums import UserRole, UserStatus
